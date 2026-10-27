@@ -9,6 +9,8 @@ import { CURVES, ENTRANCES, entranceKeys, fileTimeAt, outlineOf, sceneOf, spanOf
 import type { CurveName, Entrance } from "../document/time";
 import { canGrade, mergeGrade } from "../document/grade";
 import type { GradeChange } from "../document/grade";
+import { EFFECT_DEFS, canHaveEffects, defaultEffectValues, newEffectId } from "../document/effects";
+import type { Effect, EffectKind } from "../document/effects";
 import { keepTracks, newTrackId, stackByTrack, trackKind } from "../document/tracks";
 import type { TrackKind } from "../document/tracks";
 import type { CreatePresetFrameArgs } from "./presets";
@@ -114,6 +116,7 @@ const createElement: CommandDef<CreateArgs> = {
       shadow: null,
       gradient: null,
       grade: null,
+      effects: [],
       link: null,
       linkKind: "",
       transition: "",
@@ -408,6 +411,129 @@ const setGrade: CommandDef<SetGradeArgs> = {
     for (const id of ids) {
       const el = next.elements[id];
       el.grade = a.grade ? mergeGrade(el.grade, a.grade) : null;
+    }
+    return next;
+  },
+};
+
+// ---- add_effect ----
+export interface AddEffectArgs {
+  ids: string[];
+  effect: { id?: string; kind: EffectKind; on?: boolean; values?: Record<string, number> } | EffectKind;
+  index?: number;
+  label?: string;
+}
+
+const addEffect: CommandDef<AddEffectArgs> = {
+  label: (a) => {
+    const kind = typeof a.effect === "string" ? a.effect : a.effect.kind;
+    return a.label ?? `Add ${EFFECT_DEFS[kind]?.label.toLowerCase() ?? "effect"}`;
+  },
+  run: (doc, a) => {
+    const ids = a.ids.filter((id) => doc.elements[id] && canHaveEffects(doc.elements[id]));
+    if (!ids.length) return doc;
+    const kind = typeof a.effect === "string" ? a.effect : a.effect.kind;
+    const next = clone(doc);
+    for (const id of ids) {
+      const el = next.elements[id];
+      if (!el.effects) el.effects = [];
+      const effectId = typeof a.effect !== "string" && a.effect.id && ids.length === 1 ? a.effect.id : newEffectId(kind);
+      const on = typeof a.effect !== "string" && a.effect.on !== undefined ? a.effect.on : true;
+      const values = {
+        ...defaultEffectValues(kind),
+        ...(typeof a.effect !== "string" && a.effect.values ? a.effect.values : {}),
+      };
+      const created: Effect = { id: effectId, kind, on, values };
+      if (a.index !== undefined && a.index >= 0 && a.index <= el.effects.length) {
+        el.effects.splice(a.index, 0, created);
+      } else {
+        el.effects.push(created);
+      }
+    }
+    return next;
+  },
+};
+
+// ---- set_effect ----
+export interface SetEffectArgs {
+  ids: string[];
+  effectId: string;
+  on?: boolean;
+  values?: Record<string, number>;
+  label?: string;
+}
+
+const setEffect: CommandDef<SetEffectArgs> = {
+  label: (a) => a.label ?? (a.on !== undefined ? (a.on ? "Switch on effect" : "Switch off effect") : "Change effect"),
+  run: (doc, a) => {
+    const ids = a.ids.filter((id) => doc.elements[id] && doc.elements[id].effects?.some((e) => e.id === a.effectId));
+    if (!ids.length) return doc;
+    const next = clone(doc);
+    for (const id of ids) {
+      const el = next.elements[id];
+      el.effects = (el.effects ?? []).map((e) => {
+        if (e.id !== a.effectId) return e;
+        return {
+          ...e,
+          ...(a.on !== undefined ? { on: a.on } : {}),
+          ...(a.values !== undefined ? { values: { ...e.values, ...a.values } } : {}),
+        };
+      });
+    }
+    return next;
+  },
+};
+
+// ---- remove_effect ----
+export interface RemoveEffectArgs {
+  ids: string[];
+  effectId: string;
+  label?: string;
+}
+
+const removeEffect: CommandDef<RemoveEffectArgs> = {
+  label: (a) => a.label ?? "Remove effect",
+  run: (doc, a) => {
+    const ids = a.ids.filter((id) => doc.elements[id] && doc.elements[id].effects?.some((e) => e.id === a.effectId));
+    if (!ids.length) return doc;
+    const next = clone(doc);
+    for (const id of ids) {
+      const el = next.elements[id];
+      el.effects = (el.effects ?? []).filter((e) => e.id !== a.effectId);
+    }
+    return next;
+  },
+};
+
+// ---- move_effect ----
+export interface MoveEffectArgs {
+  ids: string[];
+  effectId: string;
+  toIndex?: number;
+  direction?: "up" | "down";
+  label?: string;
+}
+
+const moveEffect: CommandDef<MoveEffectArgs> = {
+  label: (a) => a.label ?? "Reorder effects",
+  run: (doc, a) => {
+    const ids = a.ids.filter((id) => doc.elements[id] && doc.elements[id].effects?.some((e) => e.id === a.effectId));
+    if (!ids.length) return doc;
+    const next = clone(doc);
+    for (const id of ids) {
+      const el = next.elements[id];
+      const list = [...(el.effects ?? [])];
+      const fromIndex = list.findIndex((e) => e.id === a.effectId);
+      if (fromIndex === -1) continue;
+      let targetIndex = fromIndex;
+      if (a.direction === "up") targetIndex = fromIndex - 1;
+      else if (a.direction === "down") targetIndex = fromIndex + 1;
+      else if (a.toIndex !== undefined) targetIndex = a.toIndex;
+      targetIndex = Math.max(0, Math.min(list.length - 1, targetIndex));
+      if (targetIndex === fromIndex) continue;
+      const [item] = list.splice(fromIndex, 1);
+      list.splice(targetIndex, 0, item);
+      el.effects = list;
     }
     return next;
   },
@@ -974,6 +1100,7 @@ const wrapInLayout: CommandDef<WrapArgs> = {
       shadow: null,
       gradient: null,
       grade: null,
+      effects: [],
       link: null,
       linkKind: "",
       transition: "",
@@ -1078,6 +1205,7 @@ const groupElements: CommandDef<GroupArgs> = {
       shadow: null,
       gradient: null,
       grade: null,
+      effects: [],
       link: null,
       linkKind: "",
       transition: "",
@@ -2016,6 +2144,10 @@ export const commands = {
   resize_element: resizeElement,
   set_props: setProps,
   set_grade: setGrade,
+  add_effect: addEffect,
+  set_effect: setEffect,
+  remove_effect: removeEffect,
+  move_effect: moveEffect,
   set_background: setBackground,
   delete_elements: deleteElements,
   reparent_elements: reparentElements,

@@ -8,6 +8,7 @@ import { isLooseCopy } from "../document/components";
 import { getPicture } from "../project/assets";
 import { clipPicture, drawingVideoNow, madePicture } from "../video/clips";
 import { graded } from "./grade";
+import { applyEffects } from "./effects";
 import { getChat } from "../ai/chat";
 import { nameOf } from "../ai/names";
 import { HANDLES } from "./handles";
@@ -132,8 +133,11 @@ function drawLine(ctx: CanvasRenderingContext2D, el: El, x: number, y: number) {
 let plain = false;
 export const setPlainPictures = (on: boolean) => void (plain = on);
 const gradeOf = (el: El) => (plain ? null : el.grade);
-/** A picture or clip as it is drawn: with its colour, or as it came in the Before window. */
-const coloured = (pic: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement, el: El, still: string | null) => (plain ? pic : graded(pic, el.grade, still));
+/** A picture or clip as it is drawn: with its colour, or as it came in the Before window, and then with its effects. */
+const coloured = (pic: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement, el: El, still: string | null): CanvasImageSource => {
+  const g = (plain ? pic : graded(pic, el.grade, still)) as HTMLImageElement | HTMLVideoElement | HTMLCanvasElement;
+  return applyEffects(g, el.effects, el, still);
+};
 
 /** Pictures with rounded corners and a shadow, already cut to shape. Kept so they are not cut again on every repaint. */
 const cutSheets = new Map<string, HTMLCanvasElement>();
@@ -175,7 +179,7 @@ function drawImage(ctx: CanvasRenderingContext2D, el: El, x: number, y: number) 
         const k = Math.hypot(m.a, m.b) || 1;
         const w = Math.max(1, Math.min(4096, Math.ceil(el.width * k)));
         const h = Math.max(1, Math.min(4096, Math.ceil(el.height * k)));
-        const key = `${el.src}|${el.width}|${el.height}|${el.radius}|${w}x${h}|${gradeOf(el) ? JSON.stringify(el.grade) : ""}`;
+        const key = `${el.src}|${el.width}|${el.height}|${el.radius}|${w}x${h}|${gradeOf(el) ? JSON.stringify(el.grade) : ""}|${el.effects?.length ? JSON.stringify(el.effects) : ""}`;
         let sheet = cutSheets.get(key);
         if (!sheet) {
           sheet = document.createElement("canvas");

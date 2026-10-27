@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { dragCancel, dragPreview, getState, workDoc, dispatch, select, useStore } from "../state/store";
+import { dragCancel, dragPreview, getState, workDoc, dispatch, select, useStore, currentDoc } from "../state/store";
 import { playsFile } from "../document/types";
 import { BLENDS } from "../document/types";
 import type { Blend, El, Layout, Moving } from "../document/types";
@@ -21,6 +21,9 @@ import { gradablesIn } from "../document/grade";
 import FontPicker from "./FontPicker";
 import { ColorField } from "./ColorPicker";
 import { colorOpacity, withOpacity } from "./color";
+import Icon from "./Icons";
+import { EFFECT_DEFS, EFFECT_KINDS } from "../document/effects";
+import type { Effect, EffectControl } from "../document/effects";
 
 function NumField({
   label,
@@ -609,6 +612,191 @@ function InAndOut({ el, scene }: { el: El; scene: El }) {
   );
 }
 
+function EffectSlider({ ids, effect, control }: { ids: string[]; effect: Effect; control: EffectControl }) {
+  const value = effect.values[control.key] ?? control.default;
+  const [text, setText] = useState(String(value));
+  useEffect(() => setText(String(value)), [value]);
+
+  const live = (n: number) => {
+    dragPreview("set_effect", { ids, effectId: effect.id, values: { [control.key]: n } });
+  };
+
+  const done = (n: number) => {
+    dragCancel();
+    const kept = currentDoc().elements;
+    const needsUpdate = ids.some((id) => {
+      const eff = kept[id]?.effects?.find((e) => e.id === effect.id);
+      return (eff?.values[control.key] ?? control.default) !== n;
+    });
+    if (needsUpdate) {
+      dispatch("set_effect", { ids, effectId: effect.id, values: { [control.key]: n }, label: `Change ${control.label.toLowerCase()}` });
+    }
+  };
+
+  const typed = () => {
+    const n = parseFloat(text);
+    if (Number.isFinite(n)) {
+      const clamped = Math.max(control.min, Math.min(control.max, n));
+      done(clamped);
+    } else {
+      setText(String(value));
+    }
+  };
+
+  return (
+    <div className={`grade-row${value !== control.default ? " moved" : ""}`}>
+      <span className="grade-name" title="Double click to put it back" onDoubleClick={() => done(control.default)}>
+        {control.label}
+      </span>
+      <input
+        type="range"
+        min={control.min}
+        max={control.max}
+        step={control.step}
+        value={value}
+        disabled={!effect.on}
+        onInput={(e) => live(parseFloat(e.currentTarget.value))}
+        onChange={(e) => live(parseFloat(e.currentTarget.value))}
+        onPointerUp={(e) => done(parseFloat(e.currentTarget.value))}
+        onKeyUp={(e) => done(parseFloat(e.currentTarget.value))}
+        onDoubleClick={() => done(control.default)}
+      />
+      <input
+        className="grade-num"
+        value={text}
+        disabled={!effect.on}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={typed}
+        onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as HTMLInputElement).blur()}
+      />
+    </div>
+  );
+}
+
+function EffectsSection({ els }: { els: El[] }) {
+  const ids = els.map((e) => e.id);
+  const first = els[0];
+  const effects = first.effects ?? [];
+  const [adding, setAdding] = useState(false);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+
+  return (
+    <div className="sec">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h4>Effects</h4>
+        {effects.length > 0 && (
+          <div className="linkbtn" onClick={() => setAdding((v) => !v)}>
+            + Add an effect
+          </div>
+        )}
+      </div>
+
+      {adding && (
+        <div className="ctx" style={{ position: "relative", left: "auto", top: "auto", margin: "6px 0", zIndex: 10 }}>
+          {EFFECT_KINDS.map((kind) => (
+            <div
+              key={kind}
+              className="ctx-item"
+              onClick={() => {
+                dispatch("add_effect", { ids, effect: kind });
+                setAdding(false);
+              }}
+            >
+              <span>{EFFECT_DEFS[kind].label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {effects.length === 0 && !adding && (
+        <div className="linkbtn" onClick={() => setAdding(true)}>
+          + Add an effect
+        </div>
+      )}
+
+      {effects.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 6 }}>
+          {effects.map((eff, i) => {
+            const def = EFFECT_DEFS[eff.kind];
+            return (
+              <div
+                key={eff.id}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("text/plain", eff.id);
+                  setDraggedId(eff.id);
+                }}
+                onDragEnd={() => setDraggedId(null)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const fromId = e.dataTransfer.getData("text/plain") || draggedId;
+                  if (fromId && fromId !== eff.id) {
+                    dispatch("move_effect", { ids, effectId: fromId, toIndex: i });
+                  }
+                }}
+                style={{
+                  background: "var(--panel-alt, #1c1c21)",
+                  borderRadius: 6,
+                  padding: "6px 8px",
+                  opacity: eff.on ? 1 : 0.6,
+                  border: draggedId === eff.id ? "1px dashed var(--accent)" : "1px solid var(--line, #2a2a31)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 4 }}>
+                  <button
+                    className={`lockbtn eyebtn ${!eff.on ? "on" : ""}`}
+                    onClick={() => dispatch("set_effect", { ids, effectId: eff.id, on: !eff.on })}
+                    title={eff.on ? "Turn off effect" : "Turn on effect"}
+                    style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex", alignItems: "center", color: "inherit" }}
+                  >
+                    <Icon name={eff.on ? "eye" : "eye-off"} size={13} />
+                  </button>
+                  <span style={{ fontWeight: 500, fontSize: 12, flex: 1, userSelect: "none" }}>{def?.label ?? eff.kind}</span>
+                  <button
+                    className="mini"
+                    disabled={i === 0}
+                    onClick={() => dispatch("move_effect", { ids, effectId: eff.id, direction: "up" })}
+                    title="Move up"
+                    style={{ padding: "0 4px", fontSize: 10, lineHeight: "16px" }}
+                  >
+                    ▲
+                  </button>
+                  <button
+                    className="mini"
+                    disabled={i === effects.length - 1}
+                    onClick={() => dispatch("move_effect", { ids, effectId: eff.id, direction: "down" })}
+                    title="Move down"
+                    style={{ padding: "0 4px", fontSize: 10, lineHeight: "16px" }}
+                  >
+                    ▼
+                  </button>
+                  <button
+                    className="mini"
+                    onClick={() => dispatch("remove_effect", { ids, effectId: eff.id })}
+                    title="Remove effect"
+                    style={{ padding: "0 4px", display: "flex", alignItems: "center" }}
+                  >
+                    <Icon name="close" size={11} />
+                  </button>
+                </div>
+
+                {eff.on && def && (
+                  <div style={{ marginTop: 2 }}>
+                    {def.controls.map((ctrl) => (
+                      <EffectSlider key={ctrl.key} ids={ids} effect={eff} control={ctrl} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function PropertiesPanel() {
   const mode = useLayout((d) => d.mode);
   const videoTab = useLayout((d) => d.videoTab);
@@ -699,6 +887,7 @@ export default function PropertiesPanel() {
   const first = els[0];
   const allText = els.every((e) => e.type === "text");
   const allImages = els.every((e) => e.type === "image");
+  const hasMedia = els.length > 0 && els.every((e) => e.type === "image" || e.type === "video");
   // a group, or a copy of a single thing, has no fill or line of its own: those belong to what is inside
   const allGroups = els.every((e) => e.type === "group" || isLooseCopy(doc, e));
   const noFill = allImages || allGroups || els.every((e) => e.type === "path" && !e.closed);
@@ -866,6 +1055,8 @@ export default function PropertiesPanel() {
           ))}
         </select>
       </div>
+
+      {hasMedia && <EffectsSection els={els} />}
 
       {one?.mask && (
         <div className="sec">
