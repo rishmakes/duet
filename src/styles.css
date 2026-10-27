@@ -1679,6 +1679,43 @@ body.eyedropping * {
   outline: 0;
   color: var(--text);
   font: inherit;
+  line-height: inherit;
+  margin: 0;
+  padding: 0;
+  color-scheme: dark;
+}
+.f-select {
+  position: relative;
+  cursor: pointer;
+}
+.f-select select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 18px;
+  cursor: pointer;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.f-chevron {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--muted);
+  display: block;
+}
+.f-select:hover .f-chevron,
+.f-select:focus-within .f-chevron {
+  color: var(--text);
+}
+select {
+  color-scheme: dark;
+}
+option {
+  background: var(--panel-2);
+  color: var(--text);
 }
 
 .zmenu.export {

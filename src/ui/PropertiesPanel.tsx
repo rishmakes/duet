@@ -31,6 +31,7 @@ function NumField({
   onCommit,
   onDrag,
   min,
+  max,
   mark,
   diamond = true,
 }: {
@@ -39,6 +40,7 @@ function NumField({
   onCommit: (n: number) => void;
   onDrag?: (n: number) => void;
   min?: number;
+  max?: number;
   /** In Motion, a property that can change over time shows its keyframe diamond and its colour. */
   mark?: KeyMark;
   /** False when the diamond sits on the row instead, shared with the field beside it. Option click on the label still keys this one alone. */
@@ -64,8 +66,15 @@ function NumField({
   const commit = () => {
     if (dragRef.current?.hasDragged) return;
     const n = parseFloat(text);
-    if (Number.isFinite(n) && n !== value) onCommit(min !== undefined ? Math.max(min, n) : n);
-    else setText(String(value));
+    if (Number.isFinite(n)) {
+      let clamped = n;
+      if (min !== undefined) clamped = Math.max(min, clamped);
+      if (max !== undefined) clamped = Math.min(max, clamped);
+      if (clamped !== value) onCommit(clamped);
+      setText(String(clamped));
+    } else {
+      setText(String(value));
+    }
   };
 
   const startDrag = (e: React.PointerEvent<HTMLElement>, axis: "x" | "y") => {
@@ -119,6 +128,7 @@ function NumField({
     const multiplier = e.shiftKey ? 10 : 1;
     let next = d.startVal + rawDelta * multiplier;
     if (min !== undefined) next = Math.max(min, next);
+    if (max !== undefined) next = Math.min(max, next);
     const rounded = Math.round(next * 100) / 100;
 
     d.currentVal = rounded;
@@ -1005,6 +1015,7 @@ export default function PropertiesPanel() {
                 label="%"
                 value={colorOpacity(first.fill)}
                 min={0}
+                max={100}
                 onCommit={(n) => set({ fill: withOpacity(first.fill, Math.min(100, Math.max(0, n))) }, "Change fill opacity")}
                 onDrag={(n) => preview({ fill: withOpacity(first.fill, Math.min(100, Math.max(0, n))) })}
               />
@@ -1027,6 +1038,7 @@ export default function PropertiesPanel() {
               label="%"
               value={colorOpacity(first.stroke)}
               min={0}
+              max={100}
               onCommit={(n) => set({ stroke: withOpacity(first.stroke ?? "#000000", Math.min(100, Math.max(0, n))) }, "Change stroke opacity")}
               onDrag={(n) => preview({ stroke: withOpacity(first.stroke ?? "#000000", Math.min(100, Math.max(0, n))) })}
             />
@@ -1049,14 +1061,44 @@ export default function PropertiesPanel() {
 
       <div className="sec">
         <h4>Opacity</h4>
-        <NumField label="%" mark={mark("opacity")} value={Math.round(first.opacity * 100)} min={0} onCommit={(n) => set({ opacity: Math.min(100, n) / 100 }, "Change opacity")} onDrag={(n) => preview({ opacity: Math.min(100, n) / 100 })} />
-        <select value={first.blend ?? "normal"} title="How it mixes with what is under it. Screen makes black clear." onChange={(e) => set({ blend: e.target.value as Blend }, "Change blend")}>
-          {BLENDS.map((b) => (
-            <option key={b} value={b}>
-              {BLEND_NAMES[b]}
-            </option>
-          ))}
-        </select>
+        <div className="field">
+          <NumField
+            label="%"
+            mark={mark("opacity")}
+            value={Math.round(first.opacity * 100)}
+            min={0}
+            max={100}
+            onCommit={(n) => set({ opacity: Math.min(100, Math.max(0, n)) / 100 }, "Change opacity")}
+            onDrag={(n) => preview({ opacity: Math.min(100, Math.max(0, n)) / 100 })}
+          />
+          <label className="f f-select">
+            <select
+              value={first.blend ?? "normal"}
+              title="How it mixes with what is under it. Screen makes black clear."
+              onChange={(e) => set({ blend: e.target.value as Blend }, "Change blend")}
+            >
+              {BLENDS.map((b) => (
+                <option key={b} value={b}>
+                  {BLEND_NAMES[b]}
+                </option>
+              ))}
+            </select>
+            <svg
+              className="f-chevron"
+              width="10"
+              height="10"
+              viewBox="0 0 10 10"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M2 3.5l3 3 3-3" />
+            </svg>
+          </label>
+        </div>
       </div>
 
       {hasMedia && <EffectsSection els={els} />}
