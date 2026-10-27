@@ -1503,6 +1503,13 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     setLost(!docNow.rootIds.some((id) => rectsIntersect(view, worldBounds(docNow, id))));
   }, [viewport, docNow]);
 
+  // something just brought in, like a Photoshop file, is shown whole
+  useEffect(() => {
+    const show = () => zoomToElements(getState().selection, sizeRef.current.w, sizeRef.current.h);
+    window.addEventListener("duet:show-selection", show);
+    return () => window.removeEventListener("duet:show-selection", show);
+  }, []);
+
   return (
     <div
       className="canvas-wrap"

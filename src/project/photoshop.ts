@@ -90,6 +90,8 @@ export async function openPhotoshopFile(source?: string | File, at?: { x: number
     });
     select([id]);
     setLayout({ mode: "photo" });
+    // wait a frame so the canvas has the new frame, then show it whole
+    requestAnimationFrame(() => window.dispatchEvent(new Event("duet:show-selection")));
     const notes = [
       read.flattened.length ? `These came in as pictures, so change them in Photoshop for now:\n${read.flattened.join("\n")}` : "",
       read.leftOut.length ? `Duet cannot show these yet, so they look different or are left out:\n${read.leftOut.join("\n")}` : "",
