@@ -5,6 +5,7 @@ import type { PlacedLayer } from "../commands";
 import { ancestors, turnOf, turnedBox, unionRect, worldPos, worldRect } from "../document/geometry";
 import type { Blend, Doc, El } from "../document/types";
 import { currentDoc, dispatch, getState, select } from "../state/store";
+import { setLayout } from "../ui/layout";
 import { addPicture, preloadPictures } from "./assets";
 import { renderPng } from "./exporter";
 
@@ -64,6 +65,7 @@ export async function openPhotoshopFile(path?: string): Promise<boolean> {
       layers: await toPlaced(read.layers),
     });
     select([id]);
+    setLayout({ mode: "photo" });
     const notes = [
       read.flattened.length ? `These came in as pictures, so change them in Photoshop for now:\n${read.flattened.join("\n")}` : "",
       read.leftOut.length ? `Duet cannot show these yet, so they look different or are left out:\n${read.leftOut.join("\n")}` : "",
