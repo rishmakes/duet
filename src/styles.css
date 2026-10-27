@@ -1444,6 +1444,37 @@ body.eyedropping * {
 .chatbar-comments {
   width: 280px;
 }
+.comment-close {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 22px;
+  cursor: pointer;
+}
+.comment-close:hover {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+.comment-card > .comment-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+}
+.comment-card > p {
+  padding-right: 22px;
+}
+.comments-head {
+  gap: 6px;
+}
+.comments-head h4 {
+  flex: 1;
+}
 .chatbar-comments .sec {
   border-bottom: 0;
 }

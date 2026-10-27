@@ -4,7 +4,7 @@ import { setLayout, useLayout } from "./layout";
 import { showComment, useOpenComment } from "./commentFocus";
 
 /** Every comment on the canvas: open ones by number, as on their pins, and the resolved ones folded away with what was done. */
-export default function CommentsList() {
+export default function CommentsList({ onClose }: { onClose?: () => void }) {
   const list = useStore((s) => workDoc(s).comments);
   const hidden = useLayout((d) => d.commentsHidden);
   const open = useOpenComment();
@@ -19,6 +19,11 @@ export default function CommentsList() {
         <button className="mini" title="Show or hide the pins on the canvas (Shift C)" onClick={() => setLayout({ commentsHidden: !hidden })}>
           {hidden ? "Show pins" : "Hide pins"}
         </button>
+        {onClose && (
+          <button className="comment-close" title="Close" aria-label="Close" onClick={onClose}>
+            ×
+          </button>
+        )}
       </div>
       {live.map((c, i) => (
         <button key={c.id} className={`comment-row${open === c.id ? " sel" : ""}`} title="Show it on the canvas" onClick={() => showComment(c.id)}>

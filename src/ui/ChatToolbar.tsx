@@ -98,7 +98,7 @@ export default function ChatToolbar() {
       )}
       {open === "comments" && (
         <div className="ctx chatbar-menu chatbar-comments" style={below(commentsRef.current, true)}>
-          <CommentsList />
+          <CommentsList onClose={() => setOpen(null)} />
         </div>
       )}
       {open === "frame" && (

@@ -1608,6 +1608,9 @@ function Comments({ zoom, vx, vy, draft, onDraftDone }: { zoom: number; vx: numb
           </button>
           {open === c.id && (
             <div className="comment-card">
+              <button className="comment-close" title="Close" aria-label="Close" onClick={() => setOpen(null)}>
+                ×
+              </button>
               {editing === c.id ? (
                 <CommentText
                   start={c.text}
