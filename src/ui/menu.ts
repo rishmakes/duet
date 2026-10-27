@@ -65,6 +65,7 @@ export async function installMenu() {
       await line(),
       await item("Export as PNG…", () => void exportDesign("png", 2)),
       await item("Export as SVG…", () => void exportDesign("svg", 1)),
+      await item("Export as PDF…", () => void exportDesign("pdf", 1)),
       await item("Export the design data (.json)…", () => void exportDesignData()),
       await line(),
       await PredefinedMenuItem.new({ item: "CloseWindow" }),

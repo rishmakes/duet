@@ -32,7 +32,7 @@ export default function ExportMenu() {
         <div className="zmenu export">
           <div className="x-title">Export {what}</div>
           <div className="seg2">
-            {(["png", "svg"] as Format[]).map((f) => (
+            {(["png", "svg", "pdf"] as Format[]).map((f) => (
               <span key={f} className={format === f ? "on" : ""} onClick={() => setFormat(f)}>
                 {f.toUpperCase()}
               </span>
@@ -56,7 +56,7 @@ export default function ExportMenu() {
               if (r.startsWith("Saved")) setOpen(false);
             }}
           >
-            {ids.length > 1 ? `Export ${ids.length} files` : "Export"}
+            {ids.length > 1 && format !== "pdf" ? `Export ${ids.length} files` : "Export"}
           </button>
           {note && <div className="hint2">{note}</div>}
           <div className="hint2">Select something to export just that. With nothing selected, every screen is exported.</div>
