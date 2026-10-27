@@ -571,6 +571,7 @@ pub fn run() {
             write_text_file,
             write_binary_file,
             psd::psd_read,
+            psd::psd_read_bytes,
             psd::psd_write,
             path_exists,
             move_project,

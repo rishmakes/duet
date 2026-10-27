@@ -242,6 +242,15 @@ pub fn psd_read(path: String) -> Result<PsdRead, String> {
     read(&bytes)
 }
 
+/// A Photoshop file dropped on the canvas, handed in as its bytes.
+#[tauri::command(async)]
+pub fn psd_read_bytes(request: tauri::ipc::Request<'_>) -> Result<PsdRead, String> {
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err("That was not a Photoshop file.".into());
+    };
+    read(bytes)
+}
+
 #[tauri::command(async)]
 pub fn psd_write(path: String, width: u32, height: u32, layers: Vec<PsdLayer>, composite: String) -> Result<(), String> {
     let bytes = write(width, height, &layers, &composite)?;

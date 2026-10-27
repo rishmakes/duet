@@ -768,7 +768,7 @@ export default function PropertiesPanel() {
         </div>
       )}
 
-      {mode !== "motion" && one && canBeComponent(one) && (
+      {mode === "design" && one && canBeComponent(one) && (
         <div className="sec">
           <h4>Component</h4>
           <button className="pill" onClick={() => dispatch("create_component", { id: one.id })}>
@@ -904,7 +904,7 @@ export default function PropertiesPanel() {
         </div>
       )}
 
-      {mode !== "motion" && one && frames.length > 0 && (
+      {mode === "design" && one && frames.length > 0 && (
         <div className="sec">
           <h4>Prototype</h4>
           <Seg

@@ -50,18 +50,26 @@ async function toPlaced(layers: PsdLayer[]): Promise<PlacedLayer[]> {
   return out;
 }
 
-/** Open a Photoshop file into the project, as a frame of its size to the right of everything else. */
-export async function openPhotoshopFile(path?: string): Promise<boolean> {
+export const isPhotoshopFile = (name: string) => /\.(psd|psb)$/i.test(name);
+
+/** Open a Photoshop file into the project, as a frame of its size: where it was dropped, or to the right of everything else. */
+export async function openPhotoshopFile(source?: string | File, at?: { x: number; y: number }): Promise<boolean> {
   try {
-    const picked = path ?? (await open({ multiple: false, title: "Open a Photoshop file", filters: [{ name: "Photoshop", extensions: ["psd", "psb"] }] }));
-    if (typeof picked !== "string") return false;
-    const read = await invoke<PsdRead>("psd_read", { path: picked });
+    const picked = source ?? (await open({ multiple: false, title: "Open a Photoshop file", filters: [{ name: "Photoshop", extensions: ["psd", "psb"] }] }));
+    if (!picked || Array.isArray(picked)) return false;
+    const read =
+      typeof picked === "string"
+        ? await invoke<PsdRead>("psd_read", { path: picked })
+        : await invoke<PsdRead>("psd_read_bytes", new Uint8Array(await picked.arrayBuffer()));
     const doc = currentDoc();
     const all = unionRect(doc.rootIds.filter((id) => doc.elements[id]).map((id) => worldRect(doc, id)));
     const id = newId("frame");
-    const name = baseName(picked);
+    const name = baseName(typeof picked === "string" ? picked : picked.name);
+    const place = at
+      ? { x: Math.round(at.x - read.width / 2), y: Math.round(at.y - read.height / 2) }
+      : { x: all ? Math.round(all.x + all.width + 100) : 0, y: all ? Math.round(all.y) : 0 };
     dispatch("place_layers", {
-      frame: { id, name, x: all ? Math.round(all.x + all.width + 100) : 0, y: all ? Math.round(all.y) : 0, width: read.width, height: read.height },
+      frame: { id, name, ...place, width: read.width, height: read.height },
       layers: await toPlaced(read.layers),
     });
     select([id]);
