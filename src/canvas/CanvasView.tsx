@@ -4,6 +4,7 @@ import { getLayout, setLayout, useLayout } from "../ui/layout";
 import { RULER, gapsAround, snapEqualGaps, snapToGuides } from "./guides";
 import type { Gap } from "./guides";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { setOpenComment, useOpenComment } from "../ui/commentFocus";
 import { newId, runCommand } from "../commands";
 import { extractPayload, payloadToText, textToPayload } from "../document/clipboard";
 import type { ClipPayload } from "../document/clipboard";
@@ -371,6 +372,18 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
   const viewport = useStore((s) => s.viewport);
   // a comment being written: where its pin goes, and the thing under it
   const [draft, setDraft] = useState<{ x: number; y: number; on: string | null } | null>(null);
+  // a comment picked in the list comes to the middle of the canvas, its pins shown
+  useEffect(() => {
+    const go = (e: Event) => {
+      const c = workDoc().comments?.find((x) => x.id === (e as CustomEvent<string>).detail);
+      if (!c || viewOnly) return;
+      if (getLayout().commentsHidden) setLayout({ commentsHidden: false });
+      const { zoom } = getState().viewport;
+      glideTo({ zoom, x: sizeRef.current.w / 2 - c.x * zoom, y: sizeRef.current.h / 2 - c.y * zoom });
+    };
+    window.addEventListener("duet:show-comment", go);
+    return () => window.removeEventListener("duet:show-comment", go);
+  }, [viewOnly]);
 
   // Choosing something else ends point editing.
   const selNow = useStore((st) => st.selection);
@@ -574,6 +587,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
 
     // the comment tool pins a note where you click, on whatever is there
     if (s.tool === "comment") {
+      if (getLayout().commentsHidden) setLayout({ commentsHidden: false });
       setDraft({ x: p.x, y: p.y, on: hitTest(workDoc(s), p.x, p.y, new Set(), true) });
       return;
     }
@@ -1372,6 +1386,12 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
         zoomToElements(getState().selection, sizeRef.current.w, sizeRef.current.h);
         return;
       }
+      // Shift and C puts the comment pins away, and brings them back
+      if (e.shiftKey && !e.altKey && !mod && key === "c") {
+        e.preventDefault();
+        setLayout({ commentsHidden: !getLayout().commentsHidden });
+        return;
+      }
       if (e.shiftKey && !e.altKey && key === "r") {
         e.preventDefault();
         setLayout({ rulers: !getLayout().rulers });
@@ -1573,8 +1593,11 @@ function normalize(x1: number, y1: number, x2: number, y2: number): Rect {
 /** The comments pinned on the canvas, and the box a new one is written in. Resolved ones are gone from view. */
 function Comments({ zoom, vx, vy, draft, onDraftDone }: { zoom: number; vx: number; vy: number; draft: { x: number; y: number; on: string | null } | null; onDraftDone: () => void }) {
   const list = useStore((s) => workDoc(s).comments);
-  const [open, setOpen] = useState<string | null>(null);
-  const shown = (list ?? []).filter((c) => !c.resolved);
+  const hidden = useLayout((d) => d.commentsHidden);
+  const open = useOpenComment();
+  const [editing, setEditing] = useState<string | null>(null);
+  const setOpen = (id: string | null) => (setEditing(null), setOpenComment(id));
+  const shown = hidden ? [] : (list ?? []).filter((c) => !c.resolved);
   const stop = (e: React.PointerEvent | React.MouseEvent) => e.stopPropagation();
   return (
     <>
@@ -1585,8 +1608,19 @@ function Comments({ zoom, vx, vy, draft, onDraftDone }: { zoom: number; vx: numb
           </button>
           {open === c.id && (
             <div className="comment-card">
-              <p>{c.text}</p>
+              {editing === c.id ? (
+                <CommentText
+                  start={c.text}
+                  onDone={(text) => {
+                    if (text) dispatch("edit_comment", { id: c.id, text });
+                    setEditing(null);
+                  }}
+                />
+              ) : (
+                <p>{c.text}</p>
+              )}
               <div className="comment-actions">
+                {c.by === "you" && editing !== c.id && <button onClick={() => setEditing(c.id)}>Edit</button>}
                 <button onClick={() => (dispatch("delete_comment", { id: c.id }), setOpen(null))}>Delete</button>
                 <button className="primary" onClick={() => (dispatch("resolve_comment", { id: c.id }), setOpen(null))}>
                   Resolve
@@ -1602,42 +1636,56 @@ function Comments({ zoom, vx, vy, draft, onDraftDone }: { zoom: number; vx: numb
 }
 
 function CommentDraft({ at, left, top, onDone }: { at: { x: number; y: number; on: string | null }; left: number; top: number; onDone: () => void }) {
+  return (
+    <div className="comment" style={{ left, top }} onPointerDown={(e) => e.stopPropagation()}>
+      <span className="comment-pin open" />
+      <div className="comment-card">
+        <CommentText
+          start=""
+          onDone={(text) => {
+            if (text) dispatch("add_comment", { x: at.x, y: at.y, text, on: at.on });
+            onDone();
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** The box a comment is written or changed in. Enter keeps it, Shift and Enter starts a new line, Esc leaves it as it was. */
+function CommentText({ start, onDone }: { start: string; onDone: (text: string) => void }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const done = useRef(false);
   useEffect(() => {
     // after the click that placed it, so the click does not take the keys back
-    const t = setTimeout(() => ref.current?.focus(), 0);
+    const t = setTimeout(() => {
+      ref.current?.focus();
+      ref.current?.select();
+    }, 0);
     return () => clearTimeout(t);
   }, []);
   const finish = (keep: boolean) => {
     if (done.current) return;
     done.current = true;
-    const text = ref.current?.value.trim() ?? "";
-    if (keep && text) dispatch("add_comment", { x: at.x, y: at.y, text, on: at.on });
-    onDone();
+    onDone(keep ? (ref.current?.value.trim() ?? "") : "");
   };
   return (
-    <div className="comment" style={{ left, top }} onPointerDown={(e) => e.stopPropagation()}>
-      <span className="comment-pin open" />
-      <div className="comment-card">
-        <textarea
-          ref={ref}
-          rows={2}
-          placeholder="Say what to change here"
-          spellCheck={false}
-          onBlur={() => finish(true)}
-          onKeyDown={(e) => {
-            e.stopPropagation();
-            if (e.key === "Escape") finish(false);
-            // Enter posts it; Shift and Enter starts a new line
-            else if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              finish(true);
-            }
-          }}
-        />
-      </div>
-    </div>
+    <textarea
+      ref={ref}
+      rows={2}
+      defaultValue={start}
+      placeholder="Say what to change here"
+      spellCheck={false}
+      onBlur={() => finish(true)}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Escape") finish(false);
+        else if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          finish(true);
+        }
+      }}
+    />
   );
 }
 

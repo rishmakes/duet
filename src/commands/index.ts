@@ -1397,6 +1397,17 @@ const resolveComment: CommandDef<ResolveCommentArgs> = {
   },
 };
 
+const editComment: CommandDef<{ id: string; text: string }> = {
+  label: (a) => `Edit comment: ${a.text.trim().slice(0, 40)}`,
+  run: (doc, a) => {
+    const text = a.text.trim();
+    if (!text || !doc.comments?.some((c) => c.id === a.id && c.text !== text)) return doc;
+    const next = clone(doc);
+    next.comments = next.comments!.map((c) => (c.id === a.id ? { ...c, text } : c));
+    return next;
+  },
+};
+
 const deleteComment: CommandDef<{ id: string }> = {
   label: () => "Delete a comment",
   run: (doc, a) => {
@@ -1985,6 +1996,7 @@ export const commands = {
   remove_guide: removeGuide,
   add_comment: addComment,
   resolve_comment: resolveComment,
+  edit_comment: editComment,
   delete_comment: deleteComment,
   set_work_area: setWorkArea,
   add_marker: addMarker,

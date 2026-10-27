@@ -13,6 +13,7 @@ import { KEY_GROUPS, entranceOf, sceneOf, spanOf } from "../document/time";
 import { useKeyFocus } from "./keyFocus";
 import type { Entrance } from "../document/time";
 import SpeedGraph from "./SpeedGraph";
+import CommentsList from "./CommentsList";
 import ColorPanel from "./ColorPanel";
 import { rootOf } from "./BeforeAfter";
 import { gradablesIn } from "../document/grade";
@@ -534,8 +535,10 @@ function PlaySpeedSection({ els }: { els: El[] }) {
 /** How the move that ends at the keyframe picked in the timeline speeds up and slows down. */
 function SpeedSection({ el }: { el: El }) {
   const focus = useKeyFocus();
-  if (!focus || focus.id !== el.id) return null;
-  const group = KEY_GROUPS.find((g) => g.props.some((p) => el.keys[p]?.some((k) => Math.abs(k.t - focus.t) < 0.005)) && momentTimes(el, g.props).length > 1);
+  const moves = (g: (typeof KEY_GROUPS)[number]) => momentTimes(el, g.props).length > 1;
+  // a keyframe picked in the timeline shows its move; with none picked, the first thing that moves shows, so the graph is always there
+  const picked = focus && focus.id === el.id ? KEY_GROUPS.find((g) => g.props.some((p) => el.keys[p]?.some((k) => Math.abs(k.t - focus.t) < 0.005)) && moves(g)) : undefined;
+  const group = picked ?? KEY_GROUPS.find(moves);
   if (!group) return null;
   return (
     <div className="sec">
@@ -638,6 +641,7 @@ export default function PropertiesPanel() {
           )}
         </div>
         <div className="empty pad">Select something to change it.</div>
+        <CommentsList />
       </aside>
     );
   }
@@ -915,6 +919,7 @@ export default function PropertiesPanel() {
 
 
       {keyed && scene && <InAndOut el={keyed} scene={scene} />}
+      <CommentsList />
     </aside>
   );
 }

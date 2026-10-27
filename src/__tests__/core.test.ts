@@ -2802,6 +2802,10 @@ describe("comments on the canvas", () => {
     // an empty one is nothing
     expect(runCommand(d, "add_comment", { x: 0, y: 0, text: "  " })).toBe(d);
     d = runCommand(d, "add_comment", { id: "c2", x: 5, y: 5, text: "A question", by: "ai" });
+    const edited = runCommand(d, "edit_comment", { id: "c2", text: " A better question " });
+    expect(edited.comments?.[1].text).toBe("A better question");
+    expect(d.comments?.[1].text).toBe("A question");
+    expect(runCommand(d, "edit_comment", { id: "c2", text: "  " })).toBe(d);
     const resolved = runCommand(d, "resolve_comment", { id: "c1", reply: "Made it 24" });
     expect(d.comments?.[0].resolved).toBeUndefined();
     expect(resolved.comments?.[0]).toMatchObject({ resolved: true, reply: "Made it 24" });
