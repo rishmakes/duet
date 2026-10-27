@@ -3,6 +3,7 @@ mod files;
 mod grade;
 mod keepalive;
 mod package;
+mod psd;
 mod trash;
 mod video;
 
@@ -569,6 +570,8 @@ pub fn run() {
             find_projects,
             write_text_file,
             write_binary_file,
+            psd::psd_read,
+            psd::psd_write,
             path_exists,
             move_project,
             copy_project,

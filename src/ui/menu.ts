@@ -2,6 +2,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { Menu, MenuItem, PredefinedMenuItem, Submenu } from "@tauri-apps/api/menu";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { exportDesign } from "../project/exporter";
+import { openPhotoshopFile, savePhotoshopFile } from "../project/photoshop";
 import { exportDesignData, getRecents, inTauri, newProject, openProject, openProjectAt, saveNow } from "../project/project";
 import { currentDoc, getState, redo, undo } from "../state/store";
 import { getLayout, resetLayout, setLayout } from "./layout";
@@ -54,6 +55,7 @@ export async function installMenu() {
     items: [
       await item("New project…", () => void newProject(), "CmdOrCtrl+N"),
       await item("Open…", () => void openProject(), "CmdOrCtrl+O"),
+      await item("Open a Photoshop file…", () => void openPhotoshopFile()),
       await Submenu.new({ text: "Open recent", items: recentItems }),
       await item("All projects", () => send("duet:home"), "CmdOrCtrl+Shift+O"),
       await line(),
@@ -66,6 +68,7 @@ export async function installMenu() {
       await item("Export as PNG…", () => void exportDesign("png", 2)),
       await item("Export as SVG…", () => void exportDesign("svg", 1)),
       await item("Export as PDF…", () => void exportDesign("pdf", 1)),
+      await item("Save as a Photoshop file…", () => void savePhotoshopFile()),
       await item("Export the design data (.json)…", () => void exportDesignData()),
       await line(),
       await PredefinedMenuItem.new({ item: "CloseWindow" }),

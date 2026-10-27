@@ -4,7 +4,7 @@ import { ancestors, canMask, canTurn, descendants, tidyAngle, topLevelOnly, turn
 import { canBeComponent, captureOverrides, detachInstance, isDerived, syncInstances } from "../document/components";
 import { orderByPosition, relayout } from "../document/layout";
 import { MOVING, playsFile } from "../document/types";
-import type { Comment, Doc, El, ElementType, Key, Layout, Moving, ShapeKey, TextStyle } from "../document/types";
+import type { Blend, Comment, Doc, El, ElementType, Key, Layout, Moving, ShapeKey, TextStyle } from "../document/types";
 import { CURVES, ENTRANCES, entranceKeys, fileTimeAt, outlineOf, sceneOf, spanOf, valueAt, withKey, withShapeKey } from "../document/time";
 import type { CurveName, Entrance } from "../document/time";
 import { canGrade, mergeGrade } from "../document/grade";
@@ -1129,6 +1129,54 @@ const groupElements: CommandDef<GroupArgs> = {
   },
 };
 
+// ---- place_layers ----
+/** One layer from a Photoshop file: a picture, or a group of layers, bottom first. Positions are from the file's top left. */
+export interface PlacedLayer {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  opacity: number;
+  blend: Blend;
+  hidden: boolean;
+  src?: string;
+  children?: PlacedLayer[];
+}
+
+export interface PlaceLayersArgs {
+  frame: { id: string; name: string; x: number; y: number; width: number; height: number };
+  layers: PlacedLayer[];
+}
+
+/** A Photoshop file as one frame of its size, with its layers and groups inside in the same order. One step. */
+const placeLayers: CommandDef<PlaceLayersArgs> = {
+  label: (a) => `Open ${a.frame.name}`,
+  run: (doc, a) => {
+    const f = a.frame;
+    let next = createElement.run(doc, { type: "frame", id: f.id, x: f.x, y: f.y, width: f.width, height: f.height, props: { name: f.name, fill: "#ffffff00" }, keepOrder: true });
+    const look = (l: PlacedLayer) => ({ name: l.name, opacity: l.opacity, blend: l.blend, hidden: l.hidden });
+    // returns the ids that made it onto the page, so a group only takes what is really there
+    const place = (layers: PlacedLayer[]): string[] =>
+      layers.flatMap((l) => {
+        if (!l.children) {
+          next = createElement.run(next, { type: "image", id: l.id, parentId: f.id, x: l.x, y: l.y, width: l.width, height: l.height, props: { ...look(l), src: l.src ?? "" }, keepOrder: true });
+          return next.elements[l.id] ? [l.id] : [];
+        }
+        const inside = place(l.children);
+        if (inside.length === 0) return [];
+        next = groupElements.run(next, { ids: inside, groupId: l.id });
+        if (!next.elements[l.id]) return [];
+        next = clone(next);
+        Object.assign(next.elements[l.id], look(l));
+        return [l.id];
+      });
+    place(a.layers);
+    return next;
+  },
+};
+
 /** Every id in the order it is painted, bottom first. */
 function paintOrder(doc: Doc): string[] {
   const out: string[] = [];
@@ -1976,6 +2024,7 @@ export const commands = {
   set_layout: setLayout,
   wrap_in_layout: wrapInLayout,
   group_elements: groupElements,
+  place_layers: placeLayers,
   make_mask: makeMask,
   ungroup,
   create_text_style: createTextStyle,

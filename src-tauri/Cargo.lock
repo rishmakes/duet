@@ -890,6 +890,8 @@ dependencies = [
  "objc2",
  "objc2-app-kit",
  "objc2-foundation",
+ "photocraft-psd",
+ "png 0.17.16",
  "serde",
  "serde_json",
  "tauri",
@@ -2761,6 +2763,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e57fef6bc5981e38c2ce2d63bfa546861309f875b8a75f092d1d54ae2d64f266"
 dependencies = [
  "siphasher",
+]
+
+[[package]]
+name = "photocraft-psd"
+version = "0.16.0"
+source = "git+https://github.com/storytold/photocraft?rev=7ac7b8b106acccf6826d45ed5c9e481dfe341035#7ac7b8b106acccf6826d45ed5c9e481dfe341035"
+dependencies = [
+ "flate2",
+ "thiserror 2.0.21",
 ]
 
 [[package]]

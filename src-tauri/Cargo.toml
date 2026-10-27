@@ -33,6 +33,9 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 fontdb = "0.24.0"
+# Photoshop files: reads and writes PSD and PSB, keeping what it does not understand untouched. MIT, from PhotoCraft.
+photocraft-psd = { git = "https://github.com/storytold/photocraft", rev = "7ac7b8b106acccf6826d45ed5c9e481dfe341035" }
+png = "0.17"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
