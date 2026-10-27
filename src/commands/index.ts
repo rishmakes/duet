@@ -1271,6 +1271,9 @@ export interface PlacedLayer {
   hidden: boolean;
   src?: string;
   children?: PlacedLayer[];
+  shadow?: El["shadow"];
+  grade?: El["grade"];
+  effects?: El["effects"];
 }
 
 export interface PlaceLayersArgs {
@@ -1289,7 +1292,23 @@ const placeLayers: CommandDef<PlaceLayersArgs> = {
     const place = (layers: PlacedLayer[]): string[] =>
       layers.flatMap((l) => {
         if (!l.children) {
-          next = createElement.run(next, { type: "image", id: l.id, parentId: f.id, x: l.x, y: l.y, width: l.width, height: l.height, props: { ...look(l), src: l.src ?? "" }, keepOrder: true });
+          next = createElement.run(next, {
+            type: "image",
+            id: l.id,
+            parentId: f.id,
+            x: l.x,
+            y: l.y,
+            width: l.width,
+            height: l.height,
+            props: {
+              ...look(l),
+              src: l.src ?? "",
+              ...(l.shadow ? { shadow: l.shadow } : {}),
+              ...(l.grade ? { grade: l.grade } : {}),
+              ...(l.effects && l.effects.length ? { effects: l.effects } : {}),
+            },
+            keepOrder: true,
+          });
           return next.elements[l.id] ? [l.id] : [];
         }
         const inside = place(l.children);

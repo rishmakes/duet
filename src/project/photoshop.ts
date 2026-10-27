@@ -7,6 +7,7 @@ import type { Blend, Doc, El } from "../document/types";
 import { currentDoc, dispatch, getState, select } from "../state/store";
 import { setLayout } from "../ui/layout";
 import { addPicture, preloadPictures } from "./assets";
+import { mergeGrade } from "../document/grade";
 import { renderPng } from "./exporter";
 
 /** Photoshop files in and out. Each layer comes in as a picture, and each thing goes out as a layer. */
@@ -23,6 +24,9 @@ interface PsdLayer {
   hidden: boolean;
   png: string;
   children: PsdLayer[];
+  shadow?: El["shadow"];
+  grade?: El["grade"];
+  effects?: El["effects"];
 }
 
 interface PsdRead {
@@ -45,7 +49,19 @@ async function toPlaced(layers: PsdLayer[]): Promise<PlacedLayer[]> {
       continue;
     }
     const { src } = await addPicture(`${l.name}.png`, fromBase64(l.png), "image/png");
-    out.push({ id: newId("image"), ...look, x: l.left, y: l.top, width: l.width, height: l.height, src });
+    out.push({
+      id: newId("image"),
+      ...look,
+      x: l.left,
+      y: l.top,
+      width: l.width,
+      height: l.height,
+      src,
+      shadow: l.shadow ?? null,
+      // filled out to a whole grade, so a curve Photoshop does not have is left flat
+      grade: l.grade ? mergeGrade(null, l.grade) : null,
+      effects: l.effects ?? [],
+    });
   }
   return out;
 }
