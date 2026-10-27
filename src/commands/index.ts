@@ -4,7 +4,7 @@ import { ancestors, canMask, canTurn, descendants, tidyAngle, topLevelOnly, turn
 import { canBeComponent, captureOverrides, detachInstance, isDerived, syncInstances } from "../document/components";
 import { orderByPosition, relayout } from "../document/layout";
 import { MOVING, playsFile } from "../document/types";
-import type { Doc, El, ElementType, Key, Layout, Moving, ShapeKey, TextStyle } from "../document/types";
+import type { Comment, Doc, El, ElementType, Key, Layout, Moving, ShapeKey, TextStyle } from "../document/types";
 import { CURVES, ENTRANCES, entranceKeys, fileTimeAt, outlineOf, sceneOf, spanOf, valueAt, withKey, withShapeKey } from "../document/time";
 import type { CurveName, Entrance } from "../document/time";
 import { canGrade, mergeGrade } from "../document/grade";
@@ -1356,6 +1356,58 @@ const removeGuide: CommandDef<GuideArgs> = {
   run: (doc, a) => ((doc.guides?.[a.axis] ?? []).some((v) => Math.abs(v - a.at) < 0.01) ? withGuides(doc, a.axis, (l) => l.filter((v) => Math.abs(v - a.at) >= 0.01)) : doc),
 };
 
+// ---- comments ----
+export interface AddCommentArgs {
+  id?: string;
+  /** Page pixels. */
+  x: number;
+  y: number;
+  text: string;
+  by?: "you" | "ai";
+  /** The thing under the pin. */
+  on?: string | null;
+}
+
+const addComment: CommandDef<AddCommentArgs> = {
+  label: (a) => `Comment: ${a.text.trim().slice(0, 40)}`,
+  run: (doc, a) => {
+    const text = a.text.trim();
+    if (!text || !Number.isFinite(a.x) || !Number.isFinite(a.y)) return doc;
+    const next = clone(doc);
+    const c: Comment = { id: a.id ?? newId("comment"), x: round(a.x), y: round(a.y), text, by: a.by ?? "you" };
+    if (a.on && doc.elements[a.on]) c.on = a.on;
+    next.comments = [...(next.comments ?? []), c];
+    return next;
+  },
+};
+
+export interface ResolveCommentArgs {
+  id: string;
+  /** What was done about it. */
+  reply?: string;
+}
+
+const resolveComment: CommandDef<ResolveCommentArgs> = {
+  label: () => "Resolve a comment",
+  run: (doc, a) => {
+    if (!doc.comments?.some((c) => c.id === a.id && !c.resolved)) return doc;
+    const next = clone(doc);
+    next.comments = next.comments!.map((c) => (c.id === a.id ? { ...c, resolved: true, ...(a.reply?.trim() ? { reply: a.reply.trim() } : {}) } : c));
+    return next;
+  },
+};
+
+const deleteComment: CommandDef<{ id: string }> = {
+  label: () => "Delete a comment",
+  run: (doc, a) => {
+    if (!doc.comments?.some((c) => c.id === a.id)) return doc;
+    const next = clone(doc);
+    next.comments = next.comments!.filter((c) => c.id !== a.id);
+    if (!next.comments.length) delete next.comments;
+    return next;
+  },
+};
+
 // ---- work area ----
 export interface SetWorkAreaArgs {
   /** The frame that plays. */
@@ -1931,6 +1983,9 @@ export const commands = {
   add_guide: addGuide,
   move_guide: moveGuide,
   remove_guide: removeGuide,
+  add_comment: addComment,
+  resolve_comment: resolveComment,
+  delete_comment: deleteComment,
   set_work_area: setWorkArea,
   add_marker: addMarker,
   update_marker: updateMarker,

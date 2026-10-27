@@ -2793,6 +2793,26 @@ describe("ruler guides", () => {
   });
 });
 
+describe("comments on the canvas", () => {
+  it("are pinned, resolved, deleted and saved with the design, without changing the old one", () => {
+    const start = emptyDoc();
+    let d = runCommand(start, "add_comment", { id: "c1", x: 10, y: 20, text: "  Make this bigger ", on: "missing" });
+    expect(start.comments).toBeUndefined();
+    expect(d.comments).toEqual([{ id: "c1", x: 10, y: 20, text: "Make this bigger", by: "you" }]);
+    // an empty one is nothing
+    expect(runCommand(d, "add_comment", { x: 0, y: 0, text: "  " })).toBe(d);
+    d = runCommand(d, "add_comment", { id: "c2", x: 5, y: 5, text: "A question", by: "ai" });
+    const resolved = runCommand(d, "resolve_comment", { id: "c1", reply: "Made it 24" });
+    expect(d.comments?.[0].resolved).toBeUndefined();
+    expect(resolved.comments?.[0]).toMatchObject({ resolved: true, reply: "Made it 24" });
+    expect(runCommand(resolved, "resolve_comment", { id: "c1" })).toBe(resolved);
+    expect(parseDoc(serializeDoc(resolved)).comments).toEqual(resolved.comments);
+    const gone = runCommand(runCommand(resolved, "delete_comment", { id: "c1" }), "delete_comment", { id: "c2" });
+    expect(gone.comments).toBeUndefined();
+    expect(serializeDoc(gone)).not.toContain("comments");
+  });
+});
+
 describe("moving a layer's timing at a moment", () => {
   it("adds no keys to the other animated layers", () => {
     let d = runCommand(frame("f"), "set_props", { ids: ["f"], props: { duration: 10 } });

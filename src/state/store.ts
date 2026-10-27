@@ -9,7 +9,7 @@ import { docAt, poseAt, settle } from "../document/time";
 import { emptyDoc } from "../document/types";
 import type { Doc, ElementType, Rect } from "../document/types";
 
-export type Tool = "move" | "frame" | "rect" | "ellipse" | "text" | "hand" | "pen" | "zoom";
+export type Tool = "move" | "frame" | "rect" | "ellipse" | "text" | "hand" | "pen" | "zoom" | "comment";
 
 export interface HistoryEntry {
   doc: Doc;

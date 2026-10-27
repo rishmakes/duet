@@ -1298,6 +1298,84 @@ body.eyedropping * {
 }
 
 /* navigation helpers */
+/* comments pinned on the canvas: the pin's corner points at the spot */
+.comment {
+  position: absolute;
+  width: 0;
+  height: 0;
+  z-index: 3;
+}
+.comment-pin {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border: 2px solid var(--panel);
+  border-radius: 12px 12px 12px 2px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 20px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+.comment-pin.ai {
+  background: var(--duet);
+}
+.comment-pin.open {
+  outline: 2px solid var(--text);
+}
+.comment-card {
+  position: absolute;
+  left: 30px;
+  bottom: 0;
+  width: 240px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  font-size: 12px;
+}
+.comment-card p {
+  margin: 0 0 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.comment-card textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 0;
+  outline: 0;
+  resize: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+}
+.comment-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.comment-actions button {
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.comment-actions button.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
 .find {
   position: absolute;
   left: 50%;

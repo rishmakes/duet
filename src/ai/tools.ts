@@ -8,7 +8,7 @@ import { commandLabel, newId, runCommand } from "../commands";
 import type { CommandName } from "../commands";
 import { measureText } from "../canvas/text";
 import { extractPayload } from "../document/clipboard";
-import { canMask, canTurn } from "../document/geometry";
+import { canMask, canTurn, worldBounds } from "../document/geometry";
 import { defaultLayout } from "../document/layout";
 import { outlineFromData } from "../document/path";
 import { ENTRANCES, sceneOf } from "../document/time";
@@ -62,7 +62,7 @@ export const TOOLS: ToolDef[] = [
   {
     name: "get_context",
     description:
-      "Start here. Returns the project, what the designer has selected, the frames on the page, the permission level, and which skills are loaded.",
+      "Start here. Returns the project, what the designer has selected, the frames on the page, the permission level, which skills are loaded, and the comments the designer pinned on the canvas. Each comment is feedback about that exact spot: look at the thing under it with look_at_design before you change it.",
     inputSchema: { type: "object", properties: {} },
   },
   {
@@ -380,13 +380,24 @@ export const TOOLS: ToolDef[] = [
     inputSchema: { type: "object", properties: { id: { ...str, description: "A picture or a clip." }, t: { ...num, description: "For a clip: seconds into its frame." }, original: { type: "boolean" } }, required: ["id"] },
   },
   {
+    name: "resolve_comment",
+    description:
+      "Mark a comment the designer pinned on the canvas as dealt with, once you have done what it asks. get_context lists the open ones under comments, each with where it points, the thing under it and what is near. Say in reply what you did, in a few words.",
+    inputSchema: { type: "object", properties: { id: str, reply: str }, required: ["id"] },
+  },
+  {
+    name: "add_comment",
+    description: "Pin a short note on the canvas for the designer, at page pixels x and y, such as a question about one spot. Use it rarely: talk in the chat first.",
+    inputSchema: { type: "object", properties: { x: num, y: num, text: str }, required: ["x", "y", "text"] },
+  },
+  {
     name: "delete_elements",
     description: "Delete elements and everything inside them. The designer may be asked to approve this.",
     inputSchema: { type: "object", properties: { ids }, required: ["ids"] },
   },
 ];
 
-const EDITS = new Set(["set_grade", "copy_grade", "create_instance", "create_element", "create_elements", "set_props", "duplicate_elements", "move_elements", "resize_element", "reparent_elements", "make_mask", "trace_image", "set_duration", "set_timing", "set_entrance", "animate", "set_curve"]);
+const EDITS = new Set(["resolve_comment", "add_comment", "set_grade", "copy_grade", "create_instance", "create_element", "create_elements", "set_props", "duplicate_elements", "move_elements", "resize_element", "reparent_elements", "make_mask", "trace_image", "set_duration", "set_timing", "set_entrance", "animate", "set_curve"]);
 /** Things the designer is asked about first in Ask first mode: losing work, and reading or writing a file on the computer. */
 const RISKY = new Set(["load_look", "delete_elements", "place_image", "place_video", "place_sound", "export_frame", "export_video"]);
 
@@ -492,6 +503,10 @@ export function summarise(tool: string, a: Args): string {
       return `Move ${namesOf(a.ids)} ${a.parentId ? `into ${nameOf(a.parentId)}` : "out to the page"}`;
     case "delete_elements":
       return `Delete ${namesOf(a.ids)}`;
+    case "resolve_comment":
+      return `Resolve the comment "${String(R.currentDoc().comments?.find((c) => c.id === a.id)?.text ?? "").slice(0, 40)}"`;
+    case "add_comment":
+      return `Comment: ${String(a.text).slice(0, 40)}`;
     case "set_grade": {
       if (!a.grade) return `Reset the colour of ${namesOf(a.ids)}`;
       const g = a.grade as Record<string, unknown>;
@@ -534,6 +549,16 @@ export function fixLayouts(v: unknown): unknown {
 function prepare(tool: string, raw: Args, doc = R.currentDoc()): { args: Args } | { error: string } {
   const a = fixLayouts(raw) as Args;
   switch (tool) {
+    case "resolve_comment": {
+      const c = doc.comments?.find((x) => x.id === a.id);
+      if (!c) return { error: `No comment with id ${String(a.id)}.` };
+      if (c.resolved) return { error: "That comment is already resolved." };
+      return { args: { id: a.id, reply: typeof a.reply === "string" ? a.reply : undefined } };
+    }
+    case "add_comment": {
+      if (typeof a.x !== "number" || typeof a.y !== "number" || typeof a.text !== "string" || !a.text.trim()) return { error: "Give x and y as numbers, and the text." };
+      return { args: { x: a.x, y: a.y, text: a.text, by: "ai" } };
+    }
     case "create_element": {
       if (!["frame", "rect", "ellipse", "text", "path"].includes(String(a.type))) return { error: "type must be frame, rect, ellipse, text or path." };
       if (typeof a.x !== "number" || typeof a.y !== "number") return { error: "x and y must be numbers." };
@@ -1233,6 +1258,25 @@ export function undoAiStep(msgId: number) {
   updateMsg(msgId, { undone: true }, where);
 }
 
+/** The comments not yet dealt with, each with the thing under it, the frame it is in, and the things around it. */
+function openComments(doc: Doc) {
+  return (doc.comments ?? [])
+    .filter((c) => !c.resolved)
+    .map((c) => {
+      const near = Object.keys(doc.elements)
+        .filter((id) => !doc.elements[id].hidden)
+        .map((id) => ({ id, r: worldBounds(doc, id) }))
+        .filter(({ r }) => c.x >= r.x - 60 && c.x <= r.x + r.width + 60 && c.y >= r.y - 60 && c.y <= r.y + r.height + 60)
+        // smallest first: the closest things around the spot, not the frame they sit in
+        .sort((p, q) => p.r.width * p.r.height - q.r.width * q.r.height)
+        .slice(0, 6)
+        .map(({ id }) => ({ id, name: doc.elements[id].name, type: doc.elements[id].type }));
+      const under = c.on && doc.elements[c.on] ? c.on : near[0]?.id;
+      const frame = under ? frameOf(doc, under) : null;
+      return { id: c.id, text: c.text, by: c.by, x: c.x, y: c.y, on: under ? { id: under, name: doc.elements[under].name } : null, frame: frame ? doc.elements[frame].name : null, near };
+    });
+}
+
 function context(): string {
   const s = R.getState();
   const doc = R.currentDoc();
@@ -1254,6 +1298,8 @@ function context(): string {
       units: "pixels. x and y are relative to the parent frame, or to the page for top-level things.",
       skillsLoaded: getSkills().filter((k) => k.enabled).map((k) => k.name),
       // pictures given with chat messages; "waiting" ones sit in the message box and have not been sent yet
+      // notes the designer pinned on the canvas: do what each asks, at that spot, then resolve_comment
+      comments: openComments(doc),
       attachedPictures: getChat().pictures.map((p) => ({ number: p.n, name: p.name, kind: p.text === undefined ? "picture" : "text", waiting: !p.sent })),
     },
     null,

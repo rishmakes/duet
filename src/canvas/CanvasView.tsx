@@ -102,7 +102,8 @@ type Drag =
   | { kind: "resize"; handle: HandleKey; id: string; orig: Rect; turn: number; sx: number; sy: number; start: { x: number; y: number }; many?: { id: string; r: Rect }[] }
   | { kind: "turn"; id: string; centre: { x: number; y: number }; from: number; base: number; sx: number; sy: number; moved: boolean; spun: number; free: boolean; many?: { id: string; r: Rect; rot: number }[] }
   | { kind: "zoom"; sx: number; sy: number; startZoom: number; vx: number; vy: number; moved: boolean; priorGlide: { zoom: number; zoomIn?: boolean } | null }
-  | { kind: "marquee"; start: { x: number; y: number }; prev: string[]; additive: boolean; scope: string[] };
+  | { kind: "marquee"; start: { x: number; y: number }; prev: string[]; additive: boolean; scope: string[] }
+  | { kind: "deep"; hit: string; start: { x: number; y: number }; sx: number; sy: number; shift: boolean; prev: string[] };
 
 /** Where files dragged in from the computer are, when the system says so. */
 export function droppedPaths(data: DataTransfer): string[] {
@@ -368,6 +369,8 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
   }, [scene, designing]);
   const editingId = useStore((s) => s.editingId);
   const viewport = useStore((s) => s.viewport);
+  // a comment being written: where its pin goes, and the thing under it
+  const [draft, setDraft] = useState<{ x: number; y: number; on: string | null } | null>(null);
 
   // Choosing something else ends point editing.
   const selNow = useStore((st) => st.selection);
@@ -569,6 +572,12 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
 
     stopGlide();
 
+    // the comment tool pins a note where you click, on whatever is there
+    if (s.tool === "comment") {
+      setDraft({ x: p.x, y: p.y, on: hitTest(workDoc(s), p.x, p.y, new Set(), true) });
+      return;
+    }
+
     if (CREATE_TOOLS.includes(s.tool)) {
       const type = s.tool as ElementType;
       const parentId = frameAt(workDoc(s), p.x, p.y);
@@ -660,6 +669,11 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     // Cmd or Ctrl click digs into groups and frames, and adds to what is picked, so several things inside one can be picked
     const deep = e.metaKey || e.ctrlKey;
     const hit = labelAt(p.sx, p.sy) ?? hitTest(doc, p.x, p.y, new Set(), deep);
+    // Cmd or Ctrl on something not yet picked waits: a drag draws a box inside the frame under the pointer, a click picks the thing
+    if (deep && hit && !s.selection.includes(hit)) {
+      dragRef.current = { kind: "deep", hit, start: { x: p.x, y: p.y }, sx: p.sx, sy: p.sy, shift: e.shiftKey, prev: s.selection };
+      return;
+    }
     if (hit) {
       if (!isMovable(doc, hit)) return;
       const within = (inner: string, outer: string) => {
@@ -706,7 +720,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
         penHover(p);
         return setCursor("crosshair");
       }
-      if (CREATE_TOOLS.includes(s.tool)) return setCursor(s.tool === "text" ? "text" : "crosshair");
+      if (CREATE_TOOLS.includes(s.tool) || s.tool === "comment") return setCursor(s.tool === "text" ? "text" : "crosshair");
       if (s.tool === "zoom") return setCursor(e.altKey ? "zoom-out" : "zoom-in");
       if (getLayout().rulers) {
         const near = guideNear(p.sx, p.sy);
@@ -903,6 +917,16 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
       return;
     }
 
+    if (d.kind === "deep") {
+      if (Math.hypot(p.sx - d.sx, p.sy - d.sy) < 3) return;
+      const doc = workDoc(s);
+      const home = frameAt(doc, d.start.x, d.start.y);
+      const scope = (home ? doc.elements[home].childIds : doc.rootIds).filter((id) => shownOn(doc, id));
+      if (!d.shift) select([]);
+      dragRef.current = { kind: "marquee", start: d.start, prev: d.shift ? d.prev : [], additive: d.shift, scope };
+      return;
+    }
+
     if (d.kind === "marquee") {
       const rect = normalize(d.start.x, d.start.y, p.x, p.y);
       const doc = workDoc(s);
@@ -932,6 +956,19 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     }
 
     if (d.kind === "pen") return;
+
+    if (d.kind === "deep") {
+      const doc = workDoc();
+      if (!isMovable(doc, d.hit)) return;
+      const within = (inner: string, outer: string) => {
+        for (let at = doc.elements[inner]?.parentId; at; at = doc.elements[at]?.parentId) if (at === outer) return true;
+        return false;
+      };
+      // a thing and what holds it are never picked together: digging in from the frame picks just the thing
+      const adds = d.shift || (d.prev.length > 0 && !d.prev.some((id) => within(d.hit, id) || within(id, d.hit)));
+      select(adds ? [...d.prev, d.hit] : [d.hit]);
+      return;
+    }
 
     if (d.kind === "guide") {
       setOverlay({ guideNow: null });
@@ -1340,7 +1377,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
         setLayout({ rulers: !getLayout().rulers });
         return;
       }
-      const tools: Record<string, Tool> = { v: "move", f: "frame", r: "rect", o: "ellipse", t: "text", h: "hand", p: "pen", z: "zoom" };
+      const tools: Record<string, Tool> = { v: "move", f: "frame", r: "rect", o: "ellipse", t: "text", h: "hand", p: "pen", z: "zoom", c: "comment" };
       if (tools[key]) {
         e.preventDefault();
         setTool(tools[key]);
@@ -1512,6 +1549,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
         </button>
       )}
       {editingId && <TextEditor key={editingId} id={editingId} zoom={viewport.zoom} vx={viewport.x} vy={viewport.y} />}
+      {!viewOnly && <Comments zoom={viewport.zoom} vx={viewport.x} vy={viewport.y} draft={draft} onDraftDone={() => setDraft(null)} />}
     </div>
   );
 }
@@ -1530,6 +1568,77 @@ export function drawnBox(start: { x: number; y: number }, p: { x: number; y: num
 
 function normalize(x1: number, y1: number, x2: number, y2: number): Rect {
   return { x: Math.min(x1, x2), y: Math.min(y1, y2), width: Math.abs(x2 - x1), height: Math.abs(y2 - y1) };
+}
+
+/** The comments pinned on the canvas, and the box a new one is written in. Resolved ones are gone from view. */
+function Comments({ zoom, vx, vy, draft, onDraftDone }: { zoom: number; vx: number; vy: number; draft: { x: number; y: number; on: string | null } | null; onDraftDone: () => void }) {
+  const list = useStore((s) => workDoc(s).comments);
+  const [open, setOpen] = useState<string | null>(null);
+  const shown = (list ?? []).filter((c) => !c.resolved);
+  const stop = (e: React.PointerEvent | React.MouseEvent) => e.stopPropagation();
+  return (
+    <>
+      {shown.map((c, i) => (
+        <div key={c.id} className="comment" style={{ left: c.x * zoom + vx, top: c.y * zoom + vy }} onPointerDown={stop} onDoubleClick={stop}>
+          <button className={`comment-pin${c.by === "ai" ? " ai" : ""}${open === c.id ? " open" : ""}`} title={c.text} onClick={() => setOpen(open === c.id ? null : c.id)}>
+            {i + 1}
+          </button>
+          {open === c.id && (
+            <div className="comment-card">
+              <p>{c.text}</p>
+              <div className="comment-actions">
+                <button onClick={() => (dispatch("delete_comment", { id: c.id }), setOpen(null))}>Delete</button>
+                <button className="primary" onClick={() => (dispatch("resolve_comment", { id: c.id }), setOpen(null))}>
+                  Resolve
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+      {draft && <CommentDraft key={`${draft.x},${draft.y}`} at={draft} left={draft.x * zoom + vx} top={draft.y * zoom + vy} onDone={onDraftDone} />}
+    </>
+  );
+}
+
+function CommentDraft({ at, left, top, onDone }: { at: { x: number; y: number; on: string | null }; left: number; top: number; onDone: () => void }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const done = useRef(false);
+  useEffect(() => {
+    // after the click that placed it, so the click does not take the keys back
+    const t = setTimeout(() => ref.current?.focus(), 0);
+    return () => clearTimeout(t);
+  }, []);
+  const finish = (keep: boolean) => {
+    if (done.current) return;
+    done.current = true;
+    const text = ref.current?.value.trim() ?? "";
+    if (keep && text) dispatch("add_comment", { x: at.x, y: at.y, text, on: at.on });
+    onDone();
+  };
+  return (
+    <div className="comment" style={{ left, top }} onPointerDown={(e) => e.stopPropagation()}>
+      <span className="comment-pin open" />
+      <div className="comment-card">
+        <textarea
+          ref={ref}
+          rows={2}
+          placeholder="Say what to change here"
+          spellCheck={false}
+          onBlur={() => finish(true)}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === "Escape") finish(false);
+            // Enter posts it; Shift and Enter starts a new line
+            else if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              finish(true);
+            }
+          }}
+        />
+      </div>
+    </div>
+  );
 }
 
 /** Space between the edge of the typing box and its words: its padding and its border. */

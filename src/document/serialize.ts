@@ -1,7 +1,7 @@
 import { isDerived, syncInstances } from "./components";
 import { relayout } from "./layout";
 import { playsFile } from "./types";
-import type { Doc, El } from "./types";
+import type { Comment, Doc, El } from "./types";
 
 /** Property order inside each element, so Git diffs stay small and stable. */
 const EL_KEYS: (keyof El)[] = [
@@ -146,6 +146,7 @@ export function serializeDoc(doc: Doc): string {
   if (doc.background) out.background = doc.background;
   if (doc.styles && Object.keys(doc.styles).length) out.styles = doc.styles;
   if (doc.guides && (doc.guides.x.length || doc.guides.y.length)) out.guides = { x: [...doc.guides.x].sort((a, b) => a - b), y: [...doc.guides.y].sort((a, b) => a - b) };
+  if (doc.comments?.length) out.comments = doc.comments;
   return JSON.stringify(out, null, 2) + "\n";
 }
 
@@ -182,5 +183,8 @@ export function parseDoc(text: string): Doc {
   const g = (r as { guides?: { x?: unknown; y?: unknown } }).guides;
   const nums = (v: unknown) => (Array.isArray(v) ? v.filter((n): n is number => typeof n === "number" && Number.isFinite(n)) : []);
   const guides = g && typeof g === "object" && (nums(g.x).length || nums(g.y).length) ? { x: nums(g.x), y: nums(g.y) } : undefined;
-  return relayout(syncInstances({ version: 1, rootIds: r.rootIds as string[], elements, ...(background ? { background } : {}), ...(styles ? { styles } : {}), ...(guides ? { guides } : {}) }));
+  const comments = Array.isArray(r.comments)
+    ? r.comments.filter((c): c is Comment => !!c && typeof c.id === "string" && typeof c.text === "string" && Number.isFinite(c.x) && Number.isFinite(c.y)).map((c) => ({ ...c, by: c.by === "ai" ? "ai" : "you" }) as Comment)
+    : [];
+  return relayout(syncInstances({ version: 1, rootIds: r.rootIds as string[], elements, ...(background ? { background } : {}), ...(styles ? { styles } : {}), ...(guides ? { guides } : {}), ...(comments.length ? { comments } : {}) }));
 }

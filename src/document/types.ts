@@ -204,6 +204,22 @@ export interface TextStyle {
   letterSpacing: number;
 }
 
+/** A note pinned to a spot on the canvas, for the AI or for later. Not part of the design: never drawn in an export. */
+export interface Comment {
+  id: string;
+  /** Page pixels, where the pin points. */
+  x: number;
+  y: number;
+  text: string;
+  by: "you" | "ai";
+  /** The thing under the pin when it was placed, if any. */
+  on?: string;
+  /** Dealt with: the pin goes away. */
+  resolved?: boolean;
+  /** What was done about it, said when it was resolved. */
+  reply?: string;
+}
+
 export interface Doc {
   version: 1;
   /** The colour of the canvas behind the design, like #141417. Left out means the standard dark one. */
@@ -212,6 +228,8 @@ export interface Doc {
   styles?: Record<string, TextStyle>;
   /** Ruler guides pulled out from the rulers: the page pixel each runs through. Left out when there are none. */
   guides?: { x: number[]; y: number[] };
+  /** Comments pinned on the canvas, oldest first. Left out when there are none. */
+  comments?: Comment[];
   rootIds: string[];
   elements: Record<string, El>;
 }
