@@ -17,7 +17,7 @@ import { QUALITIES, SIZES, addMedia, clipKind, defaultChoice, dropClips, exportS
 import { droppedPaths } from "../canvas/CanvasView";
 import type { ExportChoice } from "../video/scene";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import { TIME_MIN_H, getLayout, setLayout, useLayout } from "./layout";
+import { TIME_MIN_H, getLayout, isColorOpen, setLayout, useLayout } from "./layout";
 import { useDismiss } from "./useDismiss";
 import { trackKind, trackRows } from "../document/tracks";
 import type { TrackKind } from "../document/tracks";
@@ -56,6 +56,7 @@ function packedTracks(doc: Doc, id: string, pack: () => El[][]): El[][] {
 
 export default function TimeStrip() {
   const mode = useLayout((d) => d.mode);
+  const colorOpen = useLayout(isColorOpen);
   const look = useLayout((d) => d.timeLook ?? "layers");
   const keysOpen = useLayout((d) => d.keysOpen);
   const gradeEvery = useLayout((d) => d.gradeEvery);
@@ -146,7 +147,7 @@ export default function TimeStrip() {
       ? (openOne && openOne.duration > 0 ? openOne : firstScene()) ?? chosen
       : chosen ?? openOne;
   const plays = !!frame && frame.duration > 0;
-  const sceneId = mode !== "design" && plays ? frame.id : null;
+  const sceneId = mode === "motion" && plays ? frame.id : null;
   useEffect(() => openScene(sceneId), [sceneId]);
 
   // Cut silences listens to the picked clips, or to every clip with sound when none is picked
@@ -269,7 +270,7 @@ export default function TimeStrip() {
 
   // the tilde key, or the one beside 1, makes the timeline fill the window and brings it back; Escape too
   useEffect(() => {
-    if (mode === "design") return;
+    if (mode !== "motion") return;
     const key = (e: KeyboardEvent) => {
       const on = document.activeElement as HTMLElement | null;
       if (e.metaKey || e.ctrlKey || e.altKey || (on && (on.tagName === "INPUT" || on.tagName === "TEXTAREA" || on.tagName === "SELECT" || on.isContentEditable))) return;
@@ -491,7 +492,7 @@ export default function TimeStrip() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, plays]);
 
-  if (mode === "design") return null;
+  if (mode !== "motion") return null;
   if (!plays) {
     // the timeline is what Motion is, so it is always there: blank, with a way to make a scene
     const target = frame && !(frame.duration > 0) && selection.length === 1 && selection[0] === frame.id ? frame : doc.rootIds.map((id) => doc.elements[id]).find((e) => e?.type === "frame") ?? null;
@@ -1345,7 +1346,7 @@ export default function TimeStrip() {
             )}
           </div>
         )}
-        {mode === "color" && (
+        {colorOpen && (
           <div className="pill time-look grade-every" title="Where a colour change goes">
             <button className={gradeEvery ? "" : "active"} data-name="grade-this" onClick={() => setLayout({ gradeEvery: false })} title="Change only the picked clips">
               This clip

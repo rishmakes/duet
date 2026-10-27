@@ -45,7 +45,7 @@ export const SHORTCUTS: { group: string; keys: [string, string][] }[] = [
     keys: [
       ["Cmd 1", "Design"],
       ["Cmd 2", "Video"],
-      ["Cmd 3", "Colour"],
+      ["Cmd 3", "Photo"],
       ["Shift 1", "Fit everything"],
       ["Shift 2", "Zoom to what is picked"],
       ["Cmd =", "Zoom in"],
