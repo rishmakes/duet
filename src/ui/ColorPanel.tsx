@@ -70,12 +70,13 @@ const FEW: { key: GradeNumber; label: string }[] = [
 const REST: GradeNumber[] = ["tint", "shadows", "whites", "blacks", "vibrance"];
 
 /** The Color tab's panel: the colour of the picked pictures and clips. */
-export default function ColorPanel({ els, every }: { els: El[]; every?: string }) {
+export default function ColorPanel({ els, every, top }: { els: El[]; every?: string; top?: React.ReactNode }) {
   const graded = els.filter(canGrade);
   const [problem, setProblem] = useState("");
   if (graded.length === 0) {
     return (
       <aside className="right">
+        {top}
         <div className="panel-title">Colour</div>
         <div className="empty pad">{every !== undefined ? "There are no pictures or clips in this scene yet." : els.length ? "Only pictures and clips have colour to change here." : "Pick a picture or a clip to change its colour."}</div>
       </aside>
@@ -99,6 +100,7 @@ export default function ColorPanel({ els, every }: { els: El[]; every?: string }
 
   return (
     <aside className="right">
+      {top}
       <div className="panel-title">{every !== undefined ? `Every clip in ${every || "this scene"}` : graded.length === 1 ? graded[0].name : `${graded.length} pictures and clips`}</div>
       <div className="sec grade-top">
         <button className="mini" disabled={graded.every((e) => isNeutral(e.grade))} onClick={() => dispatch("set_grade", { ids, grade: null })}>

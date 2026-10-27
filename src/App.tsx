@@ -11,7 +11,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import ContextMenu from "./ui/ContextMenu";
 import { installMenu } from "./ui/menu";
-import { clampW, getLayout, keepMode, modeOf, setLayout, useLayout } from "./ui/layout";
+import { clampW, getLayout, isColorOpen, keepMode, modeOf, setLayout, useLayout } from "./ui/layout";
 import Icon from "./ui/Icons";
 import ChatHome from "./ui/ChatHome";
 import VideoCut from "./ui/VideoCut";
@@ -177,7 +177,7 @@ export default function App() {
         setLayout({ mode: "motion" });
       } else if (k === "3" && !e.shiftKey && !e.altKey) {
         e.preventDefault();
-        setLayout({ mode: "color" });
+        setLayout({ mode: "photo" });
       } else if (k === ",") {
         e.preventDefault();
         setSettings(true);
@@ -202,7 +202,7 @@ export default function App() {
   const lw = dock.leftHidden ? 0 : dock.leftW;
   const rw = dock.rightHidden ? 0 : dock.rightW;
   const chatting = dock.space === "chat";
-  const timeMax = dock.timeMax && !chatting && dock.mode !== "design";
+  const timeMax = dock.timeMax && !chatting && dock.mode === "motion";
   const appStyle = chatting
     ? { gridTemplateColumns: "minmax(0, 1fr)", gridTemplateRows: `44px minmax(0, 1fr) ${dock.historyLine ? "48px" : "0"}`, gridTemplateAreas: '"top" "chathome" "hist"' }
     : {
@@ -261,12 +261,12 @@ export default function App() {
             Video
           </button>
           <button
-            className={dock.mode === "color" ? "active" : ""}
-            data-name="mode-color"
-            title="Colour (Cmd or Ctrl 3)"
-            onClick={() => setLayout({ mode: "color" })}
+            className={dock.mode === "photo" ? "active" : ""}
+            data-name="mode-photo"
+            title="Photo (Cmd or Ctrl 3)"
+            onClick={() => setLayout({ mode: "photo" })}
           >
-            Colour
+            Photo
           </button>
         </div>
           )}
@@ -324,7 +324,7 @@ export default function App() {
             <CanvasView />
             <Grip side="l" />
             <Grip side="r" />
-            {dock.mode === "color" && <BeforeAfter />}
+            {isColorOpen(dock) && <BeforeAfter />}
             <ChatPanel />
           </main>
           {!dock.rightHidden && <PropertiesPanel />}

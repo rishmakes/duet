@@ -346,8 +346,8 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
   const dragRef = useRef<Drag | null>(null);
   const spaceRef = useRef(false);
   const rafRef = useRef(0);
-  // Motion and Colour work on one scene: the board goes there, and comes back to where it was when you return to Design
-  const designing = useLayout((d) => d.mode === "design");
+  // Motion works on one scene: the board goes there, and comes back to where it was when you return to Design or Photo
+  const designing = useLayout((d) => d.mode === "design" || d.mode === "photo");
   const motion = useLayout((d) => d.mode === "motion");
   const scene = useStore((s) => s.clock.scene);
   // in Motion the scene sits still in the middle: no scrolling, panning or zooming away from it

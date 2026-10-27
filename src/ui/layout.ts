@@ -3,10 +3,11 @@ import { useSyncExternalStore } from "react";
 /** Where the panels and the chat sit. Kept per person, on this computer. */
 
 export type Corner = "tl" | "tr" | "bl" | "br";
-export type Mode = "design" | "motion" | "color";
+export type Mode = "design" | "motion" | "photo";
 /** Project (called chat inside): talk to the AI beside your projects and watch the canvas. Edit: the tools. */
 export type Space = "chat" | "edit";
 export type TimeLook = "layers" | "cut";
+export type RightTab = "properties" | "color";
 
 export interface Dock {
   leftW: number;
@@ -15,7 +16,7 @@ export interface Dock {
   rightHidden: boolean;
   /** Layers on the right and the design panel on the left. */
   swapped: boolean;
-  /** Whether we are designing, animating or changing colour. */
+  /** Whether we are designing, making video or editing photos. */
   mode: Mode;
   /** Talking to the AI or working with the tools. */
   space: Space;
@@ -43,24 +44,60 @@ export interface Dock {
   namesW: number;
   /** The comment pins on the canvas are put away. */
   commentsHidden: boolean;
+  /** In Video, whether the right panel shows Properties or Colour. */
+  videoTab: RightTab;
+  /** In Photo, whether the right panel shows Properties or Colour. */
+  photoTab: RightTab;
 }
 
 const KEY = "duet:layout";
 export const MIN_W = 180;
 export const MAX_W = 460;
-export const defaults = (): Dock => ({ leftW: 232, rightW: 248, leftHidden: false, rightHidden: false, swapped: false, mode: "design", space: "edit", chat: { corner: "br" }, chatW: 320, chatH: 340, timeLook: "layers", keysOpen: false, timeH: 170, historyLine: false, homeChatW: 0, gradeEvery: false, rulers: false, timeMax: false, namesW: 150, commentsHidden: false });
+export const defaults = (): Dock => ({
+  leftW: 232,
+  rightW: 248,
+  leftHidden: false,
+  rightHidden: false,
+  swapped: false,
+  mode: "design",
+  space: "edit",
+  chat: { corner: "br" },
+  chatW: 320,
+  chatH: 340,
+  timeLook: "layers",
+  keysOpen: false,
+  timeH: 170,
+  historyLine: false,
+  homeChatW: 0,
+  gradeEvery: false,
+  rulers: false,
+  timeMax: false,
+  namesW: 150,
+  commentsHidden: false,
+  videoTab: "properties",
+  photoTab: "color",
+});
 export const CHAT_MIN = { w: 280, h: 140 };
 export const TIME_MIN_H = 72;
 
+export function parseLayout(raw: unknown): Dock {
+  if (raw && typeof raw === "object") {
+    const rawMode = (raw as Record<string, unknown>).mode;
+    const mode: Mode = rawMode === "motion" ? "motion" : rawMode === "photo" || rawMode === "color" ? "photo" : "design";
+    const r = raw as Partial<Dock>;
+    const timeLook: TimeLook = r.timeLook === "cut" ? "cut" : "layers";
+    const space: Space = r.space === "chat" ? "chat" : "edit";
+    const videoTab: RightTab = r.videoTab === "color" ? "color" : "properties";
+    const photoTab: RightTab = r.photoTab === "properties" ? "properties" : "color";
+    return { ...defaults(), ...r, mode, space, timeLook, timeMax: false, videoTab, photoTab };
+  }
+  return defaults();
+}
+
 function load(): Dock {
   try {
-    const raw = JSON.parse(localStorage.getItem(KEY) ?? "null") as Partial<Dock> | null;
-    if (raw && typeof raw === "object") {
-      const mode: Mode = raw.mode === "motion" || raw.mode === "color" ? raw.mode : "design";
-      const timeLook: TimeLook = raw.timeLook === "cut" ? "cut" : "layers";
-      const space: Space = raw.space === "chat" ? "chat" : "edit";
-      return { ...defaults(), ...raw, mode, space, timeLook, timeMax: false };
-    }
+    const raw = JSON.parse(localStorage.getItem(KEY) ?? "null");
+    return parseLayout(raw);
   } catch {
     /* start fresh */
   }
@@ -98,12 +135,28 @@ export function useLayout<T>(selector: (d: Dock) => T): T {
 
 export const clampW = (n: number) => Math.max(MIN_W, Math.min(MAX_W, Math.round(n)));
 
-/** Each project keeps the space it was left in: Design, Motion or Colour. Kept on this computer. */
+/** Whether the Colour panel is open on the right in Video or Photo. */
+export function isColorOpen(d: Dock): boolean {
+  if (d.mode === "photo") return (d.photoTab ?? "color") === "color";
+  if (d.mode === "motion") return d.videoTab === "color";
+  return false;
+}
+
+/** Which tab the right panel is on for the given space (defaults to the active mode). */
+export function rightTabOf(d: Dock, mode: Mode = d.mode): RightTab {
+  if (mode === "photo") return d.photoTab ?? "color";
+  if (mode === "motion") return d.videoTab ?? "properties";
+  return "properties";
+}
+
+/** Each project keeps the space it was left in: Design, Video or Photo. Kept on this computer. */
 const MODES = "duet:modes";
 export function modeOf(path: string): Mode | null {
   try {
-    const m = (JSON.parse(localStorage.getItem(MODES) ?? "{}") as Record<string, Mode>)[path];
-    return m === "design" || m === "motion" || m === "color" ? m : null;
+    const m = (JSON.parse(localStorage.getItem(MODES) ?? "{}") as Record<string, string>)[path];
+    if (m === "design" || m === "motion" || m === "photo") return m;
+    if (m === "color") return "photo";
+    return null;
   } catch {
     return null;
   }

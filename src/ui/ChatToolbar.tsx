@@ -15,7 +15,7 @@ import { useDismiss } from "./useDismiss";
 const KINDS: { mode: Mode; label: string; key: string }[] = [
   { mode: "design", label: "Design", key: "1" },
   { mode: "motion", label: "Video", key: "2" },
-  { mode: "color", label: "Colour", key: "3" },
+  { mode: "photo", label: "Photo", key: "3" },
 ];
 const CMD = typeof navigator !== "undefined" && /Mac/.test(navigator.platform) ? "⌘" : "Ctrl ";
 

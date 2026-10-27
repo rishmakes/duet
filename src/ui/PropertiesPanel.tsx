@@ -8,7 +8,8 @@ import { canTurn } from "../document/geometry";
 import { defaultLayout } from "../document/layout";
 import { newId } from "../commands";
 import type { AlignHow } from "../commands";
-import { useLayout } from "./layout";
+import { useLayout, setLayout } from "./layout";
+import type { RightTab } from "./layout";
 import { KEY_GROUPS, entranceOf, sceneOf, spanOf } from "../document/time";
 import { useKeyFocus } from "./keyFocus";
 import type { Entrance } from "../document/time";
@@ -610,6 +611,8 @@ function InAndOut({ el, scene }: { el: El; scene: El }) {
 
 export default function PropertiesPanel() {
   const mode = useLayout((d) => d.mode);
+  const videoTab = useLayout((d) => d.videoTab);
+  const photoTab = useLayout((d) => d.photoTab);
   const selection = useStore((s) => s.selection);
   useStore((s) => s.timeline[s.cursor]);
   useStore((s) => s.transientDoc);
@@ -620,16 +623,57 @@ export default function PropertiesPanel() {
   const doc = workDoc();
   const els = selection.map((id) => doc.elements[id]).filter(Boolean) as El[];
 
-  if (mode === "color") {
+  const tab: RightTab = mode === "photo" ? (photoTab ?? "color") : mode === "motion" ? (videoTab ?? "properties") : "properties";
+  const setTab = (next: RightTab) => {
+    if (mode === "photo") setLayout({ photoTab: next });
+    else if (mode === "motion") setLayout({ videoTab: next });
+  };
+
+  const showSwitch = mode === "motion" || mode === "photo";
+  const switchElement = showSwitch ? (
+    <div className="panel-switch-wrap">
+      <div className="pill time-look panel-switch">
+        <button
+          type="button"
+          className={tab === "properties" ? "active" : ""}
+          data-name="switch-properties"
+          title="Properties"
+          onClick={() => setTab("properties")}
+        >
+          Properties
+        </button>
+        <button
+          type="button"
+          className={tab === "color" ? "active" : ""}
+          data-name="switch-color"
+          title="Colour"
+          onClick={() => setTab("color")}
+        >
+          Colour
+        </button>
+      </div>
+    </div>
+  ) : null;
+
+  if (tab === "color") {
     // Every clip: what is changed goes to every picture and clip in the scene, like a layer over them all
     const root = rootOf(doc, selection[0])?.id ?? openScene;
-    if (every && root) return <ColorPanel els={gradablesIn(doc, root).map((id) => doc.elements[id])} every={doc.elements[root]?.name ?? ""} />;
-    return <ColorPanel els={els} />;
+    if (every && root) {
+      return (
+        <ColorPanel
+          els={gradablesIn(doc, root).map((id) => doc.elements[id])}
+          every={doc.elements[root]?.name ?? ""}
+          top={switchElement}
+        />
+      );
+    }
+    return <ColorPanel els={els} top={switchElement} />;
   }
 
   if (els.length === 0) {
     return (
       <aside className="right">
+        {switchElement}
         <div className="panel-title">Design</div>
         <div className="sec">
           <h4>Background</h4>
@@ -666,6 +710,7 @@ export default function PropertiesPanel() {
 
   return (
     <aside className="right">
+      {switchElement}
       <div className="panel-title">{one ? one.name : `${els.length} selected`}</div>
 
       {els.length > 0 && !els.every((e) => e.type === "frame" && !e.parentId) && <AlignSection ids={els.map((e) => e.id)} />}

@@ -113,7 +113,7 @@ export async function installMenu() {
     items: [
       await item("Design", () => setLayout({ mode: "design" }), "CmdOrCtrl+1"),
       await item("Video", () => setLayout({ mode: "motion" }), "CmdOrCtrl+2"),
-      await item("Colour", () => setLayout({ mode: "color" }), "CmdOrCtrl+3"),
+      await item("Photo", () => setLayout({ mode: "photo" }), "CmdOrCtrl+3"),
       await line(),
       await item("Maximise the timeline", () => setLayout({ timeMax: !getLayout().timeMax }), "`"),
       await item("Rulers and guides", () => setLayout({ rulers: !getLayout().rulers }), "Shift+R"),
