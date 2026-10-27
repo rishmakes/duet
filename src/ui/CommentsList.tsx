@@ -4,7 +4,7 @@ import { setLayout, useLayout } from "./layout";
 import { showComment, useOpenComment } from "./commentFocus";
 
 /** Every comment on the canvas: open ones by number, as on their pins, and the resolved ones folded away with what was done. */
-export default function CommentsList({ floating = false }: { floating?: boolean }) {
+export default function CommentsList() {
   const list = useStore((s) => workDoc(s).comments);
   const hidden = useLayout((d) => d.commentsHidden);
   const open = useOpenComment();
@@ -13,7 +13,7 @@ export default function CommentsList({ floating = false }: { floating?: boolean 
   const live = list.filter((c) => !c.resolved);
   const done = list.filter((c) => c.resolved);
   return (
-    <div className={`sec comments-list${floating ? " floating" : ""}`}>
+    <div className="sec comments-list">
       <div className="comments-head">
         <h4>Comments{live.length ? ` ${live.length}` : ""}</h4>
         <button className="mini" title="Show or hide the pins on the canvas (Shift C)" onClick={() => setLayout({ commentsHidden: !hidden })}>

@@ -7,7 +7,6 @@ import { ask, message } from "@tauri-apps/plugin-dialog";
 import type { Trashed } from "../project/project";
 import { checkListed, closeProject, closeTab, copyProject, getTabs, listedProjects, moveProjectTo, renameProject, inTauri, newProject, openProjectAt, removeRecent, TRASH_DAYS, trashDelete, trashList, trashProject, trashRestore } from "../project/project";
 import { getState, isParked, setViewport, useStore } from "../state/store";
-import CommentsList from "./CommentsList";
 import { closeTask, readyToLeave } from "../ai/agent";
 import { AGENTS, showThread, useChat } from "../ai/chat";
 import { agentColour } from "../ai/colours";
@@ -551,7 +550,6 @@ export default function ChatHome() {
           <CanvasView />
           {/* the tools belong to the canvas, not to the list of all projects laid over it */}
           {!all && <ChatToolbar />}
-          {!all && <CommentsList floating />}
         </div>
         {/* in Video, the timeline sits under the design, so the basics are here while talking to the AI */}
         {!all && mode === "motion" && <TimeStrip />}

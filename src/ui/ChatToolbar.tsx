@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { setOnlyFrame } from "../canvas/render";
 import { useStore } from "../state/store";
 import Toolbar from "./Toolbar";
+import CommentsList from "./CommentsList";
 import { setLayout, useLayout } from "./layout";
 import type { Mode } from "./layout";
 import { useDismiss } from "./useDismiss";
 
 /**
  * The thin bar over the canvas beside the chat: the kind of work on the left, the same tools as Edit
- * in the middle, and on the right the whole canvas or one frame on its own.
+ * in the middle, and on the right the comments, when there are some, and the whole canvas or one frame on its own.
  */
 
 const KINDS: { mode: Mode; label: string; key: string }[] = [
@@ -23,7 +24,9 @@ export default function ChatToolbar() {
   const doc = useStore((s) => s.timeline[s.cursor].doc);
   const frames = doc.rootIds.filter((id) => doc.elements[id]?.type === "frame" || doc.elements[id]?.type === "instance");
   const [only, setOnly] = useState<string | null>(null);
-  const [open, setOpen] = useState<"kind" | "frame" | null>(null);
+  const [open, setOpen] = useState<"kind" | "frame" | "comments" | null>(null);
+  const commentsRef = useRef<HTMLButtonElement>(null);
+  const openComments = (doc.comments ?? []).filter((c) => !c.resolved).length;
   const kindRef = useRef<HTMLButtonElement>(null);
   const frameRef = useRef<HTMLButtonElement>(null);
 
@@ -57,6 +60,16 @@ export default function ChatToolbar() {
         {KINDS.find((k) => k.mode === mode)?.label}
       </button>
       <Toolbar row />
+      {!!doc.comments?.length && (
+        <button
+          ref={commentsRef}
+          className={`chatbar-drop end ${open === "comments" ? "on" : ""}`}
+          title="The comments pinned on the canvas"
+          onClick={() => setOpen(open === "comments" ? null : "comments")}
+        >
+          Comments{openComments ? ` ${openComments}` : ""}
+        </button>
+      )}
       <button
         ref={frameRef}
         className={`chatbar-drop end ${open === "frame" ? "on" : ""}`}
@@ -81,6 +94,11 @@ export default function ChatToolbar() {
               <kbd>{`${CMD}${k.key}`}</kbd>
             </div>
           ))}
+        </div>
+      )}
+      {open === "comments" && (
+        <div className="ctx chatbar-menu chatbar-comments" style={below(commentsRef.current, true)}>
+          <CommentsList />
         </div>
       )}
       {open === "frame" && (
