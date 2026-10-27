@@ -236,16 +236,21 @@ function compileShader(g: WebGL2RenderingContext, kind: number, text: string) {
   const s = g.createShader(kind)!;
   g.shaderSource(s, text);
   g.compileShader(s);
-  if (!g.getShaderParameter(s, g.COMPILE_STATUS)) throw new Error(g.getShaderInfoLog(s) ?? "shader");
+  if (!g.getShaderParameter(s, g.COMPILE_STATUS))
+    throw new Error(g.getShaderInfoLog(s) ?? "shader");
   return s;
 }
 
-function createProgram(g: WebGL2RenderingContext, fragText: string): WebGLProgram {
+function createProgram(
+  g: WebGL2RenderingContext,
+  fragText: string,
+): WebGLProgram {
   const p = g.createProgram()!;
   g.attachShader(p, compileShader(g, g.VERTEX_SHADER, VERTEX));
   g.attachShader(p, compileShader(g, g.FRAGMENT_SHADER, fragText));
   g.linkProgram(p);
-  if (!g.getProgramParameter(p, g.LINK_STATUS)) throw new Error(g.getProgramInfoLog(p) ?? "link");
+  if (!g.getProgramParameter(p, g.LINK_STATUS))
+    throw new Error(g.getProgramInfoLog(p) ?? "link");
   return p;
 }
 
@@ -253,12 +258,20 @@ function initContext(): WebGL2RenderingContext | null {
   if (gl !== undefined) return gl;
   try {
     sheet = document.createElement("canvas");
-    const g = sheet.getContext("webgl2", { premultipliedAlpha: false, preserveDrawingBuffer: true, antialias: false });
+    const g = sheet.getContext("webgl2", {
+      premultipliedAlpha: false,
+      preserveDrawingBuffer: true,
+      antialias: false,
+    });
     if (!g) return (gl = null);
 
     quadBuffer = g.createBuffer()!;
     g.bindBuffer(g.ARRAY_BUFFER, quadBuffer);
-    g.bufferData(g.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), g.STATIC_DRAW);
+    g.bufferData(
+      g.ARRAY_BUFFER,
+      new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]),
+      g.STATIC_DRAW,
+    );
 
     progCopy = createProgram(g, FRAG_COPY);
     progBlur = createProgram(g, FRAG_BLUR);
@@ -301,9 +314,25 @@ function ensureBuffers(g: WebGL2RenderingContext, w: number, h: number) {
       [texB, fboB],
     ] as const) {
       g.bindTexture(g.TEXTURE_2D, t);
-      g.texImage2D(g.TEXTURE_2D, 0, g.RGBA, w, h, 0, g.RGBA, g.UNSIGNED_BYTE, null);
+      g.texImage2D(
+        g.TEXTURE_2D,
+        0,
+        g.RGBA,
+        w,
+        h,
+        0,
+        g.RGBA,
+        g.UNSIGNED_BYTE,
+        null,
+      );
       g.bindFramebuffer(g.FRAMEBUFFER, fbo);
-      g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0, g.TEXTURE_2D, t, 0);
+      g.framebufferTexture2D(
+        g.FRAMEBUFFER,
+        g.COLOR_ATTACHMENT0,
+        g.TEXTURE_2D,
+        t,
+        0,
+      );
     }
   }
 }
@@ -324,12 +353,34 @@ export function clearEffectsCache() {
   stills.clear();
 }
 
-function picDimensions(pic: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement): [number, number] {
-  if (typeof HTMLVideoElement !== "undefined" && pic instanceof HTMLVideoElement) return [pic.videoWidth, pic.videoHeight];
-  if (typeof HTMLCanvasElement !== "undefined" && pic instanceof HTMLCanvasElement) return [pic.width, pic.height];
-  if ("videoWidth" in pic) return [(pic as HTMLVideoElement).videoWidth || 0, (pic as HTMLVideoElement).videoHeight || 0];
-  if ("naturalWidth" in pic) return [(pic as HTMLImageElement).naturalWidth || 0, (pic as HTMLImageElement).naturalHeight || 0];
-  if ("width" in pic) return [(pic as HTMLCanvasElement).width || 0, (pic as HTMLCanvasElement).height || 0];
+function picDimensions(
+  pic: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement,
+): [number, number] {
+  if (
+    typeof HTMLVideoElement !== "undefined" &&
+    pic instanceof HTMLVideoElement
+  )
+    return [pic.videoWidth, pic.videoHeight];
+  if (
+    typeof HTMLCanvasElement !== "undefined" &&
+    pic instanceof HTMLCanvasElement
+  )
+    return [pic.width, pic.height];
+  if ("videoWidth" in pic)
+    return [
+      (pic as HTMLVideoElement).videoWidth || 0,
+      (pic as HTMLVideoElement).videoHeight || 0,
+    ];
+  if ("naturalWidth" in pic)
+    return [
+      (pic as HTMLImageElement).naturalWidth || 0,
+      (pic as HTMLImageElement).naturalHeight || 0,
+    ];
+  if ("width" in pic)
+    return [
+      (pic as HTMLCanvasElement).width || 0,
+      (pic as HTMLCanvasElement).height || 0,
+    ];
   return [0, 0];
 }
 
@@ -340,14 +391,16 @@ export function applyEffects(
   pic: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement,
   effects: Effect[] | undefined | null,
   el: El,
-  still: string | null
+  still: string | null,
 ): CanvasImageSource {
   if (!hasActiveEffects(effects)) return pic;
 
   const [nw, nh] = picDimensions(pic);
   if (!nw || !nh) return pic;
 
-  const key = still ? `${still}|${Math.round(el.width)}x${Math.round(el.height)}|${JSON.stringify(effects)}|${JSON.stringify(el.grade)}` : "";
+  const key = still
+    ? `${still}|${Math.round(el.width)}x${Math.round(el.height)}|${JSON.stringify(effects)}|${JSON.stringify(el.grade)}`
+    : "";
   if (key && stills.has(key)) return stills.get(key)!;
 
   const g = initContext();
@@ -389,28 +442,35 @@ export function applyEffects(
       if (eff.kind === "blur") {
         const amount = eff.values.amount ?? 20;
         if (amount > 0) {
-          const rTex = toTexPx(amount);
-          // Pass 1: horizontal blur
-          g.bindFramebuffer(g.FRAMEBUFFER, writeFbo);
-          setupQuad(g, progBlur);
-          g.activeTexture(g.TEXTURE0);
-          g.bindTexture(g.TEXTURE_2D, readTex);
-          g.uniform1i(g.getUniformLocation(progBlur, "src"), 0);
-          g.uniform2f(g.getUniformLocation(progBlur, "direction"), 1 / w, 0);
-          g.uniform1f(g.getUniformLocation(progBlur, "radius"), rTex);
-          g.drawArrays(g.TRIANGLE_STRIP, 0, 4);
-          swap();
+          // 25 taps leave gaps on a big blur, so a big one is several smaller ones in a row (they add up as the square root)
+          const passes = Math.min(
+            16,
+            Math.max(1, Math.ceil((toTexPx(amount) / 24) ** 2)),
+          );
+          const rTex = toTexPx(amount) / Math.sqrt(passes);
+          for (let p = 0; p < passes; p++) {
+            // Pass 1: horizontal blur
+            g.bindFramebuffer(g.FRAMEBUFFER, writeFbo);
+            setupQuad(g, progBlur);
+            g.activeTexture(g.TEXTURE0);
+            g.bindTexture(g.TEXTURE_2D, readTex);
+            g.uniform1i(g.getUniformLocation(progBlur, "src"), 0);
+            g.uniform2f(g.getUniformLocation(progBlur, "direction"), 1 / w, 0);
+            g.uniform1f(g.getUniformLocation(progBlur, "radius"), rTex);
+            g.drawArrays(g.TRIANGLE_STRIP, 0, 4);
+            swap();
 
-          // Pass 2: vertical blur
-          g.bindFramebuffer(g.FRAMEBUFFER, writeFbo);
-          setupQuad(g, progBlur);
-          g.activeTexture(g.TEXTURE0);
-          g.bindTexture(g.TEXTURE_2D, readTex);
-          g.uniform1i(g.getUniformLocation(progBlur, "src"), 0);
-          g.uniform2f(g.getUniformLocation(progBlur, "direction"), 0, 1 / h);
-          g.uniform1f(g.getUniformLocation(progBlur, "radius"), rTex);
-          g.drawArrays(g.TRIANGLE_STRIP, 0, 4);
-          swap();
+            // Pass 2: vertical blur
+            g.bindFramebuffer(g.FRAMEBUFFER, writeFbo);
+            setupQuad(g, progBlur);
+            g.activeTexture(g.TEXTURE0);
+            g.bindTexture(g.TEXTURE_2D, readTex);
+            g.uniform1i(g.getUniformLocation(progBlur, "src"), 0);
+            g.uniform2f(g.getUniformLocation(progBlur, "direction"), 0, 1 / h);
+            g.uniform1f(g.getUniformLocation(progBlur, "radius"), rTex);
+            g.drawArrays(g.TRIANGLE_STRIP, 0, 4);
+            swap();
+          }
         }
       } else if (eff.kind === "sharpen") {
         const amount = eff.values.amount ?? 50;
@@ -422,7 +482,11 @@ export function applyEffects(
           g.activeTexture(g.TEXTURE0);
           g.bindTexture(g.TEXTURE_2D, readTex);
           g.uniform1i(g.getUniformLocation(progSharpen, "src"), 0);
-          g.uniform2f(g.getUniformLocation(progSharpen, "texelSize"), 1 / w, 1 / h);
+          g.uniform2f(
+            g.getUniformLocation(progSharpen, "texelSize"),
+            1 / w,
+            1 / h,
+          );
           g.uniform1f(g.getUniformLocation(progSharpen, "amount"), amount);
           g.uniform1f(g.getUniformLocation(progSharpen, "radius"), rTex);
           g.drawArrays(g.TRIANGLE_STRIP, 0, 4);
@@ -456,7 +520,11 @@ export function applyEffects(
           g.activeTexture(g.TEXTURE0);
           g.bindTexture(g.TEXTURE_2D, origTex);
           g.uniform1i(g.getUniformLocation(progGlowExtract, "src"), 0);
-          g.uniform2f(g.getUniformLocation(progGlowExtract, "direction"), 1 / w, 0);
+          g.uniform2f(
+            g.getUniformLocation(progGlowExtract, "direction"),
+            1 / w,
+            0,
+          );
           g.uniform1f(g.getUniformLocation(progGlowExtract, "radius"), rTex);
           g.drawArrays(g.TRIANGLE_STRIP, 0, 4);
 
@@ -473,9 +541,16 @@ export function applyEffects(
           g.activeTexture(g.TEXTURE1);
           g.bindTexture(g.TEXTURE_2D, bloomHTex);
           g.uniform1i(g.getUniformLocation(progGlowComposite, "bloom"), 1);
-          g.uniform2f(g.getUniformLocation(progGlowComposite, "direction"), 0, 1 / h);
+          g.uniform2f(
+            g.getUniformLocation(progGlowComposite, "direction"),
+            0,
+            1 / h,
+          );
           g.uniform1f(g.getUniformLocation(progGlowComposite, "radius"), rTex);
-          g.uniform1f(g.getUniformLocation(progGlowComposite, "amount"), amount);
+          g.uniform1f(
+            g.getUniformLocation(progGlowComposite, "amount"),
+            amount,
+          );
           g.drawArrays(g.TRIANGLE_STRIP, 0, 4);
 
           // Result is in origTex
