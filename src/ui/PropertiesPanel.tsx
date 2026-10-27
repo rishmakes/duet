@@ -721,12 +721,6 @@ function EffectsSection({ els }: { els: El[] }) {
             return (
               <div
                 key={eff.id}
-                draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.setData("text/plain", eff.id);
-                  setDraggedId(eff.id);
-                }}
-                onDragEnd={() => setDraggedId(null)}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
                   e.preventDefault();
@@ -743,7 +737,16 @@ function EffectsSection({ els }: { els: El[] }) {
                   border: draggedId === eff.id ? "1px dashed var(--accent)" : "1px solid var(--line, #2a2a31)",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 4 }}>
+                {/* only the name row picks the effect up, so dragging a slider moves the slider */}
+                <div
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("text/plain", eff.id);
+                    setDraggedId(eff.id);
+                  }}
+                  onDragEnd={() => setDraggedId(null)}
+                  style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 4, cursor: "grab" }}
+                >
                   <button
                     className={`lockbtn eyebtn ${!eff.on ? "on" : ""}`}
                     onClick={() => dispatch("set_effect", { ids, effectId: eff.id, on: !eff.on })}
