@@ -4728,6 +4728,45 @@ button.agent-perm {
   color: var(--duet);
 }
 
+/* effects panel: live drag reordering and accent drop indicator line */
+.effect-card {
+  position: relative;
+  background: var(--panel-alt, #1c1c21);
+  border-radius: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--line, #2a2a31);
+}
+.effect-card.is-off {
+  opacity: 0.6;
+}
+.effect-card.is-dragging {
+  opacity: 0.35;
+}
+.effect-card.drop-above::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 1px;
+  pointer-events: none;
+  z-index: 2;
+}
+.effect-card.drop-below::after {
+  content: "";
+  position: absolute;
+  bottom: -6px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 1px;
+  pointer-events: none;
+  z-index: 2;
+}
+
 /* the font field: every font on the computer, each name in its own face */
 .font-picker {
   flex: 1;

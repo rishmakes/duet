@@ -689,6 +689,22 @@ function EffectsSection({ els }: { els: El[] }) {
   const effects = first.effects ?? [];
   const [adding, setAdding] = useState(false);
   const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ id: string; zone: "above" | "below" } | null>(null);
+
+  const handleDrop = (fromId: string | null, targetId: string, zone: "above" | "below") => {
+    setDraggedId(null);
+    setDropTarget(null);
+    if (!fromId) return;
+    const fromIndex = effects.findIndex((e) => e.id === fromId);
+    const targetIndex = effects.findIndex((e) => e.id === targetId);
+    if (fromIndex === -1 || targetIndex === -1) return;
+
+    const targetSlot = zone === "above" ? targetIndex : targetIndex + 1;
+    const toIndex = targetSlot > fromIndex ? targetSlot - 1 : targetSlot;
+    if (toIndex === fromIndex) return;
+
+    dispatch("move_effect", { ids, effectId: fromId, toIndex });
+  };
 
   return (
     <div className="sec">
@@ -725,36 +741,86 @@ function EffectsSection({ els }: { els: El[] }) {
       )}
 
       {effects.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 6 }}>
+        <div
+          style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 6 }}
+          onDragOver={(e) => {
+            if (draggedId) {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+            }
+          }}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+              setDropTarget(null);
+            }
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            const fromId = e.dataTransfer.getData("text/plain") || draggedId;
+            if (fromId && dropTarget) {
+              handleDrop(fromId, dropTarget.id, dropTarget.zone);
+            } else {
+              setDraggedId(null);
+              setDropTarget(null);
+            }
+          }}
+        >
           {effects.map((eff, i) => {
             const def = EFFECT_DEFS[eff.kind];
+            const isDragging = draggedId === eff.id;
+            const dropZone = dropTarget?.id === eff.id ? dropTarget.zone : null;
+
             return (
               <div
                 key={eff.id}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
+                className={`effect-card ${!eff.on ? "is-off" : ""} ${isDragging ? "is-dragging" : ""} ${dropZone ? `drop-${dropZone}` : ""}`}
+                onDragOver={(e) => {
                   e.preventDefault();
-                  const fromId = e.dataTransfer.getData("text/plain") || draggedId;
-                  if (fromId && fromId !== eff.id) {
-                    dispatch("move_effect", { ids, effectId: fromId, toIndex: i });
+                  e.dataTransfer.dropEffect = "move";
+                  if (draggedId && eff.id === draggedId) {
+                    if (dropTarget) setDropTarget(null);
+                    return;
+                  }
+                  const r = e.currentTarget.getBoundingClientRect();
+                  const zone: "above" | "below" = r.height > 0 && (e.clientY - r.top) >= r.height / 2 ? "below" : "above";
+                  if (dropTarget?.id !== eff.id || dropTarget?.zone !== zone) {
+                    setDropTarget({ id: eff.id, zone });
                   }
                 }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const fromId = e.dataTransfer.getData("text/plain") || draggedId;
+                  const r = e.currentTarget.getBoundingClientRect();
+                  const zone: "above" | "below" =
+                    dropTarget?.id === eff.id
+                      ? dropTarget.zone
+                      : r.height > 0 && (e.clientY - r.top) >= r.height / 2
+                        ? "below"
+                        : "above";
+                  handleDrop(fromId, eff.id, zone);
+                }}
                 style={{
+                  position: "relative",
                   background: "var(--panel-alt, #1c1c21)",
                   borderRadius: 6,
                   padding: "6px 8px",
-                  opacity: eff.on ? 1 : 0.6,
-                  border: draggedId === eff.id ? "1px dashed var(--accent)" : "1px solid var(--line, #2a2a31)",
+                  opacity: isDragging ? 0.35 : eff.on ? 1 : 0.6,
+                  border: "1px solid var(--line, #2a2a31)",
                 }}
               >
                 {/* only the name row picks the effect up, so dragging a slider moves the slider */}
                 <div
                   draggable
                   onDragStart={(e) => {
+                    e.dataTransfer.effectAllowed = "move";
                     e.dataTransfer.setData("text/plain", eff.id);
                     setDraggedId(eff.id);
                   }}
-                  onDragEnd={() => setDraggedId(null)}
+                  onDragEnd={() => {
+                    setDraggedId(null);
+                    setDropTarget(null);
+                  }}
                   style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 4, cursor: "grab" }}
                 >
                   <button
