@@ -2872,6 +2872,30 @@ option {
   flex-shrink: 0;
 }
 
+.settings-search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.settings-search:focus {
+  border-color: var(--accent);
+}
+
+.settings-search::placeholder {
+  color: var(--muted);
+}
+
 .settings-nav {
   display: flex;
   flex-direction: column;
@@ -2914,6 +2938,10 @@ option {
   font-size: 16px;
   font-weight: 700;
   margin-bottom: 16px;
+}
+
+.settings-section-title:not(:first-child) {
+  margin-top: 28px;
 }
 
 .settings-meta {
@@ -2973,6 +3001,12 @@ option {
   font-size: 12px;
   color: var(--muted);
   line-height: 1.4;
+}
+
+.settings-empty {
+  font-size: 13px;
+  color: var(--muted);
+  padding: 8px 0;
 }
 
 
