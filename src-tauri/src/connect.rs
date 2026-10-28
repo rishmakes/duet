@@ -444,10 +444,14 @@ fn handle(mut req: tiny_http::Request, app: &AppHandle, route: &str) {
             return reply(req, 200, text.to_string());
         }
     }
+    let mut sent = msg.clone();
+    if msg["method"] == "tools/call" && msg["params"]["name"] == SHOW {
+        sent["params"]["name"] = json!("look_at_design");
+    }
     if let Some(text) = own_answer(app, &msg) {
         return reply(req, 200, text);
     }
-    let Some((code, mut answer)) = to_duet(app, &msg) else {
+    let Some((code, mut answer)) = to_duet(app, &sent) else {
         return reply(req, 503, "{\"error\":\"Duet is not ready\"}".into());
     };
     if code == 202 {
@@ -470,6 +474,8 @@ fn handle(mut req: tiny_http::Request, app: &AppHandle, route: &str) {
 const CARD_OPENAI: &str = "ui://duet/preview-openai.html";
 const CARD: &str = "ui://duet/preview.html";
 const CARD_HTML: &str = include_str!("connect_card.html");
+/// A tool only web AIs get: look_at_design, shown to the designer as a card.
+const SHOW: &str = "show_design";
 
 /// Requests the connection answers itself: the card's page.
 fn own_answer(app: &AppHandle, msg: &Value) -> Option<String> {
@@ -534,16 +540,22 @@ fn dress(app: &AppHandle, msg: &Value, d: &mut Value) {
                     if t["name"] == "place_image" {
                         teach_place_image(t);
                     }
-                    if t["name"] == "look_at_design" {
-                        t["_meta"]["openai/outputTemplate"] = json!(CARD_OPENAI);
-                        t["_meta"]["openai/toolInvocation/invoking"] = json!("Looking at the design");
-                        t["_meta"]["openai/toolInvocation/invoked"] = json!("Here is the design");
-                        t["_meta"]["ui"] = json!({"resourceUri": CARD});
-                    }
                 }
+                tools.push(json!({
+                    "name": SHOW,
+                    "description": "Show the designer the design in this chat, as a picture. Call it once when you finish a piece of work, and whenever the designer asks to see it. Give ids to show certain frames; leave them out for the whole design.",
+                    "inputSchema": {"type": "object", "properties": {"ids": {"type": "array", "items": {"type": "string"}}}},
+                    "annotations": {"readOnlyHint": true},
+                    "_meta": {
+                        "openai/outputTemplate": CARD_OPENAI,
+                        "openai/toolInvocation/invoking": "Showing the design",
+                        "openai/toolInvocation/invoked": "Here is the design",
+                        "ui": {"resourceUri": CARD}
+                    }
+                }));
             }
         }
-        Some("tools/call") if msg["params"]["name"] == "look_at_design" => {
+        Some("tools/call") if msg["params"]["name"] == "look_at_design" || msg["params"]["name"] == SHOW => {
             let content = d["result"]["content"].as_array().cloned().unwrap_or_default();
             let picture = content
                 .iter()
