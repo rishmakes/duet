@@ -21,18 +21,24 @@
   <div class="foot"><span class="dot"></span><span id="cap">Live in Duet</span></div>
 </div>
 <script>
-  // Shows the picture look_at_design took. ChatGPT hands it over as window.openai.toolOutput;
-  // other hosts that follow MCP Apps send it as a message.
+  // Shows the picture of the frame the AI just worked on. ChatGPT hands it over as window.openai.toolOutput;
+  // hosts that follow MCP Apps send it as a message. If neither arrives, the card asks Duet for its latest picture.
+  var BASE = "__DUET_BASE__";
+  var shown = false;
   function show(data) {
-    if (!data || !data.picture) return;
+    if (shown || !data || !data.picture) return;
+    shown = true;
+    put(data.picture, data.caption);
+  }
+  function put(src, caption) {
     var pic = document.getElementById("pic");
     var img = document.createElement("img");
     img.alt = "The design in Duet";
     img.onload = resize;
     img.onerror = function () { pic.replaceChildren(Object.assign(document.createElement("div"), { className: "wait", textContent: "The picture could not load. The design is in Duet." })); resize(); };
-    img.src = data.picture;
+    img.src = src;
     pic.replaceChildren(img);
-    var first = String(data.caption || "").split(".")[0];
+    var first = String(caption || "").split(".")[0];
     document.getElementById("cap").textContent = first ? first.replace(/^A picture of /, "") + " · in Duet" : "Live in Duet";
   }
   function resize() {
@@ -40,17 +46,30 @@
     if (window.openai && window.openai.notifyIntrinsicHeight) window.openai.notifyIntrinsicHeight(h);
     parent.postMessage({ jsonrpc: "2.0", method: "ui/notifications/size-changed", params: { width: document.body.scrollWidth, height: h } }, "*");
   }
-  if (window.openai) show(window.openai.toolOutput);
-  window.addEventListener("openai:set_globals", function () { if (window.openai) show(window.openai.toolOutput); });
+  function check() { if (window.openai) show(window.openai.toolOutput); }
+  window.addEventListener("openai:set_globals", function (e) {
+    var g = e.detail && e.detail.globals;
+    if (g && g.toolOutput) show(g.toolOutput);
+    check();
+  });
   window.addEventListener("message", function (e) {
     var m = e.data;
     if (!m || m.jsonrpc !== "2.0") return;
     if (m.method === "ui/notifications/tool-result" && m.params) show(m.params.structuredContent);
     if (m.id === 1 && m.result) parent.postMessage({ jsonrpc: "2.0", method: "ui/notifications/initialized", params: {} }, "*");
   });
-  if (!window.openai && parent !== window) {
+  if (parent !== window) {
     parent.postMessage({ jsonrpc: "2.0", id: 1, method: "ui/initialize", params: { protocolVersion: "2026-01-26", appInfo: { name: "Duet preview", version: "1" }, appCapabilities: {} } }, "*");
   }
+  check();
+  var tries = 0;
+  var poll = setInterval(function () {
+    check();
+    if (shown || ++tries > 10) {
+      clearInterval(poll);
+      if (!shown && BASE.indexOf("https://") === 0) { shown = true; put(BASE + "/picture/latest.png?t=" + Date.now(), ""); }
+    }
+  }, 300);
 </script>
 </body>
 </html>

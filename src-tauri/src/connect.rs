@@ -413,9 +413,13 @@ fn reply(req: tiny_http::Request, code: u16, body: String) {
 fn handle(mut req: tiny_http::Request, app: &AppHandle, route: &str) {
     let path = req.url().split('?').next().unwrap_or("").to_string();
     let base = route.trim_end_matches("/mcp");
-    if let Some(n) = path.strip_prefix(&format!("{base}/picture/")).and_then(|n| n.trim_end_matches(".png").parse::<u64>().ok()) {
+    if let Some(name) = path.strip_prefix(&format!("{base}/picture/")).map(|n| n.trim_end_matches(".png").to_string()) {
         let s = app.state::<Arc<ConnectState>>();
-        let found = s.inner.lock().unwrap().pictures.iter().find(|p| p.0 == n).map(|p| (p.1.clone(), p.2.clone()));
+        let i = s.inner.lock().unwrap();
+        // "latest" is the card's own way in, when the chat did not hand it the picture
+        let found = if name == "latest" { i.pictures.last() } else { name.parse::<u64>().ok().and_then(|n| i.pictures.iter().find(|p| p.0 == n)) }
+            .map(|p| (p.1.clone(), p.2.clone()));
+        drop(i);
         return match found {
             Some((mime, bytes)) => {
                 let kind = tiny_http::Header::from_bytes(&b"Content-Type"[..], mime.as_bytes()).unwrap();
@@ -447,6 +451,8 @@ fn handle(mut req: tiny_http::Request, app: &AppHandle, route: &str) {
     let mut sent = msg.clone();
     if msg["method"] == "tools/call" && msg["params"]["name"] == SHOW {
         sent["params"]["name"] = json!("look_at_design");
+        let id = msg["params"]["arguments"]["id"].clone();
+        sent["params"]["arguments"] = if id.is_string() { json!({"ids": [id]}) } else { json!({}) };
     }
     if let Some(text) = own_answer(app, &msg) {
         return reply(req, 200, text);
@@ -499,7 +505,9 @@ fn own_answer(app: &AppHandle, msg: &Value) -> Option<String> {
                 "openai/widgetDescription": "A picture of the design in Duet, as it is now.",
                 "ui": {"csp": {"resourceDomains": [host]}, "prefersBorder": false}
             });
-            json!({"contents": [{"uri": uri, "mimeType": mime, "text": CARD_HTML, "_meta": meta}]})
+            let base = s_link(app).map(|l| l.trim_end_matches("/mcp").to_string()).unwrap_or_default();
+            let html = CARD_HTML.replace("__DUET_BASE__", &base);
+            json!({"contents": [{"uri": uri, "mimeType": mime, "text": html, "_meta": meta}]})
         }
         _ => return None,
     };
@@ -507,6 +515,10 @@ fn own_answer(app: &AppHandle, msg: &Value) -> Option<String> {
 }
 
 /// What a web AI needs on top of Duet's own answers.
+fn s_link(app: &AppHandle) -> Option<String> {
+    app.state::<Arc<ConnectState>>().inner.lock().unwrap().link.clone()
+}
+
 fn public_host(app: &AppHandle) -> Option<String> {
     let s = app.state::<Arc<ConnectState>>();
     let link = s.inner.lock().unwrap().link.clone()?;
@@ -543,8 +555,8 @@ fn dress(app: &AppHandle, msg: &Value, d: &mut Value) {
                 }
                 tools.push(json!({
                     "name": SHOW,
-                    "description": "Show the designer the design in this chat, as a picture. Call it once when you finish a piece of work, and whenever the designer asks to see it. Give ids to show certain frames; leave them out for the whole design.",
-                    "inputSchema": {"type": "object", "properties": {"ids": {"type": "array", "items": {"type": "string"}}}},
+                    "description": "Show the designer one frame in this chat, as a picture: the frame you just worked on. Call it once when you finish a piece of work, and whenever the designer asks to see it.",
+                    "inputSchema": {"type": "object", "properties": {"id": {"type": "string", "description": "The id of the one frame to show."}}, "required": ["id"]},
                     "annotations": {"readOnlyHint": true},
                     "_meta": {
                         "openai/outputTemplate": CARD_OPENAI,
