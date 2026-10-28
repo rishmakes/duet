@@ -825,7 +825,7 @@ function EffectsSection({ els }: { els: El[] }) {
                   style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 4, cursor: "grab" }}
                 >
                   <button
-                    className={`lockbtn eyebtn ${!eff.on ? "on" : ""}`}
+                    className="lockbtn on"
                     onClick={() => dispatch("set_effect", { ids, effectId: eff.id, on: !eff.on })}
                     title={eff.on ? "Turn off effect" : "Turn on effect"}
                     style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex", alignItems: "center", color: "inherit" }}
