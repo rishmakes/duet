@@ -154,6 +154,12 @@ fn handle(mut req: tiny_http::Request, state: Arc<McpState>, app: AppHandle) {
     }
 }
 
+/// Where Duet's own AI connection listens, and its password. For the web connection, which passes requests on.
+pub(crate) fn local_address(app: &AppHandle) -> Option<(u16, String)> {
+    let s = app.try_state::<Arc<McpState>>()?;
+    Some((s.port, s.token.clone()))
+}
+
 /// Leave the address and secret in ~/.duet/session.json, readable only by this user,
 /// so tools on this computer (and tests) can find the running Duet.
 fn write_session_file(port: u16, token: &str) {
@@ -194,6 +200,7 @@ pub fn start(app: &AppHandle) -> Result<(), String> {
     app.manage(state.clone());
     app.manage(AgentState::default());
     app.manage(Arc::new(crate::keepalive::Activity::default()));
+    app.manage(Arc::new(crate::connect::ConnectState::default()));
     let app = app.clone();
     std::thread::spawn(move || {
         for req in server.incoming_requests() {
@@ -753,7 +760,7 @@ pub fn agy_connect() -> Result<(), String> {
 }
 
 /// The body of a raw HTTP response. Big answers arrive in chunks, each led by its size in hex.
-fn http_body(raw: &[u8]) -> String {
+pub(crate) fn http_body(raw: &[u8]) -> String {
     let Some(split) = raw.windows(4).position(|w| w == b"\r\n\r\n") else {
         return String::new();
     };

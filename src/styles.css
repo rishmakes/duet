@@ -6451,3 +6451,55 @@ input.chathome-name.rename {
 .ctx-item.danger {
   color: #ff7a6e;
 }
+
+/* Add-ons in Settings */
+.addon {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 560px;
+  font-size: 13px;
+}
+.addon-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+.addon-name {
+  font-weight: 600;
+  color: var(--text);
+}
+.addon-what,
+.addon-note {
+  color: var(--muted);
+  margin-top: 2px;
+  line-height: 1.45;
+}
+.addon-error {
+  color: var(--danger, #e5484d);
+}
+.addon-link {
+  display: flex;
+  gap: 8px;
+}
+.addon-link input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 8px;
+}
+.addon-steps {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text);
+  line-height: 1.5;
+}

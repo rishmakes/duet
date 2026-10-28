@@ -1,4 +1,5 @@
 mod ai;
+mod connect;
 mod files;
 mod grade;
 mod keepalive;
@@ -556,6 +557,9 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
             ai::agy_connect,
+            connect::connect_status,
+            connect::connect_start,
+            connect::connect_stop,
             ai::agent_models,
             read_text_file,
             read_binary_file,
@@ -678,6 +682,7 @@ pub fn run() {
             }
             if let tauri::RunEvent::Exit = &event {
                 ai::stop_agent(app);
+                connect::stop_tunnel(app);
             }
             let _ = (&app, &event);
         });

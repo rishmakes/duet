@@ -7,6 +7,7 @@ import { toolName } from "../ai/who";
 import { useStore } from "../state/store";
 import { getVersion } from "@tauri-apps/api/app";
 import { setLayout, useLayout } from "./layout";
+import { ConnectAddon } from "./AddOns";
 
 interface SettingsProps {
   check?: boolean;
@@ -65,7 +66,7 @@ export function matchGeneralRow(
 }
 
 export default function Settings({ check = false, onClose }: SettingsProps) {
-  const [section, setSection] = useState<"Keyboard shortcuts" | "General" | "Developer">("Keyboard shortcuts");
+  const [section, setSection] = useState<"Keyboard shortcuts" | "General" | "Add-ons" | "Developer">("Keyboard shortcuts");
   const [search, setSearch] = useState("");
   const [version, setVersion] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
@@ -101,7 +102,7 @@ export default function Settings({ check = false, onClose }: SettingsProps) {
     : undefined;
   const workingNow = who ?? "No one";
 
-  const sections = check ? (["Keyboard shortcuts", "General", "Developer"] as const) : (["Keyboard shortcuts", "General"] as const);
+  const sections = check ? (["Keyboard shortcuts", "General", "Add-ons", "Developer"] as const) : (["Keyboard shortcuts", "General", "Add-ons"] as const);
   const activeSection = section === "Developer" && !check ? "General" : section;
 
   const searching = Boolean(search.trim());
@@ -111,6 +112,7 @@ export default function Settings({ check = false, onClose }: SettingsProps) {
   const wheelZooms = useLayout((d) => d.wheelZooms);
   const matchWheel = searching && ["general", "mouse wheel zooms", "scroll", "zoom"].some((w) => w.includes(search.trim().toLowerCase()));
   const hasGeneralMatches = matchAiTool || matchVersion || matchWheel;
+  const matchAddons = searching && ["add-ons", "addons", "connect to chatgpt and claude", "web"].some((w) => w.includes(search.trim().toLowerCase()));
 
   const q = search.trim().toLowerCase();
   const matchProject =
@@ -251,7 +253,13 @@ export default function Settings({ check = false, onClose }: SettingsProps) {
                   )}
                 </>
               )}
-              {!matchingShortcuts.length && !hasGeneralMatches && !hasDeveloperMatches && (
+              {matchAddons && (
+                <>
+                  <div className="settings-section-title">Add-ons</div>
+                  <ConnectAddon />
+                </>
+              )}
+              {!matchingShortcuts.length && !hasGeneralMatches && !hasDeveloperMatches && !matchAddons && (
                 <div className="settings-empty">Nothing found</div>
               )}
             </div>
@@ -296,6 +304,12 @@ export default function Settings({ check = false, onClose }: SettingsProps) {
                     <span>Mouse wheel zooms</span>
                     <input type="checkbox" checked={wheelZooms} onChange={(e) => setLayout({ wheelZooms: e.target.checked })} />
                   </label>
+                </div>
+              )}
+              {activeSection === "Add-ons" && (
+                <div className="settings-content">
+                  <div className="settings-section-title">Add-ons</div>
+                  <ConnectAddon />
                 </div>
               )}
               {activeSection === "Developer" && check && (
