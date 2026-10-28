@@ -107,6 +107,28 @@ pub fn connect_stop(app: AppHandle) {
     report(&app);
 }
 
+/// A tunnel left running by a Duet that did not quit cleanly is stopped when Duet starts again.
+/// Only a process that is still the tunnel program is stopped, never one that took over its number.
+pub fn sweep(app: &AppHandle) {
+    let Ok(file) = own_dir(app).map(|d| d.join("tunnel.pid")) else { return };
+    let Some(pid) = std::fs::read_to_string(&file).ok().and_then(|p| p.trim().parse::<u32>().ok()) else { return };
+    let _ = std::fs::remove_file(&file);
+    #[cfg(unix)]
+    {
+        let name = crate::quiet_command("ps").args(["-p", &pid.to_string(), "-o", "comm="]).output();
+        if name.is_ok_and(|o| String::from_utf8_lossy(&o.stdout).contains("cloudflared")) {
+            let _ = crate::quiet_command("kill").arg(pid.to_string()).status();
+        }
+    }
+    #[cfg(windows)]
+    {
+        let list = crate::quiet_command("tasklist").args(["/FI", &format!("PID eq {pid}"), "/NH"]).output();
+        if list.is_ok_and(|o| String::from_utf8_lossy(&o.stdout).to_lowercase().contains("cloudflared")) {
+            let _ = crate::quiet_command("taskkill").args(["/PID", &pid.to_string(), "/F"]).status();
+        }
+    }
+}
+
 /// Stop the tunnel. Called when Duet quits, too.
 pub fn stop_tunnel(app: &AppHandle) {
     let Some(s) = app.try_state::<Arc<ConnectState>>() else { return };
@@ -114,6 +136,9 @@ pub fn stop_tunnel(app: &AppHandle) {
     if let Some(mut c) = child {
         let _ = c.kill();
         let _ = c.wait();
+        if let Ok(dir) = own_dir(app) {
+            let _ = std::fs::remove_file(dir.join("tunnel.pid"));
+        }
     }
 }
 
@@ -130,6 +155,10 @@ fn start(app: &AppHandle, run: u64) -> Result<(), String> {
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| format!("The connection could not start: {e}"))?;
+    if let Ok(dir) = own_dir(app) {
+        let _ = std::fs::create_dir_all(&dir);
+        let _ = std::fs::write(dir.join("tunnel.pid"), child.id().to_string());
+    }
     let stderr = child.stderr.take().ok_or("The connection could not start.")?;
     {
         let s = app.state::<Arc<ConnectState>>();
@@ -399,6 +428,9 @@ fn handle(mut req: tiny_http::Request, app: &AppHandle, route: &str) {
             return reply(req, 200, text.to_string());
         }
     }
+    if let Some(text) = own_answer(&msg) {
+        return reply(req, 200, text);
+    }
     let Some((code, mut answer)) = to_duet(app, &msg) else {
         return reply(req, 503, "{\"error\":\"Duet is not ready\"}".into());
     };
@@ -406,17 +438,78 @@ fn handle(mut req: tiny_http::Request, app: &AppHandle, route: &str) {
         let _ = req.respond(tiny_http::Response::empty(202));
         return;
     }
-    if msg["method"] == "tools/list" && code == 200 {
+    if code == 200 {
         if let Ok(mut d) = serde_json::from_str::<Value>(&answer) {
-            if let Some(tools) = d["result"]["tools"].as_array_mut() {
-                for t in tools.iter_mut().filter(|t| t["name"] == "place_image") {
-                    teach_place_image(t);
-                }
-            }
+            dress(&msg, &mut d);
             answer = d.to_string();
         }
     }
     reply(req, code, answer);
+}
+
+// ---------- the preview card ----------
+// ChatGPT and Claude can show a small page beside a tool's answer. Duet's is the picture
+// look_at_design takes, so the designer sees the work in the chat too.
+
+const CARD_OPENAI: &str = "ui://duet/preview-openai.html";
+const CARD: &str = "ui://duet/preview.html";
+const CARD_HTML: &str = include_str!("connect_card.html");
+
+/// Requests the connection answers itself: the card's page.
+fn own_answer(msg: &Value) -> Option<String> {
+    let result = match msg["method"].as_str()? {
+        "resources/list" => json!({"resources": [
+            {"uri": CARD_OPENAI, "name": "Duet preview", "mimeType": "text/html+skybridge"},
+            {"uri": CARD, "name": "Duet preview", "mimeType": "text/html;profile=mcp-app"}
+        ]}),
+        "resources/templates/list" => json!({"resourceTemplates": []}),
+        "resources/read" => {
+            let uri = msg["params"]["uri"].as_str()?;
+            let mime = match uri {
+                CARD_OPENAI => "text/html+skybridge",
+                CARD => "text/html;profile=mcp-app",
+                _ => return None,
+            };
+            json!({"contents": [{"uri": uri, "mimeType": mime, "text": CARD_HTML}]})
+        }
+        _ => return None,
+    };
+    Some(json!({"jsonrpc": "2.0", "id": msg["id"], "result": result}).to_string())
+}
+
+/// What a web AI needs on top of Duet's own answers.
+fn dress(msg: &Value, d: &mut Value) {
+    match msg["method"].as_str() {
+        Some("initialize") => {
+            d["result"]["capabilities"]["resources"] = json!({});
+        }
+        Some("tools/list") => {
+            if let Some(tools) = d["result"]["tools"].as_array_mut() {
+                for t in tools.iter_mut() {
+                    if t["name"] == "place_image" {
+                        teach_place_image(t);
+                    }
+                    if t["name"] == "look_at_design" {
+                        t["_meta"]["openai/outputTemplate"] = json!(CARD_OPENAI);
+                        t["_meta"]["openai/toolInvocation/invoking"] = json!("Looking at the design");
+                        t["_meta"]["openai/toolInvocation/invoked"] = json!("Here is the design");
+                        t["_meta"]["ui"] = json!({"resourceUri": CARD});
+                    }
+                }
+            }
+        }
+        Some("tools/call") if msg["params"]["name"] == "look_at_design" => {
+            let content = d["result"]["content"].as_array().cloned().unwrap_or_default();
+            let picture = content.iter().find(|c| c["type"] == "image").and_then(|c| {
+                Some(format!("data:{};base64,{}", c["mimeType"].as_str().unwrap_or("image/png"), c["data"].as_str()?))
+            });
+            let caption = content.iter().find(|c| c["type"] == "text").and_then(|c| c["text"].as_str()).unwrap_or("");
+            if let Some(picture) = picture {
+                d["result"]["structuredContent"] = json!({"picture": picture, "caption": caption});
+            }
+        }
+        _ => {}
+    }
 }
 
 /// Pass one request to Duet's own AI connection, as any AI tool on this computer would.

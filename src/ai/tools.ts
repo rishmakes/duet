@@ -939,7 +939,12 @@ function roomOf(by?: string, thread?: string): Room | null {
   }
   home.at = now;
   if (home.thread && taskOf(home.thread)) T = home.thread;
-  return roomFor(home.file);
+  const room = roomFor(home.file);
+  if (room) return room;
+  // The project it started in is gone: closed, or saved for the first time under a new name.
+  // It never chose one itself, so it follows the project on screen instead of stopping.
+  homes.set(by, { file: liveRoom.file, at: now });
+  return liveRoom;
 }
 
 /** The open projects, the one on screen first, by the name on their tab. */

@@ -1,0 +1,55 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root { --bg: #ffffff; --line: #e6e2e4; --muted: #6b6468; --accent: #7c5cff; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #1b1a1c; --line: #3a3639; --muted: #9b9296; } }
+  html, body { margin: 0; background: transparent; font: 13px/1.4 -apple-system, "Segoe UI", system-ui, sans-serif; }
+  .card { border: 1px solid var(--line); border-radius: 14px; background: var(--bg); overflow: hidden; }
+  .pic { display: flex; justify-content: center; background: repeating-conic-gradient(#8881 0 25%, transparent 0 50%) 0 0 / 16px 16px; }
+  img { display: block; max-width: 100%; max-height: 560px; object-fit: contain; }
+  .foot { display: flex; align-items: center; gap: 8px; padding: 8px 12px; color: var(--muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex: none; }
+  .wait { padding: 28px 12px; text-align: center; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="pic" id="pic"><div class="wait">Waiting for the design…</div></div>
+  <div class="foot"><span class="dot"></span><span id="cap">Live in Duet</span></div>
+</div>
+<script>
+  // Shows the picture look_at_design took. ChatGPT hands it over as window.openai.toolOutput;
+  // other hosts that follow MCP Apps send it as a message.
+  function show(data) {
+    if (!data || !data.picture) return;
+    var pic = document.getElementById("pic");
+    var img = document.createElement("img");
+    img.alt = "The design in Duet";
+    img.onload = resize;
+    img.src = data.picture;
+    pic.replaceChildren(img);
+    var first = String(data.caption || "").split(".")[0];
+    document.getElementById("cap").textContent = first ? first.replace(/^A picture of /, "") + " · in Duet" : "Live in Duet";
+  }
+  function resize() {
+    var h = document.body.scrollHeight;
+    if (window.openai && window.openai.notifyIntrinsicHeight) window.openai.notifyIntrinsicHeight(h);
+    parent.postMessage({ jsonrpc: "2.0", method: "ui/notifications/size-changed", params: { width: document.body.scrollWidth, height: h } }, "*");
+  }
+  if (window.openai) show(window.openai.toolOutput);
+  window.addEventListener("openai:set_globals", function () { if (window.openai) show(window.openai.toolOutput); });
+  window.addEventListener("message", function (e) {
+    var m = e.data;
+    if (!m || m.jsonrpc !== "2.0") return;
+    if (m.method === "ui/notifications/tool-result" && m.params) show(m.params.structuredContent);
+    if (m.id === 1 && m.result) parent.postMessage({ jsonrpc: "2.0", method: "ui/notifications/initialized", params: {} }, "*");
+  });
+  if (!window.openai && parent !== window) {
+    parent.postMessage({ jsonrpc: "2.0", id: 1, method: "ui/initialize", params: { protocolVersion: "2026-01-26", appInfo: { name: "Duet preview", version: "1" }, appCapabilities: {} } }, "*");
+  }
+</script>
+</body>
+</html>

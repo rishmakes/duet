@@ -201,6 +201,7 @@ pub fn start(app: &AppHandle) -> Result<(), String> {
     app.manage(AgentState::default());
     app.manage(Arc::new(crate::keepalive::Activity::default()));
     app.manage(Arc::new(crate::connect::ConnectState::default()));
+    crate::connect::sweep(app);
     let app = app.clone();
     std::thread::spawn(move || {
         for req in server.incoming_requests() {
