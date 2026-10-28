@@ -44,7 +44,8 @@ How to check a change:
 8. dev_leave_test_design throws the test design away and brings the project back. Always finish with it.
 
 A line reads: number, kind, "name", then its marks. The marks are the style names on it (sel is selected, on is switched on, folded is folded shut), its value if it is a box, and off if it cannot be pressed. Lines pushed in are inside the line above.
-What these tools cannot do: draw on the canvas by dragging, drag a layer, or answer a window from the system such as Save.`;
+4b. dev_drag drags across the canvas through points given in design coordinates, as a hand would with the current tool: paint with the brush, draw a box, move something.
+What these tools cannot do: drag a layer in a panel, or answer a window from the system such as Save.`;
 
 export const BUILDER_TOOLS: ToolDef[] = [
   { name: "dev_guide", description: "Builder tool. How to check Duet's interface with the dev_ tools. Read it once.", inputSchema: { type: "object", properties: {} } },
@@ -78,6 +79,20 @@ export const BUILDER_TOOLS: ToolDef[] = [
     name: "dev_key",
     description: "Builder tool. Press a key, such as f, Escape, Delete or ArrowLeft, as if the canvas had the attention.",
     inputSchema: { type: "object", properties: { key: str, keys: held }, required: ["key"] },
+  },
+  {
+    name: "dev_drag",
+    description: "Builder tool. Drag across the canvas with the current tool, through points in design coordinates (the same as x and y of elements on the page). Two points or more.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        points: { type: "array", items: { type: "array", items: num }, description: "[[x, y], ...] in design coordinates." },
+        keys: held,
+        pen: { ...bool, description: "True to drag as a pen on a drawing tablet instead of a mouse." },
+        pressure: { ...num, description: "With pen: how hard, from 0 to 1. 0.5 if left out." },
+      },
+      required: ["points"],
+    },
   },
   {
     name: "dev_history",
@@ -329,6 +344,41 @@ async function key(a: Args): Promise<ToolResult> {
   return { text: `Pressed the ${name} key.` };
 }
 
+/** Drag across the canvas through points in design coordinates, with the tool that is picked. */
+async function drag(a: Args): Promise<ToolResult> {
+  const pts = Array.isArray(a.points) ? (a.points as unknown[]).filter((p): p is [number, number] => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1])) : [];
+  if (pts.length < 2) return fail("Give two points or more, as [[x, y], ...].");
+  const canvas = document.querySelector("canvas[data-canvas='design']") as HTMLCanvasElement | null;
+  if (!canvas) return fail("The canvas is not on screen.");
+  const r = canvas.getBoundingClientRect();
+  const vp = getState().viewport;
+  const pen = a.pen === true;
+  const base = { bubbles: true, cancelable: true, pointerId: 41, isPrimary: true, pointerType: pen ? "pen" : "mouse", ...heldKeys(a.keys) };
+  const at = ([x, y]: [number, number], buttons: number) => ({
+    ...base,
+    clientX: r.left + x * vp.zoom + vp.x,
+    clientY: r.top + y * vp.zoom + vp.y,
+    button: 0,
+    buttons,
+    pressure: buttons ? (pen ? Math.max(0, Math.min(1, typeof a.pressure === "number" ? a.pressure : 0.5)) : 0.5) : 0,
+  });
+  const frame = () => new Promise((done) => requestAnimationFrame(() => done(null)));
+  canvas.dispatchEvent(new PointerEvent("pointerdown", at(pts[0], 1)));
+  await frame();
+  for (let i = 1; i < pts.length; i++) {
+    // a few steps between each pair, as a real hand sends them
+    const [x0, y0] = pts[i - 1];
+    const [x1, y1] = pts[i];
+    for (let k = 1; k <= 4; k++) canvas.dispatchEvent(new PointerEvent("pointermove", at([x0 + ((x1 - x0) * k) / 4, y0 + ((y1 - y0) * k) / 4], 1)));
+    await frame();
+  }
+  canvas.dispatchEvent(new PointerEvent("pointerup", at(pts[pts.length - 1], 0)));
+  await settle();
+  // painting is kept a moment after the button comes up
+  await new Promise((done) => setTimeout(done, 400));
+  return { text: `Dragged through ${pts.length} points.${errors.length ? ` ${errors.length} errors or warnings are waiting in dev_errors.` : ""}` };
+}
+
 /** A frame that holds a shape and a group, and a plain shape beside it. Enough to check most panels. */
 export function sampleDoc() {
   let doc = emptyDoc();
@@ -381,6 +431,7 @@ export async function callBuilderTool(name: string, raw: unknown, by?: string): 
   }
   if (name === "dev_type") return type(a);
   if (name === "dev_key") return key(a);
+  if (name === "dev_drag") return drag(a);
   if (name === "dev_history") {
     const s = getState();
     const from = Math.max(0, s.timeline.length - (typeof a.last === "number" && a.last > 0 ? Math.floor(a.last) : 12));

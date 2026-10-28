@@ -743,7 +743,11 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     displayCtx.restore();
 
     window.dispatchEvent(new Event("duet:repaint"));
-    canvasRef.current?.setPointerCapture(e.pointerId);
+    try {
+      canvasRef.current?.setPointerCapture(e.pointerId);
+    } catch {
+      // a pointer the system does not know, as from a check, cannot be held; the stroke still works
+    }
 
     strokeRef.current = {
       elId: targetEl.id,
@@ -1369,7 +1373,11 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
   const onPointerUp = (e: React.PointerEvent) => {
     if (layerPendingRef.current === "down") layerPendingRef.current = "up";
     if (strokeRef.current) {
-      canvasRef.current?.releasePointerCapture(e.pointerId);
+      try {
+        canvasRef.current?.releasePointerCapture(e.pointerId);
+      } catch {
+        // it was never held
+      }
       const stroke = strokeRef.current;
       strokeRef.current = null;
       void finishStroke(stroke);
@@ -2007,6 +2015,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     >
       <canvas
         ref={canvasRef}
+        data-canvas="design"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
