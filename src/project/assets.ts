@@ -89,7 +89,14 @@ export function getPicture(src: string): HTMLImageElement | null {
 
 /** The pictures a design uses, each named once. */
 export function picturesIn(doc: Doc): string[] {
-  return [...new Set(Object.values(doc.elements).flatMap((e) => (e.type === "image" && e.src ? [e.src] : [])))];
+  return [
+    ...new Set(
+      Object.values(doc.elements).flatMap((e) => [
+        ...(e.type === "image" && e.src ? [e.src] : []),
+        ...(e.effectMask ? [e.effectMask] : []),
+      ]),
+    ),
+  ];
 }
 
 /** Wait until every picture used by this design can be drawn. Used before exporting. */

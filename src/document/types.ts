@@ -135,6 +135,10 @@ export interface El {
   grade: Grade | null;
   /** Pictures and video clips: live effects drawn on top (blur, sharpen, grain, glow, pixelate). */
   effects: Effect[];
+  /** For pictures with effects: one mask picture (white = effects show, black = effects hidden), or null. */
+  effectMask: string | null;
+  /** Whether the effect mask is turned inside out. */
+  effectMaskInvert: boolean;
   /** For images: where the picture file lives inside the project, like assets/3fa9c1.png. */
   src: string;
   /** A frame or group that other things are copied from. */

@@ -117,6 +117,8 @@ const createElement: CommandDef<CreateArgs> = {
       gradient: null,
       grade: null,
       effects: [],
+      effectMask: null,
+      effectMaskInvert: false,
       link: null,
       linkKind: "",
       transition: "",
@@ -534,6 +536,69 @@ const moveEffect: CommandDef<MoveEffectArgs> = {
       const [item] = list.splice(fromIndex, 1);
       list.splice(targetIndex, 0, item);
       el.effects = list;
+    }
+    return next;
+  },
+};
+
+// ---- set_effect_mask ----
+export interface SetEffectMaskArgs {
+  ids: string[];
+  src: string | null;
+  label?: string;
+}
+
+const setEffectMask: CommandDef<SetEffectMaskArgs> = {
+  label: (a) => a.label ?? (a.src ? "Set effect mask" : "Remove effect mask"),
+  run: (doc, a) => {
+    const ids = a.ids.filter((id) => doc.elements[id] && canHaveEffects(doc.elements[id]));
+    if (!ids.length) return doc;
+    const next = clone(doc);
+    for (const id of ids) {
+      const el = next.elements[id];
+      el.effectMask = a.src ?? null;
+      if (!a.src) el.effectMaskInvert = false;
+    }
+    return next;
+  },
+};
+
+// ---- invert_effect_mask ----
+export interface InvertEffectMaskArgs {
+  ids: string[];
+  label?: string;
+}
+
+const invertEffectMask: CommandDef<InvertEffectMaskArgs> = {
+  label: (a) => a.label ?? "Invert effect mask",
+  run: (doc, a) => {
+    const ids = a.ids.filter((id) => doc.elements[id] && canHaveEffects(doc.elements[id]) && doc.elements[id].effectMask);
+    if (!ids.length) return doc;
+    const next = clone(doc);
+    for (const id of ids) {
+      const el = next.elements[id];
+      el.effectMaskInvert = !el.effectMaskInvert;
+    }
+    return next;
+  },
+};
+
+// ---- remove_effect_mask ----
+export interface RemoveEffectMaskArgs {
+  ids: string[];
+  label?: string;
+}
+
+const removeEffectMask: CommandDef<RemoveEffectMaskArgs> = {
+  label: (a) => a.label ?? "Remove effect mask",
+  run: (doc, a) => {
+    const ids = a.ids.filter((id) => doc.elements[id] && canHaveEffects(doc.elements[id]));
+    if (!ids.length) return doc;
+    const next = clone(doc);
+    for (const id of ids) {
+      const el = next.elements[id];
+      el.effectMask = null;
+      el.effectMaskInvert = false;
     }
     return next;
   },
@@ -1101,6 +1166,8 @@ const wrapInLayout: CommandDef<WrapArgs> = {
       gradient: null,
       grade: null,
       effects: [],
+      effectMask: null,
+      effectMaskInvert: false,
       link: null,
       linkKind: "",
       transition: "",
@@ -1206,6 +1273,8 @@ const groupElements: CommandDef<GroupArgs> = {
       gradient: null,
       grade: null,
       effects: [],
+      effectMask: null,
+      effectMaskInvert: false,
       link: null,
       linkKind: "",
       transition: "",
@@ -1274,6 +1343,8 @@ export interface PlacedLayer {
   shadow?: El["shadow"];
   grade?: El["grade"];
   effects?: El["effects"];
+  effectMask?: El["effectMask"];
+  effectMaskInvert?: El["effectMaskInvert"];
 }
 
 export interface PlaceLayersArgs {
@@ -1306,6 +1377,7 @@ const placeLayers: CommandDef<PlaceLayersArgs> = {
               ...(l.shadow ? { shadow: l.shadow } : {}),
               ...(l.grade ? { grade: l.grade } : {}),
               ...(l.effects && l.effects.length ? { effects: l.effects } : {}),
+              ...(l.effectMask ? { effectMask: l.effectMask, effectMaskInvert: !!l.effectMaskInvert } : {}),
             },
             keepOrder: true,
           });
@@ -2167,6 +2239,9 @@ export const commands = {
   set_effect: setEffect,
   remove_effect: removeEffect,
   move_effect: moveEffect,
+  set_effect_mask: setEffectMask,
+  invert_effect_mask: invertEffectMask,
+  remove_effect_mask: removeEffectMask,
   set_background: setBackground,
   delete_elements: deleteElements,
   reparent_elements: reparentElements,

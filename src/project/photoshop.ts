@@ -27,6 +27,7 @@ interface PsdLayer {
   shadow?: El["shadow"];
   grade?: El["grade"];
   effects?: El["effects"];
+  effectMaskPng?: string;
 }
 
 interface PsdRead {
@@ -49,6 +50,11 @@ async function toPlaced(layers: PsdLayer[]): Promise<PlacedLayer[]> {
       continue;
     }
     const { src } = await addPicture(`${l.name}.png`, fromBase64(l.png), "image/png");
+    let effectMask: string | null = null;
+    if (l.effectMaskPng) {
+      const maskPic = await addPicture(`${l.name}-mask.png`, fromBase64(l.effectMaskPng), "image/png");
+      effectMask = maskPic.src;
+    }
     out.push({
       id: newId("image"),
       ...look,
@@ -61,6 +67,8 @@ async function toPlaced(layers: PsdLayer[]): Promise<PlacedLayer[]> {
       // filled out to a whole grade, so a curve Photoshop does not have is left flat
       grade: l.grade ? mergeGrade(null, l.grade) : null,
       effects: l.effects ?? [],
+      effectMask,
+      effectMaskInvert: false,
     });
   }
   return out;

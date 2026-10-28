@@ -24,6 +24,7 @@ import { colorOpacity, withOpacity } from "./color";
 import Icon from "./Icons";
 import { EFFECT_DEFS, EFFECT_KINDS } from "../document/effects";
 import type { Effect, EffectControl } from "../document/effects";
+import { assetUrl } from "../project/assets";
 
 function NumField({
   label,
@@ -870,6 +871,59 @@ function EffectsSection({ els }: { els: El[] }) {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {first.effectMask && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "6px 8px",
+            background: "var(--panel-alt, #1c1c21)",
+            borderRadius: 6,
+            border: "1px solid var(--line, #2a2a31)",
+            marginTop: 6,
+          }}
+        >
+          <img
+            src={assetUrl(first.effectMask) ?? ""}
+            alt=""
+            style={{
+              width: 24,
+              height: 24,
+              borderRadius: 4,
+              objectFit: "cover",
+              background: "#000",
+              border: "1px solid var(--line, #2a2a31)",
+            }}
+          />
+          <span style={{ fontWeight: 500, fontSize: 12, flex: 1, userSelect: "none" }}>Mask</span>
+          <button
+            className={`mini ${first.effectMaskInvert ? "on" : ""}`}
+            onClick={() => dispatch("invert_effect_mask", { ids })}
+            title={first.effectMaskInvert ? "Inverted" : "Invert mask"}
+            style={{
+              padding: "2px 6px",
+              fontSize: 11,
+              borderRadius: 4,
+              background: first.effectMaskInvert ? "var(--accent)" : "none",
+              color: first.effectMaskInvert ? "#fff" : "inherit",
+              border: "1px solid var(--line, #2a2a31)",
+              cursor: "pointer",
+            }}
+          >
+            Invert
+          </button>
+          <button
+            className="lockbtn"
+            onClick={() => dispatch("remove_effect_mask", { ids })}
+            title="Remove mask"
+            style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex", alignItems: "center", color: "inherit" }}
+          >
+            <Icon name="close" size={11} />
+          </button>
         </div>
       )}
     </div>

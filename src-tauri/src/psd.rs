@@ -123,6 +123,8 @@ pub struct PsdLayer {
     pub grade: Option<PsdGrade>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub effects: Vec<PsdEffect>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effect_mask_png: Option<String>,
 }
 
 #[derive(Serialize, Debug)]
@@ -548,34 +550,65 @@ fn find_embedded_file(file: &PsdFile, target_uuid: &str) -> Option<Vec<u8>> {
     None
 }
 
+fn gray_png_of(width: u32, height: u32, data: &[u8]) -> Result<String, String> {
+    let mut out = Vec::new();
+    {
+        let mut enc = png::Encoder::new(&mut out, width, height);
+        enc.set_color(png::ColorType::Grayscale);
+        enc.set_depth(png::BitDepth::Eight);
+        let mut w = enc.write_header().map_err(|e| e.to_string())?;
+        w.write_image_data(data).map_err(|e| e.to_string())?;
+    }
+    Ok(b64().encode(out))
+}
+
 fn try_map_smart_filters(
     file: &PsdFile,
     rec: &LayerRecord,
     name: &str,
     out: &mut PsdRead,
-) -> Option<(RgbaImage, i32, i32, u32, u32, Vec<PsdEffect>)> {
-    let sold_block = rec.block(b"SoLd").or_else(|| rec.block(b"SoLE"))?;
+) -> Option<(RgbaImage, i32, i32, u32, u32, Vec<PsdEffect>, Option<String>)> {
+    let Some(sold_block) = rec.block(b"SoLd").or_else(|| rec.block(b"SoLE")) else {
+        return None;
+    };
     if !sold_block.data.starts_with(b"soLD") || sold_block.data.len() < 8 {
+        out.flattened.push(format!("{name} (smart object: descriptor could not be read)"));
         return None;
     }
-    let (vd, _) = VersionedDescriptor::parse_prefix(&sold_block.data[8..]).ok()?;
+    let Ok((vd, _)) = VersionedDescriptor::parse_prefix(&sold_block.data[8..]) else {
+        out.flattened.push(format!("{name} (smart object: descriptor could not be read)"));
+        return None;
+    };
     let d = &vd.descriptor;
-    let fx = get_desc(d, "filterFX")?;
+    let Some(fx) = get_desc(d, "filterFX") else {
+        out.flattened.push(format!("{name} (smart object: no smart filters)"));
+        return None;
+    };
     if fx.get("enab") == Some(&Value::Boolean(false)) {
+        out.flattened.push(format!("{name} (smart object: smart filters turned off)"));
         return None;
     }
-    let Value::List(list) = fx.get("filterFXList")? else { return None; };
+    let Some(Value::List(list)) = fx.get("filterFXList") else {
+        out.flattened.push(format!("{name} (smart object: missing filter list)"));
+        return None;
+    };
     if list.is_empty() {
+        out.flattened.push(format!("{name} (smart object: empty filter list)"));
         return None;
     }
 
     // Check transform: plain scale + move
-    let Value::List(trnf_pts) = d.get("Trnf")? else { return None; };
+    let Some(Value::List(trnf_pts)) = d.get("Trnf") else {
+        out.flattened.push(format!("{name} (smart object: missing transform)"));
+        return None;
+    };
     if trnf_pts.len() != 8 {
+        out.flattened.push(format!("{name} (smart object: corrupt transform)"));
         return None;
     }
     let p: Vec<f64> = trnf_pts.iter().filter_map(|v| num(Some(v))).collect();
     if p.len() != 8 {
+        out.flattened.push(format!("{name} (smart object: corrupt transform points)"));
         return None;
     }
 
@@ -587,30 +620,66 @@ fn try_map_smart_filters(
         && (p[2] - p[0]) > 0.0
         && (p[7] - p[1]) > 0.0;
     if !axis_aligned {
+        out.flattened.push(format!("{name} (smart object: rotated or sheared)"));
         return None;
     }
-    if d.get("nonAffineTransform").is_some() {
-        return None;
+    if let Some(non_aff) = d.get("nonAffineTransform") {
+        let Value::List(pts) = non_aff else {
+            out.flattened.push(format!("{name} (smart object: perspective transform)"));
+            return None;
+        };
+        let np: Vec<f64> = pts.iter().filter_map(|v| num(Some(v))).collect();
+        if np.len() != 8 || np.iter().zip(&p).any(|(a, b)| (a - b).abs() >= tol) {
+            out.flattened.push(format!("{name} (smart object: perspective transform)"));
+            return None;
+        }
     }
     if let Some(warp) = get_desc(d, "quiltWarp").or_else(|| get_desc(d, "warp")) {
         if let Some(Value::Enumerated { value, .. }) = warp.get("warpStyle") {
             if !value.is("warpNone") {
+                out.flattened.push(format!("{name} (smart object: warped)"));
                 return None;
             }
         }
     }
 
+    let left = p[0].round() as i32;
+    let top = p[1].round() as i32;
+    let width = (p[2] - p[0]).round().max(1.0) as u32;
+    let height = (p[7] - p[1]).round().max(1.0) as u32;
+
     // Check filter mask
+    let mut effect_mask_png = None;
     let mask_enabled = fx.get("filterMaskEnable") != Some(&Value::Boolean(false));
     if mask_enabled {
         if let Some(fe_block) = file.global_block(b"FEid").or_else(|| file.global_block(b"FXid")) {
             if let Ok(fe) = FilterEffects::parse(&fe_block.data) {
                 let placed_id = text_of(d, "placed").unwrap_or_default();
                 if let Some(item) = fe.items.iter().find(|it| it.id == placed_id) {
-                    if let Some((_rect, mask_data)) = item.decoded_mask() {
-                        if !mask_data.iter().all(|&b| b == 255) {
-                            out.flattened.push(format!("{name} (smart object: Duet cannot mask effects yet)"));
-                            return None;
+                    if let Some((mrect, mask_data)) = item.decoded_mask() {
+                        let mw = (mrect.right - mrect.left).max(1) as usize;
+                        let mh = (mrect.bottom - mrect.top).max(1) as usize;
+                        let mut cropped = vec![255u8; (width * height) as usize];
+                        let mut has_non_white = false;
+                        for y in 0..height {
+                            for x in 0..width {
+                                let doc_x = left + x as i32;
+                                let doc_y = top + y as i32;
+                                let mx = doc_x - mrect.left;
+                                let my = doc_y - mrect.top;
+                                let val = if mx >= 0 && (mx as usize) < mw && my >= 0 && (my as usize) < mh {
+                                    mask_data[(my as usize) * mw + (mx as usize)]
+                                } else {
+                                    255
+                                };
+                                if val < 255 {
+                                    has_non_white = true;
+                                }
+                                cropped[(y * width + x) as usize] = val;
+                            }
+                        }
+                        if has_non_white {
+                            effect_mask_png = gray_png_of(width, height, &cropped).ok();
                         }
                     }
                 }
@@ -621,17 +690,22 @@ fn try_map_smart_filters(
     // Check filters
     let mut effects = Vec::new();
     for it in list {
-        let Value::Descriptor(item_desc) = it else { return None; };
+        let Value::Descriptor(item_desc) = it else {
+            out.flattened.push(format!("{name} (smart object: corrupt filter descriptor)"));
+            return None;
+        };
         if item_desc.get("enab") == Some(&Value::Boolean(false)) {
             continue;
         }
         if let Some(opts) = get_desc(item_desc, "blendOptions") {
             let opct = num(opts.get("Opct")).unwrap_or(100.0);
             if (opct - 100.0).abs() > 0.01 {
+                out.flattened.push(format!("{name} (smart object: filter opacity not 100%)"));
                 return None;
             }
             if let Some(Value::Enumerated { value, .. }) = opts.get("Md  ") {
                 if !value.is("Nrml") && !value.is("normal") {
+                    out.flattened.push(format!("{name} (smart object: filter blend mode not supported)"));
                     return None;
                 }
             }
@@ -646,7 +720,7 @@ fn try_map_smart_filters(
             let mut vals = BTreeMap::new();
             vals.insert("amount".into(), amount);
             effects.push(PsdEffect { id: format!("effect-blur-{}", effects.len()), kind: "blur".into(), on: true, values: vals });
-        } else if class == b"boxblur" || filter_id == 840 {
+        } else if class == b"boxblur" || filter_id == 840 || filter_id == 628 {
             let rds = fltr.and_then(|f| num(f.get("Rds "))).unwrap_or(0.0) as f32;
             let amount = (rds / 0.4).round().clamp(0.0, 200.0);
             let mut vals = BTreeMap::new();
@@ -678,31 +752,48 @@ fn try_map_smart_filters(
             vals.insert("size".into(), clsz.clamp(1.0, 100.0));
             effects.push(PsdEffect { id: format!("effect-pixelate-{}", effects.len()), kind: "pixelate".into(), on: true, values: vals });
         } else {
+            let filter_name = text_of(item_desc, "Nm  ").unwrap_or_else(|| String::from_utf8_lossy(class).to_string());
+            out.flattened.push(format!("{name} (smart object: unsupported filter {filter_name})"));
             return None;
         }
     }
 
     if effects.is_empty() {
+        out.flattened.push(format!("{name} (smart object: no active filters)"));
         return None;
     }
 
     // Decode embedded file
-    let uuid = text_of(d, "Idnt")?;
-    let raw_bytes = find_embedded_file(file, &uuid)?;
+    let Some(uuid) = text_of(d, "Idnt") else {
+        out.flattened.push(format!("{name} (smart object: missing embedded link id)"));
+        return None;
+    };
+    let Some(raw_bytes) = find_embedded_file(file, &uuid) else {
+        out.flattened.push(format!("{name} (smart object: embedded file not found)"));
+        return None;
+    };
     let img = if raw_bytes.starts_with(b"8BPS") {
-        PsdFile::from_bytes(&raw_bytes).ok()?.composite_rgba8().ok()?
+        let Some(emb) = PsdFile::from_bytes(&raw_bytes).ok() else {
+            out.flattened.push(format!("{name} (smart object: embedded file corrupt)"));
+            return None;
+        };
+        let Some(comp) = emb.composite_rgba8().ok() else {
+            out.flattened.push(format!("{name} (smart object: embedded composite could not be decoded)"));
+            return None;
+        };
+        comp
     } else if raw_bytes.starts_with(b"\x89PNG") {
-        decode_png_bytes(&raw_bytes).ok()?
+        let Some(png) = decode_png_bytes(&raw_bytes).ok() else {
+            out.flattened.push(format!("{name} (smart object: embedded PNG could not be decoded)"));
+            return None;
+        };
+        png
     } else {
+        out.flattened.push(format!("{name} (smart object: embedded file format not supported)"));
         return None;
     };
 
-    let left = p[0].round() as i32;
-    let top = p[1].round() as i32;
-    let width = (p[2] - p[0]).round().max(1.0) as u32;
-    let height = (p[7] - p[1]).round().max(1.0) as u32;
-
-    Some((img, left, top, width, height, effects))
+    Some((img, left, top, width, height, effects, effect_mask_png))
 }
 
 fn png_of(img: &RgbaImage) -> Result<String, String> {
@@ -800,7 +891,7 @@ fn read_nodes(file: &PsdFile, nodes: &[LayerNode], out: &mut PsdRead) -> Vec<Psd
                 if is_smart {
                     mapped_smart = try_map_smart_filters(file, rec, &name, out);
                     if mapped_smart.is_none() {
-                        let already_noted_mask = out.flattened.iter().any(|s| s.starts_with(&format!("{name} (smart object:")));
+                        let already_noted_mask = out.flattened.iter().any(|s| s.starts_with(&format!("{name} (smart object")));
                         if !already_noted_mask {
                             out.flattened.push(format!("{name} (smart object)"));
                         }
@@ -809,7 +900,7 @@ fn read_nodes(file: &PsdFile, nodes: &[LayerNode], out: &mut PsdRead) -> Vec<Psd
 
                 let fill = rec.fill_opacity() as f32 / 255.0;
 
-                if let Some((mut img, left, top, width, height, effects)) = mapped_smart {
+                if let Some((mut img, left, top, width, height, effects, effect_mask_png)) = mapped_smart {
                     if let Some(Ok(mask)) = layer.user_mask() {
                         apply_mask(&mut img, &mask);
                     }
@@ -823,6 +914,7 @@ fn read_nodes(file: &PsdFile, nodes: &[LayerNode], out: &mut PsdRead) -> Vec<Psd
                         png,
                         shadow,
                         effects,
+                        effect_mask_png,
                         ..base
                     });
                 } else {
@@ -1537,9 +1629,135 @@ mod tests {
         let read_result = read(&bytes).unwrap();
         assert_eq!(read_result.layers.len(), 1);
         let l = &read_result.layers[0];
-        // Bakes as a picture with no live effects
+        assert_eq!(l.effects.len(), 1);
+        assert_eq!(l.effects[0].kind, "blur");
+        assert!(l.effect_mask_png.is_some());
+        assert!(read_result.flattened.is_empty());
+    }
+
+    #[test]
+    fn smart_filters_accepts_non_affine_transform_matching_trnf() {
+        let embedded_psd = {
+            let mut eb = PsdBuilder::new(8, 8);
+            eb.push_layer(LayerSpec::new("Src", 0, 0, 8, 8, PixelData::Rgba8(vec![100; 256])));
+            eb.composite(PixelData::Rgba8(vec![100; 256]));
+            eb.to_bytes().unwrap()
+        };
+        let uuid = "test-nonaff-match-uuid";
+        let lnk2_data = make_test_lnk2(uuid, "embedded.psd", &embedded_psd);
+
+        let px = |v: f64| Value::UnitFloat { unit: *b"#Pxl", value: v };
+        let gsn_filter = Descriptor::new("GsnB").with("Rds ", px(4.0));
+        let filter_item = Descriptor::new("filterFX")
+            .with("Nm  ", Value::Text(photocraft_psd::descriptor::UnicodeString::new_nul("Gaussian Blur...")))
+            .with("enab", Value::Boolean(true))
+            .with("filterID", Value::Integer(1198747202))
+            .with("Fltr", Value::Descriptor(gsn_filter));
+
+        let fx_style = Descriptor::new("filterFXStyle")
+            .with("enab", Value::Boolean(true))
+            .with("filterFXList", Value::List(vec![Value::Descriptor(filter_item)]));
+
+        let trnf = Value::List(vec![
+            Value::Double(0.0), Value::Double(0.0),
+            Value::Double(8.0), Value::Double(0.0),
+            Value::Double(8.0), Value::Double(8.0),
+            Value::Double(0.0), Value::Double(8.0),
+        ]);
+        let non_aff = Value::List(vec![
+            Value::Double(0.1), Value::Double(0.1),
+            Value::Double(8.1), Value::Double(0.1),
+            Value::Double(8.1), Value::Double(8.1),
+            Value::Double(0.1), Value::Double(8.1),
+        ]);
+
+        let sold_desc = Descriptor::new("null")
+            .with("Idnt", Value::Text(photocraft_psd::descriptor::UnicodeString::new_nul(uuid)))
+            .with("Trnf", trnf)
+            .with("nonAffineTransform", non_aff)
+            .with("filterFX", Value::Descriptor(fx_style));
+
+        let mut sold_data = b"soLD".to_vec();
+        sold_data.extend(16u32.to_be_bytes());
+        sold_data.extend(VersionedDescriptor::new(sold_desc).to_bytes());
+
+        let mut smart_layer = LayerSpec::new("NonAffMatch", 0, 0, 8, 8, PixelData::Rgba8(vec![255; 256]));
+        smart_layer.extra_blocks.push(TaggedBlock::new(*b"SoLd", sold_data));
+
+        let mut b = PsdBuilder::new(10, 10);
+        b.push_layer(smart_layer);
+        let mut file = PsdFile::from_bytes(&b.to_bytes().unwrap()).unwrap();
+        file.global_blocks.push(TaggedBlock::new(*b"lnk2", lnk2_data));
+        let bytes = file.to_bytes().unwrap();
+
+        let read_result = read(&bytes).unwrap();
+        assert_eq!(read_result.layers.len(), 1);
+        let l = &read_result.layers[0];
+        assert_eq!(l.effects.len(), 1);
+        assert!(read_result.flattened.is_empty());
+    }
+
+    #[test]
+    fn smart_filters_rejects_non_affine_transform_mismatch_with_reason() {
+        let embedded_psd = {
+            let mut eb = PsdBuilder::new(8, 8);
+            eb.push_layer(LayerSpec::new("Src", 0, 0, 8, 8, PixelData::Rgba8(vec![100; 256])));
+            eb.composite(PixelData::Rgba8(vec![100; 256]));
+            eb.to_bytes().unwrap()
+        };
+        let uuid = "test-nonaff-mismatch-uuid";
+        let lnk2_data = make_test_lnk2(uuid, "embedded.psd", &embedded_psd);
+
+        let px = |v: f64| Value::UnitFloat { unit: *b"#Pxl", value: v };
+        let gsn_filter = Descriptor::new("GsnB").with("Rds ", px(4.0));
+        let filter_item = Descriptor::new("filterFX")
+            .with("Nm  ", Value::Text(photocraft_psd::descriptor::UnicodeString::new_nul("Gaussian Blur...")))
+            .with("enab", Value::Boolean(true))
+            .with("filterID", Value::Integer(1198747202))
+            .with("Fltr", Value::Descriptor(gsn_filter));
+
+        let fx_style = Descriptor::new("filterFXStyle")
+            .with("enab", Value::Boolean(true))
+            .with("filterFXList", Value::List(vec![Value::Descriptor(filter_item)]));
+
+        let trnf = Value::List(vec![
+            Value::Double(0.0), Value::Double(0.0),
+            Value::Double(8.0), Value::Double(0.0),
+            Value::Double(8.0), Value::Double(8.0),
+            Value::Double(0.0), Value::Double(8.0),
+        ]);
+        // Perspective quad (very different from rectangle)
+        let non_aff = Value::List(vec![
+            Value::Double(2.0), Value::Double(1.0),
+            Value::Double(7.0), Value::Double(0.0),
+            Value::Double(9.0), Value::Double(8.0),
+            Value::Double(1.0), Value::Double(7.0),
+        ]);
+
+        let sold_desc = Descriptor::new("null")
+            .with("Idnt", Value::Text(photocraft_psd::descriptor::UnicodeString::new_nul(uuid)))
+            .with("Trnf", trnf)
+            .with("nonAffineTransform", non_aff)
+            .with("filterFX", Value::Descriptor(fx_style));
+
+        let mut sold_data = b"soLD".to_vec();
+        sold_data.extend(16u32.to_be_bytes());
+        sold_data.extend(VersionedDescriptor::new(sold_desc).to_bytes());
+
+        let mut smart_layer = LayerSpec::new("PerspectiveSmart", 0, 0, 8, 8, PixelData::Rgba8(vec![255; 256]));
+        smart_layer.extra_blocks.push(TaggedBlock::new(*b"SoLd", sold_data));
+
+        let mut b = PsdBuilder::new(10, 10);
+        b.push_layer(smart_layer);
+        let mut file = PsdFile::from_bytes(&b.to_bytes().unwrap()).unwrap();
+        file.global_blocks.push(TaggedBlock::new(*b"lnk2", lnk2_data));
+        let bytes = file.to_bytes().unwrap();
+
+        let read_result = read(&bytes).unwrap();
+        assert_eq!(read_result.layers.len(), 1);
+        let l = &read_result.layers[0];
         assert!(l.effects.is_empty());
-        assert_eq!(read_result.flattened, vec!["MaskedSmart (smart object: Duet cannot mask effects yet)"]);
+        assert_eq!(read_result.flattened, vec!["PerspectiveSmart (smart object: perspective transform)"]);
     }
 
     fn print_layer_summary(l: &PsdLayer, indent: usize) {
@@ -1557,6 +1775,11 @@ mod tests {
         if !l.effects.is_empty() {
             let eff_names: Vec<_> = l.effects.iter().map(|e| e.kind.as_str()).collect();
             details.push(format!("effects({:?})", eff_names));
+            if l.effect_mask_png.is_some() {
+                details.push("mask(yes)".into());
+            } else {
+                details.push("mask(no)".into());
+            }
         }
         let desc = if details.is_empty() { "picture".to_string() } else { details.join(", ") };
         if l.group {

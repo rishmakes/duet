@@ -2,6 +2,7 @@ import { hasActiveEffects } from "../document/effects";
 import type { Effect } from "../document/effects";
 import type { El } from "../document/types";
 import { logError } from "../errorLog";
+import { getPicture } from "../project/assets";
 
 /**
  * Live effects on pictures and video clips.
@@ -213,6 +214,22 @@ void main() {
   color = texture(src, clamp(blockUv, 0.0, 1.0));
 }`;
 
+const FRAG_MASK_MIX = `#version 300 es
+precision highp float;
+uniform sampler2D effected;
+uniform sampler2D original;
+uniform sampler2D mask;
+uniform bool invert;
+in vec2 uv;
+out vec4 color;
+void main() {
+  vec4 eff = texture(effected, uv);
+  vec4 orig = texture(original, uv);
+  float m = texture(mask, uv).r;
+  if (invert) m = 1.0 - m;
+  color = mix(orig, eff, m);
+}`;
+
 let gl: WebGL2RenderingContext | null | undefined;
 let sheet: HTMLCanvasElement;
 let quadBuffer: WebGLBuffer;
@@ -224,13 +241,18 @@ let progGrain: WebGLProgram;
 let progGlowExtract: WebGLProgram;
 let progGlowComposite: WebGLProgram;
 let progPixelate: WebGLProgram;
+let progMaskMix: WebGLProgram;
 
 let texA: WebGLTexture;
 let texB: WebGLTexture;
+let texOrig: WebGLTexture;
+let texMask: WebGLTexture;
 let fboA: WebGLFramebuffer;
 let fboB: WebGLFramebuffer;
 let allocatedW = 0;
 let allocatedH = 0;
+let lastMaskSrc: string | null = null;
+let lastMaskImg: CanvasImageSource | null = null;
 
 function compileShader(g: WebGL2RenderingContext, kind: number, text: string) {
   const s = g.createShader(kind)!;
@@ -280,13 +302,16 @@ function initContext(): WebGL2RenderingContext | null {
     progGlowExtract = createProgram(g, FRAG_GLOW_EXTRACT);
     progGlowComposite = createProgram(g, FRAG_GLOW_COMPOSITE);
     progPixelate = createProgram(g, FRAG_PIXELATE);
+    progMaskMix = createProgram(g, FRAG_MASK_MIX);
 
     texA = g.createTexture()!;
     texB = g.createTexture()!;
+    texOrig = g.createTexture()!;
+    texMask = g.createTexture()!;
     fboA = g.createFramebuffer()!;
     fboB = g.createFramebuffer()!;
 
-    for (const t of [texA, texB]) {
+    for (const t of [texA, texB, texOrig, texMask]) {
       g.bindTexture(g.TEXTURE_2D, t);
       g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MIN_FILTER, g.LINEAR);
       g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MAG_FILTER, g.LINEAR);
@@ -334,6 +359,18 @@ function ensureBuffers(g: WebGL2RenderingContext, w: number, h: number) {
         0,
       );
     }
+    g.bindTexture(g.TEXTURE_2D, texOrig);
+    g.texImage2D(
+      g.TEXTURE_2D,
+      0,
+      g.RGBA,
+      w,
+      h,
+      0,
+      g.RGBA,
+      g.UNSIGNED_BYTE,
+      null,
+    );
   }
 }
 
@@ -351,6 +388,8 @@ const stills = new Map<string, HTMLCanvasElement>();
 
 export function clearEffectsCache() {
   stills.clear();
+  lastMaskSrc = null;
+  lastMaskImg = null;
 }
 
 function picDimensions(
@@ -399,7 +438,7 @@ export function applyEffects(
   if (!nw || !nh) return pic;
 
   const key = still
-    ? `${still}|${Math.round(el.width)}x${Math.round(el.height)}|${JSON.stringify(effects)}|${JSON.stringify(el.grade)}`
+    ? `${still}|${Math.round(el.width)}x${Math.round(el.height)}|${JSON.stringify(effects)}|${JSON.stringify(el.grade)}|${el.effectMask ?? ""}|${el.effectMaskInvert ? 1 : 0}`
     : "";
   if (key && stills.has(key)) return stills.get(key)!;
 
@@ -418,6 +457,12 @@ export function applyEffects(
     g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL, true);
     g.pixelStorei(g.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
     g.texImage2D(g.TEXTURE_2D, 0, g.RGBA, g.RGBA, g.UNSIGNED_BYTE, pic);
+
+    const maskImg = el.effectMask ? getPicture(el.effectMask) : null;
+    if (maskImg) {
+      g.bindTexture(g.TEXTURE_2D, texOrig);
+      g.texImage2D(g.TEXTURE_2D, 0, g.RGBA, g.RGBA, g.UNSIGNED_BYTE, pic);
+    }
     g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL, false);
 
     // Track ping-pong textures and framebuffers
@@ -573,6 +618,46 @@ export function applyEffects(
           swap();
         }
       }
+    }
+
+    if (maskImg) {
+      g.activeTexture(g.TEXTURE2);
+      g.bindTexture(g.TEXTURE_2D, texMask);
+      if (lastMaskImg !== maskImg || lastMaskSrc !== el.effectMask) {
+        g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL, true);
+        g.texImage2D(
+          g.TEXTURE_2D,
+          0,
+          g.RGBA,
+          g.RGBA,
+          g.UNSIGNED_BYTE,
+          maskImg,
+        );
+        g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL, false);
+        lastMaskImg = maskImg;
+        lastMaskSrc = el.effectMask;
+      }
+
+      g.bindFramebuffer(g.FRAMEBUFFER, writeFbo);
+      setupQuad(g, progMaskMix);
+      g.activeTexture(g.TEXTURE0);
+      g.bindTexture(g.TEXTURE_2D, readTex);
+      g.uniform1i(g.getUniformLocation(progMaskMix, "effected"), 0);
+
+      g.activeTexture(g.TEXTURE1);
+      g.bindTexture(g.TEXTURE_2D, texOrig);
+      g.uniform1i(g.getUniformLocation(progMaskMix, "original"), 1);
+
+      g.activeTexture(g.TEXTURE2);
+      g.bindTexture(g.TEXTURE_2D, texMask);
+      g.uniform1i(g.getUniformLocation(progMaskMix, "mask"), 2);
+
+      g.uniform1i(
+        g.getUniformLocation(progMaskMix, "invert"),
+        el.effectMaskInvert ? 1 : 0,
+      );
+      g.drawArrays(g.TRIANGLE_STRIP, 0, 4);
+      swap();
     }
 
     // Final blit to sheet canvas (framebuffer null)

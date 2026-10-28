@@ -135,6 +135,35 @@ describe("effects commands", () => {
     d = runCommand(d, "move_effect", { ids: ["p1"], effectId: "e2", toIndex: 0 });
     expect(d.elements.p1.effects.map((e) => e.id)).toEqual(["e2", "e3", "e1"]);
   });
+
+  it("manages effect mask with set_effect_mask, invert_effect_mask, and remove_effect_mask", () => {
+    let d = baseDoc();
+    d = runCommand(d, "set_effect_mask", { ids: ["p1", "r1"], src: "assets/mask.png" });
+    expect(d.elements.p1.effectMask).toBe("assets/mask.png");
+    expect(d.elements.p1.effectMaskInvert).toBe(false);
+    // r1 is a rect and cannot have effects
+    expect(d.elements.r1.effectMask).toBeNull();
+
+    // invert mask
+    d = runCommand(d, "invert_effect_mask", { ids: ["p1"] });
+    expect(d.elements.p1.effectMaskInvert).toBe(true);
+
+    // serialization roundtrip
+    const text = serializeDoc(d);
+    expect(text).toContain('"effectMask": "assets/mask.png"');
+    expect(text).toContain('"effectMaskInvert": true');
+    const back = parseDoc(text);
+    expect(back.elements.p1.effectMask).toBe("assets/mask.png");
+    expect(back.elements.p1.effectMaskInvert).toBe(true);
+
+    // remove mask
+    d = runCommand(d, "remove_effect_mask", { ids: ["p1"] });
+    expect(d.elements.p1.effectMask).toBeNull();
+    expect(d.elements.p1.effectMaskInvert).toBe(false);
+    const text2 = serializeDoc(d);
+    expect(text2).not.toContain('"effectMask"');
+    expect(text2).not.toContain('"effectMaskInvert"');
+  });
 });
 
 describe("canvas effects drawing", () => {
