@@ -453,6 +453,10 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // rulers are drawn on the canvas, so switching them redraws it at once, not at the next click
+  const rulersOn = useLayout((d) => d.rulers);
+  useEffect(() => schedule(), [rulersOn]);
+
   // ---------- helpers ----------
   const point = (e: { clientX: number; clientY: number }) => {
     const r = canvasRef.current!.getBoundingClientRect();
