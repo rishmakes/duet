@@ -562,6 +562,64 @@ fn gray_png_of(width: u32, height: u32, data: &[u8]) -> Result<String, String> {
     Ok(b64().encode(out))
 }
 
+fn is_one_colour(data: &[u8]) -> bool {
+    data.chunks_exact(4).all(|p| p == &data[..4])
+}
+
+/// The visible layers of a file laid over each other, when every one is plain (normal mixing, no mask).
+fn flatten_layers(file: &PsdFile) -> Option<RgbaImage> {
+    let (w, h) = (file.header.width, file.header.height);
+    let mut acc = vec![0f32; (w * h * 4) as usize];
+    let mut any = false;
+    for (i, rec) in file.layers().iter().enumerate() {
+        if !rec.is_visible() {
+            continue;
+        }
+        let layer = file.layer(i)?;
+        let Ok(img) = layer.rgba8() else { continue };
+        if img.width == 0 || img.height == 0 {
+            continue;
+        }
+        if rec.blend_mode != BlendMode::Normal || layer.user_mask().is_some() {
+            return None;
+        }
+        let k = rec.opacity as f32 / 255.0 * rec.fill_opacity() as f32 / 255.0;
+        for y in 0..img.height as i32 {
+            let dy = img.top + y;
+            if dy < 0 || dy >= h as i32 {
+                continue;
+            }
+            for x in 0..img.width as i32 {
+                let dx = img.left + x;
+                if dx < 0 || dx >= w as i32 {
+                    continue;
+                }
+                let s = ((y as u32 * img.width + x as u32) * 4) as usize;
+                let d = ((dy as u32 * w + dx as u32) * 4) as usize;
+                let a = img.data[s + 3] as f32 / 255.0 * k;
+                for c in 0..3 {
+                    acc[d + c] = img.data[s + c] as f32 * a + acc[d + c] * (1.0 - a);
+                }
+                acc[d + 3] = a + acc[d + 3] * (1.0 - a);
+            }
+        }
+        any = true;
+    }
+    if !any {
+        return None;
+    }
+    // colours were kept multiplied by their see-through; undo that for the picture
+    let data = acc
+        .chunks_exact(4)
+        .flat_map(|p| {
+            let a = p[3];
+            let un = |v: f32| if a > 0.0 { (v / a).round().clamp(0.0, 255.0) as u8 } else { 0 };
+            [un(p[0]), un(p[1]), un(p[2]), (a * 255.0).round() as u8]
+        })
+        .collect();
+    Some(RgbaImage { left: 0, top: 0, width: w, height: h, data })
+}
+
 fn try_map_smart_filters(
     file: &PsdFile,
     rec: &LayerRecord,
@@ -777,8 +835,10 @@ fn try_map_smart_filters(
             out.flattened.push(format!("{name} (smart object: embedded file corrupt)"));
             return None;
         };
-        let Some(comp) = emb.composite_rgba8().ok() else {
-            out.flattened.push(format!("{name} (smart object: embedded composite could not be decoded)"));
+        // a smart object saved without its finished picture reads as one flat colour, so its layers are put together instead
+        let comp = emb.composite_rgba8().ok().filter(|c| !is_one_colour(&c.data));
+        let Some(comp) = comp.or_else(|| flatten_layers(&emb)) else {
+            out.flattened.push(format!("{name} (smart object: its picture could not be read)"));
             return None;
         };
         comp
@@ -1827,5 +1887,24 @@ mod tests {
         }
         println!("read {ok}, failed {bad}");
         assert_eq!(bad, 0);
+    }
+}
+
+#[cfg(test)]
+mod dump {
+    /// Writes each layer's picture and effect mask of DUET_PSD_DUMP to the folder in DUET_PSD_OUT, to look at by eye.
+    #[test]
+    #[ignore]
+    fn dump_layers() {
+        use base64::Engine;
+        let path = std::env::var("DUET_PSD_DUMP").unwrap();
+        let out = std::env::var("DUET_PSD_OUT").unwrap();
+        let read = super::read(&std::fs::read(path).unwrap()).unwrap();
+        for (i, l) in read.layers.iter().enumerate() {
+            let b = base64::engine::general_purpose::STANDARD;
+            if !l.png.is_empty() { std::fs::write(format!("{out}/{i}-{}.png", l.name), b.decode(&l.png).unwrap()).unwrap(); }
+            if let Some(m) = &l.effect_mask_png { std::fs::write(format!("{out}/{i}-{}-mask.png", l.name), b.decode(m).unwrap()).unwrap(); }
+            println!("{i} {} {}x{} at {},{}", l.name, l.width, l.height, l.left, l.top);
+        }
     }
 }
