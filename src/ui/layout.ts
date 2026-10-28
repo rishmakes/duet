@@ -32,6 +32,8 @@ export interface Dock {
   timeH: number;
   /** The history line along the bottom. Hidden unless asked for: the chat holds the history. */
   historyLine: boolean;
+  /** Set once the designer turns the history line on or off themselves. Until then it is on. */
+  historyLineChosen?: boolean;
   /** How wide the chat is in the Chat space, or 0 to share the room with the canvas as it comes. */
   homeChatW: number;
   /** In Colour, a change goes to every picture and clip in the scene, not only the picked ones. */
@@ -69,7 +71,7 @@ export const defaults = (): Dock => ({
   timeLook: "layers",
   keysOpen: false,
   timeH: 170,
-  historyLine: false,
+  historyLine: true,
   homeChatW: 0,
   gradeEvery: false,
   rulers: false,
@@ -92,7 +94,9 @@ export function parseLayout(raw: unknown): Dock {
     const space: Space = r.space === "chat" ? "chat" : "edit";
     const videoTab: RightTab = r.videoTab === "color" ? "color" : "properties";
     const photoTab: RightTab = r.photoTab === "properties" ? "properties" : "color";
-    return { ...defaults(), ...r, mode, space, timeLook, timeMax: false, videoTab, photoTab };
+    // the history line was hidden by default before 0.12.1; it shows unless the designer hid it themselves
+    const historyLine = r.historyLineChosen ? r.historyLine !== false : true;
+    return { ...defaults(), ...r, mode, space, timeLook, timeMax: false, videoTab, photoTab, historyLine };
   }
   return defaults();
 }
@@ -113,6 +117,7 @@ const listeners = new Set<() => void>();
 export const getLayout = () => state;
 
 export function setLayout(patch: Partial<Dock>) {
+  if ("historyLine" in patch) patch = { ...patch, historyLineChosen: true };
   state = { ...state, ...patch };
   try {
     localStorage.setItem(KEY, JSON.stringify(state));

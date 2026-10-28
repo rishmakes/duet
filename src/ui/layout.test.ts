@@ -119,3 +119,12 @@ describe("layout migration and per-space panels", () => {
     });
   });
 });
+
+describe("history line", () => {
+  it("shows for everyone who never chose, and stays as the designer left it once they did", () => {
+    expect(parseLayout({ historyLine: false }).historyLine).toBe(true);
+    expect(parseLayout({ historyLine: false, historyLineChosen: true }).historyLine).toBe(false);
+    expect(parseLayout({ historyLine: true, historyLineChosen: true }).historyLine).toBe(true);
+    expect(defaults().historyLine).toBe(true);
+  });
+});
