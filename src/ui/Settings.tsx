@@ -6,6 +6,7 @@ import { busyOutside } from "../ai/outside";
 import { toolName } from "../ai/who";
 import { useStore } from "../state/store";
 import { getVersion } from "@tauri-apps/api/app";
+import { setLayout, useLayout } from "./layout";
 
 interface SettingsProps {
   check?: boolean;
@@ -107,7 +108,9 @@ export default function Settings({ check = false, onClose }: SettingsProps) {
   const matchingShortcuts = searching ? matchShortcuts(SHORTCUTS, search, MAC) : [];
   const matchAiTool = searching && matchGeneralRow("ai", search, { agentName, version });
   const matchVersion = searching && matchGeneralRow("version", search, { agentName, version });
-  const hasGeneralMatches = matchAiTool || matchVersion;
+  const wheelZooms = useLayout((d) => d.wheelZooms);
+  const matchWheel = searching && ["general", "mouse wheel zooms", "scroll", "zoom"].some((w) => w.includes(search.trim().toLowerCase()));
+  const hasGeneralMatches = matchAiTool || matchVersion || matchWheel;
 
   const q = search.trim().toLowerCase();
   const matchProject =
@@ -208,6 +211,12 @@ export default function Settings({ check = false, onClose }: SettingsProps) {
                       </button>
                     </div>
                   )}
+                  {matchWheel && (
+                    <label className="settings-row">
+                      <span>Mouse wheel zooms</span>
+                      <input type="checkbox" checked={wheelZooms} onChange={(e) => setLayout({ wheelZooms: e.target.checked })} />
+                    </label>
+                  )}
                 </>
               )}
               {hasDeveloperMatches && (
@@ -283,6 +292,10 @@ export default function Settings({ check = false, onClose }: SettingsProps) {
                       Check for updates
                     </button>
                   </div>
+                  <label className="settings-row">
+                    <span>Mouse wheel zooms</span>
+                    <input type="checkbox" checked={wheelZooms} onChange={(e) => setLayout({ wheelZooms: e.target.checked })} />
+                  </label>
                 </div>
               )}
               {activeSection === "Developer" && check && (

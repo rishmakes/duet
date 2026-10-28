@@ -76,6 +76,7 @@ import { penActive, penBack, penCancel, penDown, penDrag, penFinish, penHover } 
 import { draw, labelRect, screenRect, setQuietCanvas, setSceneOnly, shownOn } from "./render";
 import { fontCss, layoutText, lineStep, textLift } from "./text";
 import { getPickedTrack } from "../ui/pickedTrack";
+import { maskSelection } from "../ui/actions";
 import { isPhotoshopFile, openPhotoshopFile } from "../project/photoshop";
 
 let atNow: { doc: Doc; scene: string; t: number; out: Doc } | null = null;
@@ -1133,13 +1134,20 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
       if (getState().editingId) return;
       stopGlide();
       const p = point(e);
-      if (e.ctrlKey || e.metaKey) {
+      // A mouse wheel turns in whole notches of 120 (or by lines); a trackpad slides in small steps.
+      const notched = e.deltaMode !== 0 || (e.deltaX === 0 && (e as WheelEvent & { wheelDeltaY?: number }).wheelDeltaY !== 0 && ((e as WheelEvent & { wheelDeltaY?: number }).wheelDeltaY ?? 1) % 120 === 0);
+      const mouseZoom = notched && !e.shiftKey && getLayout().wheelZooms;
+      if (e.ctrlKey || e.metaKey || mouseZoom) {
         if (pinch) return;
-        const step = Math.max(-40, Math.min(40, e.deltaY));
+        // one notch of a mouse wheel is about a fifth more or less
+        const step = mouseZoom && !(e.ctrlKey || e.metaKey) ? Math.sign(e.deltaY) * 20 : Math.max(-40, Math.min(40, e.deltaY));
         zoomAt(p.sx, p.sy, Math.exp(-step * 0.01));
       } else {
         const vp = getState().viewport;
-        setViewport({ ...vp, x: vp.x - e.deltaX, y: vp.y - e.deltaY });
+        // Shift with a mouse wheel slides sideways
+        const dx = notched && e.shiftKey && !e.deltaX ? e.deltaY : e.deltaX;
+        const dy = notched && e.shiftKey && !e.deltaX ? 0 : e.deltaY;
+        setViewport({ ...vp, x: vp.x - dx, y: vp.y - dy });
       }
     };
     type GestureEvent = Event & { scale: number; clientX: number; clientY: number };
@@ -1311,6 +1319,12 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
         const doc = workDoc(s);
         const ids = s.selection.filter((i) => canBeComponent(doc.elements[i]));
         for (const id of ids) dispatch("create_component", { id });
+        return;
+      }
+      // On a Mac the menu bar catches Cmd Option M. Windows menus miss Ctrl Alt M, so the canvas takes it there.
+      if (mod && e.altKey && e.code === "KeyM" && !/Mac/.test(navigator.platform)) {
+        e.preventDefault();
+        maskSelection();
         return;
       }
       if (mod && e.altKey && e.code === "KeyB") {

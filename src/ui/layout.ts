@@ -44,6 +44,8 @@ export interface Dock {
   namesW: number;
   /** The comment pins on the canvas are put away. */
   commentsHidden: boolean;
+  /** A mouse wheel zooms, like in Adobe apps. A trackpad still slides the canvas. */
+  wheelZooms: boolean;
   /** In Video, whether the right panel shows Properties or Colour. */
   videoTab: RightTab;
   /** In Photo, whether the right panel shows Properties or Colour. */
@@ -74,6 +76,7 @@ export const defaults = (): Dock => ({
   timeMax: false,
   namesW: 150,
   commentsHidden: false,
+  wheelZooms: true,
   videoTab: "properties",
   photoTab: "color",
 });
