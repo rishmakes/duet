@@ -457,6 +457,8 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
   const strokeRef = useRef<StrokeState | null>(null);
   /** While a paint layer is being made for a stroke: whether the button is still down. */
   const layerPendingRef = useRef<"down" | "up" | null>(null);
+  /** Where the pointer went while that layer was being made, to be painted once it is ready. */
+  const layerMovesRef = useRef<{ clientX: number; clientY: number; pressure: number; pointerType: string }[]>([]);
   const [cursorPos, setCursorPos] = useState<{ sx: number; sy: number } | null>(null);
   const brushSettings = useBrushSettings();
 
@@ -541,7 +543,9 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     if (!stroke) return;
     const currentDoc = workDoc();
     const native = e.nativeEvent as PointerEvent;
-    const events = typeof native?.getCoalescedEvents === "function" ? native.getCoalescedEvents() : [e];
+    const coalesced = typeof native?.getCoalescedEvents === "function" ? native.getCoalescedEvents() : [];
+    // a made-up event, as from a check, has no coalesced ones: then it is its own
+    const events = coalesced.length ? coalesced : [native];
     for (const ev of events) {
       const evPoint = point(ev);
       const filePos = worldToFile({ x: evPoint.x, y: evPoint.y }, stroke.el, currentDoc, stroke.picSize);
@@ -631,6 +635,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
         while (frameId && doc.elements[frameId]?.type !== "frame") frameId = doc.elements[frameId]?.parentId ?? null;
         if (frameId) {
           layerPendingRef.current = "down";
+          layerMovesRef.current = [];
           void startOnPaintLayer(e, p, frameId);
         }
         return;
@@ -662,11 +667,19 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     const upAlready = layerPendingRef.current === "up";
     layerPendingRef.current = null;
     beginStroke(e, p, s, doc, el);
+    const stroke = strokeRef.current as StrokeState | null;
+    if (stroke) {
+      for (const m of layerMovesRef.current.splice(0)) {
+        const at = point(m);
+        stroke.queue.push({ pos: worldToFile({ x: at.x, y: at.y }, stroke.el, doc, stroke.picSize), pressure: m.pressure, pointerType: m.pointerType });
+      }
+      if (stroke.queue.length && !stroke.rafId) stroke.rafId = requestAnimationFrame(flushStrokeFrame);
+    }
     // the button came up while the layer was being made: what was there is one dab
     if (upAlready && strokeRef.current) {
-      const stroke = strokeRef.current;
+      const done = strokeRef.current;
       strokeRef.current = null;
-      void finishStroke(stroke);
+      void finishStroke(done);
     }
   };
 
@@ -1153,6 +1166,12 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
       setCursorPos({ sx: p.sx, sy: p.sy });
     }
 
+    if (layerPendingRef.current === "down") {
+      const native = e.nativeEvent as PointerEvent;
+      const events = typeof native?.getCoalescedEvents === "function" ? native.getCoalescedEvents() : [native];
+      for (const ev of events.length ? events : [native]) layerMovesRef.current.push({ clientX: ev.clientX, clientY: ev.clientY, pressure: ev.pressure, pointerType: ev.pointerType });
+      return;
+    }
     if (strokeRef.current) {
       handleStrokeMove(e);
       return;
