@@ -353,6 +353,26 @@ button {
   color: var(--muted);
   font-weight: 600;
 }
+.brush-tip-row {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 8px;
+  align-items: center;
+}
+.brush-tip {
+  width: 72px;
+  height: 72px;
+  border-radius: 6px;
+  /* a quiet check shows how see-through the tip is */
+  background: repeating-conic-gradient(var(--panel-2) 0 25%, var(--panel) 0 50%) 0 0 / 12px 12px;
+  border: 1px solid var(--line);
+}
+.sec .hint {
+  margin-top: 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted);
+}
 .field {
   display: grid;
   grid-template-columns: 1fr 1fr;

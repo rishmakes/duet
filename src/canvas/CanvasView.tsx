@@ -455,6 +455,8 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
   // Switching to another tool ends the line you were drawing.
   const toolNow = useStore((st) => st.tool);
   const strokeRef = useRef<StrokeState | null>(null);
+  /** While a paint layer is being made for a stroke: whether the button is still down. */
+  const layerPendingRef = useRef<"down" | "up" | null>(null);
   const [cursorPos, setCursorPos] = useState<{ sx: number; sy: number } | null>(null);
   const brushSettings = useBrushSettings();
 
@@ -619,13 +621,62 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     if (s.selection.length === 1 && doc.elements[s.selection[0]]?.type === "image") {
       targetEl = doc.elements[s.selection[0]];
     } else {
-      const hit = hitTest(doc, p.x, p.y, new Set(), false);
+      const hit = hitTest(doc, p.x, p.y, new Set(), true);
       if (hit && doc.elements[hit]?.type === "image") {
         targetEl = doc.elements[hit];
         select([hit]);
+      } else {
+        // no picture here: inside a frame, a clear paint layer the size of the frame is laid on top to paint on
+        let frameId = hit;
+        while (frameId && doc.elements[frameId]?.type !== "frame") frameId = doc.elements[frameId]?.parentId ?? null;
+        if (frameId) {
+          layerPendingRef.current = "down";
+          void startOnPaintLayer(e, p, frameId);
+        }
+        return;
       }
     }
     if (!targetEl) return;
+    beginStroke(e, p, s, doc, targetEl);
+  };
+
+  /** Lays a clear paint layer over the frame, then starts the stroke on it. */
+  const startOnPaintLayer = async (e: React.PointerEvent, p: { sx: number; sy: number; x: number; y: number }, frameId: string) => {
+    const frame = workDoc().elements[frameId];
+    if (!frame) return;
+    const w = Math.max(1, Math.min(8192, Math.round(frame.width)));
+    const h = Math.max(1, Math.min(8192, Math.round(frame.height)));
+    const clear = document.createElement("canvas");
+    clear.width = w;
+    clear.height = h;
+    const bytes = await canvasToPngBytes(clear);
+    if (!bytes) return;
+    const { src } = await addPicture("paint.png", bytes, "image/png");
+    const id = `paint-${Math.random().toString(36).slice(2, 10)}`;
+    dispatch("add_paint_layer", { id, parentId: frameId, x: 0, y: 0, width: frame.width, height: frame.height, src }, "you");
+    const s = getState();
+    const doc = workDoc(s);
+    const el = doc.elements[id];
+    if (!el) return;
+    select([id]);
+    const upAlready = layerPendingRef.current === "up";
+    layerPendingRef.current = null;
+    beginStroke(e, p, s, doc, el);
+    // the button came up while the layer was being made: what was there is one dab
+    if (upAlready && strokeRef.current) {
+      const stroke = strokeRef.current;
+      strokeRef.current = null;
+      void finishStroke(stroke);
+    }
+  };
+
+  const beginStroke = (
+    e: React.PointerEvent,
+    p: { sx: number; sy: number; x: number; y: number },
+    s: ReturnType<typeof getState>,
+    doc: Doc,
+    targetEl: El,
+  ) => {
 
     const basePic = pictureOf(targetEl);
     if (!basePic) return;
@@ -1316,6 +1367,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
+    if (layerPendingRef.current === "down") layerPendingRef.current = "up";
     if (strokeRef.current) {
       canvasRef.current?.releasePointerCapture(e.pointerId);
       const stroke = strokeRef.current;

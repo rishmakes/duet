@@ -586,6 +586,33 @@ const paintPicture: CommandDef<PaintPictureArgs> = {
   },
 };
 
+// ---- add_paint_layer ----
+export interface AddPaintLayerArgs {
+  id?: string;
+  /** The frame it goes in. Painting outside a frame has nowhere to land. */
+  parentId: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** A clear picture, as big as the layer, to paint on. */
+  src: string;
+  label?: string;
+}
+
+const addPaintLayer: CommandDef<AddPaintLayerArgs> = {
+  label: (a) => a.label ?? "Add paint layer",
+  run: (doc, a) => {
+    if (!a.src || doc.elements[a.parentId]?.type !== "frame") return doc;
+    const id = a.id ?? newId("image");
+    const next = createElement.run(doc, { id, type: "image", parentId: a.parentId, x: a.x, y: a.y, width: a.width, height: a.height });
+    if (next === doc || !next.elements[id]) return doc;
+    const n = Object.values(next.elements).filter((e) => e.type === "image" && e.name.startsWith("Paint")).length;
+    next.elements[id] = { ...next.elements[id], src: a.src, name: n ? `Paint ${n + 1}` : "Paint" };
+    return next;
+  },
+};
+
 // ---- invert_effect_mask ----
 export interface InvertEffectMaskArgs {
   ids: string[];
@@ -2266,6 +2293,7 @@ export const commands = {
   move_effect: moveEffect,
   set_effect_mask: setEffectMask,
   paint_picture: paintPicture,
+  add_paint_layer: addPaintLayer,
   invert_effect_mask: invertEffectMask,
   remove_effect_mask: removeEffectMask,
   set_background: setBackground,

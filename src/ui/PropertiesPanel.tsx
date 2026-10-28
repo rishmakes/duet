@@ -931,12 +931,46 @@ function EffectsSection({ els }: { els: El[] }) {
   );
 }
 
+/** The tip as it paints: its size against the biggest, its soft edge, its colour and strength. */
+function BrushTip({ size, softness, opacity, colour }: { size: number; softness: number; opacity: number; colour: string | null }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const c = ref.current?.getContext("2d");
+    if (!c || !ref.current) return;
+    const box = ref.current.width;
+    c.clearRect(0, 0, box, box);
+    const r = Math.max(2, (box / 2 - 4) * Math.min(1, Math.sqrt(size / 200)));
+    const g = c.createRadialGradient(box / 2, box / 2, 0, box / 2, box / 2, r);
+    const ink = colour ?? "#ffffff";
+    g.addColorStop(0, ink);
+    g.addColorStop(Math.max(0, Math.min(0.999, 1 - softness)), ink);
+    g.addColorStop(1, `${ink}00`);
+    c.globalAlpha = opacity;
+    c.fillStyle = g;
+    c.beginPath();
+    c.arc(box / 2, box / 2, r, 0, Math.PI * 2);
+    c.fill();
+  }, [size, softness, opacity, colour]);
+  return <canvas ref={ref} className="brush-tip" width={72} height={72} aria-label="How the brush paints" />;
+}
+
 function BrushSection({ isEraser }: { isEraser: boolean }) {
   const brush = useBrushSettings();
 
   return (
     <div className="sec" data-name="brush-settings">
-      <h4>Brush</h4>
+      <h4>{isEraser ? "Eraser" : "Brush"}</h4>
+      <div className="brush-tip-row">
+        <BrushTip size={brush.size} softness={brush.softness} opacity={brush.opacity} colour={isEraser ? null : brush.colour} />
+        {!isEraser && (
+          <ColorField
+            value={brush.colour}
+            onCommit={(c) => c && setBrushSettings({ colour: c })}
+            onPreview={(c) => c && setBrushSettings({ colour: c })}
+          />
+        )}
+      </div>
+      <div className="gap" />
       <div className="field">
         <NumField
           label="Size"
@@ -965,16 +999,9 @@ function BrushSection({ isEraser }: { isEraser: boolean }) {
           onCommit={(n) => setBrushSettings({ opacity: n / 100 })}
           onDrag={(n) => setBrushSettings({ opacity: n / 100 })}
         />
-        {!isEraser ? (
-          <ColorField
-            value={brush.colour}
-            onCommit={(c) => c && setBrushSettings({ colour: c })}
-            onPreview={(c) => c && setBrushSettings({ colour: c })}
-          />
-        ) : (
-          <div />
-        )}
+        <div />
       </div>
+      <div className="hint">{isEraser ? "Rub out on a picture or a paint layer. [ and ] change the size." : "Paint on a picture, or anywhere in a frame to start a paint layer. [ and ] change the size."}</div>
     </div>
   );
 }

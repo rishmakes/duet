@@ -51,3 +51,25 @@ describe("paint_picture", () => {
     expect(picturesIn(painted).sort()).toEqual(["assets/a.png", "assets/photo.png"]);
   });
 });
+
+describe("add_paint_layer", () => {
+  it("adds a clear picture to paint on, inside the frame, in one step", () => {
+    const d = baseDoc();
+    const next = runCommand(d, "add_paint_layer", { id: "pl", parentId: "f1", x: 0, y: 0, width: 200, height: 200, src: "assets/clear.png" });
+    const el = next.elements.pl;
+    expect(el.type).toBe("image");
+    expect(el.src).toBe("assets/clear.png");
+    expect(el.parentId).toBe("f1");
+    expect(el.name).toBe("Paint");
+    expect(next.elements.f1.childIds).toContain("pl");
+    expect(d.elements.pl).toBeUndefined();
+    const again = runCommand(next, "add_paint_layer", { id: "pl2", parentId: "f1", x: 0, y: 0, width: 200, height: 200, src: "assets/clear.png" });
+    expect(again.elements.pl2.name).toBe("Paint 2");
+  });
+
+  it("needs a frame and a picture", () => {
+    const d = baseDoc();
+    expect(runCommand(d, "add_paint_layer", { parentId: "r1", x: 0, y: 0, width: 10, height: 10, src: "assets/clear.png" })).toBe(d);
+    expect(runCommand(d, "add_paint_layer", { parentId: "f1", x: 0, y: 0, width: 10, height: 10, src: "" })).toBe(d);
+  });
+});
