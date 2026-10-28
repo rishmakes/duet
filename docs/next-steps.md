@@ -60,7 +60,7 @@ A frame on the page with a length is a **scene** and plays like a video. Everyth
 - `src-tauri/src/ai.rs`: remove `gemini` from `supported()`. Keep `known()` listing the tools Duet should detect.
 - `src/ui/ChatPanel.tsx`: the AI tool picker lists `AGENTS`, so it follows automatically.
 - Docs: `README.md`, `docs/install.md`, `docs/ai-bridge.md` (the "How each tool is connected" section), `docs/v1-scope.md`.
-- Website repo `justsourish/duet-site`: home bento card "Bring the AI you already use", `src/lib/faq.ts`, `src/content/status.ts`, `src/app/llms*.txt/route.ts`, `src/app/download/page.tsx` callout, `README.md`. Search for "Gemini".
+- Website repo `rishmakes/duet-site`: home bento card "Bring the AI you already use", `src/lib/faq.ts`, `src/content/status.ts`, `src/app/llms*.txt/route.ts`, `src/app/download/page.tsx` callout, `README.md`. Search for "Gemini".
 - Local leftovers on the creator's Mac (not in the repo): `~/.duet/agent-workspace/.gemini/` and `GEMINI.md`. They can be deleted.
 
 ### Add Antigravity (`agy`)

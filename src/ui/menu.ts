@@ -146,7 +146,7 @@ export async function installMenu() {
       await item("Duet website", () => void openUrl(SITE)),
       await item("What is new", () => void openUrl(`${SITE}/updates/`)),
       await item("Send feedback", () => send("duet:feedback"), "CmdOrCtrl+Shift+F"),
-      await item("Source on GitHub", () => void openUrl("https://github.com/justsourish/duet")),
+      await item("Source on GitHub", () => void openUrl("https://github.com/rishmakes/duet")),
     ],
   });
 

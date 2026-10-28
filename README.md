@@ -53,14 +53,14 @@ To use the chat today: install [Claude Code](https://claude.com/claude-code) or 
 
 ## Install
 
-Download the latest build from the [Releases page](https://github.com/justsourish/duet/releases). Step-by-step help, including the first-launch warning, is in [docs/install.md](docs/install.md).
+Download the latest build from the [Releases page](https://github.com/rishmakes/duet/releases). Step-by-step help, including the first-launch warning, is in [docs/install.md](docs/install.md).
 
 ## Build it yourself
 
 You need Node 22 or newer and Rust.
 
 ```sh
-git clone https://github.com/justsourish/duet.git
+git clone https://github.com/rishmakes/duet.git
 cd duet
 npm install
 npm run tauri dev

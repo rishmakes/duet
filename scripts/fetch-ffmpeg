@@ -10,7 +10,7 @@ set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
 TARGET="${1:-$(rustc -vV | sed -n 's/^host: //p')}"
-BASE="https://github.com/justsourish/duet/releases/download/tools-ffmpeg-8.1"
+BASE="https://github.com/rishmakes/duet/releases/download/tools-ffmpeg-8.1"
 case "$TARGET" in
   aarch64-apple-darwin) FILE=ffmpeg-aarch64-apple-darwin; SUM=5bea4e7be361c9557334f5ae50640c82944304eb5f97d8c248622cf8d1e9bb33 ;;
   x86_64-apple-darwin) FILE=ffmpeg-x86_64-apple-darwin; SUM=5bcc8a083c65bfa5360ccd34cbf762d0cd04535343146e5c78828801cb0b576a ;;

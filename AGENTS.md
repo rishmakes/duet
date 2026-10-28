@@ -30,12 +30,13 @@ Restart `tauri dev` after installing a new npm package. Vite re-bundles dependen
 
 ## Project links
 
-- Website (private repo `justsourish/duet-site`, folder `~/Desktop/DEV/duet-site`): https://duet.noisyarchitects.org. Deploy with `npm run deploy` there. Update what works in `src/content/status.ts` after each version.
-- The private part (private repo `justsourish/duet-private`, folder `~/Desktop/DEV/duet-private`): research, plans and technology that are not released. Public issues say what a designer gets; how it works is written there. Never copy from it into this repo, its issues or its commits without the creator saying so.
-- Feedback form: https://forms.gle/Zs6s7bX6CpJigCCf6. Creator booking: https://cal.com/rish-lc/coffee.
+- Website (private repo `rishmakes/duet-site`, folder `~/Desktop/DEV/duet-site`): https://duet.noisyarchitects.org. Deploy with `npm run deploy` there. Update what works in `src/content/status.ts` after each version.
+- The private part (private repo `rishmakes/duet-private`, folder `~/Desktop/DEV/duet-private`): research, plans and technology that are not released. Public issues say what a designer gets; how it works is written there. Never copy from it into this repo, its issues or its commits without the creator saying so.
+- Feedback form: https://forms.gle/Zs6s7bX6CpJigCCf6. Creator booking: https://cal.com/rishmakes/coffee.
 - Release: push a tag like `v0.2.0`. GitHub Actions builds Mac and Windows installers into a draft release. Publish with `gh release edit <tag> --draft=false`. Not a pre-release: installed copies look for the latest release and offer it as an update. Releases are signed with Duet's own update key, `~/.duet-keys/duet-updater.key` (also the GitHub secret TAURI_SIGNING_PRIVATE_KEY). Lose it and installed copies can never update again.
 - Licence: PolyForm Shield 1.0.0 (source available, not open source). v0.1.0 was MIT.
-- Use the GitHub noreply email in this repo: `10191373+justsourish@users.noreply.github.com`.
+- Use the GitHub noreply email in this repo: `10191373+rishmakes@users.noreply.github.com`.
+- The app id `com.justsourish.duet` in `src-tauri/tauri.conf.json` stays as it is after the move to `rishmakes`: changing it would cut installed copies off from their projects and settings.
 
 ## Rules
 

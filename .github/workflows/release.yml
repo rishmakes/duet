@@ -66,7 +66,7 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: Duet ${{ github.ref_name }}
           releaseBody: |
-            Early release. Read the install guide first: https://github.com/justsourish/duet/blob/main/docs/install.md
+            Early release. Read the install guide first: https://github.com/rishmakes/duet/blob/main/docs/install.md
 
             This app is not signed with a paid certificate, so Mac and Windows will ask you to confirm the first time you open it. The guide shows exactly how.
 

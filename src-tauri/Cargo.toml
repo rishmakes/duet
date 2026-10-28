@@ -4,7 +4,7 @@ version = "0.10.3"
 description = "An opinionated design tool, built by designers, for designers. You and your AI work hand in hand on one canvas."
 authors = ["Sourish Mazumdar"]
 license = "PolyForm-Shield-1.0.0"
-repository = "https://github.com/justsourish/duet"
+repository = "https://github.com/rishmakes/duet"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

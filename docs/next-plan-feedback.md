@@ -13,7 +13,7 @@ In the early days feedback matters more than anything. When something behaves od
 - Pressing either one takes a picture of the Duet window only (not the whole screen) at that moment, before anything else changes.
 - A feedback form opens with that picture already attached. They write anything and press Send.
 - They can attach more pictures.
-- After sending, one thing shows, and it is prominent: "Still stuck? Book time with the creator." It opens the calendar (https://cal.com/rish-lc/coffee). Instagram as a second way, if wanted.
+- After sending, one thing shows, and it is prominent: "Still stuck? Book time with the creator." It opens the calendar (https://cal.com/rishmakes/coffee). Instagram as a second way, if wanted.
 
 ## Open, decide with the creator
 

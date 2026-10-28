@@ -5,7 +5,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 
 /** Where feedback lands: a Google Sheet of the creator's, with pictures kept in his Drive. It can only add rows. */
 const INBOX = "https://script.google.com/macros/s/AKfycbxErFhxTHWXB_WZHYOGrRd-KAy8_DUri4B_CIXzNKgzTPj_gJ04MQ_2uk82nzxbndTu/exec";
-const BOOK = "https://cal.com/rish-lc/coffee";
+const BOOK = "https://cal.com/rishmakes/coffee";
 const MAX_PICTURES = 6;
 /** Pictures are made smaller than this on their long side, so a message stays quick to send. */
 const LONGEST = 1600;

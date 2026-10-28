@@ -2,7 +2,7 @@
 
 Duet is free. It is not signed with a paid developer certificate yet, so your computer will ask you to confirm the first time. That is normal for a young free app, and it takes ten seconds.
 
-Download from the [Releases page](https://github.com/justsourish/duet/releases).
+Download from the [Releases page](https://github.com/rishmakes/duet/releases).
 
 ## Mac
 
