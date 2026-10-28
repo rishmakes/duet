@@ -29,6 +29,7 @@
     var img = document.createElement("img");
     img.alt = "The design in Duet";
     img.onload = resize;
+    img.onerror = function () { pic.replaceChildren(Object.assign(document.createElement("div"), { className: "wait", textContent: "The picture could not load. The design is in Duet." })); resize(); };
     img.src = data.picture;
     pic.replaceChildren(img);
     var first = String(data.caption || "").split(".")[0];

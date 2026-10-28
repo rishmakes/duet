@@ -36,6 +36,9 @@ struct Inner {
     tunnel: Option<Child>,
     /// Bumped on every start and stop, so an old tunnel never reports into a newer one.
     run: u64,
+    /// The last few pictures look_at_design took, for the card in the chat to show.
+    pictures: Vec<(u64, String, Vec<u8>)>,
+    next_picture: u64,
 }
 
 fn report(app: &AppHandle) {
@@ -408,7 +411,20 @@ fn reply(req: tiny_http::Request, code: u16, body: String) {
 }
 
 fn handle(mut req: tiny_http::Request, app: &AppHandle, route: &str) {
-    let path = req.url().split('?').next().unwrap_or("");
+    let path = req.url().split('?').next().unwrap_or("").to_string();
+    let base = route.trim_end_matches("/mcp");
+    if let Some(n) = path.strip_prefix(&format!("{base}/picture/")).and_then(|n| n.trim_end_matches(".png").parse::<u64>().ok()) {
+        let s = app.state::<Arc<ConnectState>>();
+        let found = s.inner.lock().unwrap().pictures.iter().find(|p| p.0 == n).map(|p| (p.1.clone(), p.2.clone()));
+        return match found {
+            Some((mime, bytes)) => {
+                let kind = tiny_http::Header::from_bytes(&b"Content-Type"[..], mime.as_bytes()).unwrap();
+                let open = tiny_http::Header::from_bytes(&b"Access-Control-Allow-Origin"[..], &b"*"[..]).unwrap();
+                let _ = req.respond(tiny_http::Response::from_data(bytes).with_header(kind).with_header(open));
+            }
+            None => reply(req, 404, "{}".into()),
+        };
+    }
     if path != route {
         return reply(req, 404, "{}".into());
     }
@@ -428,7 +444,7 @@ fn handle(mut req: tiny_http::Request, app: &AppHandle, route: &str) {
             return reply(req, 200, text.to_string());
         }
     }
-    if let Some(text) = own_answer(&msg) {
+    if let Some(text) = own_answer(app, &msg) {
         return reply(req, 200, text);
     }
     let Some((code, mut answer)) = to_duet(app, &msg) else {
@@ -440,7 +456,7 @@ fn handle(mut req: tiny_http::Request, app: &AppHandle, route: &str) {
     }
     if code == 200 {
         if let Ok(mut d) = serde_json::from_str::<Value>(&answer) {
-            dress(&msg, &mut d);
+            dress(app, &msg, &mut d);
             answer = d.to_string();
         }
     }
@@ -456,7 +472,7 @@ const CARD: &str = "ui://duet/preview.html";
 const CARD_HTML: &str = include_str!("connect_card.html");
 
 /// Requests the connection answers itself: the card's page.
-fn own_answer(msg: &Value) -> Option<String> {
+fn own_answer(app: &AppHandle, msg: &Value) -> Option<String> {
     let result = match msg["method"].as_str()? {
         "resources/list" => json!({"resources": [
             {"uri": CARD_OPENAI, "name": "Duet preview", "mimeType": "text/html+skybridge"},
@@ -470,7 +486,14 @@ fn own_answer(msg: &Value) -> Option<String> {
                 CARD => "text/html;profile=mcp-app",
                 _ => return None,
             };
-            json!({"contents": [{"uri": uri, "mimeType": mime, "text": CARD_HTML}]})
+            // the card loads its picture from this connection's own address
+            let host = public_host(app).unwrap_or_default();
+            let meta = json!({
+                "openai/widgetCSP": {"connect_domains": [], "resource_domains": [host]},
+                "openai/widgetDescription": "A picture of the design in Duet, as it is now.",
+                "ui": {"csp": {"resourceDomains": [host]}, "prefersBorder": false}
+            });
+            json!({"contents": [{"uri": uri, "mimeType": mime, "text": CARD_HTML, "_meta": meta}]})
         }
         _ => return None,
     };
@@ -478,7 +501,29 @@ fn own_answer(msg: &Value) -> Option<String> {
 }
 
 /// What a web AI needs on top of Duet's own answers.
-fn dress(msg: &Value, d: &mut Value) {
+fn public_host(app: &AppHandle) -> Option<String> {
+    let s = app.state::<Arc<ConnectState>>();
+    let link = s.inner.lock().unwrap().link.clone()?;
+    Some(link.splitn(4, '/').take(3).collect::<Vec<_>>().join("/"))
+}
+
+/// Keep a picture for the card, and give the address it is served at.
+fn keep_picture(app: &AppHandle, mime: &str, data: &str) -> Option<String> {
+    use base64::Engine;
+    let bytes = base64::engine::general_purpose::STANDARD.decode(data).ok()?;
+    let s = app.state::<Arc<ConnectState>>();
+    let mut i = s.inner.lock().unwrap();
+    let link = i.link.clone()?;
+    i.next_picture += 1;
+    let n = i.next_picture;
+    i.pictures.push((n, mime.to_string(), bytes));
+    if i.pictures.len() > 8 {
+        i.pictures.remove(0);
+    }
+    Some(format!("{}/picture/{n}.png", link.trim_end_matches("/mcp")))
+}
+
+fn dress(app: &AppHandle, msg: &Value, d: &mut Value) {
     match msg["method"].as_str() {
         Some("initialize") => {
             d["result"]["capabilities"]["resources"] = json!({});
@@ -500,9 +545,10 @@ fn dress(msg: &Value, d: &mut Value) {
         }
         Some("tools/call") if msg["params"]["name"] == "look_at_design" => {
             let content = d["result"]["content"].as_array().cloned().unwrap_or_default();
-            let picture = content.iter().find(|c| c["type"] == "image").and_then(|c| {
-                Some(format!("data:{};base64,{}", c["mimeType"].as_str().unwrap_or("image/png"), c["data"].as_str()?))
-            });
+            let picture = content
+                .iter()
+                .find(|c| c["type"] == "image")
+                .and_then(|c| keep_picture(app, c["mimeType"].as_str().unwrap_or("image/png"), c["data"].as_str()?));
             let caption = content.iter().find(|c| c["type"] == "text").and_then(|c| c["text"].as_str()).unwrap_or("");
             if let Some(picture) = picture {
                 d["result"]["structuredContent"] = json!({"picture": picture, "caption": caption});
