@@ -743,11 +743,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     displayCtx.restore();
 
     window.dispatchEvent(new Event("duet:repaint"));
-    try {
-      canvasRef.current?.setPointerCapture(e.pointerId);
-    } catch {
-      // a pointer the system does not know, as from a check, cannot be held; the stroke still works
-    }
+    hold(e.pointerId);
 
     strokeRef.current = {
       elId: targetEl.id,
@@ -848,6 +844,22 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
   useEffect(() => schedule(), [rulersOn]);
 
   // ---------- helpers ----------
+  // A pointer the system does not know, as from a check in Duet dev, cannot be held. Everything else still works.
+  const hold = (id: number) => {
+    try {
+      canvasRef.current?.setPointerCapture(id);
+    } catch {
+      /* not held */
+    }
+  };
+  const letGo = (id: number) => {
+    try {
+      canvasRef.current?.releasePointerCapture(id);
+    } catch {
+      /* it was never held */
+    }
+  };
+
   const point = (e: { clientX: number; clientY: number }) => {
     const r = canvasRef.current!.getBoundingClientRect();
     const sx = e.clientX - r.left;
@@ -930,7 +942,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     if (getState().editingId) return;
     const p = point(e);
     const s = getState();
-    canvasRef.current!.setPointerCapture(e.pointerId);
+    hold(e.pointerId);
 
     // beside the chat the canvas only looks: any drag moves the view
     if (viewOnly || e.button === 1 || spaceRef.current || s.tool === "hand") {
@@ -1373,11 +1385,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
   const onPointerUp = (e: React.PointerEvent) => {
     if (layerPendingRef.current === "down") layerPendingRef.current = "up";
     if (strokeRef.current) {
-      try {
-        canvasRef.current?.releasePointerCapture(e.pointerId);
-      } catch {
-        // it was never held
-      }
+      letGo(e.pointerId);
       const stroke = strokeRef.current;
       strokeRef.current = null;
       void finishStroke(stroke);
@@ -1385,7 +1393,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     }
     const d = dragRef.current;
     dragRef.current = null;
-    canvasRef.current?.releasePointerCapture(e.pointerId);
+    letGo(e.pointerId);
     if (!d) return;
     const p = point(e);
 
