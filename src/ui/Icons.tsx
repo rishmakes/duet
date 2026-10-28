@@ -1,6 +1,6 @@
 /** One icon set for the whole app: 24 grid, round ends, same stroke weight everywhere. */
 
-export type IconName = "cut-here" | "cut-close" | "cut-before" | "cut-after" | "move" | "frame" | "rect" | "ellipse" | "text" | "hand" | "zoom" | "image" | "plus" | "pen" | "mask" | "group" | "lock" | "unlock" | "eye" | "eye-off" | "sound" | "sound-off" | "component" | "instance" | "panel-left" | "panel-right" | "arrow" | "search" | "settings" | "skills" | "new-chat" | "folder" | "trash" | "close" | "unlist" | "restore" | "dots" | "grid" | "list" | "copy" | "move-to" | "marker";
+export type IconName = "cut-here" | "cut-close" | "cut-before" | "cut-after" | "move" | "frame" | "rect" | "ellipse" | "text" | "hand" | "zoom" | "image" | "plus" | "pen" | "brush" | "eraser" | "mask" | "group" | "lock" | "unlock" | "eye" | "eye-off" | "sound" | "sound-off" | "component" | "instance" | "panel-left" | "panel-right" | "arrow" | "search" | "settings" | "skills" | "new-chat" | "folder" | "trash" | "close" | "unlist" | "restore" | "dots" | "grid" | "list" | "copy" | "move-to" | "marker";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   move: <path d="M5.5 3.5l13 6.3-5.7 1.8-1.8 5.9z" />,
@@ -56,6 +56,20 @@ const PATHS: Record<IconName, React.ReactNode> = {
     <>
       <path d="M3.5 20.5C5 16.5 5 12.5 6.5 10.5C8 8.5 10.5 8 12.5 6.5L17.5 11.5C16 13.5 15.5 16 13.5 17.5C11.5 19 7.5 19 3.5 20.5zM12.5 6.5L15 4c.6-.6 1.4-.6 2 0l3 3c.6.6.6 1.4 0 2l-2.5 2.5M3.5 20.5l5.76-5.76" />
       <circle cx="10.5" cy="13.5" r="1.75" />
+    </>
+  ),
+  brush: (
+    <>
+      <path d="M18 4l2 2-6.5 6.5-2-2z" />
+      <path d="M11.5 10.5l-2 2c-1.5 1.5-3 3-4.5 7.5 4.5-1.5 6-3 7.5-4.5l2-2" />
+      <path d="M7.5 16.5c1-.8 1.8-.8 2.5-.8" />
+    </>
+  ),
+  eraser: (
+    <>
+      <path d="M7 20h13" />
+      <path d="M5.5 15.5l8-8a2 2 0 012.8 0l2.7 2.7a2 2 0 010 2.8l-6.5 6.5H7.5L5 17a1.1 1.1 0 01.5-1.5z" />
+      <path d="M10.5 10.5l5.5 5.5" />
     </>
   ),
   plus: <path d="M12 5.5v13M5.5 12h13" />,

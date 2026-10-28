@@ -14,7 +14,7 @@ import type { FramePreset } from "../commands";
 
 /** The tools, in a strip down the left edge. Motion adds the cutting tools below the drawing ones, so nothing else moves. */
 
-const TOOLS: { tool: Tool; label: string; key: string; icon: IconName }[] = [
+export const TOOLS: { tool: Tool; label: string; key: string; icon: IconName }[] = [
   { tool: "move", label: "Move", key: "V", icon: "move" },
   { tool: "frame", label: "Frame", key: "F", icon: "frame" },
   { tool: "rect", label: "Rectangle", key: "R", icon: "rect" },
@@ -23,6 +23,11 @@ const TOOLS: { tool: Tool; label: string; key: string; icon: IconName }[] = [
   { tool: "text", label: "Text", key: "T", icon: "text" },
   { tool: "hand", label: "Hand", key: "H", icon: "hand" },
   { tool: "zoom", label: "Zoom", key: "Z", icon: "zoom" },
+];
+
+export const PHOTO_TOOLS: { tool: Tool; label: string; key: string; icon: IconName }[] = [
+  { tool: "brush", label: "Brush", key: "B", icon: "brush" },
+  { tool: "eraser", label: "Eraser", key: "E", icon: "eraser" },
 ];
 
 const CUTS: { kind: CutKind; label: string; key?: string; icon: IconName }[] = [
@@ -57,6 +62,8 @@ export default function Toolbar({ row = false }: { row?: boolean }) {
   const tool = useStore((s) => s.tool);
   const scene = useStore((s) => s.clock.scene);
   const motion = useLayout((d) => d.mode === "motion");
+  const photo = useLayout((d) => d.mode === "photo");
+  const toolsList = photo ? [...TOOLS, ...PHOTO_TOOLS] : TOOLS;
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number }>({ top: 50, left: 48 });
@@ -104,7 +111,7 @@ export default function Toolbar({ row = false }: { row?: boolean }) {
 
   return (
     <div className={row ? "toolbar row" : "toolbar"} data-name="toolbar">
-      {TOOLS.map((t) => (
+      {toolsList.map((t) => (
         <button
           key={t.tool}
           ref={t.tool === "frame" ? frameBtnRef : undefined}

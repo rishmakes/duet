@@ -28,7 +28,7 @@ import {
 } from "../document/geometry";
 import { canBeComponent } from "../document/components";
 import { docAt } from "../document/time";
-import type { Doc, ElementType, Rect } from "../document/types";
+import type { Doc, El, ElementType, Rect } from "../document/types";
 import {
   clearOverlay,
   workDoc,
@@ -73,6 +73,27 @@ import type { AbsNode } from "../document/path";
 import { logError } from "../errorLog";
 import { defaultLayout } from "../document/layout";
 import { penActive, penBack, penCancel, penDown, penDrag, penFinish, penHover } from "./pen";
+import { addPicture, pictureOf, pictureSize, setLivePicture } from "../project/assets";
+import { PAINT_TILE } from "../document/types";
+import {
+  expandBox,
+  dabSpacing,
+  stepDabs,
+  smoothPoint,
+  pressureScale,
+  renderDabCanvas,
+  worldToFile,
+  pictureCoverScale,
+  touchedTiles,
+  type Box,
+  type Point,
+} from "./brush";
+import {
+  getBrushSettings,
+  stepBrushSize,
+  useBrushSettings,
+  type BrushSettings,
+} from "./brushSettings";
 import { draw, labelRect, screenRect, setQuietCanvas, setSceneOnly, shownOn } from "./render";
 import { fontCss, layoutText, lineStep, textLift } from "./text";
 import { getPickedTrack } from "../ui/pickedTrack";
@@ -107,6 +128,43 @@ type Drag =
   | { kind: "zoom"; sx: number; sy: number; startZoom: number; vx: number; vy: number; moved: boolean; priorGlide: { zoom: number; zoomIn?: boolean } | null }
   | { kind: "marquee"; start: { x: number; y: number }; prev: string[]; additive: boolean; scope: string[] }
   | { kind: "deep"; hit: string; start: { x: number; y: number }; sx: number; sy: number; shift: boolean; prev: string[] };
+
+interface StrokeState {
+  elId: string;
+  el: El;
+  picSize: [number, number];
+  isEraser: boolean;
+  workingSheet: HTMLCanvasElement;
+  workingCtx: CanvasRenderingContext2D;
+  strokeSheet: HTMLCanvasElement;
+  strokeCtx: CanvasRenderingContext2D;
+  displaySheet: HTMLCanvasElement;
+  displayCtx: CanvasRenderingContext2D;
+  dabCanvas: HTMLCanvasElement;
+  settings: BrushSettings;
+  lastSmoothed: Point;
+  carryDistance: number;
+  totalDirtyBox: Box | null;
+  queue: { pos: Point; pressure: number; pointerType: string }[];
+  rafId: number;
+}
+
+async function canvasToPngBytes(canvas: HTMLCanvasElement): Promise<Uint8Array | null> {
+  if (canvas.toBlob) {
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (blob) {
+      const buffer = await blob.arrayBuffer();
+      return new Uint8Array(buffer);
+    }
+  }
+  const dataUrl = canvas.toDataURL("image/png");
+  const base64 = dataUrl.split(",")[1];
+  if (!base64) return null;
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
 
 /** Where files dragged in from the computer are, when the system says so. */
 export function droppedPaths(data: DataTransfer): string[] {
@@ -396,9 +454,286 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
 
   // Switching to another tool ends the line you were drawing.
   const toolNow = useStore((st) => st.tool);
+  const strokeRef = useRef<StrokeState | null>(null);
+  const [cursorPos, setCursorPos] = useState<{ sx: number; sy: number } | null>(null);
+  const brushSettings = useBrushSettings();
+
+  const cancelStroke = (stroke: StrokeState) => {
+    if (stroke.rafId) {
+      cancelAnimationFrame(stroke.rafId);
+      stroke.rafId = 0;
+    }
+    setLivePicture(stroke.elId, null);
+    window.dispatchEvent(new Event("duet:repaint"));
+  };
+
+  const flushStrokePoints = (stroke: StrokeState, points: { pos: Point; pressure: number; pointerType: string }[]) => {
+    if (points.length === 0) return;
+    let frameDirty: Box | null = null;
+
+    for (const pt of points) {
+      const smoothed = smoothPoint(stroke.lastSmoothed, pt.pos, 0.5);
+      const pScale = pressureScale(pt.pressure, pt.pointerType);
+      const effectiveDiameter = Math.max(1, stroke.settings.size * pScale);
+      const effectiveRadius = effectiveDiameter / 2;
+      const spacing = dabSpacing(effectiveDiameter);
+
+      const { dabs, carry } = stepDabs(stroke.lastSmoothed, smoothed, stroke.carryDistance, spacing);
+      stroke.carryDistance = carry;
+      stroke.lastSmoothed = smoothed;
+
+      for (const dab of dabs) {
+        stroke.strokeCtx.drawImage(
+          stroke.dabCanvas,
+          dab.x - effectiveRadius,
+          dab.y - effectiveRadius,
+          effectiveDiameter,
+          effectiveDiameter,
+        );
+        const dabBox: Box = {
+          x: Math.floor(dab.x - effectiveRadius),
+          y: Math.floor(dab.y - effectiveRadius),
+          width: Math.ceil(effectiveDiameter),
+          height: Math.ceil(effectiveDiameter),
+        };
+        frameDirty = expandBox(frameDirty, dabBox);
+        stroke.totalDirtyBox = expandBox(stroke.totalDirtyBox, dabBox);
+      }
+    }
+
+    if (frameDirty) {
+      const [pw, ph] = stroke.picSize;
+      const bx = Math.max(0, Math.floor(frameDirty.x));
+      const by = Math.max(0, Math.floor(frameDirty.y));
+      const bw = Math.min(pw - bx, Math.ceil(frameDirty.width));
+      const bh = Math.min(ph - by, Math.ceil(frameDirty.height));
+
+      if (bw > 0 && bh > 0) {
+        stroke.displayCtx.save();
+        stroke.displayCtx.beginPath();
+        stroke.displayCtx.rect(bx, by, bw, bh);
+        stroke.displayCtx.clip();
+        stroke.displayCtx.clearRect(bx, by, bw, bh);
+        stroke.displayCtx.drawImage(stroke.workingSheet, 0, 0);
+        stroke.displayCtx.globalAlpha = stroke.settings.opacity;
+        stroke.displayCtx.globalCompositeOperation = stroke.isEraser ? "destination-out" : "source-over";
+        stroke.displayCtx.drawImage(stroke.strokeSheet, 0, 0);
+        stroke.displayCtx.restore();
+
+        window.dispatchEvent(new Event("duet:repaint"));
+      }
+    }
+  };
+
+  const flushStrokeFrame = () => {
+    const stroke = strokeRef.current;
+    if (!stroke) return;
+    stroke.rafId = 0;
+    if (stroke.queue.length === 0) return;
+    const points = stroke.queue.splice(0);
+    flushStrokePoints(stroke, points);
+  };
+
+  const handleStrokeMove = (e: React.PointerEvent) => {
+    const stroke = strokeRef.current;
+    if (!stroke) return;
+    const currentDoc = workDoc();
+    const native = e.nativeEvent as PointerEvent;
+    const events = typeof native?.getCoalescedEvents === "function" ? native.getCoalescedEvents() : [e];
+    for (const ev of events) {
+      const evPoint = point(ev);
+      const filePos = worldToFile({ x: evPoint.x, y: evPoint.y }, stroke.el, currentDoc, stroke.picSize);
+      stroke.queue.push({ pos: filePos, pressure: ev.pressure, pointerType: ev.pointerType });
+    }
+    if (!stroke.rafId) {
+      stroke.rafId = requestAnimationFrame(flushStrokeFrame);
+    }
+  };
+
+  const finishStroke = async (stroke: StrokeState) => {
+    if (stroke.rafId) {
+      cancelAnimationFrame(stroke.rafId);
+      stroke.rafId = 0;
+    }
+    if (stroke.queue.length > 0) {
+      flushStrokePoints(stroke, stroke.queue.splice(0));
+    }
+
+    stroke.workingCtx.save();
+    stroke.workingCtx.globalAlpha = stroke.settings.opacity;
+    stroke.workingCtx.globalCompositeOperation = stroke.isEraser ? "destination-out" : "source-over";
+    stroke.workingCtx.drawImage(stroke.strokeSheet, 0, 0);
+    stroke.workingCtx.restore();
+
+    if (!stroke.totalDirtyBox) {
+      setLivePicture(stroke.elId, null);
+      window.dispatchEvent(new Event("duet:repaint"));
+      return;
+    }
+
+    const pad = stroke.settings.size;
+    const paddedBox: Box = {
+      x: stroke.totalDirtyBox.x - pad,
+      y: stroke.totalDirtyBox.y - pad,
+      width: stroke.totalDirtyBox.width + pad * 2,
+      height: stroke.totalDirtyBox.height + pad * 2,
+    };
+    const tiles = touchedTiles(paddedBox, stroke.picSize[0], stroke.picSize[1], PAINT_TILE);
+
+    const newTiles: Record<string, string> = {};
+    for (const t of tiles) {
+      const tileCanvas = document.createElement("canvas");
+      tileCanvas.width = t.width;
+      tileCanvas.height = t.height;
+      const tctx = tileCanvas.getContext("2d");
+      if (!tctx) continue;
+      tctx.drawImage(stroke.workingSheet, t.x, t.y, t.width, t.height, 0, 0, t.width, t.height);
+      const bytes = await canvasToPngBytes(tileCanvas);
+      if (!bytes) continue;
+      const { src } = await addPicture(`patch-${t.col}-${t.row}.png`, bytes, "image/png");
+      newTiles[t.key] = src;
+    }
+
+    if (Object.keys(newTiles).length > 0) {
+      dispatch(
+        "paint_picture",
+        {
+          id: stroke.elId,
+          tiles: newTiles,
+          label: stroke.isEraser ? "Rub out" : "Paint",
+        },
+        "you",
+      );
+    }
+    setLivePicture(stroke.elId, null);
+    window.dispatchEvent(new Event("duet:repaint"));
+  };
+
+  const startBrushStroke = (
+    e: React.PointerEvent,
+    p: { sx: number; sy: number; x: number; y: number },
+    s: ReturnType<typeof getState>,
+  ) => {
+    const doc = workDoc(s);
+    let targetEl: El | null = null;
+    if (s.selection.length === 1 && doc.elements[s.selection[0]]?.type === "image") {
+      targetEl = doc.elements[s.selection[0]];
+    } else {
+      const hit = hitTest(doc, p.x, p.y, new Set(), false);
+      if (hit && doc.elements[hit]?.type === "image") {
+        targetEl = doc.elements[hit];
+        select([hit]);
+      }
+    }
+    if (!targetEl) return;
+
+    const basePic = pictureOf(targetEl);
+    if (!basePic) return;
+    const picSize = pictureSize(basePic);
+    if (picSize[0] <= 0 || picSize[1] <= 0) return;
+    const [pw, ph] = picSize;
+
+    const workingSheet = document.createElement("canvas");
+    workingSheet.width = pw;
+    workingSheet.height = ph;
+    const workingCtx = workingSheet.getContext("2d");
+    if (!workingCtx) return;
+    workingCtx.drawImage(basePic, 0, 0);
+
+    const strokeSheet = document.createElement("canvas");
+    strokeSheet.width = pw;
+    strokeSheet.height = ph;
+    const strokeCtx = strokeSheet.getContext("2d");
+    if (!strokeCtx) return;
+
+    const displaySheet = document.createElement("canvas");
+    displaySheet.width = pw;
+    displaySheet.height = ph;
+    const displayCtx = displaySheet.getContext("2d");
+    if (!displayCtx) return;
+    displayCtx.drawImage(workingSheet, 0, 0);
+
+    setLivePicture(targetEl.id, displaySheet);
+
+    const settings = getBrushSettings();
+    const isEraser = s.tool === "eraser";
+    const dabColour = isEraser ? "#000000" : settings.colour;
+    const dabCanvas = renderDabCanvas(settings.size, settings.softness, dabColour);
+
+    const filePos = worldToFile({ x: p.x, y: p.y }, targetEl, doc, picSize);
+    const pScale = pressureScale(e.pressure, e.pointerType);
+    const effectiveDiameter = Math.max(1, settings.size * pScale);
+    const effectiveRadius = effectiveDiameter / 2;
+
+    strokeCtx.drawImage(
+      dabCanvas,
+      filePos.x - effectiveRadius,
+      filePos.y - effectiveRadius,
+      effectiveDiameter,
+      effectiveDiameter,
+    );
+
+    const initialDirty: Box = {
+      x: Math.floor(filePos.x - effectiveRadius),
+      y: Math.floor(filePos.y - effectiveRadius),
+      width: Math.ceil(effectiveDiameter),
+      height: Math.ceil(effectiveDiameter),
+    };
+
+    displayCtx.save();
+    displayCtx.beginPath();
+    displayCtx.rect(initialDirty.x, initialDirty.y, initialDirty.width, initialDirty.height);
+    displayCtx.clip();
+    displayCtx.clearRect(initialDirty.x, initialDirty.y, initialDirty.width, initialDirty.height);
+    displayCtx.drawImage(workingSheet, 0, 0);
+    displayCtx.globalAlpha = settings.opacity;
+    displayCtx.globalCompositeOperation = isEraser ? "destination-out" : "source-over";
+    displayCtx.drawImage(strokeSheet, 0, 0);
+    displayCtx.restore();
+
+    window.dispatchEvent(new Event("duet:repaint"));
+    canvasRef.current?.setPointerCapture(e.pointerId);
+
+    strokeRef.current = {
+      elId: targetEl.id,
+      el: targetEl,
+      picSize,
+      isEraser,
+      workingSheet,
+      workingCtx,
+      strokeSheet,
+      strokeCtx,
+      displaySheet,
+      displayCtx,
+      dabCanvas,
+      settings,
+      lastSmoothed: filePos,
+      carryDistance: 0,
+      totalDirtyBox: initialDirty,
+      queue: [],
+      rafId: 0,
+    };
+  };
+
   useEffect(() => {
     if (toolNow !== "pen" && penActive()) penFinish(false, false);
+    if (toolNow !== "brush" && toolNow !== "eraser" && strokeRef.current) {
+      cancelStroke(strokeRef.current);
+      strokeRef.current = null;
+    }
+    if (toolNow === "brush" || toolNow === "eraser") {
+      setCursor("none");
+    }
   }, [toolNow]);
+
+  useEffect(() => {
+    return () => {
+      if (strokeRef.current) {
+        cancelStroke(strokeRef.current);
+        strokeRef.current = null;
+      }
+    };
+  }, []);
 
   // ---------- drawing ----------
   const schedule = () => {
@@ -589,6 +924,14 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
       return;
     }
 
+    if (s.tool === "brush" || s.tool === "eraser") {
+      stopGlide();
+      if (e.button === 0) {
+        startBrushStroke(e, p, s);
+      }
+      return;
+    }
+
     stopGlide();
 
     // the comment tool pins a note where you click, on whatever is there
@@ -739,9 +1082,19 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     const d = dragRef.current;
     const s = getState();
 
+    if (s.tool === "brush" || s.tool === "eraser") {
+      setCursorPos({ sx: p.sx, sy: p.sy });
+    }
+
+    if (strokeRef.current) {
+      handleStrokeMove(e);
+      return;
+    }
+
     if (!d) {
       if (s.editingId) return;
       if (spaceRef.current || s.tool === "hand") return setCursor("grab");
+      if (s.tool === "brush" || s.tool === "eraser") return setCursor("none");
       if (s.tool === "pen") {
         penHover(p);
         return setCursor("crosshair");
@@ -963,6 +1316,13 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
+    if (strokeRef.current) {
+      canvasRef.current?.releasePointerCapture(e.pointerId);
+      const stroke = strokeRef.current;
+      strokeRef.current = null;
+      void finishStroke(stroke);
+      return;
+    }
     const d = dragRef.current;
     dragRef.current = null;
     canvasRef.current?.releasePointerCapture(e.pointerId);
@@ -1423,10 +1783,19 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
         return;
       }
       const tools: Record<string, Tool> = { v: "move", f: "frame", r: "rect", o: "ellipse", t: "text", h: "hand", p: "pen", z: "zoom", c: "comment" };
+      if (getLayout().mode === "photo") {
+        tools.b = "brush";
+        tools.e = "eraser";
+      }
       if (tools[key]) {
         e.preventDefault();
         setTool(tools[key]);
-        setCursor(tools[key] === "hand" ? "grab" : tools[key] === "zoom" ? "zoom-in" : tools[key] === "move" ? "default" : "crosshair");
+        setCursor(tools[key] === "hand" ? "grab" : tools[key] === "zoom" ? "zoom-in" : tools[key] === "brush" || tools[key] === "eraser" ? "none" : tools[key] === "move" ? "default" : "crosshair");
+        return;
+      }
+      if (!mod && !e.altKey && !e.shiftKey && (s.tool === "brush" || s.tool === "eraser") && (e.code === "BracketLeft" || e.code === "BracketRight" || e.key === "[" || e.key === "]")) {
+        e.preventDefault();
+        stepBrushSize(e.code === "BracketRight" || e.key === "]" ? 1 : -1);
         return;
       }
       // Tab points the AI at what is selected, and again takes it off. Only when no panel or field has the keys.
@@ -1445,6 +1814,11 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
         return;
       }
       if (e.key === "Escape") {
+        if (strokeRef.current) {
+          cancelStroke(strokeRef.current);
+          strokeRef.current = null;
+          return;
+        }
         select([]);
         setTool("move");
         return;
@@ -1596,8 +1970,47 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
           else if (!hit) select([]);
           window.dispatchEvent(new CustomEvent("duet:context", { detail: { x: e.clientX, y: e.clientY } }));
         }}
-        onPointerLeave={() => !dragRef.current && getState().overlay.hoverId && setOverlay({ hoverId: null })}
+        onPointerLeave={() => {
+          setCursorPos(null);
+          if (!dragRef.current && getState().overlay.hoverId) setOverlay({ hoverId: null });
+        }}
       />
+      {cursorPos && !spaceRef.current && (toolNow === "brush" || toolNow === "eraser") && (() => {
+        const s = getState();
+        const doc = workDoc(s);
+        let targetEl: El | null = null;
+        if (s.selection.length === 1 && doc.elements[s.selection[0]]?.type === "image") {
+          targetEl = doc.elements[s.selection[0]];
+        } else if (s.overlay.hoverId && doc.elements[s.overlay.hoverId]?.type === "image") {
+          targetEl = doc.elements[s.overlay.hoverId];
+        }
+        let scale = 1;
+        if (targetEl) {
+          const pic = pictureOf(targetEl);
+          if (pic) {
+            const sz = pictureSize(pic);
+            scale = pictureCoverScale(targetEl, sz);
+          }
+        }
+        const screenRadius = (brushSettings.size / 2) * scale * viewport.zoom;
+        return (
+          <div
+            className="brush-cursor"
+            style={{
+              position: "absolute",
+              left: Math.round(cursorPos.sx - screenRadius),
+              top: Math.round(cursorPos.sy - screenRadius),
+              width: Math.round(screenRadius * 2),
+              height: Math.round(screenRadius * 2),
+              borderRadius: "50%",
+              border: "1px solid rgba(255, 255, 255, 0.9)",
+              boxShadow: "0 0 1px 1px rgba(0, 0, 0, 0.75)",
+              pointerEvents: "none",
+              zIndex: 10,
+            }}
+          />
+        );
+      })()}
       {lost && (
         <button className="find" onClick={() => zoomToFit(sizeRef.current.w, sizeRef.current.h)}>
           Find your design

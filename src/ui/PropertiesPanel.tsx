@@ -25,6 +25,7 @@ import Icon from "./Icons";
 import { EFFECT_DEFS, EFFECT_KINDS } from "../document/effects";
 import type { Effect, EffectControl } from "../document/effects";
 import { assetUrl } from "../project/assets";
+import { setBrushSettings, useBrushSettings } from "../canvas/brushSettings";
 
 function NumField({
   label,
@@ -930,11 +931,62 @@ function EffectsSection({ els }: { els: El[] }) {
   );
 }
 
+function BrushSection({ isEraser }: { isEraser: boolean }) {
+  const brush = useBrushSettings();
+
+  return (
+    <div className="sec" data-name="brush-settings">
+      <h4>Brush</h4>
+      <div className="field">
+        <NumField
+          label="Size"
+          value={Math.round(brush.size)}
+          min={1}
+          max={1000}
+          onCommit={(n) => setBrushSettings({ size: n })}
+          onDrag={(n) => setBrushSettings({ size: n })}
+        />
+        <NumField
+          label="Soft"
+          value={Math.round(brush.softness * 100)}
+          min={0}
+          max={100}
+          onCommit={(n) => setBrushSettings({ softness: n / 100 })}
+          onDrag={(n) => setBrushSettings({ softness: n / 100 })}
+        />
+      </div>
+      <div className="gap" />
+      <div className="field">
+        <NumField
+          label="Opacity"
+          value={Math.round(brush.opacity * 100)}
+          min={0}
+          max={100}
+          onCommit={(n) => setBrushSettings({ opacity: n / 100 })}
+          onDrag={(n) => setBrushSettings({ opacity: n / 100 })}
+        />
+        {!isEraser ? (
+          <ColorField
+            value={brush.colour}
+            onCommit={(c) => c && setBrushSettings({ colour: c })}
+            onPreview={(c) => c && setBrushSettings({ colour: c })}
+          />
+        ) : (
+          <div />
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function PropertiesPanel() {
   const mode = useLayout((d) => d.mode);
   const videoTab = useLayout((d) => d.videoTab);
   const photoTab = useLayout((d) => d.photoTab);
   const selection = useStore((s) => s.selection);
+  const tool = useStore((s) => s.tool);
+  const showBrush = mode === "photo" && (tool === "brush" || tool === "eraser");
+  const brushSection = showBrush ? <BrushSection isEraser={tool === "eraser"} /> : null;
   useStore((s) => s.timeline[s.cursor]);
   useStore((s) => s.transientDoc);
   // the values are the ones at the moment the clock is on, and they stand still while it plays
@@ -977,6 +1029,12 @@ export default function PropertiesPanel() {
   ) : null;
 
   if (tab === "color") {
+    const topElement = (
+      <>
+        {switchElement}
+        {brushSection}
+      </>
+    );
     // Every clip: what is changed goes to every picture and clip in the scene, like a layer over them all
     const root = rootOf(doc, selection[0])?.id ?? openScene;
     if (every && root) {
@@ -984,17 +1042,18 @@ export default function PropertiesPanel() {
         <ColorPanel
           els={gradablesIn(doc, root).map((id) => doc.elements[id])}
           every={doc.elements[root]?.name ?? ""}
-          top={switchElement}
+          top={topElement}
         />
       );
     }
-    return <ColorPanel els={els} top={switchElement} />;
+    return <ColorPanel els={els} top={topElement} />;
   }
 
   if (els.length === 0) {
     return (
       <aside className="right">
         {switchElement}
+        {brushSection}
         <div className="panel-title">Design</div>
         <div className="sec">
           <h4>Background</h4>
@@ -1033,6 +1092,7 @@ export default function PropertiesPanel() {
   return (
     <aside className="right">
       {switchElement}
+      {brushSection}
       <div className="panel-title">{one ? one.name : `${els.length} selected`}</div>
 
       {els.length > 0 && !els.every((e) => e.type === "frame" && !e.parentId) && <AlignSection ids={els.map((e) => e.id)} />}
