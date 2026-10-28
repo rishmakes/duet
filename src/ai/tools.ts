@@ -17,7 +17,7 @@ import { GRADE_CONTROLS, canGrade, gradeChanges } from "../document/grade";
 import { readings as gradeReadings } from "../canvas/grade";
 import type { Doc, El } from "../document/types";
 import { invoke } from "@tauri-apps/api/core";
-import { addPicture, getPicture, mimeFor, preloadPictures } from "../project/assets";
+import { addPicture, mimeFor, pictureOf, preloadPictures } from "../project/assets";
 import { renderPng } from "../project/exporter";
 import { clipPicture, fileLength, letGoOfOriginals, seekClips } from "../video/clips";
 import { QUALITIES, defaultChoice, exportScene } from "../video/scene";
@@ -1062,10 +1062,10 @@ async function colorReadings(a: Args): Promise<ToolResult> {
   const el = typeof a.id === "string" ? doc.elements[a.id] : undefined;
   if (!el) return fail(`No element with id: ${String(a.id)}.`);
   if (!canGrade(el)) return fail(`${el.name} is not a picture or a clip.`);
-  let pic: HTMLImageElement | HTMLVideoElement | null;
+  let pic: HTMLImageElement | HTMLCanvasElement | HTMLVideoElement | null;
   if (el.type === "image") {
     await preloadPictures(doc);
-    pic = getPicture(el.src);
+    pic = pictureOf(el);
   } else {
     const scene = sceneOf(doc, el.id);
     if (scene && typeof a.t === "number") await seekClips(doc, scene.id, a.t);

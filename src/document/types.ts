@@ -93,6 +93,9 @@ export type Blend = (typeof BLENDS)[number];
 export const MOVING = ["x", "y", "width", "height", "opacity", "rotation"] as const;
 export type Moving = (typeof MOVING)[number];
 
+/** How many picture pixels one painted patch covers on each side. */
+export const PAINT_TILE = 256;
+
 export interface El {
   id: string;
   type: ElementType;
@@ -141,6 +144,8 @@ export interface El {
   effectMaskInvert: boolean;
   /** For images: where the picture file lives inside the project, like assets/3fa9c1.png. */
   src: string;
+  /** Pictures only: what has been painted on it, as square patches of PAINT_TILE pixels of the picture file, each keyed "column,row" and saved as its own picture. A patch replaces that square of the file entirely. Empty when nothing has been painted, and the file itself is never changed. */
+  paint: Record<string, string>;
   /** A frame or group that other things are copied from. */
   component: boolean;
   /** For an instance: the component it is a live copy of. */

@@ -1,7 +1,7 @@
 import { turnOf, turnedBox } from "../document/geometry";
 import { liveRoom } from "../state/store";
 import type { Room } from "../state/store";
-import { getPicture, preloadPictures } from "../project/assets";
+import { pictureOf, pictureSize, preloadPictures } from "../project/assets";
 import { renderPng } from "../project/exporter";
 import type { ToolResult } from "./tools";
 
@@ -20,12 +20,13 @@ export async function lookAtImage(id: unknown, max: unknown, room: Room = liveRo
   if (!el) return { text: `No element with id: ${String(id)}.`, isError: true };
   if (el.type !== "image" || !el.src) return { text: `${el.name} is not a picture. Use look_at_design to see a frame or shape.`, isError: true };
   await preloadPictures(doc);
-  const pic = getPicture(el.src);
-  if (!pic || !pic.naturalWidth) return { text: `The picture file for ${el.name} could not be found. Ask the designer to save the project and try again.`, isError: true };
-  const k = Math.min(1, side(max) / Math.max(pic.naturalWidth, pic.naturalHeight));
+  const pic = pictureOf(el);
+  const [pw, ph] = pic ? pictureSize(pic) : [0, 0];
+  if (!pic || !pw) return { text: `The picture file for ${el.name} could not be found. Ask the designer to save the project and try again.`, isError: true };
+  const k = Math.min(1, side(max) / Math.max(pw, ph));
   const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(pic.naturalWidth * k));
-  canvas.height = Math.max(1, Math.round(pic.naturalHeight * k));
+  canvas.width = Math.max(1, Math.round(pw * k));
+  canvas.height = Math.max(1, Math.round(ph * k));
   const ctx = canvas.getContext("2d");
   if (!ctx) return { text: "Could not prepare the picture.", isError: true };
   // A logo can have see-through parts, and may itself be white or black. Mid grey behind it shows either.
@@ -34,7 +35,7 @@ export async function lookAtImage(id: unknown, max: unknown, room: Room = liveRo
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(pic, 0, 0, canvas.width, canvas.height);
   return {
-    text: `The picture "${el.name}", ${pic.naturalWidth} by ${pic.naturalHeight} pixels, shown at ${canvas.width} by ${canvas.height}. On the canvas it sits at ${Math.round(el.width)} by ${Math.round(el.height)}.${clear ? " If it has see-through parts, they show here as flat mid grey. On the canvas they are see-through." : ""}`,
+    text: `The picture "${el.name}", ${pw} by ${ph} pixels, shown at ${canvas.width} by ${canvas.height}. On the canvas it sits at ${Math.round(el.width)} by ${Math.round(el.height)}.${clear ? " If it has see-through parts, they show here as flat mid grey. On the canvas they are see-through." : ""}`,
     image: { data: canvas.toDataURL("image/jpeg", 0.85).split(",")[1], mime: "image/jpeg" },
   };
 }

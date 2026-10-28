@@ -5,7 +5,8 @@ import { seenDoc } from "../state/store";
 import type { State } from "../state/store";
 import { logError } from "../errorLog";
 import { isLooseCopy } from "../document/components";
-import { getPicture } from "../project/assets";
+import { paintKey, pictureOf, pictureSize } from "../project/assets";
+import type { Picture } from "../project/assets";
 import { clipPicture, drawingVideoNow, madePicture } from "../video/clips";
 import { graded } from "./grade";
 import { applyEffects } from "./effects";
@@ -143,15 +144,16 @@ const coloured = (pic: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement, 
 const cutSheets = new Map<string, HTMLCanvasElement>();
 
 /** The picture laid into its box without stretching (the extra is cropped), with the corners cut. */
-function layPicture(ctx: CanvasRenderingContext2D, pic: HTMLImageElement, el: El, x: number, y: number) {
+function layPicture(ctx: CanvasRenderingContext2D, pic: Picture, el: El, x: number, y: number) {
   ctx.save();
   try {
     roundedPath(ctx, x, y, el.width, el.height, el.radius);
     ctx.clip();
-    const scale = Math.max(el.width / pic.naturalWidth, el.height / pic.naturalHeight);
-    const w = pic.naturalWidth * scale;
-    const h = pic.naturalHeight * scale;
-    ctx.drawImage(coloured(pic, el, el.src), x + (el.width - w) / 2, y + (el.height - h) / 2, w, h);
+    const [pw, ph] = pictureSize(pic);
+    const scale = Math.max(el.width / pw, el.height / ph);
+    const w = pw * scale;
+    const h = ph * scale;
+    ctx.drawImage(coloured(pic, el, paintKey(el)), x + (el.width - w) / 2, y + (el.height - h) / 2, w, h);
   } finally {
     ctx.restore();
   }
@@ -162,8 +164,8 @@ function layPicture(ctx: CanvasRenderingContext2D, pic: HTMLImageElement, el: El
  * and its shadow follows what is really there instead of the box around it.
  */
 function drawImage(ctx: CanvasRenderingContext2D, el: El, x: number, y: number) {
-  const pic = getPicture(el.src);
-  if (!pic || !pic.naturalWidth || !pic.naturalHeight) {
+  const pic = pictureOf(el);
+  if (!pic) {
     // a quiet box stands in until the picture has loaded
     roundedPath(ctx, x, y, el.width, el.height, el.radius);
     ctx.fillStyle = "#2a2a31";
@@ -179,7 +181,7 @@ function drawImage(ctx: CanvasRenderingContext2D, el: El, x: number, y: number) 
         const k = Math.hypot(m.a, m.b) || 1;
         const w = Math.max(1, Math.min(4096, Math.ceil(el.width * k)));
         const h = Math.max(1, Math.min(4096, Math.ceil(el.height * k)));
-        const key = `${el.src}|${el.width}|${el.height}|${el.radius}|${w}x${h}|${gradeOf(el) ? JSON.stringify(el.grade) : ""}|${el.effects?.length ? JSON.stringify(el.effects) : ""}`;
+        const key = `${paintKey(el)}|${el.width}|${el.height}|${el.radius}|${w}x${h}|${gradeOf(el) ? JSON.stringify(el.grade) : ""}|${el.effects?.length ? JSON.stringify(el.effects) : ""}`;
         let sheet = cutSheets.get(key);
         if (!sheet) {
           sheet = document.createElement("canvas");

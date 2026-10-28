@@ -119,6 +119,7 @@ const createElement: CommandDef<CreateArgs> = {
       effects: [],
       effectMask: null,
       effectMaskInvert: false,
+      paint: {},
       link: null,
       linkKind: "",
       transition: "",
@@ -559,6 +560,28 @@ const setEffectMask: CommandDef<SetEffectMaskArgs> = {
       el.effectMask = a.src ?? null;
       if (!a.src) el.effectMaskInvert = false;
     }
+    return next;
+  },
+};
+
+// ---- paint_picture ----
+export interface PaintPictureArgs {
+  id: string;
+  /** The patches a stroke changed, "column,row" to the saved picture of that patch. They replace what was there. */
+  tiles: Record<string, string>;
+  label?: string;
+}
+
+const paintPicture: CommandDef<PaintPictureArgs> = {
+  label: (a) => a.label ?? "Paint",
+  run: (doc, a) => {
+    const el = doc.elements[a.id];
+    const keys = Object.keys(a.tiles ?? {}).filter((k) => /^\d+,\d+$/.test(k) && typeof a.tiles[k] === "string" && a.tiles[k]);
+    if (!el || el.type !== "image" || !keys.length) return doc;
+    const next = clone(doc);
+    const paint = { ...(next.elements[a.id].paint ?? {}) };
+    for (const k of keys) paint[k] = a.tiles[k];
+    next.elements[a.id].paint = paint;
     return next;
   },
 };
@@ -1168,6 +1191,7 @@ const wrapInLayout: CommandDef<WrapArgs> = {
       effects: [],
       effectMask: null,
       effectMaskInvert: false,
+      paint: {},
       link: null,
       linkKind: "",
       transition: "",
@@ -1275,6 +1299,7 @@ const groupElements: CommandDef<GroupArgs> = {
       effects: [],
       effectMask: null,
       effectMaskInvert: false,
+      paint: {},
       link: null,
       linkKind: "",
       transition: "",
@@ -2240,6 +2265,7 @@ export const commands = {
   remove_effect: removeEffect,
   move_effect: moveEffect,
   set_effect_mask: setEffectMask,
+  paint_picture: paintPicture,
   invert_effect_mask: invertEffectMask,
   remove_effect_mask: removeEffectMask,
   set_background: setBackground,

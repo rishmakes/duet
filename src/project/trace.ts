@@ -7,7 +7,7 @@ import { TraceError, traceShapes } from "../document/trace";
 import type { Doc, PathNode } from "../document/types";
 import { liveRoom } from "../state/store";
 import type { Room } from "../state/store";
-import { getPicture, preloadPictures } from "./assets";
+import { pictureOf, pictureSize, preloadPictures } from "./assets";
 
 /** The longest side, in pixels, a picture is looked at when it is traced. Enough for a clean outline, and quick. */
 const LOOK = 480;
@@ -24,12 +24,13 @@ export async function tracePicture(id: string, actor: Actor = "you", by?: string
   if (!el || el.type !== "image" || !el.src) return { why: "Choose one picture to trace." };
   if (id.includes("::")) return { why: "This picture is inside a copy of a component. Trace it on the original instead." };
   await preloadPictures(before);
-  const pic = getPicture(el.src);
-  if (!pic || !pic.naturalWidth || !pic.naturalHeight) return { why: "The picture file could not be found. Save the project and try again." };
+  const pic = pictureOf(el);
+  const [pw, ph] = pic ? pictureSize(pic) : [0, 0];
+  if (!pic || !pw || !ph) return { why: "The picture file could not be found. Save the project and try again." };
 
-  const k = Math.min(1, LOOK / Math.max(pic.naturalWidth, pic.naturalHeight));
-  const w = Math.max(1, Math.round(pic.naturalWidth * k));
-  const h = Math.max(1, Math.round(pic.naturalHeight * k));
+  const k = Math.min(1, LOOK / Math.max(pw, ph));
+  const w = Math.max(1, Math.round(pw * k));
+  const h = Math.max(1, Math.round(ph * k));
   const sheet = document.createElement("canvas");
   sheet.width = w;
   sheet.height = h;

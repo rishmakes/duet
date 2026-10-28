@@ -454,7 +454,7 @@ export interface Readings {
  * Numbers about how a graded picture looks, so an AI can check its own grade. The picture is graded
  * small (64 by 64) and read back, which takes no time at all.
  */
-export function readings(pic: HTMLImageElement | HTMLVideoElement, grade: Grade | null): Readings | null {
+export function readings(pic: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement, grade: Grade | null): Readings | null {
   const c = context();
   if (!c) return null;
   const S = 64;

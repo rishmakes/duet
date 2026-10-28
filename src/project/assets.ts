@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Doc } from "../document/types";
+import { PAINT_TILE } from "../document/types";
+import type { Doc, El } from "../document/types";
 import { getState } from "../state/store";
 import { flushFonts } from "./fonts";
 
@@ -94,9 +95,70 @@ export function picturesIn(doc: Doc): string[] {
       Object.values(doc.elements).flatMap((e) => [
         ...(e.type === "image" && e.src ? [e.src] : []),
         ...(e.effectMask ? [e.effectMask] : []),
+        ...(e.type === "image" && e.paint ? Object.values(e.paint) : []),
       ]),
     ),
   ];
+}
+
+/** A picture as it is shown, the file or a sheet with what was painted on it. */
+export type Picture = HTMLImageElement | HTMLCanvasElement;
+
+/** How many pixels a picture has across and down. */
+export const pictureSize = (pic: Picture): [number, number] =>
+  pic instanceof HTMLImageElement ? [pic.naturalWidth, pic.naturalHeight] : [pic.width, pic.height];
+
+/** Names a picture together with what was painted on it, so a painted one is never mistaken for the plain file. */
+export function paintKey(el: El): string {
+  const keys = Object.keys(el.paint ?? {});
+  if (!keys.length) return el.src;
+  return `${el.src}|${keys.sort().map((k) => `${k}=${el.paint[k]}`).join(";")}`;
+}
+
+/** Painted pictures already put together. Each is as big as its file, so only a few are kept. */
+const painted = new Map<string, HTMLCanvasElement>();
+
+/**
+ * A picture as it is shown: its file, with each painted patch laid over its square.
+ * Null while the file is loading. Until every patch has loaded, the file is shown as it came.
+ */
+export function pictureOf(el: El): Picture | null {
+  const base = getPicture(el.src);
+  if (!base || !base.naturalWidth || !base.naturalHeight) return null;
+  const keys = Object.keys(el.paint ?? {});
+  if (!keys.length) return base;
+  const key = paintKey(el);
+  const have = painted.get(key);
+  if (have) {
+    // the newest goes to the back of the line, so the oldest is the one let go
+    painted.delete(key);
+    painted.set(key, have);
+    return have;
+  }
+  const tiles: [string, HTMLImageElement][] = [];
+  let waiting = false;
+  for (const k of keys) {
+    const src = el.paint[k];
+    const tile = getPicture(src);
+    if (tile) tiles.push([k, tile]);
+    else if (pictures.get(src) !== "failed") waiting = true;
+  }
+  if (waiting) return base;
+  const sheet = document.createElement("canvas");
+  sheet.width = base.naturalWidth;
+  sheet.height = base.naturalHeight;
+  const c = sheet.getContext("2d");
+  if (!c) return base;
+  c.drawImage(base, 0, 0);
+  for (const [k, tile] of tiles) {
+    const [col, row] = k.split(",").map(Number);
+    // a patch is the whole square as painted, so what was rubbed out there stays see-through
+    c.clearRect(col * PAINT_TILE, row * PAINT_TILE, PAINT_TILE, PAINT_TILE);
+    c.drawImage(tile, col * PAINT_TILE, row * PAINT_TILE);
+  }
+  if (painted.size >= 4) painted.delete(painted.keys().next().value!);
+  painted.set(key, sheet);
+  return sheet;
 }
 
 /** Wait until every picture used by this design can be drawn. Used before exporting. */
