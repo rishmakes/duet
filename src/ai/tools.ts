@@ -1145,10 +1145,15 @@ async function pictureOfDuet(args: Args): Promise<ToolResult> {
   // let the panels settle and the canvas draw before the picture is taken
   await preloadPictures(R.currentDoc());
   await new Promise((done) => setTimeout(done, 600));
+  // the dev copy's own marks stay out of the picture
+  document.body.classList.add("picturing");
+  await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
   try {
     await invoke("window_picture", { path });
   } catch (e) {
     return fail(`Could not take the picture. ${String(e)}`);
+  } finally {
+    document.body.classList.remove("picturing");
   }
   return { text: `Saved a picture of the Duet window as ${path}. Look at it before using it. The design was not changed.` };
 }
@@ -1243,7 +1248,6 @@ async function duplicateElements(args: Args, by?: string): Promise<ToolResult> {
 
 async function apply(tool: string, args: Args, by?: string): Promise<ToolResult> {
   if (tool === "export_frame") return exportFrame(args);
-  if (tool === "picture_of_duet") return pictureOfDuet(args);
   if (tool === "export_video") return exportVideo(args);
   if (tool === "place_image") return placeImage(args, by);
   if (tool === "place_video") return placeVideo(args, by);
@@ -1440,6 +1444,11 @@ async function answerTool(name: string, raw: unknown, by?: string): Promise<Tool
     const saved = await keepTaughtSkill(a.name, summary, a.rules);
     if ("error" in saved) return fail(saved.error);
     return { text: saved.updated ? `Updated the skill "${a.name.trim()}". It is on, and every later conversation follows it.` : `Saved the skill "${a.name.trim()}". It is on, and every later conversation follows it. The designer can see it in Skills.` };
+  }
+  if (name === "picture_of_duet") {
+    // only saves a new picture file and never changes the design, so the designer is not asked
+    const check = prepare(name, a);
+    return "error" in check ? fail(check.error) : pictureOfDuet(check.args);
   }
   if (!EDITS.has(name) && !RISKY.has(name)) return fail(`Unknown tool ${name}.`);
   const check = prepare(name, a);

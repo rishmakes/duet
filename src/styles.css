@@ -2138,6 +2138,13 @@ option {
 .app.check .tabbar {
   box-shadow: inset 0 3px 0 #ff9f1c;
 }
+/* a picture of Duet for the site shows it as everyone has it */
+.picturing .app.check .tabbar {
+  box-shadow: none;
+}
+.picturing .checkmark {
+  display: none;
+}
 .checkmark {
   margin-left: 8px;
   padding: 2px 7px;
