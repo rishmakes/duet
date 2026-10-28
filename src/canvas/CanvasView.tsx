@@ -688,10 +688,16 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
 
     // Cmd or Ctrl click digs into groups and frames, and adds to what is picked, so several things inside one can be picked
     const deep = e.metaKey || e.ctrlKey;
-    const hit = labelAt(p.sx, p.sy) ?? hitTest(doc, p.x, p.y, new Set(), deep);
+    const label = labelAt(p.sx, p.sy);
+    const hit = label ?? hitTest(doc, p.x, p.y, new Set(), deep);
+    // A drag on the empty part of a page frame that holds things draws a box around those things, as
+    // in other design apps. A click still picks the frame; its name label, or picking it first, moves it.
+    const hitEl = hit ? doc.elements[hit] : undefined;
+    const roomy = !label && !e.shiftKey && !e.altKey && hitEl?.type === "frame" && !hitEl.parentId && hitEl.childIds.length > 0;
     // Cmd or Ctrl on something not yet picked waits: a drag draws a box inside the frame under the pointer, a click picks the thing
-    if (deep && hit && !s.selection.includes(hit)) {
-      dragRef.current = { kind: "deep", hit, start: { x: p.x, y: p.y }, sx: p.sx, sy: p.sy, shift: e.shiftKey, prev: s.selection };
+    if ((deep || roomy) && hit && !s.selection.includes(hit)) {
+      // a plain click on the frame picks it alone; Cmd or Ctrl adds it to what is picked
+      dragRef.current = { kind: "deep", hit, start: { x: p.x, y: p.y }, sx: p.sx, sy: p.sy, shift: e.shiftKey, prev: deep ? s.selection : [] };
       return;
     }
     if (hit) {
