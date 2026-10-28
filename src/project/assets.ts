@@ -115,6 +115,16 @@ export function paintKey(el: El): string {
   return `${el.src}|${keys.sort().map((k) => `${k}=${el.paint[k]}`).join(";")}`;
 }
 
+/** While a stroke is being painted, the sheet it is painted on, by the picture's id. Shown in place of the picture until the stroke is kept. */
+const live = new Map<string, HTMLCanvasElement>();
+/** Show this sheet for the picture while a stroke is being painted, or null to go back to the picture as saved. */
+export function setLivePicture(id: string, sheet: HTMLCanvasElement | null) {
+  if (sheet) live.set(id, sheet);
+  else live.delete(id);
+}
+/** Whether a stroke is being painted on this picture right now. Its sheet changes every frame, so nothing drawn from it is kept. */
+export const isLivePicture = (id: string) => live.has(id);
+
 /** Painted pictures already put together. Each is as big as its file, so only a few are kept. */
 const painted = new Map<string, HTMLCanvasElement>();
 
@@ -123,6 +133,8 @@ const painted = new Map<string, HTMLCanvasElement>();
  * Null while the file is loading. Until every patch has loaded, the file is shown as it came.
  */
 export function pictureOf(el: El): Picture | null {
+  const now = live.get(el.id);
+  if (now) return now;
   const base = getPicture(el.src);
   if (!base || !base.naturalWidth || !base.naturalHeight) return null;
   const keys = Object.keys(el.paint ?? {});

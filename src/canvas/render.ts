@@ -5,7 +5,7 @@ import { seenDoc } from "../state/store";
 import type { State } from "../state/store";
 import { logError } from "../errorLog";
 import { isLooseCopy } from "../document/components";
-import { paintKey, pictureOf, pictureSize } from "../project/assets";
+import { isLivePicture, paintKey, pictureOf, pictureSize } from "../project/assets";
 import type { Picture } from "../project/assets";
 import { clipPicture, drawingVideoNow, madePicture } from "../video/clips";
 import { graded } from "./grade";
@@ -153,7 +153,7 @@ function layPicture(ctx: CanvasRenderingContext2D, pic: Picture, el: El, x: numb
     const scale = Math.max(el.width / pw, el.height / ph);
     const w = pw * scale;
     const h = ph * scale;
-    ctx.drawImage(coloured(pic, el, paintKey(el)), x + (el.width - w) / 2, y + (el.height - h) / 2, w, h);
+    ctx.drawImage(coloured(pic, el, isLivePicture(el.id) ? null : paintKey(el)), x + (el.width - w) / 2, y + (el.height - h) / 2, w, h);
   } finally {
     ctx.restore();
   }
@@ -172,7 +172,8 @@ function drawImage(ctx: CanvasRenderingContext2D, el: El, x: number, y: number) 
     ctx.fill();
   } else {
     try {
-      if (!el.shadow) {
+      // while a stroke is being painted its shadow waits, so a new cut sheet is not made every frame
+      if (!el.shadow || isLivePicture(el.id)) {
         layPicture(ctx, pic, el, x, y);
       } else {
         // A shadow cannot be cast through a cut-out, so the picture is cut to shape on a spare sheet
