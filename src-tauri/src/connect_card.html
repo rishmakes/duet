@@ -38,8 +38,9 @@
     img.onerror = function () { pic.replaceChildren(Object.assign(document.createElement("div"), { className: "wait", textContent: "The picture could not load. The design is in Duet." })); resize(); };
     img.src = src;
     pic.replaceChildren(img);
-    var first = String(caption || "").split(".")[0];
-    document.getElementById("cap").textContent = first ? first.replace(/^A picture of /, "") + " · in Duet" : "Live in Duet";
+    // 'A picture of "Post" (1080 by 1350 pixels), shown at ...' becomes 'Post · 1080 by 1350 · in Duet'
+    var m = String(caption || "").match(/"(.*)" \((\d+) by (\d+)/);
+    document.getElementById("cap").textContent = m ? m[1] + " · " + m[2] + " by " + m[3] + " · in Duet" : "Live in Duet";
   }
   function resize() {
     var h = document.body.scrollHeight;
