@@ -22,6 +22,7 @@ import { renderPng } from "../project/exporter";
 import { clipPicture, fileLength, letGoOfOriginals, seekClips } from "../video/clips";
 import { QUALITIES, defaultChoice, exportScene } from "../video/scene";
 import { saveNow, tabName } from "../project/project";
+import { setLayout } from "../ui/layout";
 import { tracePicture } from "../project/trace";
 import { getState, goTo, keepAiWorkWhile, liveRoom, parkedFiles, roomFor } from "../state/store";
 import type { Room } from "../state/store";
@@ -314,6 +315,21 @@ export const TOOLS: ToolDef[] = [
     },
   },
   {
+    name: "picture_of_duet",
+    description:
+      "Save a picture of the whole Duet window, as the designer sees it, for the website, docs or release notes. Duet draws it itself: the screen is not used, so it works while Duet is in the background or on another desktop. Choose what shows first: space is design, video or photo (the tools) or chat (the AI beside the projects); panel is properties or colour (the right panel in Video and Photo); select is a list of ids to pick and show whole. path is the full path of the new file and must end in .png (~ works). It never replaces a file. Use a demo project with stock pictures, never the designer's own work.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: str,
+        space: { type: "string", enum: ["design", "video", "photo", "chat"] },
+        panel: { type: "string", enum: ["properties", "colour"] },
+        select: { type: "array", items: str },
+      },
+      required: ["path"],
+    },
+  },
+  {
     name: "export_video",
     description:
       "Make an MP4 video of a frame that plays (one with a length), with its clips and sound, exactly as the designer's Export video does. path is the full path of the new file and must end in .mp4, or .mov for a master (~ for the home folder works); leave it out to save in Documents, Duet, Exports. It never replaces a file that already exists. fps is 24, 25, 30 (the default) or 60. size is the longer side in pixels (for example 1080 or 3840); leave it out to keep the frame's own size. quality is best, good (the default) or small. master true makes a 10-bit ProRes .mov to keep editing or grading elsewhere instead of an MP4 to share. Clips that fill the frame are read from their own files at full quality and their colour is worked out in 32-bit. The project must be the one on screen. It can take a while for a long video. The designer may be asked to allow it.",
@@ -466,6 +482,8 @@ export function summarise(tool: string, a: Args): string {
       return `Bring in the picture at ${String(a.path)}`;
     case "export_frame":
       return `Save ${nameOf(a.id)} as a picture at ${String(a.path)}`;
+    case "picture_of_duet":
+      return `Save a picture of the Duet window at ${String(a.path)}`;
     case "export_video":
       return `Make a video of ${nameOf(a.id)}${a.path ? ` at ${String(a.path)}` : ", in Documents, Duet, Exports"}`;
     case "place_video":
@@ -655,6 +673,13 @@ function prepare(tool: string, raw: Args, doc = R.currentDoc()): { args: Args } 
       if (a.fps !== undefined && ![24, 25, 30, 60].includes(Number(a.fps))) return { error: "fps must be 24, 25, 30 or 60." };
       if (a.size !== undefined && !(Number(a.size) >= 16 && Number(a.size) <= 8192)) return { error: "size must be a number of pixels between 16 and 8192." };
       if (a.quality !== undefined && !["best", "good", "small"].includes(String(a.quality))) return { error: "quality must be best, good or small." };
+      return { args: a };
+    }
+    case "picture_of_duet": {
+      if (typeof a.path !== "string" || !a.path.toLowerCase().endsWith(".png")) return { error: "path must be the full path of a new .png file." };
+      if (a.space !== undefined && !["design", "video", "photo", "chat"].includes(String(a.space))) return { error: "space must be design, video, photo or chat." };
+      if (a.panel !== undefined && !["properties", "colour"].includes(String(a.panel))) return { error: "panel must be properties or colour." };
+      if (a.select !== undefined && (!Array.isArray(a.select) || a.select.some((id) => !doc.elements[String(id)]))) return { error: "select must be a list of ids from get_document." };
       return { args: a };
     }
     case "export_frame": {
@@ -1101,6 +1126,33 @@ async function exportFrame(args: Args): Promise<ToolResult> {
   return { text: `Saved "${el.name}" as ${path}, ${w} by ${h} pixels (before any turn). The design was not changed.` };
 }
 
+/** A picture of the Duet window, drawn by Duet itself, after showing the space, panel and selection asked for. */
+async function pictureOfDuet(args: Args): Promise<ToolResult> {
+  let path = String(args.path);
+  if (path.startsWith("~")) path = (await invoke<string>("duet_home")).replace(/[\\/]\.duet[^\\/]*[\\/]?$/, "") + path.slice(1);
+  if ((await invoke<boolean>("path_exists", { path })) === true) return fail(`${String(args.path)} already exists. Choose a new file name; nothing was saved.`);
+  const space = args.space as string | undefined;
+  if (space === "chat") setLayout({ space: "chat" });
+  else if (space) setLayout({ space: "edit", mode: space === "video" ? "motion" : (space as "design" | "photo") });
+  if (args.panel) {
+    const tab = args.panel === "colour" ? "color" : "properties";
+    setLayout(space === "video" ? { videoTab: tab } : { photoTab: tab });
+  }
+  if (Array.isArray(args.select)) {
+    R.select(args.select.map(String));
+    window.dispatchEvent(new Event("duet:show-selection"));
+  }
+  // let the panels settle and the canvas draw before the picture is taken
+  await preloadPictures(R.currentDoc());
+  await new Promise((done) => setTimeout(done, 600));
+  try {
+    await invoke("window_picture", { path });
+  } catch (e) {
+    return fail(`Could not take the picture. ${String(e)}`);
+  }
+  return { text: `Saved a picture of the Duet window as ${path}. Look at it before using it. The design was not changed.` };
+}
+
 /** Make a video of a frame that plays, the same way the designer's Export video does. */
 async function exportVideo(args: Args): Promise<ToolResult> {
   let to: string | undefined;
@@ -1191,6 +1243,7 @@ async function duplicateElements(args: Args, by?: string): Promise<ToolResult> {
 
 async function apply(tool: string, args: Args, by?: string): Promise<ToolResult> {
   if (tool === "export_frame") return exportFrame(args);
+  if (tool === "picture_of_duet") return pictureOfDuet(args);
   if (tool === "export_video") return exportVideo(args);
   if (tool === "place_image") return placeImage(args, by);
   if (tool === "place_video") return placeVideo(args, by);

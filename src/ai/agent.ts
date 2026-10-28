@@ -38,6 +38,7 @@ const WORKING: Record<string, string> = {
   get_document: "Looking at your design",
   look_at_image: "Looking at a picture",
   look_at_design: "Checking how it looks",
+  picture_of_duet: "Taking a picture of Duet",
   look_at_attachment: "Looking at your picture",
   create_instance: "Placing a copy",
   place_image: "Bringing in a picture",

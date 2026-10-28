@@ -4,6 +4,7 @@ mod grade;
 mod keepalive;
 mod package;
 mod psd;
+mod snapshot;
 mod trash;
 mod video;
 
@@ -572,6 +573,7 @@ pub fn run() {
             write_binary_file,
             psd::psd_read,
             psd::psd_read_bytes,
+            snapshot::window_picture,
             psd::psd_write,
             path_exists,
             move_project,
