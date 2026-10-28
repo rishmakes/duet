@@ -463,7 +463,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
       cancelAnimationFrame(stroke.rafId);
       stroke.rafId = 0;
     }
-    setLivePicture(stroke.elId, null);
+    setLivePicture(stroke.elId, null, stroke.displaySheet);
     window.dispatchEvent(new Event("duet:repaint"));
   };
 
@@ -566,7 +566,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     stroke.workingCtx.restore();
 
     if (!stroke.totalDirtyBox) {
-      setLivePicture(stroke.elId, null);
+      setLivePicture(stroke.elId, null, stroke.displaySheet);
       window.dispatchEvent(new Event("duet:repaint"));
       return;
     }
@@ -605,7 +605,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
         "you",
       );
     }
-    setLivePicture(stroke.elId, null);
+    setLivePicture(stroke.elId, null, stroke.displaySheet);
     window.dispatchEvent(new Event("duet:repaint"));
   };
 

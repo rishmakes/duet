@@ -117,10 +117,13 @@ export function paintKey(el: El): string {
 
 /** While a stroke is being painted, the sheet it is painted on, by the picture's id. Shown in place of the picture until the stroke is kept. */
 const live = new Map<string, HTMLCanvasElement>();
-/** Show this sheet for the picture while a stroke is being painted, or null to go back to the picture as saved. */
-export function setLivePicture(id: string, sheet: HTMLCanvasElement | null) {
+/**
+ * Show this sheet for the picture while a stroke is being painted, or null to go back to the picture as saved.
+ * Going back can name the sheet it is done with, so a stroke that finishes saving late never hides the next one.
+ */
+export function setLivePicture(id: string, sheet: HTMLCanvasElement | null, doneWith?: HTMLCanvasElement) {
   if (sheet) live.set(id, sheet);
-  else live.delete(id);
+  else if (!doneWith || live.get(id) === doneWith) live.delete(id);
 }
 /** Whether a stroke is being painted on this picture right now. Its sheet changes every frame, so nothing drawn from it is kept. */
 export const isLivePicture = (id: string) => live.has(id);
