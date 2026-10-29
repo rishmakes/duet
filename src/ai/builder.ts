@@ -362,7 +362,8 @@ async function drag(a: Args): Promise<ToolResult> {
     buttons,
     pressure: buttons ? (pen ? Math.max(0, Math.min(1, typeof a.pressure === "number" ? a.pressure : 0.5)) : 0.5) : 0,
   });
-  const frame = () => new Promise((done) => requestAnimationFrame(() => done(null)));
+  // a hidden window gets no animation frames, so a short wait stands in for one
+  const frame = () => new Promise((done) => { requestAnimationFrame(() => done(null)); setTimeout(() => done(null), 50); });
   canvas.dispatchEvent(new PointerEvent("pointerdown", at(pts[0], 1)));
   await frame();
   for (let i = 1; i < pts.length; i++) {
