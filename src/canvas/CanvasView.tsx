@@ -73,7 +73,7 @@ import type { AbsNode } from "../document/path";
 import { logError } from "../errorLog";
 import { defaultLayout } from "../document/layout";
 import { penActive, penBack, penCancel, penDown, penDrag, penFinish, penHover } from "./pen";
-import { addPicture, getPicture, pictureOf, pictureSize, setLivePicture } from "../project/assets";
+import { addPicture, pictureOf, pictureSize, setLivePicture } from "../project/assets";
 import { PAINT_TILE } from "../document/types";
 import {
   expandBox,
@@ -141,8 +141,6 @@ interface StrokeState {
   displaySheet: HTMLCanvasElement;
   displayCtx: CanvasRenderingContext2D;
   dabCanvas: HTMLCanvasElement;
-  /** The eraser's sheet: the untouched picture file, cut to the stroke. Null for the brush. */
-  restoreSheet: HTMLCanvasElement | null;
   settings: BrushSettings;
   lastSmoothed: Point;
   carryDistance: number;
@@ -151,36 +149,12 @@ interface StrokeState {
   rafId: number;
 }
 
-/** Lays the stroke over a sheet that already holds the picture. The brush paints. The eraser takes paint off,
- *  showing the untouched picture file under it again (clear on a paint layer), so it never cuts a hole in a photo. */
-function layStroke(ctx: CanvasRenderingContext2D, stroke: Pick<StrokeState, "isEraser" | "strokeSheet" | "restoreSheet" | "el"> & { opacity: number }, box?: Box) {
+/** Lays the stroke over a sheet that already holds the picture. The brush paints. The eraser rubs out, leaving the picture see-through there. */
+function layStroke(ctx: CanvasRenderingContext2D, stroke: Pick<StrokeState, "isEraser" | "strokeSheet"> & { opacity: number }) {
   ctx.save();
   ctx.globalAlpha = stroke.opacity;
   ctx.globalCompositeOperation = stroke.isEraser ? "destination-out" : "source-over";
   ctx.drawImage(stroke.strokeSheet, 0, 0);
-  const file = stroke.isEraser && stroke.restoreSheet ? getPicture(stroke.el.src) : null;
-  if (file && stroke.restoreSheet) {
-    const r = stroke.restoreSheet.getContext("2d");
-    if (r) {
-      r.save();
-      if (box) {
-        // only the part being painted, so a big photo stays quick
-        r.beginPath();
-        r.rect(box.x, box.y, box.width, box.height);
-        r.clip();
-      }
-      r.globalCompositeOperation = "copy";
-      r.drawImage(file, 0, 0);
-      r.globalCompositeOperation = "destination-in";
-      r.globalAlpha = stroke.opacity;
-      r.drawImage(stroke.strokeSheet, 0, 0);
-      r.restore();
-      // what is left of the sheet plus the file where the stroke went: the two never overlap in amount
-      ctx.globalAlpha = 1;
-      ctx.globalCompositeOperation = "lighter";
-      ctx.drawImage(stroke.restoreSheet, 0, 0);
-    }
-  }
   ctx.restore();
 }
 
@@ -554,7 +528,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
         stroke.displayCtx.clip();
         stroke.displayCtx.clearRect(bx, by, bw, bh);
         stroke.displayCtx.drawImage(stroke.workingSheet, 0, 0);
-        layStroke(stroke.displayCtx, { ...stroke, opacity: stroke.settings.opacity }, { x: bx, y: by, width: bw, height: bh });
+        layStroke(stroke.displayCtx, { ...stroke, opacity: stroke.settings.opacity });
         stroke.displayCtx.restore();
 
         window.dispatchEvent(new Event("duet:repaint"));
@@ -757,12 +731,6 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     const isEraser = s.tool === "eraser";
     const dabColour = isEraser ? "#000000" : settings.colour;
     const dabCanvas = renderDabCanvas(settings.size, settings.softness, dabColour);
-    let restoreSheet: HTMLCanvasElement | null = null;
-    if (isEraser) {
-      restoreSheet = document.createElement("canvas");
-      restoreSheet.width = pw;
-      restoreSheet.height = ph;
-    }
 
     const filePos = worldToFile({ x: p.x, y: p.y }, targetEl, doc, picSize);
     const pScale = pressureScale(e.pressure, e.pointerType);
@@ -790,7 +758,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     displayCtx.clip();
     displayCtx.clearRect(initialDirty.x, initialDirty.y, initialDirty.width, initialDirty.height);
     displayCtx.drawImage(workingSheet, 0, 0);
-    layStroke(displayCtx, { isEraser, strokeSheet, restoreSheet, el: targetEl, opacity: settings.opacity }, initialDirty);
+    layStroke(displayCtx, { isEraser, strokeSheet, opacity: settings.opacity });
     displayCtx.restore();
 
     window.dispatchEvent(new Event("duet:repaint"));
@@ -808,7 +776,6 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
       displaySheet,
       displayCtx,
       dabCanvas,
-      restoreSheet,
       settings,
       lastSmoothed: filePos,
       carryDistance: 0,

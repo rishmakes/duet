@@ -3,6 +3,7 @@ import { PAINT_TILE } from "../document/types";
 import type { Doc, El } from "../document/types";
 import { getState } from "../state/store";
 import { flushFonts } from "./fonts";
+import { logError } from "../errorLog";
 
 /**
  * Pictures placed on the canvas. Each one is stored once, under a name made from its contents
@@ -99,6 +100,20 @@ export function picturesIn(doc: Doc): string[] {
       ]),
     ),
   ];
+}
+
+/** The picture as it is shown, with what was painted on it, as a data address. Null when it is not loaded yet. */
+export function paintedUrl(el: El): string | null {
+  if (!Object.keys(el.paint ?? {}).length) return assetUrl(el.src);
+  const pic = pictureOf(el);
+  if (pic instanceof HTMLCanvasElement) {
+    try {
+      return pic.toDataURL("image/png");
+    } catch (e) {
+      logError("painted picture", e);
+    }
+  }
+  return assetUrl(el.src);
 }
 
 /** A picture as it is shown, the file or a sheet with what was painted on it. */

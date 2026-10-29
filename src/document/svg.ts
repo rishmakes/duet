@@ -1,4 +1,4 @@
-import { assetUrl } from "../project/assets";
+import { paintedUrl } from "../project/assets";
 import { layoutText, lineStep, lineWidth } from "../canvas/text";
 import { isLooseCopy } from "./components";
 import { maskOf, turnOf, turnedBox } from "./geometry";
@@ -60,7 +60,7 @@ export function toSvg(doc: Doc, id: string): string {
     }
 
     if (el.type === "image") {
-      const url = assetUrl(el.src);
+      const url = paintedUrl(el);
       const r0 = Math.max(0, Math.min(el.radius, el.width / 2, el.height / 2));
       const cid = `c${n++}`;
       defs.push(`<clipPath id="${cid}"><rect x="${num(x)}" y="${num(y)}" width="${num(el.width)}" height="${num(el.height)}"${r0 ? ` rx="${num(r0)}"` : ""}/></clipPath>`);
