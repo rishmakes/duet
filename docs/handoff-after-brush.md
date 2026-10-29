@@ -23,3 +23,6 @@ Not started, nothing decided. PeerJS connects two Duets straight to each other (
 ## How Sourish wants work done now
 - He does not click-test. Agy tests mechanically in Duet dev with the dev_* tools, I check its evidence.
 - I am the architect; agy's plans are input only.
+
+## Website, not finished (29 Oct morning)
+The site is live with 0.13.0 downloads and the status list. Still missing: new pictures (painting, brush panel, Add-ons connect), the 0.13 post (covers 0.12 too), and the Paint and ChatGPT/Claude sections in the help pages. Brief is ready: `~/Desktop/DEV/duet-site/scratch/agy-brief-site-013.md`. Antigravity runs stalled overnight on network errors (its model calls kept failing), nothing was changed. Rerun it once, check its pictures and post, then `npm run deploy` in duet-site (Sourish runs the deploy; the safety check blocks Claude).
