@@ -12,6 +12,7 @@ import type { AgentId } from "../ai/chat";
 import { loadThread, saveThread } from "../memory/files";
 import { stepsLine } from "../memory/steps";
 import { logError } from "../errorLog";
+import { isUntitledName, nameFromWork } from "./naming";
 import { lineTo } from "../state/directions";
 import { keepable, packThread, readThread } from "../memory/thread";
 import { dropParked, getState, isParked, parkedFiles, loadDoc, loadTimeline, onParkedChange, parkLive, parkedState, setEntryVersion, setProject, subscribe, unpark } from "../state/store";
@@ -408,6 +409,29 @@ export const renameProject = (file: string, name: string) => {
   if (!clean) return Promise.resolve("Give the project a name.");
   return moveProject(file, join(file.replace(/[\\/][^\\/]*$/, ""), `${clean}.duet`));
 };
+
+/**
+ * Work an AI did in an Untitled project gets a name from what is in it, quietly, once. A project
+ * someone has named is left alone. Only the project on screen, so nothing else comes on screen.
+ */
+export async function nameUntitledWork(file: string, firstAsk?: string) {
+  const s = getState();
+  if (!inTauri() || inTest || s.project.file !== file || !isUntitledName(s.project.name) || s.timeline.length <= 1) return;
+  const name = nameFromWork(committed(), firstAsk);
+  if (!name) return;
+  try {
+    const dir = file.replace(/[\\/][^\\/]*$/, "");
+    for (let n = 1; n < 100; n++) {
+      const target = join(dir, n === 1 ? `${name}.duet` : `${name} ${n}.duet`);
+      if ((await invoke<boolean>("path_exists", { path: target })) === true) continue;
+      const failed = await moveProject(file, target);
+      if (failed) logError("name untitled work", failed);
+      return;
+    }
+  } catch (e) {
+    logError("name untitled work", e);
+  }
+}
 
 /** Ask where to move a project, then move it. */
 export async function moveProjectTo(file: string): Promise<string | null> {

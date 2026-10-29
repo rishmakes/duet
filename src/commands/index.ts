@@ -47,7 +47,7 @@ const defaults: Record<ElementType, Partial<El>> = {
   sound: { fill: "#00000000", radius: 0 },
 };
 
-const typeName: Record<ElementType, string> = {
+export const typeName: Record<ElementType, string> = {
   frame: "Frame",
   rect: "Rectangle",
   ellipse: "Ellipse",
