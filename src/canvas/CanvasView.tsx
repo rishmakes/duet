@@ -151,6 +151,18 @@ interface StrokeState {
   rafId: number;
 }
 
+/** A layer made for painting on. Its id says so, so renaming it does not change what it is. */
+const isPaintLayer = (el: El) => el.type === "image" && el.id.startsWith("paint-");
+
+/** The paint layer lying straight over a picture, if the layer just above it is one. */
+function paintLayerOver(doc: Doc, pic: El): El | null {
+  const list = pic.parentId ? doc.elements[pic.parentId]?.childIds ?? [] : doc.rootIds;
+  const above = doc.elements[list[list.indexOf(pic.id) + 1]];
+  if (!above || !isPaintLayer(above) || above.hidden || above.locked) return null;
+  const same = Math.abs(above.x - pic.x) < 0.5 && Math.abs(above.y - pic.y) < 0.5 && Math.abs(above.width - pic.width) < 0.5 && Math.abs(above.height - pic.height) < 0.5;
+  return same ? above : null;
+}
+
 /** Lays the stroke over a sheet that already holds the picture. The brush paints. The eraser takes paint off,
  *  showing the untouched picture file under it again (clear on a paint layer), so it never cuts a hole in a photo. */
 function layStroke(ctx: CanvasRenderingContext2D, stroke: Pick<StrokeState, "isEraser" | "strokeSheet" | "restoreSheet" | "el"> & { opacity: number }, box?: Box) {
@@ -665,21 +677,41 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
         if (frameId) {
           layerPendingRef.current = "down";
           layerMovesRef.current = [];
-          void startOnPaintLayer(e, p, frameId);
+          void startOnPaintLayer(e, p, { frameId });
         }
         return;
       }
     }
     if (!targetEl) return;
+    // a photo is never painted itself: paint goes on its own layer straight above it, so it can be rubbed out,
+    // hidden or thrown away. Photos painted before this keep their paint, and the eraser still takes it off them.
+    const painted = Object.keys(targetEl.paint ?? {}).length > 0;
+    if (!isPaintLayer(targetEl) && !(s.tool === "eraser" && painted)) {
+      const layer = paintLayerOver(doc, targetEl);
+      if (layer) {
+        select([layer.id]);
+        targetEl = layer;
+      } else {
+        if (s.tool === "eraser") return;
+        layerPendingRef.current = "down";
+        layerMovesRef.current = [];
+        void startOnPaintLayer(e, p, { above: targetEl });
+        return;
+      }
+    }
     beginStroke(e, p, s, doc, targetEl);
   };
 
-  /** Lays a clear paint layer over the frame, then starts the stroke on it. */
-  const startOnPaintLayer = async (e: React.PointerEvent, p: { sx: number; sy: number; x: number; y: number }, frameId: string) => {
-    const frame = workDoc().elements[frameId];
-    if (!frame) return;
-    const w = Math.max(1, Math.min(8192, Math.round(frame.width)));
-    const h = Math.max(1, Math.min(8192, Math.round(frame.height)));
+  /** Lays a clear paint layer over the frame, or straight over a picture, then starts the stroke on it. */
+  const startOnPaintLayer = async (e: React.PointerEvent, p: { sx: number; sy: number; x: number; y: number }, on: { frameId: string } | { above: El }) => {
+    const frame = "frameId" in on ? workDoc().elements[on.frameId] : null;
+    const under = "above" in on ? on.above : null;
+    const pic = under ? pictureOf(under) : null;
+    // over a picture, as many pixels as its file, so the paint is as sharp as the photo
+    const [fw, fh] = pic ? pictureSize(pic) : frame ? [frame.width, frame.height] : [0, 0];
+    if (!fw || !fh) return;
+    const w = Math.max(1, Math.min(8192, Math.round(fw)));
+    const h = Math.max(1, Math.min(8192, Math.round(fh)));
     const clear = document.createElement("canvas");
     clear.width = w;
     clear.height = h;
@@ -687,7 +719,8 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     if (!bytes) return;
     const { src } = await addPicture("paint.png", bytes, "image/png");
     const id = `paint-${Math.random().toString(36).slice(2, 10)}`;
-    dispatch("add_paint_layer", { id, parentId: frameId, x: 0, y: 0, width: frame.width, height: frame.height, src }, "you");
+    if (under) dispatch("add_paint_layer", { id, above: under.id, x: 0, y: 0, width: 0, height: 0, src }, "you");
+    else if (frame) dispatch("add_paint_layer", { id, parentId: frame.id, x: 0, y: 0, width: frame.width, height: frame.height, src }, "you");
     const s = getState();
     const doc = workDoc(s);
     const el = doc.elements[id];

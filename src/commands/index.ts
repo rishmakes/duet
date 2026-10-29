@@ -589,8 +589,10 @@ const paintPicture: CommandDef<PaintPictureArgs> = {
 // ---- add_paint_layer ----
 export interface AddPaintLayerArgs {
   id?: string;
-  /** The frame it goes in. Painting outside a frame has nowhere to land. */
-  parentId: string;
+  /** The frame it goes in. Painting outside a frame has nowhere to land, unless it goes over a picture. */
+  parentId?: string | null;
+  /** A picture to lay it straight over: same place, size and turn, just above it in the layers. */
+  above?: string;
   x: number;
   y: number;
   width: number;
@@ -603,12 +605,23 @@ export interface AddPaintLayerArgs {
 const addPaintLayer: CommandDef<AddPaintLayerArgs> = {
   label: (a) => a.label ?? "Add paint layer",
   run: (doc, a) => {
-    if (!a.src || doc.elements[a.parentId]?.type !== "frame") return doc;
+    if (!a.src) return doc;
+    const under = a.above ? doc.elements[a.above] : null;
+    if (a.above && under?.type !== "image") return doc;
+    const parentId = under ? under.parentId : (a.parentId ?? null);
+    if (!under && doc.elements[parentId ?? ""]?.type !== "frame") return doc;
     const id = a.id ?? newId("image");
-    const next = createElement.run(doc, { id, type: "image", parentId: a.parentId, x: a.x, y: a.y, width: a.width, height: a.height });
+    const box = under ? { x: under.x, y: under.y, width: under.width, height: under.height } : { x: a.x, y: a.y, width: a.width, height: a.height };
+    const next = createElement.run(doc, { id, type: "image", parentId: parentId ?? undefined, ...box, keepOrder: !!under });
     if (next === doc || !next.elements[id]) return doc;
     const n = Object.values(next.elements).filter((e) => e.type === "image" && e.name.startsWith("Paint")).length;
-    next.elements[id] = { ...next.elements[id], src: a.src, name: n ? `Paint ${n + 1}` : "Paint" };
+    next.elements[id] = { ...next.elements[id], src: a.src, name: n ? `Paint ${n + 1}` : "Paint", rotation: under?.rotation ?? 0 };
+    if (under) {
+      // straight above the picture, not on top of everything
+      const list = parentId ? next.elements[parentId].childIds : next.rootIds;
+      list.splice(list.indexOf(id), 1);
+      list.splice(list.indexOf(under.id) + 1, 0, id);
+    }
     return next;
   },
 };

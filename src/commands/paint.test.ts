@@ -72,4 +72,21 @@ describe("add_paint_layer", () => {
     expect(runCommand(d, "add_paint_layer", { parentId: "r1", x: 0, y: 0, width: 10, height: 10, src: "assets/clear.png" })).toBe(d);
     expect(runCommand(d, "add_paint_layer", { parentId: "f1", x: 0, y: 0, width: 10, height: 10, src: "" })).toBe(d);
   });
+
+  it("goes straight above a picture, in its place, size and turn", () => {
+    let d = runCommand(baseDoc(), "set_props", { ids: ["p1"], props: { x: 10, y: 20, rotation: 15 } });
+    const next = runCommand(d, "add_paint_layer", { id: "pl", above: "p1", x: 0, y: 0, width: 0, height: 0, src: "assets/clear.png" });
+    const kids = next.elements.f1.childIds;
+    expect(kids.indexOf("pl")).toBe(kids.indexOf("p1") + 1);
+    expect(next.elements.pl).toMatchObject({ x: 10, y: 20, width: 100, height: 100, rotation: 15, parentId: "f1", src: "assets/clear.png" });
+    expect(d.elements.f1.childIds).not.toContain("pl");
+  });
+
+  it("goes above a picture on the page too, but only a picture", () => {
+    let d = runCommand(emptyDoc(), "create_element", { id: "p0", type: "image", x: 0, y: 0, width: 50, height: 50 });
+    d = runCommand(d, "create_element", { id: "r0", type: "rect", x: 100, y: 0, width: 50, height: 50 });
+    const next = runCommand(d, "add_paint_layer", { id: "pl", above: "p0", x: 0, y: 0, width: 0, height: 0, src: "assets/clear.png" });
+    expect(next.rootIds.indexOf("pl")).toBe(next.rootIds.indexOf("p0") + 1);
+    expect(runCommand(d, "add_paint_layer", { above: "r0", x: 0, y: 0, width: 0, height: 0, src: "assets/clear.png" })).toBe(d);
+  });
 });
