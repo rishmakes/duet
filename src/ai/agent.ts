@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { ask } from "@tauri-apps/plugin-dialog";
-import { saveNow, tabName } from "../project/project";
+import { nameUntitledWork, saveNow, tabName } from "../project/project";
 import { getState } from "../state/store";
 import {
   AGENTS,
@@ -28,6 +28,7 @@ import type { AgentId, Msg } from "./chat";
 import { mentioned, setAgent } from "./chat";
 import { FROM_CHAT, OUTSIDE } from "./who";
 import { chatRules } from "./rules";
+import { nameOf } from "./names";
 import { aiStarted, bindAi } from "./tools";
 
 /** Runs the AI tool the designer already has, and shows what it says as chat. */
@@ -289,6 +290,13 @@ function ended(r: Run) {
   } else {
     setTaskRunning(r.id, false);
   }
+  // work left in an Untitled project is named from what is in it, once no AI is at work
+  const file = getState().project.file;
+  const mine = r.id === CHAT ? conversationProject() === file : taskOf(r.id)?.project === file;
+  if (file && mine && runs.size === 0) {
+    const firstAsk = messagesOf(r.id === CHAT ? file : r.id).find((m) => m.role === "you")?.text;
+    void nameUntitledWork(file, firstAsk);
+  }
 }
 
 export async function startAgentListeners(): Promise<() => void> {
@@ -411,6 +419,9 @@ async function launch(base: Pick<Run, "id" | "agent" | "where">, project: string
     const headers = { Authorization: `Bearer ${info.token}`, "X-Duet-Client": `${FROM_CHAT}${name}${task ? `/${task}` : ""}` };
     let args: string[];
     let agyInput = "";
+    // the AI is shown by the name it goes by here, so it must know that name is its own and not a project's
+    const called = nameOf(name, getChat().names);
+    const rules = `${chatRules()}\n\nHere you go by the name "${called}". When the designer calls you ${called}, they mean you, not a project or a file.`;
 
     if (agent === "agy") {
       // Antigravity has no flag for instructions or per-run connections. Duet joins its list once
@@ -422,7 +433,7 @@ async function launch(base: Pick<Run, "id" | "agent" | "where">, project: string
         const app = await invoke<string>("bridge_command").catch(() => "");
         throw new Error(connectHelp(String(e), app));
       }
-      const whole = `${chatRules()}\n\nFor this job use only the "duet" tools. Do not run commands, browse, or read or write files.\n\n${past || "The designer says:\n"}${prompt}`;
+      const whole = `${rules}\n\nFor this job use only the "duet" tools. Do not run commands, browse, or read or write files.\n\n${past || "The designer says:\n"}${prompt}`;
       // The instructions and the message go in through the input, not the command line: on Windows a
       // command line stops at about 8,000 letters, and the instructions with skills are twice that.
       agyInput = JSON.stringify({ event: "user", message: { role: "user", content: whole } }) + "\n";
@@ -432,7 +443,7 @@ async function launch(base: Pick<Run, "id" | "agent" | "where">, project: string
       if (session) args.push("--conversation", session);
     } else {
       const files = await invoke<{ system: string; mcp: string }>("write_agent_files", {
-        system: chatRules(),
+        system: rules,
         mcp: JSON.stringify({ mcpServers: { duet: { type: "http", url, headers } } }),
         run: r.id,
       });
