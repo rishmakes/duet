@@ -26,3 +26,10 @@ Not started, nothing decided. PeerJS connects two Duets straight to each other (
 
 ## Website, not finished (29 Oct morning)
 The site is live with 0.13.0 downloads and the status list. Still missing: new pictures (painting, brush panel, Add-ons connect), the 0.13 post (covers 0.12 too), and the Paint and ChatGPT/Claude sections in the help pages. Brief is ready: `~/Desktop/DEV/duet-site/scratch/agy-brief-site-013.md`. Antigravity runs stalled overnight on network errors (its model calls kept failing), nothing was changed. Rerun it once, check its pictures and post, then `npm run deploy` in duet-site (Sourish runs the deploy; the safety check blocks Claude).
+
+## 29 Oct late morning: paint layers (decided by Sourish, read this first)
+- Eraser fix on main (75df6bf): rubbing out on a photo brings the original photo back under the paint, it no longer cuts a black hole. Verified in Duet dev. Also dev_drag works with the window hidden.
+- I tried "brushing a photo always makes a Paint layer above it" (19c1544) and took it back (next commit). Sourish: it is a choice, basic drawing-tool logic. The brush paints the layer you have picked (a photo or an old paint layer). Adding a new paint layer is something you do on purpose.
+- To build next: a "New paint layer" action. The command already supports it: `add_paint_layer` with `above: <picture id>` lays a clear layer straight over that picture (tests in paint.test.ts). Without a picture picked, in a frame, it covers the frame. Where the action lives in the interface is a design decision: mockup first, ask Sourish (Layers panel, Brush section, a shortcut).
+- Then release 0.13.1 (eraser fix + New paint layer), then the site.
+- Site: post, help pages and pictures are committed in duet-site (76bb490), not deployed. The paint picture there shows the old black-hole eraser and must be retaken after 0.13.1 (brief pattern: scratch/agy-brief-paint-shot.md, only one tab open, his other tab names must not show). Fix the post's paint wording to match then. Antigravity is fine to use (its limit is not used up).
