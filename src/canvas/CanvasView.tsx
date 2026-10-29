@@ -151,18 +151,6 @@ interface StrokeState {
   rafId: number;
 }
 
-/** A layer made for painting on. Its id says so, so renaming it does not change what it is. */
-const isPaintLayer = (el: El) => el.type === "image" && el.id.startsWith("paint-");
-
-/** The paint layer lying straight over a picture, if the layer just above it is one. */
-function paintLayerOver(doc: Doc, pic: El): El | null {
-  const list = pic.parentId ? doc.elements[pic.parentId]?.childIds ?? [] : doc.rootIds;
-  const above = doc.elements[list[list.indexOf(pic.id) + 1]];
-  if (!above || !isPaintLayer(above) || above.hidden || above.locked) return null;
-  const same = Math.abs(above.x - pic.x) < 0.5 && Math.abs(above.y - pic.y) < 0.5 && Math.abs(above.width - pic.width) < 0.5 && Math.abs(above.height - pic.height) < 0.5;
-  return same ? above : null;
-}
-
 /** Lays the stroke over a sheet that already holds the picture. The brush paints. The eraser takes paint off,
  *  showing the untouched picture file under it again (clear on a paint layer), so it never cuts a hole in a photo. */
 function layStroke(ctx: CanvasRenderingContext2D, stroke: Pick<StrokeState, "isEraser" | "strokeSheet" | "restoreSheet" | "el"> & { opacity: number }, box?: Box) {
@@ -683,22 +671,6 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
       }
     }
     if (!targetEl) return;
-    // a photo is never painted itself: paint goes on its own layer straight above it, so it can be rubbed out,
-    // hidden or thrown away. Photos painted before this keep their paint, and the eraser still takes it off them.
-    const painted = Object.keys(targetEl.paint ?? {}).length > 0;
-    if (!isPaintLayer(targetEl) && !(s.tool === "eraser" && painted)) {
-      const layer = paintLayerOver(doc, targetEl);
-      if (layer) {
-        select([layer.id]);
-        targetEl = layer;
-      } else {
-        if (s.tool === "eraser") return;
-        layerPendingRef.current = "down";
-        layerMovesRef.current = [];
-        void startOnPaintLayer(e, p, { above: targetEl });
-        return;
-      }
-    }
     beginStroke(e, p, s, doc, targetEl);
   };
 
