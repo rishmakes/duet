@@ -660,6 +660,33 @@ const shownRoots = (doc: Doc) => {
 /** How far down the canvas a label sits at least, so the bar floating along its top does not cover it. */
 const LABEL_CLEAR = 64;
 
+let checkTile: HTMLCanvasElement | null = null;
+
+/** In Photo, a checkerboard under each frame and picture, so the see-through parts read as see-through. */
+function drawChecks(ctx: CanvasRenderingContext2D, el: El, zoom: number) {
+  if (el.hidden || (el.type !== "frame" && el.type !== "image")) return;
+  if (!checkTile) {
+    checkTile = document.createElement("canvas");
+    checkTile.width = checkTile.height = 16;
+    const c = checkTile.getContext("2d");
+    if (!c) return;
+    c.fillStyle = "#ffffff";
+    c.fillRect(0, 0, 16, 16);
+    c.fillStyle = "#d9d9de";
+    c.fillRect(0, 0, 8, 8);
+    c.fillRect(8, 8, 8, 8);
+  }
+  const checks = ctx.createPattern(checkTile, "repeat");
+  if (!checks) return;
+  // the squares stay the same size on screen at any zoom
+  checks.setTransform(new DOMMatrix().translate(el.x, el.y).scale(1 / zoom));
+  turned(ctx, el, turnOf(el), () => {
+    roundedPath(ctx, el.x, el.y, el.width, el.height, el.radius);
+    ctx.fillStyle = checks;
+    ctx.fill();
+  });
+}
+
 export function draw(ctx: CanvasRenderingContext2D, s: State, w: number, h: number, dpr: number) {
   const doc = seenDoc(s);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -673,9 +700,12 @@ export function draw(ctx: CanvasRenderingContext2D, s: State, w: number, h: numb
   ctx.scale(s.viewport.zoom, s.viewport.zoom);
   typingId = s.editingId;
   try {
+    const checks = getLayout().mode === "photo";
     for (const id of shownRoots(doc)) {
       const el = doc.elements[id];
-      if (el) drawElement(ctx, doc, el, 0, 0);
+      if (!el) continue;
+      if (checks) drawChecks(ctx, el, s.viewport.zoom);
+      drawElement(ctx, doc, el, 0, 0);
     }
   } finally {
     typingId = null;
