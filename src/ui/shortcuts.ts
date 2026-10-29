@@ -14,6 +14,7 @@ export const SHORTCUTS: { group: string; keys: [string, string][] }[] = [
       ["B", "Brush"],
       ["E", "Eraser"],
       ["[ and ]", "Brush smaller or bigger (Photo)"],
+      ["Shift Cmd N", "New paint layer (Photo)"],
       ["Esc", "Pick nothing and go back to Move"],
       ["Shift R", "Show or hide the rulers, and pull guides out of them"],
     ],

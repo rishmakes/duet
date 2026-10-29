@@ -71,6 +71,7 @@ import {
 import type { NodeHit } from "./nodes";
 import type { AbsNode } from "../document/path";
 import { logError } from "../errorLog";
+import { newPaintLayer } from "../ui/actions";
 import { defaultLayout } from "../document/layout";
 import { penActive, penBack, penCancel, penDown, penDrag, penFinish, penHover } from "./pen";
 import { addPicture, pictureOf, pictureSize, setLivePicture } from "../project/assets";
@@ -210,6 +211,26 @@ const DEFAULT_SIZE: Record<ElementType, { w: number; h: number }> = {
 let inMemoryClip: ClipPayload | null = null;
 
 /** Paste a payload where it makes sense: inside a selected frame, otherwise next to the original. */
+/** Lays a clear paint layer over the frame, or straight over a picture, as big in pixels as what it covers. Returns its id. */
+export async function makePaintLayer(on: { frameId: string } | { above: El }): Promise<string | null> {
+  const frame = "frameId" in on ? workDoc().elements[on.frameId] : null;
+  const under = "above" in on ? on.above : null;
+  const pic = under ? pictureOf(under) : null;
+  // over a picture, as many pixels as its file, so the paint is as sharp as the photo
+  const [fw, fh] = pic ? pictureSize(pic) : frame ? [frame.width, frame.height] : [0, 0];
+  if (!fw || !fh) return null;
+  const clear = document.createElement("canvas");
+  clear.width = Math.max(1, Math.min(8192, Math.round(fw)));
+  clear.height = Math.max(1, Math.min(8192, Math.round(fh)));
+  const bytes = await canvasToPngBytes(clear);
+  if (!bytes) return null;
+  const { src } = await addPicture("paint.png", bytes, "image/png");
+  const id = `paint-${Math.random().toString(36).slice(2, 10)}`;
+  if (under) dispatch("add_paint_layer", { id, above: under.id, x: 0, y: 0, width: 0, height: 0, src }, "you");
+  else if (frame) dispatch("add_paint_layer", { id, parentId: frame.id, x: 0, y: 0, width: frame.width, height: frame.height, src }, "you");
+  return workDoc().elements[id] ? id : null;
+}
+
 export function pastePayload(payload: ClipPayload, duplicate = false) {
   const s = getState();
   const doc = workDoc(s);
@@ -650,23 +671,8 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
 
   /** Lays a clear paint layer over the frame, or straight over a picture, then starts the stroke on it. */
   const startOnPaintLayer = async (e: React.PointerEvent, p: { sx: number; sy: number; x: number; y: number }, on: { frameId: string } | { above: El }) => {
-    const frame = "frameId" in on ? workDoc().elements[on.frameId] : null;
-    const under = "above" in on ? on.above : null;
-    const pic = under ? pictureOf(under) : null;
-    // over a picture, as many pixels as its file, so the paint is as sharp as the photo
-    const [fw, fh] = pic ? pictureSize(pic) : frame ? [frame.width, frame.height] : [0, 0];
-    if (!fw || !fh) return;
-    const w = Math.max(1, Math.min(8192, Math.round(fw)));
-    const h = Math.max(1, Math.min(8192, Math.round(fh)));
-    const clear = document.createElement("canvas");
-    clear.width = w;
-    clear.height = h;
-    const bytes = await canvasToPngBytes(clear);
-    if (!bytes) return;
-    const { src } = await addPicture("paint.png", bytes, "image/png");
-    const id = `paint-${Math.random().toString(36).slice(2, 10)}`;
-    if (under) dispatch("add_paint_layer", { id, above: under.id, x: 0, y: 0, width: 0, height: 0, src }, "you");
-    else if (frame) dispatch("add_paint_layer", { id, parentId: frame.id, x: 0, y: 0, width: frame.width, height: frame.height, src }, "you");
+    const id = await makePaintLayer(on);
+    if (!id) return;
     const s = getState();
     const doc = workDoc(s);
     const el = doc.elements[id];
@@ -1817,6 +1823,11 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
           dispatch("group_elements", { ids: s.selection, groupId: id });
           if (workDoc().elements[id]) select([id]);
         }
+        return;
+      }
+      if (mod && e.shiftKey && key === "n" && getLayout().mode === "photo") {
+        e.preventDefault();
+        void newPaintLayer();
         return;
       }
       if (mod && e.shiftKey && key === "l") {

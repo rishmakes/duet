@@ -1,4 +1,4 @@
-import { pastePayload } from "../canvas/CanvasView";
+import { makePaintLayer, pastePayload } from "../canvas/CanvasView";
 import { newId } from "../commands";
 import { extractPayload } from "../document/clipboard";
 import { canBeComponent } from "../document/components";
@@ -99,4 +99,23 @@ export function deleteSelection() {
   if (!els.length) return;
   dispatch("delete_elements", { ids: els.map((e) => e.id) });
   select([]);
+}
+
+/** Where a new paint layer would go: straight over the picked picture, or over the frame the pick is in. Null when there is nowhere. */
+export function paintLayerSpot(doc: Doc, els: El[]): { above: El } | { frameId: string } | null {
+  if (els.length !== 1) return null;
+  if (els[0].type === "image") return { above: els[0] };
+  for (let el: El | undefined = els[0]; el; el = el.parentId ? doc.elements[el.parentId] : undefined) {
+    if (el.type === "frame") return { frameId: el.id };
+  }
+  return null;
+}
+
+/** A new clear layer to paint on, picked so the brush paints on it next. */
+export async function newPaintLayer() {
+  const { doc, els } = picked();
+  const spot = paintLayerSpot(doc, els);
+  if (!spot) return;
+  const id = await makePaintLayer(spot);
+  if (id) select([id]);
 }

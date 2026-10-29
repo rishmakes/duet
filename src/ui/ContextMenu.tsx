@@ -7,7 +7,8 @@ import { newId } from "../commands";
 import { defaultLayout } from "../document/layout";
 import { extractPayload } from "../document/clipboard";
 import { currentDoc, dispatch, getState, select } from "../state/store";
-import { maskChoice, maskSelection, traceSelection } from "./actions";
+import { maskChoice, maskSelection, newPaintLayer, paintLayerSpot, traceSelection } from "./actions";
+import { getLayout } from "./layout";
 import { canBeComponent } from "../document/components";
 import { useDismiss } from "./useDismiss";
 
@@ -59,6 +60,7 @@ function itemsFor(): Item[] {
       if (currentDoc().elements[id]) select([id]);
     },
   });
+  if (getLayout().mode === "photo" && paintLayerSpot(doc, els)) out.push({ label: "New paint layer", hint: "Shift Cmd N", run: () => void newPaintLayer() });
   if (one?.type === "image") out.push({ label: "Trace into shapes", run: () => void traceSelection() });
   if (maskChoice(doc, els)) out.push({ label: "Use as mask", hint: "Cmd Option M", run: maskSelection });
   if (els.some((e) => e.type === "group")) {
