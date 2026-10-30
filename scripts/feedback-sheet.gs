@@ -56,9 +56,49 @@ function doPost(e) {
   return answer({ ok: true });
 }
 
-/** Run once from the editor to give the script its permissions and make the folder. */
+/**
+ * Read feedback back, for the creator's own computer only: rows after `after`, each with its
+ * pictures. Needs the read key kept in Script Properties (READ_KEY), never in Duet or the repo.
+ */
+function doGet(e) {
+  const key = PropertiesService.getScriptProperties().getProperty("READ_KEY");
+  if (!key || !e || !e.parameter || e.parameter.key !== key) return answer({ ok: false, why: "no" });
+  const after = Math.max(1, Number(e.parameter.after) || 1);
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+  const last = sheet.getLastRow();
+  if (last <= after) return answer({ ok: true, last, rows: [] });
+  // a few at a time, so the answer stays small enough to send
+  const upTo = Math.min(last, after + 20);
+  const values = sheet.getRange(after + 1, 1, upTo - after, 6).getValues();
+  const rows = values.map((v, i) => ({
+    row: after + 1 + i,
+    when: v[0] instanceof Date ? v[0].toISOString() : String(v[0]),
+    text: String(v[1]),
+    email: String(v[2]),
+    version: String(v[3]),
+    system: String(v[4]),
+    pictures: String(v[5])
+      .split("\n")
+      .map((link) => (link.match(/[-\w]{25,}/) || [])[0])
+      .filter(Boolean)
+      .map((id) => {
+        try {
+          return Utilities.base64Encode(DriveApp.getFileById(id).getBlob().getBytes());
+        } catch (err) {
+          return null;
+        }
+      })
+      .filter(Boolean),
+  }));
+  return answer({ ok: true, last, upTo, rows });
+}
+
+/** Run once from the editor to give the script its permissions and make the folder. Logs the read key. */
 function setUp() {
   pictureFolder();
+  const props = PropertiesService.getScriptProperties();
+  if (!props.getProperty("READ_KEY")) props.setProperty("READ_KEY", Utilities.getUuid() + Utilities.getUuid());
+  Logger.log("Read key: " + props.getProperty("READ_KEY"));
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
   if (sheet.getLastRow() === 0) sheet.appendRow(["When", "What they said", "Email", "Duet version", "Computer", "Pictures"]);
 }
