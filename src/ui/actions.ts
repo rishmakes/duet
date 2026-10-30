@@ -5,7 +5,7 @@ import { canBeComponent } from "../document/components";
 import { canMask } from "../document/geometry";
 import { defaultLayout } from "../document/layout";
 import type { Doc, El } from "../document/types";
-import { message } from "@tauri-apps/plugin-dialog";
+import { message } from "./dialog";
 import { tracePicture } from "../project/trace";
 import { currentDoc, dispatch, getState, select } from "../state/store";
 

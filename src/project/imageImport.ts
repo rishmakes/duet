@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { message, open } from "@tauri-apps/plugin-dialog";
+import { message, open } from "../ui/dialog";
 import { newId } from "../commands";
 import { worldPos } from "../document/geometry";
 import { currentDoc, dispatch, getState, select } from "../state/store";

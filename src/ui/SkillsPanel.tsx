@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open } from "./dialog";
 import { createSkill, deleteSkill, importSkillPath, toggleSkill, useSkills } from "../ai/skills";
 import { inTauri } from "../project/project";
 

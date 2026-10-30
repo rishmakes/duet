@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { message, open, save } from "@tauri-apps/plugin-dialog";
+import { message, open, save } from "../ui/dialog";
 import { drawElement } from "../canvas/render";
 import { topLevelOnly, turnOf, turnedBox } from "../document/geometry";
 import { toSvg } from "../document/svg";

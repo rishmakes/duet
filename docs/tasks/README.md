@@ -32,3 +32,5 @@ Small tasks, one at a time, in order. Each file is one task with its issue.
 | 10 | Change shortcuts | #161 | Later |
 
 Automatic roto (the Mac finds the person) is not here. Plan it with Opus first. See #63 and `docs/handoff-masking.md`.
+
+- **Never touch the real mouse or keyboard.** Only `dev_*` tools and files. No CoreGraphics events, pyautogui, cliclick, osascript or System Events, no clicking, no key presses, no bringing windows to the front, no scripting Chrome or Terminal. If a native dialog blocks a test, stop that test and write it down.

@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { ask } from "@tauri-apps/plugin-dialog";
+import { ask } from "../ui/dialog";
 import { nameUntitledWork, saveNow, tabName } from "../project/project";
 import { getState } from "../state/store";
 import {

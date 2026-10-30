@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { open, save } from "@tauri-apps/plugin-dialog";
+import { open, save } from "../ui/dialog";
 import { drawElement } from "../canvas/render";
 import { docAt, fileTimeAt, spanOf } from "../document/time";
 import { playsFile } from "../document/types";

@@ -1,4 +1,4 @@
-import { message } from "@tauri-apps/plugin-dialog";
+import { message } from "../ui/dialog";
 import { clipKind, dropClips, keepDropped } from "../video/scene";
 import { getLayout, setLayout, useLayout } from "../ui/layout";
 import { RULER, gapsAround, snapEqualGaps, snapToGuides } from "./guides";

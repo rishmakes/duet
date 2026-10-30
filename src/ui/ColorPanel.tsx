@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open } from "./dialog";
 import { currentDoc, dispatch, dragCancel, dragPreview } from "../state/store";
 import type { El } from "../document/types";
 import { GRADE_CONTROLS, canGrade, isNeutral, neutralGrade } from "../document/grade";

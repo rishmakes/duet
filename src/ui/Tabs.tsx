@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ask } from "@tauri-apps/plugin-dialog";
+import { ask } from "./dialog";
 import { addTab, closeProject, closeTab, closeUntitled, getTabs, getUntitled, inTauri, isUntitled, liveKey, newDesignTab, openProjectAt, tabTitle } from "../project/project";
 import { currentDoc, useStore } from "../state/store";
 import { readyToLeave } from "../ai/agent";

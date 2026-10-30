@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { message, open, save } from "@tauri-apps/plugin-dialog";
+import { message, open, save } from "../ui/dialog";
 import { newId } from "../commands";
 import type { PlacedLayer } from "../commands";
 import { ancestors, turnOf, turnedBox, unionRect, worldPos, worldRect } from "../document/geometry";
