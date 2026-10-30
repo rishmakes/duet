@@ -149,6 +149,95 @@ pub fn pack_copy(dir: &Path, file: &Path, design: &str, preview: Option<&[u8]>, 
     fs::rename(&tmp, file).map_err(err)
 }
 
+/// Said when a project's file is no longer where Duet last kept it. The file is not written back there.
+pub const LOST: &str = "The project file is no longer where it was.";
+
+/// Pack a project into the file it already has. If that file has gone, renamed, moved or deleted
+/// outside Duet, nothing is written: writing would bring back a file the designer took away.
+pub fn pack_existing(dir: &Path, file: &Path) -> Result<(), String> {
+    if !file.is_file() {
+        return Err(LOST.to_string());
+    }
+    pack(dir, file)
+}
+
+/// Take a project's working folder along when its file moves, so a new project under the old name
+/// never clears it. A folder already waiting under the new name is put aside, never deleted.
+pub fn move_work_dir(from_file: &str, to_file: &str) -> Result<PathBuf, String> {
+    let (a, b) = (work_dir_for_file(from_file)?, work_dir_for_file(to_file)?);
+    if a.exists() && a != b {
+        if b.exists() {
+            let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+            fs::rename(&b, PathBuf::from(format!("{}-aside-{stamp}", b.to_string_lossy()))).map_err(err)?;
+        }
+        fs::rename(&a, &b).map_err(err)?;
+    }
+    Ok(b)
+}
+
+/// What a project's history says about it: the step it is at, and every step it has been at.
+pub struct History {
+    pub head: String,
+    pub steps: std::collections::HashSet<String>,
+}
+
+/// Read a history from its files, wherever they are kept. `read` gives the text of a file inside the project.
+fn history_with(mut read: impl FnMut(&str) -> Option<String>) -> Option<History> {
+    let at = read(".git/HEAD")?;
+    let at = at.trim();
+    let head = match at.strip_prefix("ref: ") {
+        Some(name) => match read(&format!(".git/{name}")) {
+            Some(h) => h.trim().to_string(),
+            None => read(".git/packed-refs")?.lines().find_map(|l| l.strip_suffix(name).map(|h| h.trim().to_string()))?,
+        },
+        None => at.to_string(),
+    };
+    if head.is_empty() {
+        return None;
+    }
+    // the history's log names every step it has been at, one line each: before, after, who, what
+    let mut steps: std::collections::HashSet<String> = read(".git/logs/HEAD").map(|log| log.lines().filter_map(|l| l.split(' ').nth(1).map(String::from)).collect()).unwrap_or_default();
+    steps.insert(head.clone());
+    Some(History { head, steps })
+}
+
+/// The history of an unpacked working folder.
+pub fn history_of_dir(dir: &Path) -> Option<History> {
+    history_with(|rel| fs::read_to_string(dir.join(rel)).ok())
+}
+
+/// The history inside a project file, read without unpacking it.
+pub fn history_of_file(file: &Path) -> Option<History> {
+    let mut zip = ZipArchive::new(File::open(file).ok()?).ok()?;
+    history_with(|rel| {
+        let mut entry = zip.by_name(rel).ok()?;
+        let mut text = String::new();
+        entry.read_to_string(&mut text).ok()?;
+        Some(text)
+    })
+}
+
+/// Find where a project went, from its working folder. A file whose history holds the step the
+/// working folder is at is the same project, gone on as far or further; one whose step the working
+/// folder holds is the same project, left behind. One gone on wins; one left behind counts only when
+/// it is the only one. Nothing is found when two could be it, so a copy is never taken for the project.
+pub fn find_moved(work: &Path, candidates: &[PathBuf]) -> Option<PathBuf> {
+    let mine = history_of_dir(work)?;
+    let (mut ahead, mut behind) = (Vec::new(), Vec::new());
+    for c in candidates {
+        let Some(h) = history_of_file(c) else { continue };
+        if h.steps.contains(&mine.head) {
+            ahead.push(c);
+        } else if mine.steps.contains(&h.head) {
+            behind.push(c);
+        }
+    }
+    match (ahead.as_slice(), behind.as_slice()) {
+        ([one], _) | ([], [one]) => Some((*one).clone()),
+        _ => None,
+    }
+}
+
 /// Unpack a project file into a folder, replacing what was there. Names that try to climb out of the
 /// folder are refused.
 pub fn unpack(file: &Path, dir: &Path) -> Result<(), String> {
@@ -326,4 +415,69 @@ mod tests {
         assert_eq!(a, b);
         assert_ne!(a, c);
     }
+    /// A working folder with a history at these steps, the last one being where it is.
+    fn with_history(name: &str, steps: &[&str]) -> PathBuf {
+        let d = temp(name);
+        fs::write(d.join("design.json"), "{}").unwrap();
+        fs::create_dir_all(d.join(".git/refs/heads")).unwrap();
+        fs::create_dir_all(d.join(".git/logs")).unwrap();
+        fs::write(d.join(".git/HEAD"), "ref: refs/heads/master\n").unwrap();
+        fs::write(d.join(".git/refs/heads/master"), format!("{}\n", steps.last().unwrap())).unwrap();
+        let mut log = String::new();
+        let mut before = "0000";
+        for s in steps {
+            log.push_str(&format!("{before} {s} Someone <a@b> 1 +0000\tcommit: step\n"));
+            before = s;
+        }
+        fs::write(d.join(".git/logs/HEAD"), log).unwrap();
+        d
+    }
+
+    fn packed(name: &str, steps: &[&str]) -> PathBuf {
+        let file = temp(&format!("{name}-file")).join(format!("{name}.duet"));
+        pack(&with_history(name, steps), &file).unwrap();
+        file
+    }
+
+    #[test]
+    fn a_file_that_has_gone_is_never_written_back() {
+        let src = with_history("lost-src", &["a"]);
+        let file = temp("lost-out").join("Untitled 29.duet");
+        assert_eq!(pack_existing(&src, &file), Err(LOST.to_string()));
+        assert!(!file.exists());
+        pack(&src, &file).unwrap();
+        assert!(pack_existing(&src, &file).is_ok());
+    }
+
+    #[test]
+    fn a_renamed_project_is_found_by_its_history() {
+        let work = with_history("found-work", &["a", "b"]);
+        let other = packed("found-other", &["x", "y"]);
+        // renamed and then worked on further
+        let ahead = packed("found-ahead", &["a", "b", "c"]);
+        assert_eq!(find_moved(&work, &[other.clone(), ahead.clone()]), Some(ahead.clone()));
+        // renamed with nothing more done to it
+        let same = packed("found-same", &["a", "b"]);
+        assert_eq!(find_moved(&work, &[other.clone(), same.clone()]), Some(same));
+        // renamed before the last step was packed into it
+        let behind = packed("found-behind", &["a"]);
+        assert_eq!(find_moved(&work, &[other.clone(), behind.clone()]), Some(behind.clone()));
+        // gone on further wins over left behind
+        assert_eq!(find_moved(&work, &[behind.clone(), ahead.clone()]), Some(ahead.clone()));
+        // two that could be it, such as a copy: neither is taken
+        let twin = packed("found-twin", &["a", "b", "d"]);
+        assert_eq!(find_moved(&work, &[ahead, twin]), None);
+        // went its own way after a shared start: not this project
+        let apart = packed("found-apart", &["a", "e"]);
+        assert_eq!(find_moved(&work, &[other, apart]), None);
+    }
+
+    #[test]
+    fn a_history_kept_in_packed_refs_is_read_too() {
+        let d = with_history("packed-refs", &["a", "b"]);
+        fs::remove_file(d.join(".git/refs/heads/master")).unwrap();
+        fs::write(d.join(".git/packed-refs"), "# pack-refs\nb refs/heads/master\n").unwrap();
+        assert_eq!(history_of_dir(&d).unwrap().head, "b");
+    }
 }
+

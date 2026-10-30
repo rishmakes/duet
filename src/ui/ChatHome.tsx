@@ -83,7 +83,7 @@ function ProjectTile({ r, on, open, onOpen, onMenu }: { r: Recent; on: boolean; 
   const src = r.thumb ?? own;
   return (
     <div
-      className={`tile ${on ? "on" : ""} ${on || open ? "" : "shut"}`}
+      className={`tile ${on ? "on" : ""} ${on || open ? "" : "shut"} ${r.missing ? "missing" : ""}`}
       onClick={onOpen}
       onContextMenu={(e) => {
         e.preventDefault();
@@ -94,7 +94,7 @@ function ProjectTile({ r, on, open, onOpen, onMenu }: { r: Recent; on: boolean; 
       <div className="tile-pic">{src ? <img src={src} alt="" /> : null}</div>
       <div className="tile-text">
         <div className="chathome-name">{r.name}</div>
-        <div className="chathome-when">{on ? "Open now" : open ? "Open" : ago(r.opened)}</div>
+        <div className="chathome-when">{r.missing ? "Cannot be found" : on ? "Open now" : open ? "Open" : ago(r.opened)}</div>
         <OpenDot on={on} open={open} />
       </div>
     </div>
@@ -120,7 +120,7 @@ function ProjectRow({ r, on, open, onOpen, onMenu, renaming, onRenamed }: { r: R
   };
   return (
     <div
-      className={`chathome-row ${on ? "on" : ""} ${on || open ? "" : "shut"}`}
+      className={`chathome-row ${on ? "on" : ""} ${on || open ? "" : "shut"} ${r.missing ? "missing" : ""}`}
       onClick={renaming ? undefined : onOpen}
       onContextMenu={(e) => {
         e.preventDefault();
@@ -147,7 +147,7 @@ function ProjectRow({ r, on, open, onOpen, onMenu, renaming, onRenamed }: { r: R
         ) : (
           <div className="chathome-name">{r.name}</div>
         )}
-        <div className="chathome-when">{on ? "Open now" : open ? "Open" : ago(r.opened)}</div>
+        <div className="chathome-when">{r.missing ? "Cannot be found" : on ? "Open now" : open ? "Open" : ago(r.opened)}</div>
       </div>
       <OpenDot on={on} open={open} />
     </div>
@@ -337,8 +337,7 @@ export default function ChatHome() {
     const next = path === current.file ? getTabs().filter((p) => p !== path).pop() : null;
     closeTab(path);
     if (path === current.file) {
-      if (next) await openProjectAt(next, true);
-      else await closeProject();
+      if (!next || !(await openProjectAt(next, true))) await closeProject();
     }
     return true;
   };

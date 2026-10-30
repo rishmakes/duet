@@ -69,9 +69,10 @@ fn path_exists(path: String) -> bool {
     Path::new(&path).exists()
 }
 
-/// Move or rename a project file. Never replaces a file that is already there.
+/// Move or rename a project file. Never replaces a file that is already there. Its working folder
+/// goes along, and where that is now is the answer.
 #[tauri::command]
-fn move_project(from: String, to: String) -> Result<(), String> {
+fn move_project(from: String, to: String) -> Result<String, String> {
     let (a, b) = (Path::new(&from), Path::new(&to));
     if b.exists() {
         return Err("There is already a file with that name there. Pick another name.".into());
@@ -81,7 +82,8 @@ fn move_project(from: String, to: String) -> Result<(), String> {
         fs::copy(a, b).map_err(|e| format!("Could not move the project: {e}"))?;
         fs::remove_file(a).map_err(|e| format!("The project was copied, but the old file could not be removed: {e}"))?;
     }
-    Ok(())
+    let _turn = file_turn();
+    Ok(package::move_work_dir(&from, &to)?.to_string_lossy().to_string())
 }
 
 /// Copy a project file. Never replaces a file that is already there.
@@ -173,11 +175,32 @@ fn file_turn() -> std::sync::MutexGuard<'static, ()> {
     FILE_WORK.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-/// Pack a project's working folder into its single file.
+/// Pack a project's working folder into its single file. A file that is new is made; one that already has a place is only written while it is still there.
 #[tauri::command(async)]
-fn pack_project(dir: String, file: String) -> Result<(), String> {
+fn pack_project(dir: String, file: String, fresh: Option<bool>) -> Result<(), String> {
     let _turn = file_turn();
-    package::pack(Path::new(&dir), Path::new(&file))
+    if fresh == Some(true) {
+        package::pack(Path::new(&dir), Path::new(&file))
+    } else {
+        package::pack_existing(Path::new(&dir), Path::new(&file))
+    }
+}
+
+/// Where a project file went after it was renamed or moved outside Duet, looked for in these folders.
+/// Its history says which file it is. None when it cannot be told.
+#[tauri::command(async)]
+fn find_moved_project(file: String, roots: Vec<String>) -> Option<String> {
+    let work = package::work_dir_for_file(&file).ok()?;
+    let mut seen = std::collections::HashSet::new();
+    let candidates: Vec<std::path::PathBuf> = roots.iter().flat_map(|r| find_projects(r.clone())).map(|f| std::path::PathBuf::from(f.path)).filter(|p| p != Path::new(&file) && seen.insert(p.clone())).collect();
+    package::find_moved(&work, &candidates).map(|p| p.to_string_lossy().to_string())
+}
+
+/// The working folder of a project on screen follows its file to a new place.
+#[tauri::command(async)]
+fn follow_work_dir(from: String, to: String) -> Result<String, String> {
+    let _turn = file_turn();
+    Ok(package::move_work_dir(&from, &to)?.to_string_lossy().to_string())
 }
 
 /// Make a second project file to hand to someone else. The working folder is only read.
@@ -568,6 +591,8 @@ pub fn run() {
             work_dir_for,
             fresh_work_dir,
             pack_project,
+            find_moved_project,
+            follow_work_dir,
             pack_copy,
             unpack_project,
             is_directory,

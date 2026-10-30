@@ -50,7 +50,7 @@ export async function findProjects(root: string): Promise<number> {
   if (add.length) {
     const all = [...getRecents(), ...add.map((f) => ({ path: f.path, name: baseName(f.path), opened: f.modified }))];
     try {
-      localStorage.setItem(RECENT_KEY, JSON.stringify(all.sort((a, b) => b.opened - a.opened).slice(0, 200)));
+      localStorage.setItem(RECENT_KEY, JSON.stringify(all.sort((a, b) => b.opened - a.opened).slice(0, RECENT_MAX)));
     } catch {
       /* nothing to do */
     }
@@ -72,6 +72,8 @@ const committed = () => {
 };
 
 const RECENT_KEY = "duet:recent";
+/** How many projects the list keeps. The same everywhere, so opening one never pushes others off. */
+const RECENT_MAX = 200;
 
 export interface Recent {
   path: string;
@@ -80,6 +82,8 @@ export interface Recent {
   thumb?: string;
   /** When it was last opened, as milliseconds. */
   opened: number;
+  /** Its file is not where it was, and Duet could not find where it went. */
+  missing?: boolean;
 }
 
 /** Every project you have made or opened here, newest first. */
@@ -90,25 +94,72 @@ export interface Recent {
 /** Listed files found missing on the last look, such as one moved to the Trash in Finder. They come back if the file does. */
 const missing = new Set<string>();
 
-/** Look again at which listed files are still there, and redraw the list if that changed. */
+/**
+ * Look again at which listed files are still there. One renamed or moved outside Duet is found again
+ * by its history and listed where it is now; one that cannot be found stays listed, marked missing.
+ */
 export async function checkListed() {
-  if (!inTauri()) return;
-  let changed = false;
-  for (const r of getRecents()) {
-    const there = (await invoke<boolean>("path_exists", { path: r.path }).catch(() => true)) === true;
-    if (there === missing.has(r.path)) {
-      if (there) missing.delete(r.path);
-      else missing.add(r.path);
+  if (!inTauri() || checking) return;
+  checking = true;
+  try {
+    let changed = false;
+    const live = getState().project.file;
+    for (const path of new Set([...getRecents().map((r) => r.path), ...getTabs()])) {
+      const there = (await invoke<boolean>("path_exists", { path }).catch(() => true)) === true;
+      if (there) {
+        if (missing.delete(path)) changed = true;
+        continue;
+      }
+      if (missing.has(path)) continue;
+      if (path === live) {
+        await followLive();
+        continue;
+      }
+      // a project waiting in a tab follows its file once it is back on screen
+      const found = isParked(path) ? null : await findMoved(path);
+      if (found) repoint(path, found);
+      else missing.add(path);
       changed = true;
     }
+    if (changed) window.dispatchEvent(new Event("duet:recents"));
+  } finally {
+    checking = false;
   }
-  if (changed) window.dispatchEvent(new Event("duet:recents"));
+}
+let checking = false;
+
+/** Where a project file went after it was renamed or moved outside Duet: its own folder and the Duet folder are looked through. */
+async function findMoved(file: string): Promise<string | null> {
+  try {
+    const roots = [file.replace(/[\\/][^\\/]*$/, ""), await invoke<string>("default_projects_dir")];
+    return (await invoke<string | null>("find_moved_project", { file, roots })) ?? null;
+  } catch (e) {
+    logError("find a moved project", e);
+    return null;
+  }
+}
+
+/** A project's file is somewhere else now: the list, the tabs and the last one opened follow it. */
+export function repoint(from: string, to: string) {
+  missing.delete(from);
+  if (getTabs().includes(from)) setTabs([...new Set(getTabs().map((p) => (p === from ? to : p)))]);
+  if (checkCopy) return;
+  try {
+    const list = getRecents();
+    const moved = list.some((r) => r.path === to)
+      ? list.filter((r) => r.path !== from)
+      : list.map((r) => (r.path === from ? { ...r, path: to, name: baseName(to) } : r));
+    localStorage.setItem(RECENT_KEY, JSON.stringify(moved));
+    if (localStorage.getItem(LAST_KEY) === from) localStorage.setItem(LAST_KEY, to);
+  } catch {
+    /* private mode: the list is not kept */
+  }
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("duet:recents"));
 }
 
 export function listedProjects(): Recent[] {
-  const tabs = new Set(getTabs());
-  // a project open in a tab stays listed even when its file has gone: what is in it is still here
-  const recents = getRecents().filter((r) => !missing.has(r.path) || tabs.has(r.path));
+  // a project whose file cannot be found stays listed, marked, so it can be found again or let go
+  const recents = getRecents().map((r) => (missing.has(r.path) ? { ...r, missing: true } : r));
   const known = new Set(recents.map((r) => r.path));
   const here = getState().project.file;
   const open = [...new Set([...(here ? [here] : []), ...getTabs(), ...parkedFiles()])]
@@ -149,7 +200,7 @@ export function removeRecent(path: string) {
 function addRecent(path: string) {
   try {
     const rest = getRecents().filter((r) => r.path !== path);
-    localStorage.setItem(RECENT_KEY, JSON.stringify([{ path, name: baseName(path), opened: Date.now() }, ...rest].slice(0, 200)));
+    localStorage.setItem(RECENT_KEY, JSON.stringify([{ path, name: baseName(path), opened: Date.now() }, ...rest].slice(0, RECENT_MAX)));
   } catch {
     /* nothing to do */
   }
@@ -310,7 +361,7 @@ function remember(path: string | null) {
     localStorage.setItem(LAST_KEY, path);
     const old = getRecents().find((r) => r.path === path);
     const rest = getRecents().filter((r) => r.path !== path);
-    localStorage.setItem(RECENT_KEY, JSON.stringify([{ path, name: baseName(path), opened: Date.now(), thumb: old?.thumb }, ...rest].slice(0, 40)));
+    localStorage.setItem(RECENT_KEY, JSON.stringify([{ path, name: baseName(path), opened: Date.now(), thumb: old?.thumb }, ...rest].slice(0, RECENT_MAX)));
     window.dispatchEvent(new Event("duet:recents"));
   } catch {
     /* private mode: nothing to remember */
@@ -377,8 +428,9 @@ export async function moveProject(from: string, to: string): Promise<string | nu
     const here = getState().project.file === from;
     if (here) await packNow();
     moving = from;
+    let work: string;
     try {
-      await invoke("move_project", { from, to: target });
+      work = await invoke<string>("move_project", { from, to: target });
     } catch (e) {
       return String(e);
     } finally {
@@ -386,7 +438,7 @@ export async function moveProject(from: string, to: string): Promise<string | nu
     }
     if (getState().project.file === from) {
       moveConversationTo(target);
-      setProject({ file: target, name: baseName(target) });
+      setProject({ path: work, file: target, name: baseName(target) });
     }
     if (getTabs().includes(from)) setTabs(getTabs().map((p) => (p === from ? target : p)));
     try {
@@ -463,13 +515,61 @@ export async function copyProject(file: string): Promise<string | null> {
 // ---- one file: the project is packed into its .duet file after every save ----
 let packTimer: ReturnType<typeof setTimeout> | undefined;
 
+/** Project files made in this session and not written yet. Only these may be made; any other is only written where it still is. */
+const fresh = new Set<string>();
+/** Said by the file side when a project file is no longer where it was. */
+const LOST = "The project file is no longer where it was.";
+
 async function packNow() {
   clearTimeout(packTimer);
   packTimer = undefined;
   const { path, file } = getState().project;
   // a file being moved is written again only once it has arrived
   if (!path || !file || file === moving) return;
-  await invoke("pack_project", { dir: path, file });
+  try {
+    await invoke("pack_project", { dir: path, file, fresh: fresh.has(file) });
+    fresh.delete(file);
+  } catch (e) {
+    // renamed, moved or deleted outside Duet: never written back where it was
+    if (String(e) === LOST) await followLive();
+    else throw e;
+  }
+}
+
+/** Files Duet has already asked about this session, so the question comes once. */
+const askedLost = new Set<string>();
+
+/**
+ * The file of the project on screen has gone. If it was renamed or moved, Duet follows it there and
+ * keeps saving into it. If it cannot be found, the work stays safe here and the designer chooses where it goes.
+ */
+async function followLive() {
+  const { path, file } = getState().project;
+  if (!path || !file) return;
+  const found = await findMoved(file);
+  if (found) return void (await settleLive(file, found, false));
+  setProject({ status: "error", error: "This project's file was moved or deleted outside Duet. Your work is safe here." });
+  if (askedLost.has(file) || !inTauri()) return;
+  askedLost.add(file);
+  const here = await ask(`“${baseName(file)}” was moved, renamed or deleted outside Duet, and Duet could not find where it went. Your work and its history are safe here. Where should it be kept?`, {
+    title: "Duet",
+    kind: "warning",
+    okLabel: "Save it where it was",
+    cancelLabel: "Choose a place",
+  });
+  const picked = here ? file : await once(() => chooseFile("Keep this project"));
+  if (picked && getState().project.file === file) await settleLive(file, picked, true);
+}
+
+/** The project on screen is kept in another file from now on, with its history and its conversation. */
+async function settleLive(from: string, to: string, make: boolean) {
+  const work = from === to ? getState().project.path! : await invoke<string>("follow_work_dir", { from, to });
+  if (make) fresh.add(to);
+  if (from !== to) moveConversationTo(to);
+  setProject({ path: work, file: to, name: baseName(to), status: "saved", error: null });
+  askedLost.delete(from);
+  repoint(from, to);
+  await packNow();
 }
 
 function schedulePack() {
@@ -760,6 +860,7 @@ async function chooseFile(title: string): Promise<string | null> {
 /** Make the project file and its working copy from a design. */
 async function createProject(picked: string, doc: Doc, label: string) {
   stepsKept = new Set();
+  fresh.add(picked);
   const work = await invoke<string>("fresh_work_dir", { file: picked });
   await writeDesign(work, doc);
   await startHistory(work, label);
@@ -826,10 +927,13 @@ const untitledPath = () => freePath("Untitled");
 async function freePath(name: string): Promise<string> {
   const dir = await invoke<string>("default_projects_dir");
   const clean = name.replace(/[\\/:*?"<>|]+/g, " ").trim();
+  const held = new Set([getState().project.file, ...getTabs(), ...parkedFiles()]);
   // an untitled project takes the next free "Untitled"; any other name is kept as it is
   const base = !clean || /^Untitled( \d+)?$/.test(clean) ? "Untitled" : clean;
   for (let n = 1; n < 1000; n++) {
     const file = join(dir, n === 1 ? `${base}.duet` : `${base} ${n}.duet`);
+    // a name an open project still goes by is taken, even when its file was moved away outside Duet
+    if (held.has(file)) continue;
     if (!((await invoke<boolean>("path_exists", { path: file })) === true)) return file;
   }
   throw new Error("Too many projects with that name.");
@@ -1048,7 +1152,8 @@ export async function openProjectAt(path: string, closing = false): Promise<bool
   if (!inTauri() && !isParked(path)) return false;
   // unsaved work waits in its own tab, and an AI keeps working in its own project; only the plain start has nowhere to wait
   if (!liveKey() && !(await readyToLeave(closing))) return false;
-  return openAny(path);
+  // after closing a tab no question comes up: a next project that cannot be found is simply not opened
+  return openAny(path, closing);
 }
 
 /** Open a project file. */
@@ -1066,8 +1171,14 @@ async function openFile(path: string, quiet: boolean): Promise<boolean> {
       return false;
     }
     if ((await invoke<boolean>("path_exists", { path })) !== true) {
-      if (!quiet) await oops("That project was moved or deleted.");
-      return false;
+      const found = await findMoved(path);
+      if (found) {
+        repoint(path, found);
+        return openFile(found, quiet);
+      }
+      missing.add(path);
+      window.dispatchEvent(new Event("duet:recents"));
+      return quiet ? false : findOrLetGo(path);
     }
     const work = await invoke<string>("unpack_project", { file: path });
     return loadFrom(work, quiet, path);
@@ -1075,6 +1186,26 @@ async function openFile(path: string, quiet: boolean): Promise<boolean> {
     if (!quiet) await oops(String(e));
     return false;
   }
+}
+
+/** A listed project's file cannot be found. The designer points to it, or it leaves the list. */
+async function findOrLetGo(path: string): Promise<boolean> {
+  const find = await ask(`Duet cannot find “${baseName(path)}”. It was moved, renamed or deleted outside Duet.`, {
+    title: "Duet",
+    kind: "warning",
+    okLabel: "Find it",
+    cancelLabel: "Remove from list",
+  });
+  if (!find) {
+    missing.delete(path);
+    removeRecent(path);
+    closeTab(path);
+    return false;
+  }
+  const picked = await once(() => open({ title: `Find “${baseName(path)}”`, filters: [{ name: "Duet project", extensions: ["duet"] }] }));
+  if (typeof picked !== "string") return false;
+  repoint(path, picked);
+  return openFile(picked, false);
 }
 
 /** Choose a project file and open it. */

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { addTab, closeTab, getTabs } from "./project";
+import { addTab, closeTab, getTabs, repoint } from "./project";
 
 describe("open projects as tabs", () => {
   beforeEach(() => {
@@ -27,5 +27,25 @@ describe("open projects as tabs", () => {
     for (let i = 0; i < 15; i++) addTab(`/a/p${i}.duet`);
     expect(getTabs().length).toBe(12);
     expect(getTabs()[11]).toBe("/a/p14.duet");
+  });
+});
+
+describe("a project whose file moved outside Duet", () => {
+  beforeEach(() => {
+    for (const p of [...getTabs()]) closeTab(p);
+  });
+
+  it("is followed to where it is now, in its tab", () => {
+    addTab("/a/Untitled 29.duet");
+    addTab("/a/Hero.duet");
+    repoint("/a/Untitled 29.duet", "/a/Portrait.duet");
+    expect(getTabs()).toEqual(["/a/Portrait.duet", "/a/Hero.duet"]);
+  });
+
+  it("is kept once when the new place is already open", () => {
+    addTab("/a/Untitled 29.duet");
+    addTab("/a/Portrait.duet");
+    repoint("/a/Untitled 29.duet", "/a/Portrait.duet");
+    expect(getTabs()).toEqual(["/a/Portrait.duet"]);
   });
 });

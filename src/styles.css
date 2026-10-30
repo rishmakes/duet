@@ -5342,6 +5342,15 @@ input.chathome-name.rename {
 .tile.shut:hover .chathome-name {
   color: var(--text);
 }
+/* a project whose file cannot be found sits back further, even on hover */
+.chathome-row.missing,
+.tile.missing {
+  opacity: 0.45;
+}
+.chathome-row.missing .chathome-name,
+.tile.missing .chathome-name {
+  text-decoration: line-through;
+}
 .chathome-menu div {
   display: flex;
   align-items: center;

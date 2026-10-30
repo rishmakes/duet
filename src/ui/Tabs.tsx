@@ -50,10 +50,8 @@ export default function Tabs({ home, setHome }: { home: boolean; setHome: (on: b
   /** What is left after the project on screen is closed: the next tab, or all your projects. */
   const afterClosing = async (rest: string[]) => {
     const next = rest[rest.length - 1];
-    if (next) {
-      if (await openProjectAt(next, true)) setHome(false);
-      return;
-    }
+    // a next project whose file cannot be found is not opened; the screen empties as if it were the last
+    if (next && (await openProjectAt(next, true))) return void setHome(false);
     if (!(await readyToLeave(true))) return;
     await closeProject();
     setHome(true);
