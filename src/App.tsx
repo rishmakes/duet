@@ -11,6 +11,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import ContextMenu from "./ui/ContextMenu";
 import { installMenu } from "./ui/menu";
+import { setMinimized } from "./ai/chat";
 import { clampW, getLayout, isColorOpen, keepMode, modeOf, setLayout, useLayout } from "./ui/layout";
 import Icon from "./ui/Icons";
 import ChatHome from "./ui/ChatHome";
@@ -104,6 +105,10 @@ export default function App() {
   const [check, setCheck] = useState(false);
   const dock = useLayout((d) => d);
   const hasFrames = useStore((s) => Object.values(s.timeline[s.cursor].doc.elements).some((e) => e.type === "frame"));
+  // in Edit the chat waits folded away, unless the designer chose to keep it open there
+  useEffect(() => {
+    if (dock.space === "edit") setMinimized(!dock.editChatOpen);
+  }, [dock.space]);
 
   useEffect(() => {
     const stop = startAutosave();

@@ -48,6 +48,8 @@ export interface Dock {
   commentsHidden: boolean;
   /** A mouse wheel zooms, like in Adobe apps. A trackpad still slides the canvas. */
   wheelZooms: boolean;
+  /** The chat is open when Edit comes up. Off, it waits folded away until clicked. */
+  editChatOpen: boolean;
   /** In Video, whether the right panel shows Properties or Colour. */
   videoTab: RightTab;
   /** In Photo, whether the right panel shows Properties or Colour. */
@@ -79,6 +81,7 @@ export const defaults = (): Dock => ({
   namesW: 150,
   commentsHidden: false,
   wheelZooms: true,
+  editChatOpen: false,
   videoTab: "properties",
   photoTab: "color",
 });

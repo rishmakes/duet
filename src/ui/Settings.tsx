@@ -111,7 +111,9 @@ export default function Settings({ check = false, onClose }: SettingsProps) {
   const matchVersion = searching && matchGeneralRow("version", search, { agentName, version });
   const wheelZooms = useLayout((d) => d.wheelZooms);
   const matchWheel = searching && ["general", "mouse wheel zooms", "scroll", "zoom"].some((w) => w.includes(search.trim().toLowerCase()));
-  const hasGeneralMatches = matchAiTool || matchVersion || matchWheel;
+  const editChatOpen = useLayout((d) => d.editChatOpen);
+  const matchEditChat = searching && ["general", "chat open in edit", "chat", "edit"].some((w) => w.includes(search.trim().toLowerCase()));
+  const hasGeneralMatches = matchAiTool || matchVersion || matchWheel || matchEditChat;
   const matchAddons = searching && ["add-ons", "addons", "connect to chatgpt and claude", "web"].some((w) => w.includes(search.trim().toLowerCase()));
 
   const q = search.trim().toLowerCase();
@@ -219,6 +221,12 @@ export default function Settings({ check = false, onClose }: SettingsProps) {
                       <input type="checkbox" checked={wheelZooms} onChange={(e) => setLayout({ wheelZooms: e.target.checked })} />
                     </label>
                   )}
+                  {matchEditChat && (
+                    <label className="settings-row">
+                      <span>Chat open in Edit</span>
+                      <input type="checkbox" checked={editChatOpen} onChange={(e) => setLayout({ editChatOpen: e.target.checked })} />
+                    </label>
+                  )}
                 </>
               )}
               {hasDeveloperMatches && (
@@ -303,6 +311,10 @@ export default function Settings({ check = false, onClose }: SettingsProps) {
                   <label className="settings-row">
                     <span>Mouse wheel zooms</span>
                     <input type="checkbox" checked={wheelZooms} onChange={(e) => setLayout({ wheelZooms: e.target.checked })} />
+                  </label>
+                  <label className="settings-row">
+                    <span>Chat open in Edit</span>
+                    <input type="checkbox" checked={editChatOpen} onChange={(e) => setLayout({ editChatOpen: e.target.checked })} />
                   </label>
                 </div>
               )}
