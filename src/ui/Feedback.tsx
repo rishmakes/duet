@@ -136,11 +136,14 @@ export default function Feedback() {
       <div className="sheet feedback">
         {state === "sent" ? (
           <>
-            <div className="sheet-title">Thank you. It reached the creator.</div>
-            <p className="sheet-lead">Still stuck? Book a call and sort it out together. It is free.</p>
-            <button className="feedback-book" onClick={() => void openUrl(BOOK)}>
-              Book time with the creator
-            </button>
+            <div className="sheet-title">Thank you. Rish has it.</div>
+            <p className="sheet-lead">
+              Rish makes Duet and reads every message. Still stuck?{" "}
+              <button className="feedback-talk" onClick={() => void openUrl(BOOK)}>
+                Talk to Rish
+              </button>{" "}
+              on a free call.
+            </p>
             <div className="sheet-actions">
               <button className="mini" onClick={close}>
                 Done
@@ -150,7 +153,7 @@ export default function Feedback() {
         ) : (
           <>
             <div className="sheet-title">Feedback</div>
-            <p className="sheet-lead">Something odd, or something you wish Duet did? Say it in your own words. A picture of the window is already attached.</p>
+            <p className="sheet-lead">This goes straight to Rish, who makes Duet. Something odd, or something you wish Duet did? Say it in your own words. A picture of the window is already attached.</p>
             <textarea autoFocus value={text} placeholder="What happened, or what you want" onChange={(e) => setText(e.target.value)} />
             <div className="feedback-pics">
               {pictures.map((p, i) => (
