@@ -47,6 +47,8 @@ Restart `tauri dev` after installing a new npm package. Vite re-bundles dependen
 - Only build and promise what is real. Half-built features stay out of the interface.
 - Nothing copied from other design tools. Own icons, colours and code.
 - Commits carry the author's identity only. No tool names or attribution lines.
+- Every commit names its issue (`#123`). The same day, label that issue `built - needs testing`. Only the creator closes it, after trying it.
+- Before opening an issue, search open and closed issues for a similar one (`gh issue list --state all --search "<words>"`). Never skip this. If one exists, comment there instead.
 - No secrets in the repository. The agent token lives only in `~/.duet/session.json`.
 
 ## If you are a helper agent
