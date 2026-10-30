@@ -7,6 +7,7 @@ import type { Doc } from "../document/types";
 import { currentDoc, dispatch, getState, select } from "../state/store";
 import { clipsIn, drawingMade, fileLength, holdClips, setMadePicture } from "./clips";
 import { pause } from "./play";
+import { hiddenHere, loudness } from "../document/tracks";
 
 /** A frame that plays: bringing clips into it, and making one video file out of it. */
 
@@ -175,13 +176,13 @@ export function soundsOf(doc: Doc, sceneId: string) {
   const walk = (id: string, from: number, to: number) => {
     for (const c of doc.elements[id]?.childIds ?? []) {
       const el = doc.elements[c];
-      if (!el || el.hidden) continue;
+      if (!el || hiddenHere(doc, el)) continue;
       const span = spanOf(el, scene);
       // a clip inside a group is heard only while the group shows
       const start = Math.max(span.start, from);
       const end = Math.min(span.end, to);
       if (end <= start) continue;
-      if (playsFile(el) && el.src && el.volume > 0) out.push({ path: el.src, from: fileTimeAt(el, span.start, start), at: start, length: end - start, volume: el.volume, speed: el.speed || 1 });
+      if (playsFile(el) && el.src && loudness(doc, el) > 0) out.push({ path: el.src, from: fileTimeAt(el, span.start, start), at: start, length: end - start, volume: loudness(doc, el), speed: el.speed || 1 });
       walk(c, start, end);
     }
   };
@@ -237,7 +238,7 @@ export function exportSize(scene: { width: number; height: number }, longSide: n
  */
 async function baseClip(doc: Doc, now: Doc, sceneId: string, t: number, sizes: Map<string, Info>) {
   const scene = now.elements[sceneId];
-  const shown = scene.childIds.map((id) => now.elements[id]).filter((e) => e && !e.hidden && e.type !== "sound");
+  const shown = scene.childIds.map((id) => now.elements[id]).filter((e) => e && !hiddenHere(now, e) && e.type !== "sound");
   const el = shown[0];
   if (!el || el.type !== "video" || el.rotation || el.opacity < 0.999 || (el.blend ?? "normal") !== "normal" || el.radius || el.mask) return null;
   if (el.x > 0.01 || el.y > 0.01 || el.x + el.width < scene.width - 0.01 || el.y + el.height < scene.height - 0.01) return null;

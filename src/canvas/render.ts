@@ -18,6 +18,7 @@ import { plainName } from "../ai/who";
 import { RULER, rulerTicks } from "./guides";
 import { getLayout } from "../ui/layout";
 import { FONT_STACK, fontCss, layoutText, lineStep, lineWidth, measureText } from "./text";
+import { hiddenHere } from "../document/tracks";
 
 /** How far each scrolling screen is scrolled while presenting. Empty in the editor. */
 export const presentScroll: Record<string, number> = {};
@@ -392,7 +393,7 @@ let typingId: string | null = null;
 /** Draw an element and everything inside it. ox and oy are where its parent sits. */
 export function drawElement(ctx: CanvasRenderingContext2D, doc: Doc, el: El, ox: number, oy: number) {
   // a sound is only heard, and a hidden thing is not drawn anywhere
-  if (el.type === "sound" || el.hidden) return;
+  if (el.type === "sound" || hiddenHere(doc, el)) return;
   const x = ox + el.x;
   const y = oy + el.y;
   ctx.save();

@@ -1,5 +1,6 @@
 import { isDerived, syncInstances } from "./components";
 import { relayout } from "./layout";
+import { keepTracks, trackKind } from "./tracks";
 import { playsFile } from "./types";
 import type { Comment, Doc, El } from "./types";
 
@@ -147,7 +148,7 @@ export function serializeDoc(doc: Doc): string {
     const ordered: Record<string, unknown> = {};
     for (const k of EL_KEYS) if (TEXT_ONLY.has(k) && (el.type !== "text" || el[k] === (FALLBACK as Record<string, unknown>)[k])) continue;
     else if (k === "childIds" && el.type === "instance") ordered[k] = [];
-    else if ((k !== "component" || el.component) && ((k !== "componentId" && k !== "overrides") || el.type === "instance") && (!PROTOTYPE_ONLY.has(k) || el[k] !== (FALLBACK as Record<string, unknown>)[k]) && (k !== "locked" || el.locked) && (k !== "hidden" || el.hidden) && (k !== "grade" || el.grade) && (k !== "effects" || (el.effects && el.effects.length > 0)) && (k !== "effectMask" || el.effectMask) && (k !== "effectMaskInvert" || el.effectMaskInvert) && (k !== "mask" || el.mask) && ((k !== "maskFeather" && k !== "maskInvert" && k !== "maskGrow") || el.mask && el[k]) && (k !== "layout" || el.layout) && (k !== "grow" || el.grow) && (k !== "blend" || el.blend !== "normal") && (k !== "rotation" || el.rotation) && (k !== "src" || el.type === "image" || playsFile(el)) && (k !== "paint" || (el.type === "image" && Object.keys(el.paint ?? {}).length)) && (!TIME_ONLY.has(k) || el[k]) && (k !== "keys" || Object.keys(el.keys).length) && (k !== "shapeKeys" || el.shapeKeys.length) && (k !== "markers" || el.markers?.length) && (k !== "workArea" || el.workArea) && (k !== "tracks" || el.tracks?.length) && (k !== "track" || (el.track && playsFile(el))) && (k !== "volume" || playsFile(el)) && (k !== "speed" || (playsFile(el) && el.speed !== 1)) && ((k !== "nodes" && k !== "closed") || el.type === "path")) ordered[k] = el[k];
+    else if ((k !== "component" || el.component) && ((k !== "componentId" && k !== "overrides") || el.type === "instance") && (!PROTOTYPE_ONLY.has(k) || el[k] !== (FALLBACK as Record<string, unknown>)[k]) && (k !== "locked" || el.locked) && (k !== "hidden" || el.hidden) && (k !== "grade" || el.grade) && (k !== "effects" || (el.effects && el.effects.length > 0)) && (k !== "effectMask" || el.effectMask) && (k !== "effectMaskInvert" || el.effectMaskInvert) && (k !== "mask" || el.mask) && ((k !== "maskFeather" && k !== "maskInvert" && k !== "maskGrow") || el.mask && el[k]) && (k !== "layout" || el.layout) && (k !== "grow" || el.grow) && (k !== "blend" || el.blend !== "normal") && (k !== "rotation" || el.rotation) && (k !== "src" || el.type === "image" || playsFile(el)) && (k !== "paint" || (el.type === "image" && Object.keys(el.paint ?? {}).length)) && (!TIME_ONLY.has(k) || el[k]) && (k !== "keys" || Object.keys(el.keys).length) && (k !== "shapeKeys" || el.shapeKeys.length) && (k !== "markers" || el.markers?.length) && (k !== "workArea" || el.workArea) && (k !== "tracks" || el.tracks?.length) && (k !== "track" || el.track) && (k !== "volume" || playsFile(el)) && (k !== "speed" || (playsFile(el) && el.speed !== 1)) && ((k !== "nodes" && k !== "closed") || el.type === "path")) ordered[k] = el[k];
     elements[id] = ordered;
   }
   const out: Record<string, unknown> = { version: doc.version, rootIds: doc.rootIds, elements };
@@ -194,5 +195,11 @@ export function parseDoc(text: string): Doc {
   const comments = Array.isArray(r.comments)
     ? r.comments.filter((c): c is Comment => !!c && typeof c.id === "string" && typeof c.text === "string" && Number.isFinite(c.x) && Number.isFinite(c.y)).map((c) => ({ ...c, by: c.by === "ai" ? "ai" : "you" }) as Comment)
     : [];
+  // a scene from before titles had tracks gets them once, as the rows it showed, so they stop moving about
+  for (const el of Object.values(elements)) {
+    if (el.type !== "frame" || !(el.duration > 0)) continue;
+    const saved = new Set((el.tracks ?? []).map((t) => t.id));
+    if (el.childIds.some((c) => trackKind(elements[c]) && !saved.has(elements[c].track ?? ""))) keepTracks({ version: 1, rootIds: [], elements }, el.id);
+  }
   return relayout(syncInstances({ version: 1, rootIds: r.rootIds as string[], elements, ...(background ? { background } : {}), ...(styles ? { styles } : {}), ...(guides ? { guides } : {}), ...(comments.length ? { comments } : {}) }));
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { extractPayload } from "./clipboard";
 import { runCommand } from "../commands";
 import { parseDoc, serializeDoc } from "./serialize";
-import { trackRows } from "./tracks";
+import { hiddenHere, loudness, trackRows } from "./tracks";
 import { emptyDoc } from "./types";
 import type { Doc } from "./types";
 
@@ -14,7 +14,7 @@ function scene() {
   return runCommand(doc, "create_element", { type: "sound", id: "s", parentId: "f", x: 0, y: 0, width: 1, height: 1, props: { src: "/v.mp3", start: 0, end: 5 } });
 }
 
-const names = (doc: Doc, kind: "clips" | "sound" = "clips") => trackRows(doc, doc.elements.f, kind).map((r) => `${r.name}: ${r.items.map((el) => el.id).join(" ")}`);
+const names = (doc: Doc, kind: "clips" | "sound" | "titles" = "clips") => trackRows(doc, doc.elements.f, kind).map((r) => `${r.name}: ${r.items.map((el) => el.id).join(" ")}`);
 
 describe("tracks", () => {
   it("sorts clips into rows by itself until a track is touched", () => {
@@ -86,5 +86,35 @@ describe("tracks", () => {
     expect(names(back)).toEqual(names(doc));
     // a design without tracks writes nothing new
     expect(serializeDoc(scene())).not.toContain("track");
+  });
+
+  it("a silent or hidden track holds for everything on it, now and later", () => {
+    let doc = runCommand(scene(), "set_track_switch", { id: "f", track: { kind: "clips", index: 1 }, silent: true });
+    expect(loudness(doc, doc.elements.a)).toBe(0);
+    expect(loudness(doc, doc.elements.c)).toBe(1);
+    // the clip's own sound setting is left as it was
+    expect(doc.elements.a.volume).toBe(1);
+    doc = runCommand(doc, "set_track", { ids: ["c"], track: { kind: "clips", index: 1 } });
+    expect(loudness(doc, doc.elements.c)).toBe(0);
+    doc = runCommand(doc, "set_track_switch", { id: "f", track: { kind: "clips", index: 0 }, hidden: true });
+    expect(hiddenHere(doc, doc.elements.b)).toBe(true);
+    expect(hiddenHere(doc, doc.elements.a)).toBe(false);
+    doc = runCommand(doc, "set_track_switch", { id: "f", track: { kind: "clips", index: 1 }, silent: false });
+    expect(loudness(doc, doc.elements.a)).toBe(1);
+    const again = parseDoc(serializeDoc(doc));
+    expect(hiddenHere(again, again.elements.b)).toBe(true);
+  });
+
+  it("text and shapes sit on title tracks that stay put", () => {
+    let doc = scene();
+    for (const [id, start, end] of [["w1", 0, 1], ["w2", 1, 2], ["w3", 0.5, 1.5]] as const) doc = runCommand(doc, "create_element", { type: "text", id, parentId: "f", x: 0, y: 0, width: 10, height: 10, props: { start, end } });
+    // an older file opens with its rows saved as tracks, so they no longer move about
+    const opened = parseDoc(serializeDoc(doc));
+    expect(names(opened, "titles")).toEqual(["Titles 1: w3", "Titles 2: w2 w1"]);
+    expect(opened.elements.w1.track).toBeTruthy();
+    // w1 moved out from under w3 stays on its row
+    const moved = runCommand(opened, "set_timing", { ids: ["w1"], start: 5, end: 6 });
+    expect(names(moved, "titles")).toEqual(["Titles 1: w3", "Titles 2: w2 w1"]);
+    expect(parseDoc(serializeDoc(moved)).elements.w1.track).toBe(opened.elements.w1.track);
   });
 });

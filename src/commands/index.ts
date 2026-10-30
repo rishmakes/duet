@@ -11,7 +11,7 @@ import { canGrade, mergeGrade } from "../document/grade";
 import type { GradeChange } from "../document/grade";
 import { EFFECT_DEFS, canHaveEffects, defaultEffectValues, newEffectId } from "../document/effects";
 import type { Effect, EffectKind } from "../document/effects";
-import { keepTracks, newTrackId, stackByTrack, trackKind } from "../document/tracks";
+import { baseName, keepTracks, newTrackId, stackByTrack, trackKind } from "../document/tracks";
 import type { TrackKind } from "../document/tracks";
 import type { CreatePresetFrameArgs } from "./presets";
 
@@ -883,13 +883,13 @@ export interface AddTrackArgs {
 const addTrack: CommandDef<AddTrackArgs> = {
   label: () => "New track",
   run: (doc, a) => {
-    if (!scene(doc, a.id) || (a.kind !== "clips" && a.kind !== "sound")) return doc;
+    if (!scene(doc, a.id) || (a.kind !== "clips" && a.kind !== "sound" && a.kind !== "titles")) return doc;
     const next = clone(doc);
     const f = next.elements[a.id];
     const all = keepTracks(next, a.id);
     const same = all.filter((t) => t.kind === a.kind);
     const at = Math.max(0, Math.min(same.length, Math.floor(a.index ?? 0)));
-    const base = a.kind === "clips" ? "Clips" : "Sound";
+    const base = baseName(a.kind);
     let n = same.length + 1;
     while (all.some((t) => t.name === `${base} ${n}`)) n++;
     const track = { id: a.trackId ?? newTrackId(), name: a.name?.trim() || `${base} ${n}`, kind: a.kind };
@@ -915,6 +915,33 @@ const renameTrack: CommandDef<RenameTrackArgs> = {
     const track = findTrack(next, a.id, a.track);
     if (!track || track.name === name) return doc;
     track.name = name;
+    return next;
+  },
+};
+
+export interface SetTrackSwitchArgs {
+  id: string;
+  track: TrackRef;
+  hidden?: boolean;
+  silent?: boolean;
+}
+
+/** Hide a track or make it silent, or undo that. It holds for everything on it, now and later. */
+const setTrackSwitch: CommandDef<SetTrackSwitchArgs> = {
+  label: (a) => (a.hidden === true ? "Hide track" : a.hidden === false ? "Show track" : a.silent === true ? "Track sound off" : "Track sound on"),
+  run: (doc, a) => {
+    if (!scene(doc, a.id) || (a.hidden === undefined && a.silent === undefined)) return doc;
+    const next = clone(doc);
+    const track = findTrack(next, a.id, a.track);
+    if (!track) return doc;
+    if (a.hidden !== undefined) {
+      if (a.hidden) track.hidden = true;
+      else delete track.hidden;
+    }
+    if (a.silent !== undefined) {
+      if (a.silent) track.silent = true;
+      else delete track.silent;
+    }
     return next;
   },
 };
@@ -2360,6 +2387,7 @@ export const commands = {
   rename_track: renameTrack,
   delete_track: deleteTrack,
   set_track: setTrack,
+  set_track_switch: setTrackSwitch,
 } as const;
 
 export type CommandName = keyof typeof commands;

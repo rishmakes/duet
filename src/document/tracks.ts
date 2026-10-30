@@ -3,8 +3,20 @@ import type { Doc, El, Track } from "./types";
 
 export type TrackKind = Track["kind"];
 
-/** Which kind of track a thing sits on: video clips on clip tracks, sounds on sound tracks, anything else on none. */
-export const trackKind = (el: El): TrackKind | null => (el.type === "video" ? "clips" : el.type === "sound" ? "sound" : null);
+/** Which kind of track a thing sits on in Edit: video clips on clip tracks, sounds on sound tracks, text and shapes on title tracks. */
+export const trackKind = (el: El | undefined): TrackKind | null => (!el ? null : el.type === "video" ? "clips" : el.type === "sound" ? "sound" : "titles");
+
+/** The saved track a thing sits on, if its frame has one for it. */
+export function trackOf(doc: Doc, el: El): Track | null {
+  if (!el.track || !el.parentId) return null;
+  return doc.elements[el.parentId]?.tracks?.find((t) => t.id === el.track) ?? null;
+}
+
+/** Whether a thing is hidden, by itself or by its track. */
+export const hiddenHere = (doc: Doc, el: El) => !!el.hidden || !!trackOf(doc, el)?.hidden;
+
+/** How loud a clip or sound is heard, from 0 to 1: nothing when its track is silent. */
+export const loudness = (doc: Doc, el: El) => (trackOf(doc, el)?.silent ? 0 : el.volume);
 
 /** Whether two things show at the same time in the frame. */
 const overlap = (a: El, b: El, frame: El) => {
@@ -34,7 +46,7 @@ export interface TrackRow {
   items: El[];
 }
 
-const baseName = (kind: TrackKind) => (kind === "clips" ? "Clips" : "Sound");
+export const baseName = (kind: TrackKind) => (kind === "clips" ? "Clips" : kind === "sound" ? "Sound" : "Titles");
 
 /**
  * The rows of one kind on a frame's timeline, top first. A frame with saved tracks shows those, and a clip
@@ -73,7 +85,7 @@ export const newTrackId = () => `track-${Date.now().toString(36)}${(made++).toSt
 export function keepTracks(doc: Doc, frameId: string): Track[] {
   const frame = doc.elements[frameId];
   const tracks: Track[] = [];
-  for (const kind of ["clips", "sound"] as const) {
+  for (const kind of ["titles", "clips", "sound"] as const) {
     for (const row of trackRows(doc, frame, kind)) {
       const track = row.track ?? { id: newTrackId(), name: row.name, kind };
       tracks.push(track);

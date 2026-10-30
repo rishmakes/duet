@@ -3,6 +3,7 @@ import { fileTimeAt, frameTimeAt, spanOf } from "../document/time";
 import { playsFile } from "../document/types";
 import type { Doc } from "../document/types";
 import { logError } from "../errorLog";
+import { hiddenHere, loudness } from "../document/tracks";
 
 /**
  * The players behind video clips on the canvas. Each clip has its own hidden player, so the clip coming
@@ -230,7 +231,7 @@ export const clipsIn = (doc: Doc, sceneId: string) => {
   const walk = (id: string) => {
     for (const c of doc.elements[id]?.childIds ?? []) {
       const el = doc.elements[c];
-      if (!el || el.hidden) continue;
+      if (!el || hiddenHere(doc, el)) continue;
       if (playsFile(el)) out.push(c);
       walk(c);
     }
@@ -262,7 +263,7 @@ export function syncClips(doc: Doc, sceneId: string | null, t: number, playing: 
       live.add(id);
       const v = clipPlayer(el);
       const at = fileTimeAt(el, start, t);
-      v.volume = Math.max(0, Math.min(1, el.volume));
+      v.volume = Math.max(0, Math.min(1, loudness(doc, el)));
       v.playbackRate = el.speed || 1;
       if (playing) {
         // while playing, the clip leads the clock (see clockFromClip); only a big gap means a jump.

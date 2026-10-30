@@ -66,11 +66,15 @@ export interface Marker {
   color: string;
 }
 
-/** A row on a frame's timeline that clips or sounds sit on. A higher one is in front. */
+/** A row on a frame's timeline in Edit that clips, sounds, or titles (text and shapes) sit on. A higher one is in front. */
 export interface Track {
   id: string;
   name: string;
-  kind: "clips" | "sound";
+  kind: "clips" | "sound" | "titles";
+  /** Nothing on it is drawn, played or exported, including things put on it later. */
+  hidden?: true;
+  /** Nothing on it is heard, in playing or in export, including things put on it later. */
+  silent?: true;
 }
 
 /** One moment in the changing outline of a drawn shape: where every point and its handles are, in pixels inside the parent. */
@@ -194,9 +198,9 @@ export interface El {
   markers: Marker[];
   /** A frame that plays only: the part being worked on, from its start to its end. Playing begins and stops there; the rest is dimmed. Left out when the whole scene is the work area. */
   workArea?: { start: number; end: number };
-  /** A frame that plays only: its tracks for clips and sounds, top first. Left out while Duet still sorts clips into rows by itself. */
+  /** A frame that plays only: its tracks for clips, sounds and titles, top first. Left out while Duet still sorts things into rows by itself. */
   tracks?: Track[];
-  /** A video clip or a sound only: the track it sits on, in its frame's tracks. */
+  /** Anything in a frame that plays: the track it sits on in Edit, in its frame's tracks. */
   track?: string;
   /** A video clip or a sound only: the second in its file where playing starts, and how loud it is from 0 to 1. For these, src is where the file is on the computer. A sound has no place on the canvas: it is only heard. */
   clipFrom: number;

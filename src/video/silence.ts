@@ -2,6 +2,7 @@ import { fileTimeAt, spanOf } from "../document/time";
 import { playsFile } from "../document/types";
 import type { Doc } from "../document/types";
 import { PEAK_SLICE } from "./faces";
+import { hiddenHere, loudness } from "../document/tracks";
 
 /** How a pause is found: quieter than `quiet` (0 to 255, as the loudness is drawn) for at least `shortest` seconds. */
 export interface SilenceChoice {
@@ -22,7 +23,7 @@ export function findSilences(doc: Doc, sceneId: string, peaks: Map<string, Uint8
   if (!scene || !(scene.duration > 0)) return [];
   const heard = scene.childIds
     .map((id) => doc.elements[id])
-    .filter((el) => el && playsFile(el) && !el.hidden && el.volume > 0 && (peaks.get(el.src)?.length ?? 0) > 0 && (!ids || ids.includes(el.id)));
+    .filter((el) => el && playsFile(el) && !hiddenHere(doc, el) && loudness(doc, el) > 0 && (peaks.get(el.src)?.length ?? 0) > 0 && (!ids || ids.includes(el.id)));
   if (!heard.length) return [];
   const spans = heard.map((el) => ({ el, ...spanOf(el, scene), loud: peaks.get(el.src)! }));
   // only the time some listened clip covers counts; elsewhere there is nothing to judge

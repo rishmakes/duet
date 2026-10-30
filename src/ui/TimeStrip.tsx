@@ -2,7 +2,7 @@ import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MARKER_COLORS, runCommand } from "../commands";
 import { KEY_GROUPS, fileTimeAt, frameTimeAt, spanOf } from "../document/time";
 import { MOVING, playsFile } from "../document/types";
-import type { Doc, El, Marker, Moving } from "../document/types";
+import type { Doc, El, Marker, Moving, Track } from "../document/types";
 import { currentDoc, dispatch, dragBase, dragCancel, dragCommit, dragPreview, dragPreviewDoc, getState, select, useStore } from "../state/store";
 import { clipLength } from "../video/clips";
 import { cutNow } from "../video/edit";
@@ -20,7 +20,7 @@ import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { TIME_MIN_H, getLayout, isColorOpen, setLayout, useLayout } from "./layout";
 import { useDismiss } from "./useDismiss";
 import { trackKind, trackRows } from "../document/tracks";
-import type { TrackKind } from "../document/tracks";
+import type { TrackKind, TrackRow } from "../document/tracks";
 import { getPickedTrack, pickTrack, usePickedTrack } from "./pickedTrack";
 
 /** Time under the canvas: a row for each thing in a frame that plays, when it shows, and where the clock is. */
@@ -47,11 +47,12 @@ function pageFrame(doc: Doc, id: string | undefined): El | null {
   return el?.type === "frame" ? el : null;
 }
 
-/** The last packing of a scene's tracks. While a video plays the clock moves on every frame but the design stays the same, so the tracks are not packed again each time. */
-let packed: { doc: Doc; id: string; out: El[][] } | null = null;
-function packedTracks(doc: Doc, id: string, pack: () => El[][]): El[][] {
-  if (packed?.doc !== doc || packed.id !== id) packed = { doc, id, out: pack() };
-  return packed.out;
+/** The last rows of a scene's tracks. While a video plays the clock moves on every frame but the design stays the same, so the rows are not worked out again each time. */
+let rowsMade: { doc: Doc; id: string; out: Record<TrackKind, TrackRow[]> } | null = null;
+function rowsOf(doc: Doc, frame: El): Record<TrackKind, TrackRow[]> {
+  if (rowsMade?.doc !== doc || rowsMade.id !== frame.id)
+    rowsMade = { doc, id: frame.id, out: { titles: trackRows(doc, frame, "titles"), clips: trackRows(doc, frame, "clips"), sound: trackRows(doc, frame, "sound") } };
+  return rowsMade.out;
 }
 
 export default function TimeStrip() {
@@ -517,29 +518,6 @@ export default function TimeStrip() {
   }
 
   const things = frame.childIds.map((id) => doc.elements[id]).filter(Boolean).reverse();
-  const nonVideos = things.filter((el) => !playsFile(el));
-
-  const packTracks = (list: El[]) => {
-    const res: El[][] = [];
-    for (const el of list) {
-      const span = spanOf(el, frame);
-      let placed = false;
-      for (const track of res) {
-        const overlaps = track.some((existing) => {
-          const exSpan = spanOf(existing, frame);
-          return span.start < exSpan.end - 0.001 && exSpan.start < span.end - 0.001;
-        });
-        if (!overlaps) {
-          track.push(el);
-          placed = true;
-          break;
-        }
-      }
-      if (!placed) res.push([el]);
-    }
-    return res;
-  };
-
   interface DisplayRow {
     key: string;
     name: string;
@@ -547,14 +525,17 @@ export default function TimeStrip() {
     onClick?: (e: React.MouseEvent) => void;
     /** A row of clips or sounds in Edit: a track, by its place among the tracks of its kind. */
     track?: { kind: TrackKind; index: number };
+    /** The saved track behind a row in Edit, for its switches. */
+    saved?: Track | null;
   }
 
   const trackRow = (kind: TrackKind) =>
-    trackRows(doc, frame, kind).map((r) => ({
+    rowsOf(doc, frame)[kind].map((r) => ({
       key: `${kind}-${r.index}`,
       name: r.name,
       items: r.items,
       track: { kind, index: r.index },
+      saved: r.track,
       onClick: () => {
         // picking a track picks its scene too, so what is pasted next goes into it
         const on = trackPick?.frameId === frame.id && trackPick.kind === kind && trackPick.index === r.index;
@@ -572,16 +553,14 @@ export default function TimeStrip() {
           onClick: (e: React.MouseEvent) => pick(e, el.id),
         }))
       : [
-          ...packedTracks(doc, frame.id, () => packTracks(nonVideos)).map((items, i) => ({
-            key: `track-${i + 1}`,
-            name: `Track ${i + 1}`,
-            items,
-          })),
+          ...trackRow("titles"),
           ...trackRow("clips"),
           ...trackRow("sound"),
         ];
   rowsRef.current = displayRows;
-  const allHidden = (row: DisplayRow) => row.items.length > 0 && row.items.every((el) => el.hidden);
+  const allHidden = (row: DisplayRow) => (row.track ? !!row.saved?.hidden : row.items.length > 0 && row.items.every((el) => el.hidden));
+  // in Edit the switches belong to the track; in Motion they belong to each layer
+  const quiet = (row: DisplayRow) => (row.track ? !!row.saved?.silent : row.items.filter(playsFile).every((el) => el.volume <= 0));
   const trackPicked = (row: DisplayRow) => !!row.track && trackPick?.frameId === frame.id && trackPick.kind === row.track.kind && trackPick.index === row.track.index;
 
 
@@ -1600,32 +1579,34 @@ export default function TimeStrip() {
                 <button
                   className={`time-eye ${allHidden(row) ? "off" : ""}`}
                   data-name={`eye-${row.name}`}
-                  disabled={!row.items.length}
-                  title={!row.items.length ? "Nothing on it yet" : allHidden(row) ? "Show" : "Hide, so it is not drawn or exported"}
+                  disabled={!row.track && !row.items.length}
+                  title={!row.track && !row.items.length ? "Nothing on it yet" : allHidden(row) ? "Show" : row.track ? "Hide this track, with everything on it now and later" : "Hide, so it is not drawn or exported"}
                   onClick={(e) => {
                     e.stopPropagation();
                     const show = allHidden(row);
-                    dispatch("set_props", { ids: row.items.map((el) => el.id), props: { hidden: !show }, label: show ? "Show" : "Hide" });
+                    if (row.track) dispatch("set_track_switch", { id: frame.id, track: row.track, hidden: !show });
+                    else dispatch("set_props", { ids: row.items.map((el) => el.id), props: { hidden: !show }, label: show ? "Show" : "Hide" });
                   }}
                 >
                   <Icon name={allHidden(row) ? "eye-off" : "eye"} size={12} />
                 </button>
-                {row.items.some(playsFile) && (
+                {(row.track ? row.track.kind !== "titles" : row.items.some(playsFile)) && (
                   <button
-                    className={`time-eye time-sound ${row.items.filter(playsFile).every((el) => el.volume <= 0) ? "off" : ""}`}
+                    className={`time-eye time-sound ${quiet(row) ? "off" : ""}`}
                     data-name={`sound-${row.name}`}
-                    title={row.items.filter(playsFile).every((el) => el.volume <= 0) ? "Turn its sound on" : "Turn its sound off, in playing and in the video you export"}
+                    title={quiet(row) ? "Turn its sound on" : row.track ? "Turn this track's sound off, for everything on it now and later, in playing and in export" : "Turn its sound off, in playing and in the video you export"}
                     onClick={(e) => {
                       e.stopPropagation();
+                      const on = quiet(row);
+                      if (row.track) return dispatch("set_track_switch", { id: frame.id, track: row.track, silent: !on });
                       const ids = row.items.filter(playsFile).map((el) => el.id);
-                      const on = row.items.filter(playsFile).every((el) => el.volume <= 0);
                       dispatch("set_props", { ids, props: { volume: on ? 1 : 0 }, label: on ? "Sound on" : "Sound off" });
                     }}
                   >
-                    <Icon name={row.items.filter(playsFile).every((el) => el.volume <= 0) ? "sound-off" : "sound"} size={12} />
+                    <Icon name={quiet(row) ? "sound-off" : "sound"} size={12} />
                   </button>
                 )}
-                {!row.items.some(playsFile) && (
+                {!(row.track ? row.track.kind !== "titles" : row.items.some(playsFile)) && (
                   <button className="time-eye time-sound" disabled title="Nothing here has sound">
                     <Icon name="sound-off" size={12} />
                   </button>
