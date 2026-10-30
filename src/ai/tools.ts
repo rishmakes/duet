@@ -19,7 +19,7 @@ import type { Doc, El } from "../document/types";
 import { invoke } from "@tauri-apps/api/core";
 import { addPicture, mimeFor, pictureOf, preloadPictures } from "../project/assets";
 import { renderPng } from "../project/exporter";
-import { clipPicture, fileLength, letGoOfOriginals, seekClips } from "../video/clips";
+import { clipPicture, clipPictureOf, fileLength, letGoOfOriginals, seekClips } from "../video/clips";
 import { QUALITIES, defaultChoice, exportScene } from "../video/scene";
 import { saveNow, tabName } from "../project/project";
 import { setLayout } from "../ui/layout";
@@ -1069,7 +1069,7 @@ async function colorReadings(a: Args): Promise<ToolResult> {
   } else {
     const scene = sceneOf(doc, el.id);
     if (scene && typeof a.t === "number") await seekClips(doc, scene.id, a.t);
-    pic = clipPicture(el.src, typeof a.t === "number" ? el.id : undefined);
+    pic = typeof a.t === "number" ? clipPicture(el.src, el.id) : clipPictureOf(el);
     if (pic && !pic.videoWidth) pic = null;
   }
   const read = pic && gradeReadings(pic, a.original === true ? null : el.grade);

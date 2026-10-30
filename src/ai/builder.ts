@@ -4,7 +4,7 @@ import { emptyDoc } from "../document/types";
 import { inTestDesign, keepTestDesign, leaveTestDesign, startTestDesign } from "../project/project";
 import { invoke } from "@tauri-apps/api/core";
 import { getState, seenDoc } from "../state/store";
-import { clipPicture, clipState } from "../video/clips";
+import { clipPictureOf, clipState } from "../video/clips";
 import { seek } from "../video/play";
 import { defaultChoice, exportScene } from "../video/scene";
 import { addClip, getCut, emptyCut, setCut, sizeOf } from "../video/cut";
@@ -456,7 +456,7 @@ export async function callBuilderTool(name: string, raw: unknown, by?: string): 
     const seen = seenDoc(s);
     const lines = seen.elements[scene].childIds.map((c) => {
       const el = seen.elements[c];
-      return `${el.name}: at ${Math.round(el.x)},${Math.round(el.y)} size ${Math.round(el.width)}x${Math.round(el.height)} opacity ${Math.round(el.opacity * 100) / 100}${el.type === "video" ? ` clip ${clipPicture(el.src) ? `ready at ${Math.round((clipPicture(el.src)?.currentTime ?? 0) * 100) / 100}s` : "not ready"}` : ""}${el.type === "sound" ? ` sound ${clipState(el.src)}` : ""}`;
+      return `${el.name}: at ${Math.round(el.x)},${Math.round(el.y)} size ${Math.round(el.width)}x${Math.round(el.height)} opacity ${Math.round(el.opacity * 100) / 100}${el.type === "video" ? ` clip ${clipPictureOf(el) ? `ready at ${Math.round((clipPictureOf(el)?.currentTime ?? 0) * 100) / 100}s` : "not ready"}` : ""}${el.type === "sound" ? ` sound ${clipState(el.src, el.id)}` : ""}`;
     });
     return { text: `At ${s.clock.t}s the canvas shows:\n${lines.join("\n") || "nothing"}` };
   }

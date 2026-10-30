@@ -5,14 +5,26 @@ import type { Doc } from "../document/types";
 import { logError } from "../errorLog";
 
 /**
- * The players behind video clips on the canvas. Each file has one hidden player. The canvas draws
- * whatever picture that player is on, so a clip is kept in step with the clock from here.
+ * The players behind video clips on the canvas. Each clip has its own hidden player, so the clip coming
+ * next can wait on its first picture while the one before it plays, and a cut never stalls. The canvas
+ * draws whatever picture a clip's player is on, so a clip is kept in step with the clock from here.
  *
  * On the canvas a player plays a light copy of the file once Duet has made one: smaller, and quick to
  * jump around in. Making a video uses players on the original file, so nothing is lost in the result.
  */
 
+/** One player for each file, only for questions about the file itself, such as how long it is. */
 const players = new Map<string, HTMLMediaElement>();
+/** One player for each clip on the canvas. */
+const clipPlayers = new Map<string, HTMLMediaElement>();
+/** Which file each canvas player plays, so it can be moved over to the file's light copy. */
+const fileOf = new Map<HTMLMediaElement, string>();
+/** The light copy of each file, once Duet has made it. */
+const copies = new Map<string, string>();
+/** When each clip's player was last needed, so the ones long out of sight can be let go. */
+const lastUsed = new Map<string, number>();
+/** How many clip players are kept at most: the ones playing and the one coming next, as editors do. Each holds some of the computer's video decoding. */
+const MAX_CLIP_PLAYERS = 3;
 /** Players on the original files, used only while a video is being made. One for each clip, so two clips of one file can be at different moments. */
 const fullPlayers = new Map<string, HTMLMediaElement>();
 /** Files whose light copy has been asked for, so it is asked for once. */
@@ -53,39 +65,74 @@ function makePlayer(src: string, into: Map<string, HTMLMediaElement>, key = src)
   v.src = convertFileSrc(src);
   for (const ev of ["loadeddata", "seeked"]) v.addEventListener(ev, () => changed());
   v.addEventListener("seeked", () => seekedNext(v));
-  v.addEventListener("playing", () => starting.delete(v));
   // the light copy may be what failed, so the address it was really playing is named
   v.addEventListener("error", () => logError("clip", new Error(`This clip could not be played (${v.error?.code ?? "?"} ${v.error?.message ?? ""}): ${v.currentSrc || src}`)));
   into.set(key, v);
   return v;
 }
 
-function player(src: string): HTMLMediaElement {
-  const v = players.get(src) ?? makePlayer(src, players);
-  askPreview(src, v);
+/** A player on the light copy of a file, once there is one. */
+function lightPlayer(src: string, into: Map<string, HTMLMediaElement>, key: string): HTMLMediaElement {
+  const known = into.get(key);
+  if (known) return known;
+  const v = makePlayer(src, into, key);
+  fileOf.set(v, src);
+  const copy = copies.get(src);
+  if (copy) v.src = convertFileSrc(copy);
+  else askPreview(src);
   return v;
+}
+
+const player = (src: string) => lightPlayer(src, players, src);
+
+function clipPlayer(el: { id: string; src: string }): HTMLMediaElement {
+  lastUsed.set(el.id, performance.now());
+  return lightPlayer(el.src, clipPlayers, el.id);
+}
+
+/** Let go of the clip players needed longest ago, keeping the ones in use now. */
+function letGoOfOldClips(keep: Set<string>) {
+  if (clipPlayers.size <= MAX_CLIP_PLAYERS) return;
+  const old = [...clipPlayers.keys()].filter((id) => !keep.has(id)).sort((a, b) => (lastUsed.get(a) ?? 0) - (lastUsed.get(b) ?? 0));
+  for (const id of old.slice(0, clipPlayers.size - MAX_CLIP_PLAYERS)) {
+    const v = clipPlayers.get(id)!;
+    v.removeAttribute("src");
+    v.load();
+    clipPlayers.delete(id);
+    lastUsed.delete(id);
+    fileOf.delete(v);
+    wanted.delete(v);
+    heading.delete(v);
+    rolling.delete(v);
+    clearTimeout(settleTimers.get(v));
+    settleTimers.delete(v);
+  }
 }
 
 const fullPlayer = (id: string, src: string) => fullPlayers.get(id) ?? makePlayer(src, fullPlayers, id);
 
-/** Have Duet make the light copy in the background, then move the player over to it where it was. */
-function askPreview(src: string, v: HTMLMediaElement) {
+/** Have Duet make the light copy in the background, then move every player of the file over to it where it was. */
+function askPreview(src: string) {
   // a sound is already light, and has no picture to make smaller
   if (SOUND_FILE.test(src) || previewAsked.has(src) || !("__TAURI_INTERNALS__" in window)) return;
   previewAsked.add(src);
   invoke<string>("clip_preview", { path: src })
     .then((copy) => {
-      const at = v.currentTime;
-      const wasPlaying = !v.paused;
-      v.addEventListener(
-        "loadedmetadata",
-        () => {
-          v.currentTime = at;
-          if (wasPlaying) void v.play().catch(() => undefined);
-        },
-        { once: true },
-      );
-      v.src = convertFileSrc(copy);
+      copies.set(src, copy);
+      for (const v of [...players.values(), ...clipPlayers.values()]) {
+        if (fileOf.get(v) !== src) continue;
+        const at = v.currentTime;
+        const wasPlaying = !v.paused;
+        v.addEventListener(
+          "loadedmetadata",
+          () => {
+            v.currentTime = at;
+            if (wasPlaying) void v.play().catch(() => undefined);
+          },
+          { once: true },
+        );
+        v.src = convertFileSrc(copy);
+      }
     })
     // without a copy the original keeps playing, as before
     .catch((e) => logError("clip preview", e));
@@ -99,6 +146,13 @@ function askPreview(src: string, v: HTMLMediaElement) {
 export function clipPicture(src: string, id?: string): HTMLVideoElement | null {
   if (!src) return null;
   const v = id ? fullPlayers.get(id) : player(src);
+  return v instanceof HTMLVideoElement && v.readyState >= 2 ? v : null;
+}
+
+/** The picture a clip on the canvas is on right now, from its own player, or null while it is not ready. */
+export function clipPictureOf(el: { id: string; src: string }): HTMLVideoElement | null {
+  if (!el.src) return null;
+  const v = clipPlayer(el);
   return v instanceof HTMLVideoElement && v.readyState >= 2 ? v : null;
 }
 
@@ -161,8 +215,8 @@ export function fileLength(src: string): Promise<number> {
 }
 
 /** What a clip's player is doing, in words. For checking Duet itself. */
-export function clipState(src: string): string {
-  const v = players.get(src);
+export function clipState(src: string, id?: string): string {
+  const v = (id && clipPlayers.get(id)) || players.get(src);
   if (!v) return "no player";
   if (v.error) return `failed (${v.error.code})`;
   return `${v.paused ? "paused" : "playing"} at ${Math.round(v.currentTime * 100) / 100}s, ready ${v.readyState}`;
@@ -185,12 +239,15 @@ export const clipsIn = (doc: Doc, sceneId: string) => {
   return out;
 };
 
-/** Players asked to play that have not shown a moving picture yet, and when they were asked. */
-const starting = new Map<HTMLMediaElement, number>();
-/** How long the clock waits for a clip to start before running on without it, in milliseconds. */
-const START_WAIT = 1500;
 /** How far ahead of the playhead a clip coming next is put on its first picture, in seconds. */
-const LOOK_AHEAD = 1;
+const LOOK_AHEAD = 2;
+/**
+ * How long before its cut a clip coming next starts playing, silent and out of sight, so it is already
+ * moving when the playhead reaches it. A player takes a moment to get going, and the clock never waits.
+ */
+const ROLL_IN = 0.3;
+/** Players of clips coming next that are already rolling silently towards their cut. */
+const rolling = new Set<HTMLMediaElement>();
 
 /** Put every clip of a frame on the picture that belongs to this moment, and play or hold it. */
 export function syncClips(doc: Doc, sceneId: string | null, t: number, playing: boolean) {
@@ -201,26 +258,23 @@ export function syncClips(doc: Doc, sceneId: string | null, t: number, playing: 
     for (const id of clipsIn(doc, scene.id)) {
       const el = doc.elements[id];
       const { start, end } = spanOf(el, scene);
-      if (t < start || t >= end || live.has(el.src)) continue;
-      live.add(el.src);
-      const v = player(el.src);
+      if (t < start || t >= end) continue;
+      live.add(id);
+      const v = clipPlayer(el);
       const at = fileTimeAt(el, start, t);
       v.volume = Math.max(0, Math.min(1, el.volume));
       v.playbackRate = el.speed || 1;
       if (playing) {
         // while playing, the clip leads the clock (see clockFromClip); only a big gap means a jump.
         // A player already on its picture is not moved again, or it would stall to find the same spot.
+        rolling.delete(v);
         const gap = Math.abs(v.currentTime - at);
         if (gap > 1 || (v.paused && gap > 0.05)) {
           wanted.delete(v);
           clearTimeout(settleTimers.get(v));
           v.currentTime = at;
-          starting.set(v, performance.now());
         }
-        if (v.paused) {
-          starting.set(v, performance.now());
-          void v.play().catch((e) => logError("clip", e));
-        }
+        if (v.paused) void v.play().catch((e) => logError("clip", e));
       } else {
         if (!v.paused) v.pause();
         if (Math.abs(v.currentTime - at) > 0.02) seekTo(v, at);
@@ -231,8 +285,22 @@ export function syncClips(doc: Doc, sceneId: string | null, t: number, playing: 
       for (const id of clipsIn(doc, scene.id)) {
         const el = doc.elements[id];
         const { start } = spanOf(el, scene);
-        if (start <= t || start > t + LOOK_AHEAD || live.has(el.src)) continue;
-        const v = player(el.src);
+        if (start <= t || start > t + LOOK_AHEAD || live.has(id)) continue;
+        live.add(id);
+        const v = clipPlayer(el);
+        const rate = el.speed || 1;
+        const lead = start - t;
+        // close to the cut, it starts playing early from just before its first picture, when the file has that much
+        const from = el.clipFrom - lead * rate;
+        if (lead <= ROLL_IN && from >= 0 && v.paused && !v.seeking && v.readyState >= 2) {
+          v.volume = 0;
+          v.playbackRate = rate;
+          v.currentTime = from;
+          rolling.add(v);
+          void v.play().catch((e) => logError("clip", e));
+          continue;
+        }
+        if (rolling.has(v)) continue;
         const at = fileTimeAt(el, start, start);
         if (v.paused && !v.seeking && v.readyState >= 1 && Math.abs(v.currentTime - at) > 0.05) {
           wanted.set(v, at);
@@ -241,11 +309,15 @@ export function syncClips(doc: Doc, sceneId: string | null, t: number, playing: 
       }
     }
   }
-  for (const [src, v] of players) {
-    if (live.has(src)) continue;
-    starting.delete(v);
+  // a clip waiting to come next is held on its first picture, not played
+  for (const [id, v] of clipPlayers) {
+    const el = doc.elements[id];
+    if (live.has(id) && el && scene && (t >= spanOf(el, scene).start || (playing && rolling.has(v)))) continue;
+    rolling.delete(v);
     if (!v.paused) v.pause();
   }
+  for (const v of players.values()) if (!v.paused) v.pause();
+  letGoOfOldClips(live);
 }
 
 /**
@@ -259,15 +331,9 @@ export function clockFromClip(doc: Doc, sceneId: string, t: number): number | nu
     const el = doc.elements[id];
     const { start, end } = spanOf(el, scene);
     if (t < start || t >= end) continue;
-    const v = players.get(el.src);
+    const v = clipPlayers.get(id);
     if (!v) continue;
-    // a clip still finding its picture holds the clock for a moment, so the playhead does not run off
-    // and leave a still picture on screen while the clip chases it
-    const asked = starting.get(v);
-    if (asked !== undefined && (v.seeking || v.readyState < 3)) {
-      if (performance.now() - asked < START_WAIT) return t;
-      starting.delete(v);
-    }
+    // a clip that is late does not hold the clock: the clock runs on, as in any editor
     if (v.paused || v.seeking || v.readyState < 3) continue;
     const at = frameTimeAt(el, start, v.currentTime);
     // a clip that has not started yet, or has run out, does not lead
