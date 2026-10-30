@@ -77,3 +77,13 @@ jobs:
           # not a pre-release, so installed copies find it as the latest version and offer it
           prerelease: false
           args: ${{ matrix.args }}
+      # the same Windows build, packed for the Microsoft Store; uploaded by hand in Partner Center
+      - name: Microsoft Store package
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $v = "${{ github.ref_name }}".TrimStart("v")
+          pwsh scripts/store-msix.ps1 -Version $v -Out "Duet_${v}_store.msix"
+          gh release upload "${{ github.ref_name }}" "Duet_${v}_store.msix" --clobber

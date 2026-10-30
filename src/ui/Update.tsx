@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 import { check, type Update as Found } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
@@ -17,6 +18,8 @@ export default function Update() {
     const look = async (asked: boolean) => {
       // Duet dev is built from the code, so there is nothing to update it to
       if (isCheckCopy()) return asked && setNote("Duet dev is built from the code. Updates are for the installed app.");
+      // the Microsoft Store brings new versions of its own copy
+      if (await invoke<boolean>("store_copy").catch(() => false)) return asked && setNote("This Duet comes from the Microsoft Store, which keeps it up to date.");
       try {
         const next = await check();
         if (next) setFound(next);

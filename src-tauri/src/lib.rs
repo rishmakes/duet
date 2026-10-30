@@ -109,6 +109,32 @@ pub fn is_check_copy() -> bool {
     std::env::var("DUET_DEV").map(|v| !v.is_empty() && v != "0").unwrap_or(false)
 }
 
+/// True when this Duet came from the Microsoft Store. The Store installs apps under WindowsApps
+/// and keeps them up to date itself.
+pub fn is_store_copy() -> bool {
+    cfg!(windows) && std::env::current_exe().is_ok_and(|e| e.to_string_lossy().to_lowercase().contains("\\windowsapps\\"))
+}
+
+#[tauri::command]
+fn store_copy() -> bool {
+    is_store_copy()
+}
+
+/// The Duet program other programs start: the AI's bridge, or Duet opened in the background.
+/// A Store copy is reached through its short name, since its own folder is closed to other
+/// programs and moves with every update.
+pub fn duet_exe() -> Result<std::path::PathBuf, String> {
+    if is_store_copy() {
+        if let Ok(local) = std::env::var("LOCALAPPDATA") {
+            let alias = Path::new(&local).join("Microsoft").join("WindowsApps").join("duet.exe");
+            if alias.exists() {
+                return Ok(alias);
+            }
+        }
+    }
+    std::env::current_exe().map_err(|e| e.to_string())
+}
+
 /// The name of Duet's own folder in the home folder.
 pub fn duet_dir_name() -> &'static str {
     if is_check_copy() {
@@ -626,6 +652,7 @@ pub fn run() {
             make_dir,
             duet_home,
             check_copy,
+            store_copy,
             list_dir,
             list_user_skills,
             write_user_skill,

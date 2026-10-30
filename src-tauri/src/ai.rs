@@ -228,7 +228,7 @@ pub fn mcp_ready(state: State<Arc<McpState>>) {
 /// The command an outside AI tool runs to reach Duet: this app itself, started as a small bridge.
 #[tauri::command]
 pub fn bridge_command() -> Result<String, String> {
-    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let exe = crate::duet_exe()?;
     Ok(exe.to_string_lossy().to_string())
 }
 
@@ -635,7 +635,7 @@ const OPEN_WAIT: std::time::Duration = std::time::Duration::from_secs(40);
 /// Open Duet with no window, for an AI that called a tool while it was closed.
 fn open_for_ai() {
     use std::process::{Command, Stdio};
-    let Ok(exe) = std::env::current_exe() else { return };
+    let Ok(exe) = crate::duet_exe() else { return };
     // the installed app opens through the system, so a later click on its icon finds this same copy
     #[cfg(target_os = "macos")]
     if let Some(bundle) = exe.ancestors().find(|p| p.extension().is_some_and(|e| e == "app")) {
@@ -736,7 +736,7 @@ pub fn bridge() {
 /// is missing or points at a Duet that has moved.
 #[tauri::command(async)]
 pub fn agy_connect() -> Result<(), String> {
-    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let exe = crate::duet_exe()?;
     let exe = exe.to_string_lossy().to_string();
     let listed = shell_command("agy", &["mcp".into(), "list".into()])
         .stdin(Stdio::null())
