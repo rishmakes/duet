@@ -3,7 +3,7 @@ import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { Fragment, useEffect, useRef, useState } from "react";
 import CanvasView from "../canvas/CanvasView";
 import type { Recent } from "../project/project";
-import { ask, message } from "@tauri-apps/plugin-dialog";
+import { ask, message } from "./dialog";
 import type { Trashed } from "../project/project";
 import { checkListed, closeProject, closeTab, copyProject, getTabs, listedProjects, moveProjectTo, renameProject, inTauri, newProject, openProjectAt, removeRecent, TRASH_DAYS, trashDelete, trashList, trashProject, trashRestore } from "../project/project";
 import { getState, isParked, setViewport, useStore } from "../state/store";
@@ -161,52 +161,65 @@ function ChatWidthGrip() {
   return <div className="grip grip-r" data-name="chat-width" onPointerDown={down} onDoubleClick={() => setLayout({ homeChatW: 0 })} title="Drag to make the chat wider or narrower. Double-click to put it back." />;
 }
 
-/** What is in the trash: each can be put back, or deleted for good. */
+/** One project in the trash: its picture, its name, the folder it came from, and how long it stays. */
+function TrashRow({ t, onDone }: { t: Trashed; onDone: () => void }) {
+  const src = usePreview(t.file);
+  const left = Math.max(1, Math.ceil(TRASH_DAYS - (Date.now() - t.trashed) / 86400000));
+  const folder = t.original.replace(/[\\/][^\\/]*$/, "").split(/[\\/]/).pop();
+  return (
+    <div className="trash-row" title={t.original}>
+      <div className="trash-top">
+        <div className="chathome-thumb">{src ? <img src={src} alt="" /> : null}</div>
+        <div className="chathome-meta">
+          <div className="chathome-name">{t.name}</div>
+          <div className="chathome-when">
+            {folder ? `${folder} · ` : ""}
+            {left} {left === 1 ? "day" : "days"} left
+          </div>
+        </div>
+      </div>
+      <div className="trash-actions">
+        <button
+          className="pill"
+          onClick={() =>
+            void trashRestore(t.id)
+              .then(onDone)
+              .catch((e) => message(`“${t.name}” could not be put back. ${String(e)}`, { title: "Put back", kind: "warning" }))
+          }
+        >
+          <Icon name="restore" size={14} /> Put back
+        </button>
+        <button
+          className="pill"
+          onClick={async () => {
+            if (!(await ask(`Delete “${t.name}” for good? It cannot be brought back.`, { title: "Duet", kind: "warning", okLabel: "Delete", cancelLabel: "Keep it" }))) return;
+            await trashDelete(t.id).catch(() => undefined);
+            onDone();
+          }}
+        >
+          Delete now
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** What is in the trash, in place of the projects list: each can be put back, or deleted for good. */
 function TrashView({ onBack }: { onBack: () => void }) {
   const [items, setItems] = useState<Trashed[] | null>(null);
   const load = () => void trashList().then(setItems);
   useEffect(load, []);
-  const left = (t: Trashed) => Math.max(1, Math.ceil(TRASH_DAYS - (Date.now() - t.trashed) / 86400000));
   return (
-    <div className="chathome-skills">
-      <div className="chathome-skills-head">
+    <div className="chathome-body trash-body">
+      <div className="chathome-skills-head trash-head">
         <b>Trash</b>
         <button className="pill" onClick={onBack}>
-          Back to chat
+          Back to projects
         </button>
       </div>
       <div className="trash-note">Projects stay here for {TRASH_DAYS} days, then they are cleared out.</div>
       <div className="trash-list">
-        {items?.map((t) => (
-          <div className="trash-row" key={t.id}>
-            <div className="chathome-meta">
-              <div className="chathome-name">{t.name}</div>
-              <div className="chathome-when">
-                {left(t)} {left(t) === 1 ? "day" : "days"} left
-              </div>
-            </div>
-            <button
-              className="pill"
-              onClick={() =>
-                void trashRestore(t.id)
-                  .then(load)
-                  .catch(() => undefined)
-              }
-            >
-              <Icon name="restore" size={14} /> Put back
-            </button>
-            <button
-              className="pill"
-              onClick={async () => {
-                if (!(await ask(`Delete “${t.name}” for good? It cannot be brought back.`, { title: "Duet", kind: "warning", okLabel: "Delete", cancelLabel: "Keep it" }))) return;
-                await trashDelete(t.id).catch(() => undefined);
-                load();
-              }}
-            >
-              Delete now
-            </button>
-          </div>
-        ))}
+        {items?.map((t) => <TrashRow key={t.id} t={t} onDone={load} />)}
         {items && items.length === 0 && <div className="chathome-none">The trash is empty.</div>}
       </div>
     </div>
@@ -335,20 +348,14 @@ export default function ChatHome() {
           <button
             className={`rail-btn ${skills ? "on" : ""}`}
             title="Skills"
-            onClick={() => {
-              setSkills(!skills);
-              setTrash(false);
-            }}
+            onClick={() => setSkills(!skills)}
           >
             <Icon name="skills" size={18} />
           </button>
           <button
             className={`rail-btn ${trash ? "on" : ""}`}
             title="Trash"
-            onClick={() => {
-              setTrash(!trash);
-              setSkills(false);
-            }}
+            onClick={() => setTrash(!trash)}
           >
             <Icon name="trash" size={18} />
           </button>
@@ -356,6 +363,9 @@ export default function ChatHome() {
             <Icon name="settings" size={18} />
           </button>
         </nav>
+        {trash ? (
+          <TrashView onBack={() => setTrash(false)} />
+        ) : (
         <div className="chathome-body">
           <label className="chathome-search">
             <Icon name="search" size={15} />
@@ -394,6 +404,7 @@ export default function ChatHome() {
             {shown.length === 0 && <div className="chathome-none">{recents.length ? "No project has that in it." : "Your projects will be listed here."}</div>}
           </div>
         </div>
+        )}
       </aside>
       {menu && (
         <div className="chathome-menu" style={{ left: menu.x, top: menu.y }} onPointerDown={(e) => e.stopPropagation()}>
@@ -469,9 +480,7 @@ export default function ChatHome() {
       )}
       <section className="chathome-chat">
         <ChatWidthGrip />
-        {trash ? (
-          <TrashView onBack={() => setTrash(false)} />
-        ) : skills ? (
+        {skills ? (
           <div className="chathome-skills">
             <div className="chathome-skills-head">
               <b>Skills</b>

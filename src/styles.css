@@ -4605,17 +4605,14 @@ button.agent-perm {
 .feedback-why {
   color: var(--duet);
 }
-.feedback-book {
-  width: 100%;
-  margin: 6px 0 4px;
-  padding: 12px;
+/* a small link in the sentence, not a big button */
+.feedback-talk {
+  padding: 0;
   border: 0;
-  border-radius: 8px;
-  background: var(--accent);
-  color: #fff;
+  background: none;
+  color: var(--accent);
   font: inherit;
-  font-size: 14px;
-  font-weight: 600;
+  text-decoration: underline;
   cursor: pointer;
 }
 .sheet.feedback {
@@ -4957,11 +4954,14 @@ button.agent-perm {
 .chathome-meta {
   min-width: 0;
 }
+/* a long name shows over two lines, so look-alike names can be told apart */
 .chathome-name {
   font-size: 13px;
-  white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
 }
 input.chathome-name.rename {
   width: 100%;
@@ -5354,27 +5354,39 @@ input.chathome-name.rename {
   color: var(--muted);
   flex: none;
 }
+.trash-head {
+  padding: 0 2px;
+}
 .trash-note {
-  padding: 4px 14px 10px;
+  padding: 0 4px 8px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
 }
 .trash-list {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 0 8px;
-  overflow: auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 .trash-row {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 6px;
-  border-radius: 10px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 9px;
 }
-.trash-row .chathome-meta {
-  flex: 1;
+.trash-top {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+.trash-actions {
+  display: flex;
+  gap: 6px;
+  padding-left: 49px;
 }
 .trash-row:hover {
   background: var(--panel-2);
@@ -5383,6 +5395,8 @@ input.chathome-name.rename {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  padding: 3px 9px;
+  font-size: 12px;
 }
 /* every AI wears its own colour, the same one it has in the history line */
 .chat.docked .member-badge {

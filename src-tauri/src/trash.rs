@@ -14,6 +14,9 @@ pub struct TrashItem {
     pub original: String,
     /// When it was moved here, in milliseconds.
     pub trashed: u64,
+    /// Where it waits in the trash, so its picture can be shown. Not kept in the note.
+    #[serde(default, skip_deserializing)]
+    pub file: String,
 }
 
 fn err(e: std::io::Error) -> String {
@@ -50,7 +53,7 @@ fn move_in(root: &Path, file: &Path, at: u64) -> Result<TrashItem, String> {
     }
     let id = format!("{at}-{name}");
     move_file(file, &root.join(&id))?;
-    let item = TrashItem { id: id.clone(), name: name.trim_end_matches(".duet").to_string(), original: file.to_string_lossy().to_string(), trashed: at };
+    let item = TrashItem { id: id.clone(), name: name.trim_end_matches(".duet").to_string(), original: file.to_string_lossy().to_string(), trashed: at, file: String::new() };
     fs::write(note_of(root, &id), serde_json::to_string(&item).map_err(|e| e.to_string())?).map_err(err)?;
     Ok(item)
 }
@@ -77,7 +80,8 @@ fn list_in(root: &Path, at: u64) -> Vec<TrashItem> {
         if at.saturating_sub(item.trashed) > KEEP_MS {
             let _ = delete_in(root, &item.id);
         } else if root.join(&item.id).is_file() {
-            out.push(item);
+            let file = root.join(&item.id).to_string_lossy().to_string();
+            out.push(TrashItem { file, ..item });
         }
     }
     out.sort_by(|a, b| b.trashed.cmp(&a.trashed));
@@ -149,6 +153,7 @@ mod tests {
         let items = list_in(&bin, 2000);
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].name, "Poster");
+        assert!(Path::new(&items[0].file).is_file());
         let back = restore_in(&bin, &items[0].id).unwrap();
         assert_eq!(back, file.to_string_lossy());
         assert!(file.exists());

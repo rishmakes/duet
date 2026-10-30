@@ -2,7 +2,7 @@ import { flushPictures, picturesIn, preloadPictures } from "./assets";
 import { adoptFonts, fontFilesIn } from "./fonts";
 import { renderPng } from "./exporter";
 import { invoke } from "@tauri-apps/api/core";
-import { ask, message, open, save } from "@tauri-apps/plugin-dialog";
+import { ask, message, open, save, showDialogsInWindow } from "../ui/dialog";
 import { emptyDoc } from "../document/types";
 import type { Doc } from "../document/types";
 import { DesignFileError, parseDoc, serializeDoc } from "../document/serialize";
@@ -214,6 +214,8 @@ export interface Trashed {
   original: string;
   /** When it was moved to the trash, as milliseconds. */
   trashed: number;
+  /** Where it waits in the trash. */
+  file: string;
 }
 
 /** Days a project stays in the trash before it is cleared out. */
@@ -251,6 +253,7 @@ export const isCheckCopy = () => checkCopy;
 /** Find out, before anything is opened, whether this is Duet dev. */
 export async function learnCheckCopy(): Promise<boolean> {
   checkCopy = inTauri() && (await invoke<boolean>("check_copy").catch(() => false));
+  if (checkCopy) showDialogsInWindow();
   return checkCopy;
 }
 
@@ -669,7 +672,9 @@ function saveParked(file: string): Promise<void> {
       await invoke("write_text_file", { path: join(path, FILE), contents: serializeDoc(doc) });
       const names = stepsToKeep(s.timeline, s.cursor, kept.stepsKept);
       if (await recordStep(path, stepMessage(wentBackTo(s.timeline[s.cursor], s.cursor < s.timeline.length - 1), s.cursor < s.timeline.length - 1, names))) for (const n of names) kept.stepsKept.add(n);
-      await invoke("pack_project", { dir: path, file });
+      // a project made this session and never written yet is written now, not only once it is back on screen
+      await invoke("pack_project", { dir: path, file, fresh: fresh.has(file) });
+      fresh.delete(file);
     } catch (e) {
       kept.lastSaved = previous;
       console.warn("A project waiting in its tab could not be saved:", e);
@@ -709,6 +714,8 @@ async function parkCurrent(): Promise<boolean> {
   clearTimeout(timer);
   if (committed() !== lastSaved) await saveNow();
   await flushPack();
+  // a project never written yet gets its file before it waits, so it is never a hidden twin
+  if (fresh.has(file)) await packNow().catch(() => undefined);
   if (!parkLive()) return false;
   watchParked();
   parkedSaves.set(file, { lastSaved, stepsKept });
