@@ -50,7 +50,7 @@ export async function findProjects(root: string): Promise<number> {
   if (add.length) {
     const all = [...getRecents(), ...add.map((f) => ({ path: f.path, name: baseName(f.path), opened: f.modified }))];
     try {
-      localStorage.setItem(RECENT_KEY, JSON.stringify(all.sort((a, b) => b.opened - a.opened).slice(0, RECENT_MAX)));
+      kept().setItem(RECENT_KEY, JSON.stringify(all.sort((a, b) => b.opened - a.opened).slice(0, RECENT_MAX)));
     } catch {
       /* nothing to do */
     }
@@ -74,6 +74,8 @@ const committed = () => {
 const RECENT_KEY = "duet:recent";
 /** How many projects the list keeps. The same everywhere, so opening one never pushes others off. */
 const RECENT_MAX = 200;
+/** Where the list is kept. Duet dev keeps its own, only until it closes, so it never touches a designer's list. */
+const kept = () => (checkCopy ? sessionStorage : localStorage);
 
 export interface Recent {
   path: string;
@@ -143,14 +145,13 @@ async function findMoved(file: string): Promise<string | null> {
 export function repoint(from: string, to: string) {
   missing.delete(from);
   if (getTabs().includes(from)) setTabs([...new Set(getTabs().map((p) => (p === from ? to : p)))]);
-  if (checkCopy) return;
   try {
     const list = getRecents();
     const moved = list.some((r) => r.path === to)
       ? list.filter((r) => r.path !== from)
       : list.map((r) => (r.path === from ? { ...r, path: to, name: baseName(to) } : r));
-    localStorage.setItem(RECENT_KEY, JSON.stringify(moved));
-    if (localStorage.getItem(LAST_KEY) === from) localStorage.setItem(LAST_KEY, to);
+    kept().setItem(RECENT_KEY, JSON.stringify(moved));
+    if (kept().getItem(LAST_KEY) === from) kept().setItem(LAST_KEY, to);
   } catch {
     /* private mode: the list is not kept */
   }
@@ -170,7 +171,7 @@ export function listedProjects(): Recent[] {
 
 export function getRecents(): Recent[] {
   try {
-    const raw = JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]") as Recent[];
+    const raw = JSON.parse(kept().getItem(RECENT_KEY) ?? "[]") as Recent[];
     if (!Array.isArray(raw)) return [];
     const seen = new Set<string>();
     const out: Recent[] = [];
@@ -189,7 +190,7 @@ export function getRecents(): Recent[] {
 
 export function removeRecent(path: string) {
   try {
-    localStorage.setItem(RECENT_KEY, JSON.stringify(getRecents().filter((r) => r.path !== path)));
+    kept().setItem(RECENT_KEY, JSON.stringify(getRecents().filter((r) => r.path !== path)));
   } catch {
     /* nothing to do */
   }
@@ -200,7 +201,7 @@ export function removeRecent(path: string) {
 function addRecent(path: string) {
   try {
     const rest = getRecents().filter((r) => r.path !== path);
-    localStorage.setItem(RECENT_KEY, JSON.stringify([{ path, name: baseName(path), opened: Date.now() }, ...rest].slice(0, RECENT_MAX)));
+    kept().setItem(RECENT_KEY, JSON.stringify([{ path, name: baseName(path), opened: Date.now() }, ...rest].slice(0, RECENT_MAX)));
   } catch {
     /* nothing to do */
   }
@@ -356,12 +357,11 @@ export const tabName = (path: string) => getRecents().find((r) => r.path === pat
 function remember(path: string | null) {
   if (path) addTab(path);
   try {
-    // Duet dev shares this list with the Duet a designer works in, and must leave it alone
-    if (!path || checkCopy) return;
-    localStorage.setItem(LAST_KEY, path);
+    if (!path) return;
+    kept().setItem(LAST_KEY, path);
     const old = getRecents().find((r) => r.path === path);
     const rest = getRecents().filter((r) => r.path !== path);
-    localStorage.setItem(RECENT_KEY, JSON.stringify([{ path, name: baseName(path), opened: Date.now(), thumb: old?.thumb }, ...rest].slice(0, RECENT_MAX)));
+    kept().setItem(RECENT_KEY, JSON.stringify([{ path, name: baseName(path), opened: Date.now(), thumb: old?.thumb }, ...rest].slice(0, RECENT_MAX)));
     window.dispatchEvent(new Event("duet:recents"));
   } catch {
     /* private mode: nothing to remember */
@@ -401,7 +401,7 @@ async function writePreview(path: string, doc: Doc) {
     await invoke("write_binary_file", { path: join(path, "preview.png"), dataBase64: b64 });
     const key = getState().project.file ?? path;
     const list = getRecents().map((r) => (r.path === key ? { ...r, thumb: `data:image/png;base64,${b64}` } : r));
-    localStorage.setItem(RECENT_KEY, JSON.stringify(list));
+    kept().setItem(RECENT_KEY, JSON.stringify(list));
     window.dispatchEvent(new Event("duet:recents"));
   } catch (e) {
     console.warn("Could not make a preview:", e);
@@ -442,11 +442,9 @@ export async function moveProject(from: string, to: string): Promise<string | nu
     }
     if (getTabs().includes(from)) setTabs(getTabs().map((p) => (p === from ? target : p)));
     try {
-      if (!checkCopy) {
-        const list = getRecents().map((r) => (r.path === from ? { ...r, path: target, name: baseName(target) } : r));
-        localStorage.setItem(RECENT_KEY, JSON.stringify(list));
-        if (localStorage.getItem(LAST_KEY) === from) localStorage.setItem(LAST_KEY, target);
-      }
+      const list = getRecents().map((r) => (r.path === from ? { ...r, path: target, name: baseName(target) } : r));
+      kept().setItem(RECENT_KEY, JSON.stringify(list));
+      if (kept().getItem(LAST_KEY) === from) kept().setItem(LAST_KEY, target);
     } catch {
       /* private mode: the list is not kept */
     }
@@ -1294,7 +1292,7 @@ export async function restoreLast() {
   if (await learnCheckCopy()) return;
   let path: string | null = null;
   try {
-    path = localStorage.getItem(LAST_KEY);
+    path = kept().getItem(LAST_KEY);
   } catch {
     path = null;
   }

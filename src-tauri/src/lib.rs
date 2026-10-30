@@ -186,6 +186,13 @@ fn pack_project(dir: String, file: String, fresh: Option<bool>) -> Result<(), St
     }
 }
 
+/// The picture of a project for the list, from inside its file, as base64. None when it has none.
+#[tauri::command(async)]
+fn project_preview(file: String) -> Option<String> {
+    use base64::Engine;
+    package::preview_of_file(Path::new(&file)).map(|b| base64::engine::general_purpose::STANDARD.encode(b))
+}
+
 /// Where a project file went after it was renamed or moved outside Duet, looked for in these folders.
 /// Its history says which file it is. None when it cannot be told.
 #[tauri::command(async)]
@@ -260,13 +267,14 @@ fn system_fonts() -> Vec<String> {
     names
 }
 
-/// The one folder where new projects go by default: Documents/Duet. Made if it is missing.
+/// The one folder where new projects go by default: Documents/Duet, or Documents/Duet dev for Duet
+/// dev, so checks never leave files among a designer's projects. Made if it is missing.
 #[tauri::command]
 fn default_projects_dir() -> Result<String, String> {
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
         .map_err(|_| "Could not find your home folder.".to_string())?;
-    let dir = Path::new(&home).join("Documents").join("Duet");
+    let dir = Path::new(&home).join("Documents").join(if is_check_copy() { "Duet dev" } else { "Duet" });
     fs::create_dir_all(&dir).map_err(err)?;
     Ok(dir.to_string_lossy().to_string())
 }
@@ -592,6 +600,7 @@ pub fn run() {
             fresh_work_dir,
             pack_project,
             find_moved_project,
+            project_preview,
             follow_work_dir,
             pack_copy,
             unpack_project,

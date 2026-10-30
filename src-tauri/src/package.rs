@@ -238,6 +238,15 @@ pub fn find_moved(work: &Path, candidates: &[PathBuf]) -> Option<PathBuf> {
     }
 }
 
+/// The small picture kept inside a project file, read without unpacking it. None when it has none.
+pub fn preview_of_file(file: &Path) -> Option<Vec<u8>> {
+    let mut zip = ZipArchive::new(File::open(file).ok()?).ok()?;
+    let mut entry = zip.by_name("preview.png").ok()?;
+    let mut bytes = Vec::new();
+    entry.read_to_end(&mut bytes).ok()?;
+    Some(bytes)
+}
+
 /// Unpack a project file into a folder, replacing what was there. Names that try to climb out of the
 /// folder are refused.
 pub fn unpack(file: &Path, dir: &Path) -> Result<(), String> {
@@ -292,6 +301,18 @@ mod tests {
         assert_eq!(fs::read_to_string(back.join("design.json")).unwrap(), "{\"version\":1}");
         assert_eq!(fs::read(back.join("assets/pic.png")).unwrap(), vec![1u8, 2, 3, 4]);
         assert_eq!(fs::read_to_string(back.join(".git/HEAD")).unwrap(), "ref: refs/heads/main\n");
+    }
+
+    #[test]
+    fn a_project_picture_is_read_from_inside_its_file() {
+        let src = temp("pic-src");
+        fs::write(src.join("design.json"), "{}").unwrap();
+        let file = temp("pic-out").join("p.duet");
+        pack(&src, &file).unwrap();
+        assert_eq!(preview_of_file(&file), None);
+        fs::write(src.join("preview.png"), [9u8, 8, 7]).unwrap();
+        pack(&src, &file).unwrap();
+        assert_eq!(preview_of_file(&file), Some(vec![9u8, 8, 7]));
     }
 
     #[test]

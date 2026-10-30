@@ -35,9 +35,10 @@ function usePreview(path: string): string | null {
   useEffect(() => {
     if (!path || !inTauri() || previews.has(path)) return;
     let alive = true;
-    invoke<string>("read_binary_file", { path: `${path}/preview.png` })
+    // the picture is kept inside the project file, so a project shows one without being opened first
+    invoke<string | null>("project_preview", { file: path })
       .then((b64) => {
-        previews.set(path, `data:image/png;base64,${b64}`);
+        previews.set(path, b64 ? `data:image/png;base64,${b64}` : null);
         if (alive) setSrc(previews.get(path) ?? null);
       })
       .catch(() => previews.set(path, null));
