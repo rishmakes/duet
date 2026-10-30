@@ -247,6 +247,44 @@ pub fn preview_of_file(file: &Path) -> Option<Vec<u8>> {
     Some(bytes)
 }
 
+fn entry_json(zip: &mut ZipArchive<File>, name: &str) -> Option<serde_json::Value> {
+    let mut text = String::new();
+    zip.by_name(name).ok()?.read_to_string(&mut text).ok()?;
+    serde_json::from_str(&text).ok()
+}
+
+/// The words a project can be found by, read from inside its file without opening it: the names of
+/// its frames and layers, the text in it, and what the designer asked the AI. Lower case, one per line.
+pub fn words_of_file(file: &Path) -> Option<String> {
+    let mut zip = ZipArchive::new(File::open(file).ok()?).ok()?;
+    let mut words: Vec<String> = Vec::new();
+    let mut keep = |v: Option<&serde_json::Value>| {
+        if let Some(s) = v.and_then(|v| v.as_str()).map(str::trim).filter(|s| !s.is_empty()) {
+            words.push(s.to_lowercase());
+        }
+    };
+    if let Some(design) = entry_json(&mut zip, "design.json") {
+        if let Some(els) = design.get("elements").and_then(|e| e.as_object()) {
+            for el in els.values() {
+                keep(el.get("name"));
+                keep(el.get("text"));
+            }
+        }
+    }
+    if let Some(thread) = entry_json(&mut zip, "memory/thread.json") {
+        let tasks = thread.get("tasks").and_then(|t| t.as_array()).cloned().unwrap_or_default();
+        let lists = [thread.get("now").cloned(), thread.get("earlier").cloned()].into_iter().flatten().chain(tasks.iter().filter_map(|t| t.get("said").cloned()));
+        for list in lists {
+            for said in list.as_array().into_iter().flatten() {
+                if said.get("role").and_then(|r| r.as_str()) == Some("you") {
+                    keep(said.get("text"));
+                }
+            }
+        }
+    }
+    Some(words.join("\n"))
+}
+
 /// Unpack a project file into a folder, replacing what was there. Names that try to climb out of the
 /// folder are refused.
 pub fn unpack(file: &Path, dir: &Path) -> Result<(), String> {
@@ -284,6 +322,28 @@ mod tests {
         let _ = fs::remove_dir_all(&d);
         fs::create_dir_all(&d).unwrap();
         d
+    }
+
+    #[test]
+    fn a_project_is_found_by_its_layers_its_text_and_what_was_asked() {
+        let d = temp("words");
+        let src = d.join("src");
+        fs::create_dir_all(src.join("memory")).unwrap();
+        fs::write(src.join("design.json"), r#"{"elements":{"a":{"name":"Hero Frame"},"b":{"name":"Title","text":"Summer Sale"}}}"#).unwrap();
+        fs::write(
+            src.join("memory/thread.json"),
+            r#"{"now":[{"role":"you","text":"Make it Orange"},{"role":"duet","text":"secret reply"}],"earlier":[{"role":"you","text":"old ask"}],"tasks":[{"agent":"x","title":"t","said":[{"role":"you","text":"task ask"}]}]}"#,
+        )
+        .unwrap();
+        let file = d.join("p.duet");
+        pack(&src, &file).unwrap();
+        let words = words_of_file(&file).unwrap();
+        for w in ["hero frame", "summer sale", "make it orange", "old ask", "task ask"] {
+            assert!(words.contains(w), "{w} missing from {words}");
+        }
+        // only what the designer said: the AI's replies are not searched
+        assert!(!words.contains("secret reply"));
+        assert!(words_of_file(&d.join("none.duet")).is_none());
     }
 
     #[test]

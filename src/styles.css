@@ -5326,29 +5326,23 @@ input.chathome-name.rename {
   opacity: 1;
 }
 /* projects that are not open sit back a little */
-.chathome-row.shut .chathome-thumb,
-.tile.shut .tile-pic {
+.chathome-row.shut .chathome-thumb {
   opacity: 0.6;
 }
-.chathome-row.shut .chathome-name,
-.tile.shut .chathome-name {
+.chathome-row.shut .chathome-name {
   color: var(--muted);
 }
-.chathome-row.shut:hover .chathome-thumb,
-.tile.shut:hover .tile-pic {
+.chathome-row.shut:hover .chathome-thumb {
   opacity: 1;
 }
-.chathome-row.shut:hover .chathome-name,
-.tile.shut:hover .chathome-name {
+.chathome-row.shut:hover .chathome-name {
   color: var(--text);
 }
 /* a project whose file cannot be found sits back further, even on hover */
-.chathome-row.missing,
-.tile.missing {
+.chathome-row.missing {
   opacity: 0.45;
 }
-.chathome-row.missing .chathome-name,
-.tile.missing .chathome-name {
+.chathome-row.missing .chathome-name {
   text-decoration: line-through;
 }
 .chathome-menu div {
@@ -5413,103 +5407,8 @@ input.chathome-name.rename {
   border-color: transparent;
 }
 
-/* the page of all projects covers the chat and the canvas; a grid of big pictures or a list of small ones */
 .chathome {
   position: relative;
-}
-.chathome-all {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 276px;
-  right: 0;
-  z-index: 5;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  min-width: 0;
-  background: var(--bg);
-}
-.all-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--line);
-}
-.all-head b {
-  margin-right: auto;
-}
-.all-head .chathome-search {
-  width: 220px;
-}
-.all-head .chathome-search input {
-  flex: 1;
-  min-width: 0;
-  background: transparent;
-  border: none;
-  outline: none;
-  color: var(--text);
-  font-size: 13px;
-}
-.all-sort {
-  background: var(--panel-2);
-  color: var(--text);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 5px 8px;
-  font-size: 13px;
-}
-.all-size {
-  width: 120px;
-  accent-color: var(--accent);
-}
-.all-body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 16px;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--tile, 190px), 1fr));
-  gap: 16px;
-  align-content: start;
-}
-.tile {
-  cursor: pointer;
-  border-radius: 10px;
-  color: var(--text);
-  padding: 8px;
-}
-.tile .tile-pic {
-  aspect-ratio: 4 / 3;
-  border-radius: 8px;
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  overflow: hidden;
-}
-.tile .tile-text {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  column-gap: 8px;
-  padding: 8px 2px 0;
-}
-.tile .tile-text .chathome-dot {
-  grid-column: 2;
-  grid-row: 1 / span 2;
-}
-.tile-pic img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-.tile:hover,
-.tile.on {
-  background: var(--panel-2);
-}
-.tile.on .chathome-name {
-  color: var(--accent);
 }
 
 /* tasks: side conversations with one AI, beside the main chat */

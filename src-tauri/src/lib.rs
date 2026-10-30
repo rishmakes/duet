@@ -193,6 +193,12 @@ fn project_preview(file: String) -> Option<String> {
     package::preview_of_file(Path::new(&file)).map(|b| base64::engine::general_purpose::STANDARD.encode(b))
 }
 
+/// The words a project can be found by, read from inside its file. None when it cannot be read.
+#[tauri::command(async)]
+fn project_words(file: String) -> Option<String> {
+    package::words_of_file(Path::new(&file))
+}
+
 /// Where a project file went after it was renamed or moved outside Duet, looked for in these folders.
 /// Its history says which file it is. None when it cannot be told.
 #[tauri::command(async)]
@@ -601,6 +607,7 @@ pub fn run() {
             pack_project,
             find_moved_project,
             project_preview,
+            project_words,
             follow_work_dir,
             pack_copy,
             unpack_project,

@@ -89,7 +89,7 @@ export const SHORTCUTS: { group: string; keys: [string, string][] }[] = [
     keys: [
       ["Cmd N", "New project"],
       ["Cmd O", "Open"],
-      ["Shift Cmd O", "All projects"],
+      ["Shift Cmd O", "Find a project"],
       ["Cmd S", "Save"],
       ["Shift Cmd S", "Save a version"],
       ["Cmd ,", "Settings"],

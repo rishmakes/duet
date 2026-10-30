@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { matchProjects, sortProjects } from "./ChatHome";
+import { matchProjects } from "./ChatHome";
 
 describe("projects beside the chat", () => {
-  const all = [{ name: "Poster for Kapil" }, { name: "Site" }, { name: "kapil logo" }];
+  const all = [
+    { name: "Poster for Kapil", path: "/a.duet" },
+    { name: "Site", path: "/b.duet" },
+    { name: "kapil logo", path: "/c.duet" },
+  ];
   it("lists every project when nothing is typed", () => {
     expect(matchProjects(all, "  ")).toHaveLength(3);
   });
@@ -10,15 +14,9 @@ describe("projects beside the chat", () => {
     expect(matchProjects(all, "KAPIL").map((r) => r.name)).toEqual(["Poster for Kapil", "kapil logo"]);
     expect(matchProjects(all, "zzz")).toEqual([]);
   });
-
-  it("sorts by last opened or by name", () => {
-    const some = [
-      { name: "b", opened: 1 },
-      { name: "A", opened: 3 },
-      { name: "c", opened: 2 },
-    ];
-    expect(sortProjects(some, "recent").map((r) => r.name)).toEqual(["A", "c", "b"]);
-    expect(sortProjects(some, "name").map((r) => r.name)).toEqual(["A", "b", "c"]);
-    expect(some[0].name).toBe("b");
+  it("finds by the words inside a project, such as its text or what was asked", () => {
+    const words = (path: string) => (path === "/b.duet" ? "hero frame\nsummer sale" : undefined);
+    expect(matchProjects(all, "Summer", words).map((r) => r.name)).toEqual(["Site"]);
+    expect(matchProjects(all, "kapil", words).map((r) => r.name)).toEqual(["Poster for Kapil", "kapil logo"]);
   });
 });

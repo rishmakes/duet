@@ -16,6 +16,7 @@ import TimeStrip from "./TimeStrip";
 import Icon from "./Icons";
 import { setLayout, useLayout } from "./layout";
 import SkillsPanel from "./SkillsPanel";
+import { takeFindProject } from "./findProject";
 
 /** How long ago, in plain words. */
 function ago(ms: number): string {
@@ -49,57 +50,40 @@ function usePreview(path: string): string | null {
   return src;
 }
 
-/** Projects that match what was typed, newest first as they are kept. */
-export function matchProjects<T extends { name: string }>(all: T[], typed: string): T[] {
+/** Projects that match what was typed, by name or by the words inside them, newest first as they are kept. */
+export function matchProjects<T extends { name: string; path: string }>(all: T[], typed: string, words?: (path: string) => string | undefined): T[] {
   const t = typed.trim().toLowerCase();
-  return t ? all.filter((r) => r.name.toLowerCase().includes(t)) : all;
+  return t ? all.filter((r) => r.name.toLowerCase().includes(t) || !!words?.(r.path)?.includes(t)) : all;
 }
 
-export type ProjectSort = "recent" | "name";
+const words = new Map<string, string>();
 
-/** Projects in the order asked for: last opened first, or by name. */
-export function sortProjects<T extends { name: string; opened: number }>(all: T[], by: ProjectSort): T[] {
-  return [...all].sort((a, b) => (by === "name" ? a.name.localeCompare(b.name, undefined, { sensitivity: "base" }) : b.opened - a.opened));
+/** What each listed project can be found by, read from inside its file. Read again for each new search, so recent work is found too. */
+function useWords(paths: string[], searching: boolean): (path: string) => string | undefined {
+  const [, again] = useState(0);
+  const key = paths.join("\n");
+  useEffect(() => {
+    if (!searching || !inTauri()) return;
+    words.clear();
+    let alive = true;
+    void (async () => {
+      // a few at a time, so a long list does not hold everything else up
+      for (let i = 0; i < paths.length && alive; i += 8) {
+        await Promise.all(paths.slice(i, i + 8).map((file) => invoke<string | null>("project_words", { file }).then((w) => void (w && words.set(file, w)), () => undefined)));
+        if (alive) again((n) => n + 1);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [searching, key]);
+  return (path) => words.get(path);
 }
-
-const SIZE_KEY = "duet:projects-size";
-const readSize = (): number => {
-  try {
-    const n = Number(localStorage.getItem(SIZE_KEY));
-    return n >= 120 && n <= 360 ? n : 190;
-  } catch {
-    return 190;
-  }
-};
 
 /** A dot for an open project: purple for the one on screen, white for one waiting in the background. */
 function OpenDot({ on, open }: { on: boolean; open: boolean }) {
   if (!on && !open) return null;
   return <span className={`chathome-dot ${on ? "now" : ""}`} title={on ? "Open now" : "Open"} />;
-}
-
-/** One project as a picture card on the page of all projects. */
-function ProjectTile({ r, on, open, onOpen, onMenu }: { r: Recent; on: boolean; open: boolean; onOpen: () => void; onMenu: (x: number, y: number) => void }) {
-  const own = usePreview(r.thumb ? "" : r.path);
-  const src = r.thumb ?? own;
-  return (
-    <div
-      className={`tile ${on ? "on" : ""} ${on || open ? "" : "shut"} ${r.missing ? "missing" : ""}`}
-      onClick={onOpen}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        onMenu(e.clientX, e.clientY);
-      }}
-      title={r.path}
-    >
-      <div className="tile-pic">{src ? <img src={src} alt="" /> : null}</div>
-      <div className="tile-text">
-        <div className="chathome-name">{r.name}</div>
-        <div className="chathome-when">{r.missing ? "Cannot be found" : on ? "Open now" : open ? "Open" : ago(r.opened)}</div>
-        <OpenDot on={on} open={open} />
-      </div>
-    </div>
-  );
 }
 
 /** One project in the list: its picture, its name and when it was last opened. A dot says it is open. */
@@ -294,18 +278,14 @@ export default function ChatHome() {
   const tabs = getTabs();
   const [skills, setSkills] = useState(false);
   const [trash, setTrash] = useState(false);
-  const [searching, setSearching] = useState(false);
-  const [all, setAll] = useState(false);
-  const [size, setSizeState] = useState(readSize);
-  const [sort, setSort] = useState<ProjectSort>("recent");
-  const setSize = (n: number) => {
-    setSizeState(n);
-    try {
-      localStorage.setItem(SIZE_KEY, String(n));
-    } catch {
-      /* nothing to do */
-    }
-  };
+  const findBox = useRef<HTMLInputElement>(null);
+  // the menu's Find a project puts the cursor here, whether this list was already showing or has just come up
+  useEffect(() => {
+    const find = () => void (takeFindProject() && findBox.current?.focus());
+    find();
+    window.addEventListener("duet:find-project", find);
+    return () => window.removeEventListener("duet:find-project", find);
+  }, []);
   const [menu, setMenu] = useState<{ x: number; y: number; r: Recent } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const warn = (title: string) => (why: string | null) => void (why && message(why, { title, kind: "warning" }));
@@ -328,7 +308,8 @@ export default function ChatHome() {
       setViewport(before);
     };
   }, [current.file]);
-  const shown = matchProjects(recents, typed);
+  const wordsOf = useWords(recents.map((r) => r.path), typed.trim() !== "");
+  const shown = matchProjects(recents, typed, wordsOf);
 
   /** Close a project: its tab goes, and if it was on screen the next one comes up, or none. */
   // open: on screen, in a tab, or waiting in memory with an AI still at work
@@ -349,19 +330,6 @@ export default function ChatHome() {
         <nav className="chathome-rail">
           <button className="rail-btn" title="New project" onClick={() => void newProject()} disabled={!inTauri()}>
             <Icon name="new-chat" size={18} />
-          </button>
-          <button
-            className={`rail-btn ${searching ? "on" : ""}`}
-            title="Search projects"
-            onClick={() => {
-              setSearching(!searching);
-              setTyped("");
-            }}
-          >
-            <Icon name="search" size={18} />
-          </button>
-          <button className={`rail-btn ${all ? "on" : ""}`} title="All projects" onClick={() => setAll(!all)}>
-            <Icon name="grid" size={18} />
           </button>
           <span className="rail-gap" />
           <button
@@ -389,12 +357,22 @@ export default function ChatHome() {
           </button>
         </nav>
         <div className="chathome-body">
-          {searching && (
-            <label className="chathome-search">
-              <Icon name="search" size={15} />
-              <input autoFocus placeholder="Search projects" value={typed} onChange={(e) => setTyped(e.target.value)} />
-            </label>
-          )}
+          <label className="chathome-search">
+            <Icon name="search" size={15} />
+            <input
+              ref={findBox}
+              placeholder="Find a project…"
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === "Escape") {
+                  setTyped("");
+                  e.currentTarget.blur();
+                }
+              }}
+            />
+          </label>
           <div className="chathome-label">Projects</div>
           <div className="chathome-list">
             {shown.map((r) => (
@@ -404,8 +382,6 @@ export default function ChatHome() {
                   on={r.path === current.file}
                   open={isOpen(r.path)}
                   onOpen={() => {
-                    // picking a project always shows it, so the all projects view steps aside
-                    setAll(false);
                     if (r.path !== current.file) void openProjectAt(r.path);
                   }}
                   onMenu={(x, y) => setMenu({ x, y, r })}
@@ -415,7 +391,7 @@ export default function ChatHome() {
                 {r.path === current.file && <TaskList project={r.path} />}
               </Fragment>
             ))}
-            {shown.length === 0 && <div className="chathome-none">{recents.length ? "No project has that name." : "Your projects will be listed here."}</div>}
+            {shown.length === 0 && <div className="chathome-none">{recents.length ? "No project has that in it." : "Your projects will be listed here."}</div>}
           </div>
         </div>
       </aside>
@@ -431,7 +407,6 @@ export default function ChatHome() {
           </div>
           <div
             onClick={() => {
-              setAll(false);
               setTyped("");
               setRenaming(menu.r.path);
               setMenu(null);
@@ -492,41 +467,6 @@ export default function ChatHome() {
           </div>
         </div>
       )}
-      {all && (
-        <section className="chathome-all">
-          <div className="all-head">
-            <b>All projects</b>
-            <label className="chathome-search">
-              <Icon name="search" size={15} />
-              <input placeholder="Search projects" value={typed} onChange={(e) => setTyped(e.target.value)} />
-            </label>
-            <select className="all-sort" value={sort} onChange={(e) => setSort(e.target.value as ProjectSort)} title="Order">
-              <option value="recent">Last opened</option>
-              <option value="name">Name</option>
-            </select>
-            <input className="all-size" type="range" min={120} max={360} step={10} value={size} onChange={(e) => setSize(Number(e.target.value))} title="Picture size" />
-            <button className="pill" onClick={() => setAll(false)}>
-              Back to chat
-            </button>
-          </div>
-          <div className="all-body" style={{ ["--tile" as string]: `${size}px` }}>
-            {sortProjects(shown, sort).map((r) => (
-              <ProjectTile
-                key={r.path}
-                r={r}
-                on={r.path === current.file}
-                open={isOpen(r.path)}
-                onOpen={() => {
-                  if (r.path !== current.file) void openProjectAt(r.path);
-                  setAll(false);
-                }}
-                onMenu={(x, y) => setMenu({ x, y, r })}
-              />
-            ))}
-            {shown.length === 0 && <div className="chathome-none">{recents.length ? "No project has that name." : "Your projects will be listed here."}</div>}
-          </div>
-        </section>
-      )}
       <section className="chathome-chat">
         <ChatWidthGrip />
         {trash ? (
@@ -548,11 +488,10 @@ export default function ChatHome() {
       <main className="canvas chathome-canvas">
         <div className="chathome-stage">
           <CanvasView />
-          {/* the tools belong to the canvas, not to the list of all projects laid over it */}
-          {!all && <ChatToolbar />}
+          <ChatToolbar />
         </div>
         {/* in Video, the timeline sits under the design, so the basics are here while talking to the AI */}
-        {!all && mode === "motion" && <TimeStrip />}
+        {mode === "motion" && <TimeStrip />}
       </main>
     </div>
   );

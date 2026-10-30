@@ -6,6 +6,7 @@ import { openPhotoshopFile, savePhotoshopFile } from "../project/photoshop";
 import { exportDesignData, getRecents, inTauri, newProject, openProject, openProjectAt, saveNow } from "../project/project";
 import { currentDoc, getState, redo, undo } from "../state/store";
 import { getLayout, resetLayout, setLayout } from "./layout";
+import { askToFindProject } from "./findProject";
 import { deleteSelection, detachSelection, duplicateSelection, groupSelection, makeComponent, maskSelection, toggleAutoLayout, traceSelection, toggleLock, ungroupSelection } from "./actions";
 
 /**
@@ -57,7 +58,14 @@ export async function installMenu() {
       await item("Open…", () => void openProject(), "CmdOrCtrl+O"),
       await item("Open a Photoshop file…", () => void openPhotoshopFile()),
       await Submenu.new({ text: "Open recent", items: recentItems }),
-      await item("All projects", () => send("duet:home"), "CmdOrCtrl+Shift+O"),
+      await item(
+        "Find a project",
+        () => {
+          send("duet:home");
+          askToFindProject();
+        },
+        "CmdOrCtrl+Shift+O",
+      ),
       await line(),
       await item("Save", () => void saveNow(), "CmdOrCtrl+S"),
       await item("Save a version…", () => send("duet:versions"), "CmdOrCtrl+Shift+S"),
