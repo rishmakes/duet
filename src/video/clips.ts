@@ -53,6 +53,7 @@ function makePlayer(src: string, into: Map<string, HTMLMediaElement>, key = src)
   v.src = convertFileSrc(src);
   for (const ev of ["loadeddata", "seeked"]) v.addEventListener(ev, () => changed());
   v.addEventListener("seeked", () => seekedNext(v));
+  v.addEventListener("playing", () => starting.delete(v));
   // the light copy may be what failed, so the address it was really playing is named
   v.addEventListener("error", () => logError("clip", new Error(`This clip could not be played (${v.error?.code ?? "?"} ${v.error?.message ?? ""}): ${v.currentSrc || src}`)));
   into.set(key, v);
@@ -184,6 +185,13 @@ export const clipsIn = (doc: Doc, sceneId: string) => {
   return out;
 };
 
+/** Players asked to play that have not shown a moving picture yet, and when they were asked. */
+const starting = new Map<HTMLMediaElement, number>();
+/** How long the clock waits for a clip to start before running on without it, in milliseconds. */
+const START_WAIT = 1500;
+/** How far ahead of the playhead a clip coming next is put on its first picture, in seconds. */
+const LOOK_AHEAD = 1;
+
 /** Put every clip of a frame on the picture that belongs to this moment, and play or hold it. */
 export function syncClips(doc: Doc, sceneId: string | null, t: number, playing: boolean) {
   if (held) return;
@@ -200,16 +208,44 @@ export function syncClips(doc: Doc, sceneId: string | null, t: number, playing: 
       v.volume = Math.max(0, Math.min(1, el.volume));
       v.playbackRate = el.speed || 1;
       if (playing) {
-        // while playing, the clip leads the clock (see clockFromClip); only a big gap means a jump
-        if (v.paused || Math.abs(v.currentTime - at) > 1) v.currentTime = at;
-        if (v.paused) void v.play().catch((e) => logError("clip", e));
+        // while playing, the clip leads the clock (see clockFromClip); only a big gap means a jump.
+        // A player already on its picture is not moved again, or it would stall to find the same spot.
+        const gap = Math.abs(v.currentTime - at);
+        if (gap > 1 || (v.paused && gap > 0.05)) {
+          wanted.delete(v);
+          clearTimeout(settleTimers.get(v));
+          v.currentTime = at;
+          starting.set(v, performance.now());
+        }
+        if (v.paused) {
+          starting.set(v, performance.now());
+          void v.play().catch((e) => logError("clip", e));
+        }
       } else {
         if (!v.paused) v.pause();
         if (Math.abs(v.currentTime - at) > 0.02) seekTo(v, at);
       }
     }
+    // a clip coming up next waits on its first picture, so it starts the moment the playhead reaches it
+    if (playing) {
+      for (const id of clipsIn(doc, scene.id)) {
+        const el = doc.elements[id];
+        const { start } = spanOf(el, scene);
+        if (start <= t || start > t + LOOK_AHEAD || live.has(el.src)) continue;
+        const v = player(el.src);
+        const at = fileTimeAt(el, start, start);
+        if (v.paused && !v.seeking && v.readyState >= 1 && Math.abs(v.currentTime - at) > 0.05) {
+          wanted.set(v, at);
+          jump(v, at, false);
+        }
+      }
+    }
   }
-  for (const [src, v] of players) if (!live.has(src) && !v.paused) v.pause();
+  for (const [src, v] of players) {
+    if (live.has(src)) continue;
+    starting.delete(v);
+    if (!v.paused) v.pause();
+  }
 }
 
 /**
@@ -224,7 +260,15 @@ export function clockFromClip(doc: Doc, sceneId: string, t: number): number | nu
     const { start, end } = spanOf(el, scene);
     if (t < start || t >= end) continue;
     const v = players.get(el.src);
-    if (!v || v.paused || v.seeking || v.readyState < 3) continue;
+    if (!v) continue;
+    // a clip still finding its picture holds the clock for a moment, so the playhead does not run off
+    // and leave a still picture on screen while the clip chases it
+    const asked = starting.get(v);
+    if (asked !== undefined && (v.seeking || v.readyState < 3)) {
+      if (performance.now() - asked < START_WAIT) return t;
+      starting.delete(v);
+    }
+    if (v.paused || v.seeking || v.readyState < 3) continue;
     const at = frameTimeAt(el, start, v.currentTime);
     // a clip that has not started yet, or has run out, does not lead
     if (at < t - 1 || at > t + 1) continue;
