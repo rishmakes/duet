@@ -4,7 +4,7 @@ import { useSyncExternalStore } from "react";
 
 export type Corner = "tl" | "tr" | "bl" | "br";
 export type Mode = "design" | "motion" | "photo";
-/** Project (called chat inside): talk to the AI beside your projects and watch the canvas. Edit: the tools. */
+/** Agent (called chat inside): talk to the AI beside your projects and watch the canvas. Studio (called edit inside): every tool. */
 export type Space = "chat" | "edit";
 export type TimeLook = "layers" | "cut";
 export type RightTab = "properties" | "color";
@@ -48,7 +48,7 @@ export interface Dock {
   commentsHidden: boolean;
   /** A mouse wheel zooms, like in Adobe apps. A trackpad still slides the canvas. */
   wheelZooms: boolean;
-  /** The chat is open when Edit comes up. Off, it waits folded away until clicked. */
+  /** The chat is open when Studio comes up. Off, it waits folded away until clicked. */
   editChatOpen: boolean;
   /** In Video, whether the right panel shows Properties or Colour. */
   videoTab: RightTab;

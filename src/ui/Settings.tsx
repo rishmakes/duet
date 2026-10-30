@@ -112,7 +112,7 @@ export default function Settings({ check = false, onClose }: SettingsProps) {
   const wheelZooms = useLayout((d) => d.wheelZooms);
   const matchWheel = searching && ["general", "mouse wheel zooms", "scroll", "zoom"].some((w) => w.includes(search.trim().toLowerCase()));
   const editChatOpen = useLayout((d) => d.editChatOpen);
-  const matchEditChat = searching && ["general", "chat open in edit", "chat", "edit"].some((w) => w.includes(search.trim().toLowerCase()));
+  const matchEditChat = searching && ["general", "chat open in studio", "chat", "studio"].some((w) => w.includes(search.trim().toLowerCase()));
   const hasGeneralMatches = matchAiTool || matchVersion || matchWheel || matchEditChat;
   const matchAddons = searching && ["add-ons", "addons", "connect to chatgpt and claude", "web"].some((w) => w.includes(search.trim().toLowerCase()));
 
@@ -223,7 +223,7 @@ export default function Settings({ check = false, onClose }: SettingsProps) {
                   )}
                   {matchEditChat && (
                     <label className="settings-row">
-                      <span>Chat open in Edit</span>
+                      <span>Chat open in Studio</span>
                       <input type="checkbox" checked={editChatOpen} onChange={(e) => setLayout({ editChatOpen: e.target.checked })} />
                     </label>
                   )}
@@ -313,7 +313,7 @@ export default function Settings({ check = false, onClose }: SettingsProps) {
                     <input type="checkbox" checked={wheelZooms} onChange={(e) => setLayout({ wheelZooms: e.target.checked })} />
                   </label>
                   <label className="settings-row">
-                    <span>Chat open in Edit</span>
+                    <span>Chat open in Studio</span>
                     <input type="checkbox" checked={editChatOpen} onChange={(e) => setLayout({ editChatOpen: e.target.checked })} />
                   </label>
                 </div>

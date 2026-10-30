@@ -105,7 +105,7 @@ export default function App() {
   const [check, setCheck] = useState(false);
   const dock = useLayout((d) => d);
   const hasFrames = useStore((s) => Object.values(s.timeline[s.cursor].doc.elements).some((e) => e.type === "frame"));
-  // in Edit the chat waits folded away, unless the designer chose to keep it open there
+  // in Studio the chat waits folded away, unless the designer chose to keep it open there
   useEffect(() => {
     if (dock.space === "edit") setMinimized(!dock.editChatOpen);
   }, [dock.space]);
@@ -237,11 +237,11 @@ export default function App() {
             {project.path ? STATUS[project.status] : "Not saved yet"}
           </span>
           <div className="pill mode-switch space-switch">
-            <button className={chatting ? "active" : ""} data-name="space-chat" onClick={() => setLayout({ space: "chat" })}>
-              Project
+            <button className={chatting ? "active" : ""} data-name="space-chat" onClick={() => setLayout({ space: "chat" })} title="Your projects and the AI">
+              Agent
             </button>
-            <button className={chatting ? "" : "active"} data-name="space-edit" onClick={() => setLayout({ space: "edit" })}>
-              Edit
+            <button className={chatting ? "" : "active"} data-name="space-edit" onClick={() => setLayout({ space: "edit" })} title="Every tool, to work on the design yourself">
+              Studio
             </button>
           </div>
         </div>
