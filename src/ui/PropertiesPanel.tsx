@@ -8,7 +8,7 @@ import { canTurn } from "../document/geometry";
 import { defaultLayout } from "../document/layout";
 import { newId } from "../commands";
 import type { AlignHow } from "../commands";
-import { useLayout, setLayout } from "./layout";
+import { useLayout, setLayout, getLayout } from "./layout";
 import type { RightTab } from "./layout";
 import { KEY_GROUPS, entranceOf, sceneOf, spanOf } from "../document/time";
 import { useKeyFocus } from "./keyFocus";
@@ -1010,6 +1010,15 @@ export default function PropertiesPanel() {
   const mode = useLayout((d) => d.mode);
   const videoTab = useLayout((d) => d.videoTab);
   const photoTab = useLayout((d) => d.photoTab);
+
+  // When the Video space opens, the right panel shows Properties, not Colour
+  const openedMode = useRef<string | null>(null);
+  useEffect(() => {
+    if (mode === "motion" && openedMode.current !== "motion") {
+      if (getLayout().videoTab !== "properties") setLayout({ videoTab: "properties" });
+    }
+    openedMode.current = mode;
+  }, [mode]);
   const selection = useStore((s) => s.selection);
   const tool = useStore((s) => s.tool);
   const showBrush = mode === "photo" && (tool === "brush" || tool === "eraser");

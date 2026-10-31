@@ -9,6 +9,12 @@ export type Space = "chat" | "edit";
 export type TimeLook = "layers" | "cut";
 export type RightTab = "properties" | "color";
 
+export interface TrackHeights {
+  titles: number;
+  clips: number;
+  sound: number;
+}
+
 export interface Dock {
   leftW: number;
   rightW: number;
@@ -54,11 +60,18 @@ export interface Dock {
   videoTab: RightTab;
   /** In Photo, whether the right panel shows Properties or Colour. */
   photoTab: RightTab;
+  /** How tall each kind of row in Edit is. */
+  trackH: TrackHeights;
 }
 
 const KEY = "duet:layout";
 export const MIN_W = 180;
 export const MAX_W = 460;
+export const DEFAULT_TRACK_H: TrackHeights = {
+  titles: 28,
+  clips: 80,
+  sound: 48,
+};
 export const defaults = (): Dock => ({
   leftW: 232,
   rightW: 248,
@@ -84,6 +97,7 @@ export const defaults = (): Dock => ({
   editChatOpen: false,
   videoTab: "properties",
   photoTab: "color",
+  trackH: { ...DEFAULT_TRACK_H },
 });
 export const CHAT_MIN = { w: 280, h: 140 };
 export const TIME_MIN_H = 72;
@@ -99,7 +113,13 @@ export function parseLayout(raw: unknown): Dock {
     const photoTab: RightTab = r.photoTab === "properties" ? "properties" : "color";
     // the history line was hidden by default before 0.12.1; it shows unless the designer hid it themselves
     const historyLine = r.historyLineChosen ? r.historyLine !== false : true;
-    return { ...defaults(), ...r, mode, space, timeLook, timeMax: false, videoTab, photoTab, historyLine };
+    const rawTrackH = (r as Record<string, unknown>).trackH as Partial<TrackHeights> | undefined;
+    const trackH: TrackHeights = {
+      titles: typeof rawTrackH?.titles === "number" ? Math.max(18, Math.min(160, Math.round(rawTrackH.titles))) : DEFAULT_TRACK_H.titles,
+      clips: typeof rawTrackH?.clips === "number" ? Math.max(36, Math.min(240, Math.round(rawTrackH.clips))) : DEFAULT_TRACK_H.clips,
+      sound: typeof rawTrackH?.sound === "number" ? Math.max(24, Math.min(200, Math.round(rawTrackH.sound))) : DEFAULT_TRACK_H.sound,
+    };
+    return { ...defaults(), ...r, mode, space, timeLook, timeMax: false, videoTab, photoTab, historyLine, trackH };
   }
   return defaults();
 }

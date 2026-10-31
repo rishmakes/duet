@@ -2732,6 +2732,9 @@ option {
 }
 
 /* Edit: a video shows its frames and a sound its loudness, so these rows are taller */
+.time.cut .time-row {
+  position: relative;
+}
 .time.cut .time-row.footage {
   height: 48px;
 }
@@ -2745,6 +2748,32 @@ option {
 }
 .time.cut .time-span.video {
   height: 72px;
+}
+.time-row-grip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -3px;
+  height: 6px;
+  cursor: row-resize;
+  z-index: 6;
+}
+.time-row-grip:hover {
+  background: var(--accent);
+  opacity: 0.35;
+}
+.time-row.row-compact .time-name {
+  font-size: 10px;
+  line-height: 12px;
+}
+.time-row.row-compact .time-eye {
+  width: 10px;
+  height: 10px;
+  margin: 0 2px 0 -8px;
+}
+.time-row.row-compact .time-eye svg {
+  width: 9px;
+  height: 9px;
 }
 .clip-face {
   position: absolute;
@@ -3892,6 +3921,28 @@ button.agent-perm:hover {
   border: 1px solid var(--line);
   border-radius: 12px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+.export-pop .export-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0;
+}
+.export-pop .export-close:hover {
+  color: var(--text);
+  background: var(--panel-2);
 }
 .export-pop label {
   display: flex;
@@ -6305,6 +6356,18 @@ input.chathome-name.rename {
   background: var(--accent);
   opacity: 0.85;
   z-index: 1;
+  cursor: grab;
+}
+.time-row.ruler .time-work:active {
+  cursor: grabbing;
+}
+.time-row.ruler .time-work::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  bottom: -4px;
+  left: 0;
+  right: 0;
 }
 .time-work .work-l,
 .time-work .work-r {
@@ -6313,6 +6376,7 @@ input.chathome-name.rename {
   bottom: -4px;
   width: 7px;
   cursor: ew-resize;
+  z-index: 2;
 }
 .time-work .work-l {
   left: -3px;

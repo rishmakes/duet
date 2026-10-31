@@ -128,3 +128,22 @@ describe("history line", () => {
     expect(defaults().historyLine).toBe(true);
   });
 });
+
+describe("track heights in Edit", () => {
+  it("starts title rows at half today's height (28px), clips at 80px, sound at 48px", () => {
+    const def = defaults();
+    expect(def.trackH).toEqual({ titles: 28, clips: 80, sound: 48 });
+  });
+
+  it("remembers track heights per kind of row and clamps within sensible bounds", () => {
+    const loaded = parseLayout({
+      trackH: { titles: 20, clips: 120, sound: 60 },
+    });
+    expect(loaded.trackH).toEqual({ titles: 20, clips: 120, sound: 60 });
+
+    const clamped = parseLayout({
+      trackH: { titles: 5, clips: 500, sound: 10 },
+    });
+    expect(clamped.trackH).toEqual({ titles: 18, clips: 240, sound: 24 });
+  });
+});

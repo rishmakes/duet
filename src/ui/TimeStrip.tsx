@@ -19,7 +19,7 @@ import { open as openDialog } from "./dialog";
 import { droppedPaths } from "../canvas/CanvasView";
 import type { ExportChoice } from "../video/scene";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import { TIME_MIN_H, getLayout, isColorOpen, setLayout, useLayout } from "./layout";
+import { DEFAULT_TRACK_H, TIME_MIN_H, getLayout, isColorOpen, setLayout, useLayout } from "./layout";
 import { useDismiss } from "./useDismiss";
 import { trackKind, trackRows } from "../document/tracks";
 import type { TrackKind, TrackRow } from "../document/tracks";
@@ -64,6 +64,7 @@ export default function TimeStrip() {
   const keysOpen = useLayout((d) => d.keysOpen);
   const gradeEvery = useLayout((d) => d.gradeEvery);
   const timeH = useLayout((d) => d.timeH ?? 170);
+  const trackH = useLayout((d) => d.trackH ?? DEFAULT_TRACK_H);
   // the names beside the rows can be pulled wider, to read long file names
   const NAMES = useLayout((d) => d.namesW ?? 150);
   const [growing, setGrowing] = useState<number | null>(null);
@@ -103,6 +104,7 @@ export default function TimeStrip() {
   const [markerMenu, setMarkerMenu] = useState<{ x: number; y: number; id: string } | null>(null);
   useDismiss(!!markerMenu, () => setMarkerMenu(null), ".ctx");
   useDismiss(hushing, () => setHushing(false), ".hush-anchor");
+  useDismiss(choosing, () => setChoosing(false), ".export-anchor");
   const [markerEdit, setMarkerEdit] = useState<string | null>(null);
   const draggedMarker = useRef(false);
   const [picked, setPicked] = useState<Picked[]>([]);
@@ -907,28 +909,106 @@ export default function TimeStrip() {
     window.addEventListener("pointerup", up);
   };
 
-  /** Pull either end of the work area along the ruler. */
-  const dragWork = (e: React.PointerEvent, which: "start" | "end") => {
+  /** Pull either end of the work area along the ruler, or drag the whole bar. */
+  const dragWork = (e: React.PointerEvent, which: "start" | "end" | "bar") => {
     if (e.button !== 0 || !frame?.workArea) return;
     e.preventDefault();
     e.stopPropagation();
     const from = e.clientX;
-    const base = frame.workArea[which];
+    const baseStart = frame.workArea.start;
+    const baseEnd = frame.workArea.end;
+    const span = baseEnd - baseStart;
     const targets = getSnapTargets();
     let moved = false;
     const move = (ev: PointerEvent) => {
       moved = true;
-      let to = Math.max(0, Math.min(length, base + (ev.clientX - from) / pps));
-      if (!(ev.metaKey || ev.ctrlKey)) {
-        const s = findSnap(to, targets);
-        if (s) to = s.time;
+      const dx = (ev.clientX - from) / pps;
+      let snapTime: number | null = null;
+      if (which === "bar") {
+        let toStart = baseStart + dx;
+        let toEnd = baseEnd + dx;
+        if (toStart < 0) {
+          toStart = 0;
+          toEnd = span;
+        } else if (toEnd > length) {
+          toEnd = length;
+          toStart = Math.max(0, length - span);
+        }
+        if (!(ev.metaKey || ev.ctrlKey)) {
+          const sStart = findSnap(toStart, targets);
+          const sEnd = findSnap(toEnd, targets);
+          if (sStart && sEnd) {
+            if (sStart.dist <= sEnd.dist) {
+              toStart = sStart.time;
+              toEnd = toStart + span;
+              snapTime = sStart.time;
+            } else {
+              toEnd = sEnd.time;
+              toStart = toEnd - span;
+              snapTime = sEnd.time;
+            }
+          } else if (sStart) {
+            toStart = sStart.time;
+            toEnd = toStart + span;
+            snapTime = sStart.time;
+          } else if (sEnd) {
+            toEnd = sEnd.time;
+            toStart = toEnd - span;
+            snapTime = sEnd.time;
+          }
+        }
+        toStart = Math.max(0, Math.min(length - span, toStart));
+        toEnd = toStart + span;
+        setSnap(snapTime);
+        dragPreview("set_work_area", { id: frame.id, start: toStart, end: toEnd });
+      } else {
+        const base = which === "start" ? baseStart : baseEnd;
+        let to = Math.max(0, Math.min(length, base + dx));
+        if (which === "start") to = Math.min(baseEnd - 0.05, to);
+        else to = Math.max(baseStart + 0.05, to);
+        if (!(ev.metaKey || ev.ctrlKey)) {
+          const s = findSnap(to, targets);
+          if (s) {
+            to = which === "start" ? Math.min(baseEnd - 0.05, s.time) : Math.max(baseStart + 0.05, s.time);
+            snapTime = s.time;
+          }
+        }
+        setSnap(snapTime);
+        dragPreview("set_work_area", { id: frame.id, [which]: to });
       }
-      dragPreview("set_work_area", { id: frame.id, [which]: to });
+    };
+    const up = () => {
+      setSnap(null);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      if (moved) dragCommit("Change the work area");
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+
+  /** Drag the bottom edge of a row in Edit to resize all rows of that kind. */
+  const dragTrackHeight = (e: React.PointerEvent, kind: TrackKind) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const fromY = e.clientY;
+    const startH = (getLayout().trackH ?? DEFAULT_TRACK_H)[kind];
+    const limits = {
+      titles: { min: 18, max: 160 },
+      clips: { min: 36, max: 240 },
+      sound: { min: 24, max: 200 },
+    }[kind];
+    const move = (ev: PointerEvent) => {
+      const nextH = Math.max(limits.min, Math.min(limits.max, Math.round(startH + ev.clientY - fromY)));
+      const cur = getLayout().trackH ?? DEFAULT_TRACK_H;
+      if (cur[kind] !== nextH) {
+        setLayout({ trackH: { ...cur, [kind]: nextH } });
+      }
     };
     const up = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
-      if (moved) dragCommit("Change the work area");
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
@@ -1055,17 +1135,24 @@ export default function TimeStrip() {
     window.addEventListener("pointerup", up);
   };
 
-  const renderBar = (el: El) => {
+  const renderBar = (el: El, rowKind?: TrackKind) => {
     const span = spanOf(el, frame);
     // in Cut the bars stay clean: a thing's marks are listed in the panel on the right
     const keyTimes = look === "cut" ? [] : [...new Set(MOVING.flatMap((p) => (el.keys[p] ?? []).map((k) => k.t)))];
     const isSelected = selection.includes(el.id);
+    const rH = look === "cut" && rowKind ? trackH[rowKind] : undefined;
+    const spanH = rH !== undefined ? Math.max(8, rH - (rowKind === "titles" ? 4 : 8)) : undefined;
+    const faceH = rH !== undefined ? Math.max(12, rH - 10) : el.type === "video" ? VIDEO_BAR : FOOTAGE_BAR;
     return (
       <div
         key={el.id}
         className={`time-span ${el.type} ${isSelected ? "on" : ""}`}
         data-name={`span-${el.name}`}
-        style={{ left: span.start * pps, width: Math.max(4, (span.end - span.start) * pps) }}
+        style={{
+          left: span.start * pps,
+          width: Math.max(4, (span.end - span.start) * pps),
+          ...(spanH !== undefined ? { height: spanH } : {}),
+        }}
         onPointerDown={(e) => drag(e, el, "all")}
         onContextMenu={(e) => {
           e.preventDefault();
@@ -1074,7 +1161,7 @@ export default function TimeStrip() {
           setMenu({ x: e.clientX, y: e.clientY, el });
         }}
       >
-        {look === "cut" && playsFile(el) && <ClipFace el={el} from={span.start} pps={pps} width={Math.max(4, (span.end - span.start) * pps) - 2} height={el.type === "video" ? VIDEO_BAR : FOOTAGE_BAR} on={isSelected} />}
+        {look === "cut" && playsFile(el) && <ClipFace el={el} from={span.start} pps={pps} width={Math.max(4, (span.end - span.start) * pps) - 2} height={faceH} on={isSelected} />}
         {look === "cut" && (
           <span className="time-span-name">
             {el.name}
@@ -1384,10 +1471,27 @@ export default function TimeStrip() {
             </button>
             {choosing && (
               <div className="export-pop" data-name="export-settings">
+                <button
+                  type="button"
+                  className="export-close"
+                  data-name="close-export"
+                  onClick={() => setChoosing(false)}
+                  title="Close"
+                  aria-label="Close"
+                >
+                  ×
+                </button>
                 <label>
                   Size
-                  <select data-name="export-size" value={choice.longSide} onChange={(e) => setChoice({ ...choice, longSide: Number(e.target.value) })}>
-                    {SIZES.map((z) => {
+                  <select
+                    data-name="export-size"
+                    value={choice.longSide < Math.max(frame.width, frame.height) ? choice.longSide : 0}
+                    onChange={(e) => setChoice({ ...choice, longSide: Number(e.target.value) })}
+                  >
+                    <option value={0}>
+                      Same as the scene ({exportSize(frame, 0)[0]} x {exportSize(frame, 0)[1]})
+                    </option>
+                    {SIZES.filter((z) => z.longSide > 0 && z.longSide < Math.max(frame.width, frame.height)).map((z) => {
                       const [w, h] = exportSize(frame, z.longSide);
                       return (
                         <option key={z.longSide} value={z.longSide}>
@@ -1514,7 +1618,7 @@ export default function TimeStrip() {
                 data-name="work-area"
                 style={{ left: frame.workArea.start * pps, width: Math.max(2, (frame.workArea.end - frame.workArea.start) * pps) }}
                 title="The work area: playing starts and stops here. B and N set its ends at the playhead. Right-click to clear it."
-                onPointerDown={(e) => e.stopPropagation()}
+                onPointerDown={(e) => dragWork(e, "bar")}
                 onContextMenu={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -1568,12 +1672,17 @@ export default function TimeStrip() {
             ))}
           </div>
         </div>
-        {displayRows.map((row, ri) => (
-          <Fragment key={row.key}>
-            <div
-              data-row={ri}
-              className={`time-row ${row.items.some((el) => selection.includes(el.id)) ? "on" : ""} ${look === "cut" && (row.track || row.items.some(playsFile)) ? "footage" : ""} ${look === "cut" && (row.track?.kind === "clips" || row.items.some((el) => el.type === "video")) ? "has-video" : ""} ${allHidden(row) ? "is-hidden" : ""} ${trackPicked(row) ? "picked" : ""} ${rowDrop === ri ? "drop-above" : ""} ${rowDrop === displayRows.length && ri === displayRows.length - 1 ? "drop-below" : ""}`}
-            >
+        {displayRows.map((row, ri) => {
+          const rowTrackKind: TrackKind = row.track?.kind ?? (row.items.some((el) => el.type === "video") ? "clips" : row.items.some(playsFile) ? "sound" : "titles");
+          const rowH = look === "cut" ? trackH[rowTrackKind] : undefined;
+          return (
+            <Fragment key={row.key}>
+              <div
+                data-row={ri}
+                data-kind={rowTrackKind}
+                className={`time-row ${rowH !== undefined && rowH <= 16 ? "row-compact" : ""} ${row.items.some((el) => selection.includes(el.id)) ? "on" : ""} ${look === "cut" && (row.track || row.items.some(playsFile)) ? "footage" : ""} ${look === "cut" && (row.track?.kind === "clips" || row.items.some((el) => el.type === "video")) ? "has-video" : ""} ${allHidden(row) ? "is-hidden" : ""} ${trackPicked(row) ? "picked" : ""} ${rowDrop === ri ? "drop-above" : ""} ${rowDrop === displayRows.length && ri === displayRows.length - 1 ? "drop-below" : ""}`}
+                style={rowH !== undefined ? { height: rowH } : undefined}
+              >
               <span
                 className="time-name"
                 onPointerDown={(e) => look === "layers" && renaming !== row.key && pullRow(e, row.items[0])}
@@ -1678,12 +1787,21 @@ export default function TimeStrip() {
                 <i className="names-grip" onPointerDown={pullNames} title="Pull to make the names wider or narrower" />
               </span>
               <div className="time-lane" style={{ width: laneWidth }} onPointerDown={look === "layers" ? sweep : scrub}>
-                {row.items.map(renderBar)}
+                {row.items.map((el) => renderBar(el, rowTrackKind))}
               </div>
+              {look === "cut" && (
+                <div
+                  className="time-row-grip"
+                  data-name={`resize-track-${rowTrackKind}`}
+                  title="Drag to make this kind of row taller or shorter"
+                  onPointerDown={(e) => dragTrackHeight(e, rowTrackKind)}
+                />
+              )}
             </div>
             {look === "layers" && row.items.filter(opened).map((el) => renderKindRows(el))}
           </Fragment>
-        ))}
+        );
+      })}
         {look === "cut" && (
           <div className="time-row track-add-row">
             <span className="time-name">
