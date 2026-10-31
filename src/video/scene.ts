@@ -169,6 +169,16 @@ export async function placeSounds(sceneId: string, paths: string[]): Promise<str
 }
 
 
+/** Sounds cut to a part of the scene, timed from its start. */
+export function soundsBetween(list: ReturnType<typeof soundsOf>, from: number, to: number) {
+  return list.flatMap((s) => {
+    const start = Math.max(s.at, from);
+    const end = Math.min(s.at + s.length, to);
+    if (end <= start) return [];
+    return [{ ...s, from: s.from + (start - s.at) * s.speed, at: start - from, length: end - start }];
+  });
+}
+
 /** The sound of every clip in a frame: which file, from where in it, when it is heard, and how loud. */
 export function soundsOf(doc: Doc, sceneId: string) {
   const scene = doc.elements[sceneId];
@@ -331,18 +341,21 @@ export async function exportScene(sceneId: string, progress: (done: number) => v
   sheet.height = height;
   const ctx = sheet.getContext("2d", { willReadFrequently: true });
   if (!ctx) throw new Error("The video could not be drawn.");
-  const total = Math.max(1, Math.round(scene.duration * FPS));
+  // with a work area marked, only that part is made
+  const from = scene.workArea?.start ?? 0;
+  const to = scene.workArea?.end ?? scene.duration;
+  const total = Math.max(1, Math.round((to - from) * FPS));
   stop = false;
   pause();
   holdClips(true);
   let begun = false;
   try {
-    await invoke("scene_export_begin", { out: file, fps: FPS, seconds: total / FPS, quality: choice.quality, sounds: soundsOf(doc, sceneId), width, height, master: !!choice.master });
+    await invoke("scene_export_begin", { out: file, fps: FPS, seconds: total / FPS, quality: choice.quality, sounds: soundsBetween(soundsOf(doc, sceneId), from, to), width, height, master: !!choice.master });
     begun = true;
     const sizes = new Map<string, Info>();
     for (let i = 0; i < total; i++) {
       if (stop) throw new Error("Stopped.");
-      const t = i / FPS;
+      const t = from + i / FPS;
       let now = docAt(doc, sceneId, t);
       const base = await baseClip(doc, now, sceneId, t, sizes);
       if (base) now = base.without;
