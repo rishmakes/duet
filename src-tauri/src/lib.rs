@@ -2,6 +2,7 @@ mod ai;
 mod connect;
 mod files;
 mod grade;
+mod hdr;
 mod keepalive;
 mod package;
 mod psd;

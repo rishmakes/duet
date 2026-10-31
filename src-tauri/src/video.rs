@@ -398,8 +398,22 @@ pub struct ClipAsk {
     matrix: String,
 }
 
-fn clip_reader_args(c: &ClipAsk, fps: u32) -> Vec<String> {
-    let matrix = if c.matrix == "bt601" { "bt601" } else { "bt709" };
+/// How a file's picture is stored, asked once per file while Duet runs.
+fn look_of(path: &str) -> crate::hdr::Look {
+    static LOOKS: Mutex<Option<std::collections::HashMap<String, crate::hdr::Look>>> = Mutex::new(None);
+    let mut looks = LOOKS.lock().unwrap_or_else(|e| e.into_inner());
+    let map = looks.get_or_insert_with(Default::default);
+    if let Some(look) = map.get(path) {
+        return *look;
+    }
+    let look = describe(path).map(|t| crate::hdr::parse(&t)).unwrap_or_default();
+    map.insert(path.to_string(), look);
+    look
+}
+
+fn clip_reader_args(c: &ClipAsk, fps: u32, look: &crate::hdr::Look) -> Vec<String> {
+    // an HDR clip is brought down to an ordinary picture, so it is not pale and grey
+    let (matrix, hdr) = crate::hdr::reading(look, c.matrix == "bt601");
     vec![
         "-hide_banner".into(),
         "-loglevel".into(),
@@ -411,7 +425,7 @@ fn clip_reader_args(c: &ClipAsk, fps: u32) -> Vec<String> {
         "-an".into(),
         "-sn".into(),
         "-vf".into(),
-        format!("setpts=PTS/{:.4},fps={fps},scale={}:{}:flags=lanczos+accurate_rnd+full_chroma_int:in_color_matrix={matrix}:in_range=auto:out_range=full", c.speed.max(0.05), c.width, c.height),
+        format!("setpts=PTS/{:.4},fps={fps},scale={}:{}:flags=lanczos+accurate_rnd+full_chroma_int:in_color_matrix={matrix}:in_range=auto:out_range=full{hdr}", c.speed.max(0.05), c.width, c.height),
         "-pix_fmt".into(),
         "rgba".into(),
         "-f".into(),
@@ -445,9 +459,10 @@ struct FrameInfo {
     drawn: bool,
 }
 
-fn reader_args(b: &Base, width: u32, height: u32, fps: u32) -> Vec<String> {
+fn reader_args(b: &Base, width: u32, height: u32, fps: u32, look: &crate::hdr::Look) -> Vec<String> {
     let [x, y, w, h] = b.crop;
-    let matrix = if b.matrix == "bt601" { "bt601" } else { "bt709" };
+    // an HDR clip is brought down to an ordinary picture, so it is not pale and grey
+    let (matrix, hdr) = crate::hdr::reading(look, b.matrix == "bt601");
     vec![
         "-hide_banner".into(),
         "-loglevel".into(),
@@ -459,7 +474,7 @@ fn reader_args(b: &Base, width: u32, height: u32, fps: u32) -> Vec<String> {
         "-an".into(),
         "-sn".into(),
         "-vf".into(),
-        format!("setpts=PTS/{:.4},fps={fps},crop={w}:{h}:{x}:{y},scale={width}:{height}:flags=lanczos+accurate_rnd+full_chroma_int:in_color_matrix={matrix}:in_range=auto:out_range=full", b.speed.max(0.05)),
+        format!("setpts=PTS/{:.4},fps={fps},crop={w}:{h}:{x}:{y},scale={width}:{height}:flags=lanczos+accurate_rnd+full_chroma_int:in_color_matrix={matrix}:in_range=auto:out_range=full{hdr}", b.speed.max(0.05)),
         "-pix_fmt".into(),
         "rgb48le".into(),
         "-f".into(),
@@ -482,7 +497,7 @@ impl Making {
             }
             let ffmpeg = find("ffmpeg").ok_or(MISSING)?;
             let mut child = crate::quiet_command(ffmpeg)
-                .args(reader_args(b, self.width, self.height, self.fps))
+                .args(reader_args(b, self.width, self.height, self.fps, &look_of(&b.path)))
                 .stdin(Stdio::null())
                 .stdout(Stdio::piped())
                 .stderr(Stdio::null())
@@ -514,7 +529,7 @@ impl Making {
             }
             let ffmpeg = find("ffmpeg").ok_or(MISSING)?;
             let mut child = crate::quiet_command(ffmpeg)
-                .args(clip_reader_args(c, self.fps))
+                .args(clip_reader_args(c, self.fps, &look_of(&c.path)))
                 .stdin(Stdio::null())
                 .stdout(Stdio::piped())
                 .stderr(Stdio::null())
@@ -734,13 +749,13 @@ mod tests {
     #[test]
     fn a_clip_playing_at_double_speed_is_read_a_picture_every_two_frames_of_its_file() {
         let b = Base { id: "v".into(), path: "a.mov".into(), at: 0.0, speed: 2.0, crop: [0, 0, 1920, 1080], matrix: "bt709".into(), grade: None };
-        assert!(reader_args(&b, 1920, 1080, 24).join(" ").contains("setpts=PTS/2.0000,fps=24"));
+        assert!(reader_args(&b, 1920, 1080, 24, &Default::default()).join(" ").contains("setpts=PTS/2.0000,fps=24"));
     }
 
     #[test]
     fn a_clip_is_read_at_its_moment_cut_to_the_part_that_fills_the_video() {
         let b = Base { id: "v".into(), path: "a.mov".into(), at: 2.5, speed: 1.0, crop: [10, 20, 1900, 1060], matrix: "bt709".into(), grade: None };
-        let args = reader_args(&b, 1920, 1080, 24).join(" ");
+        let args = reader_args(&b, 1920, 1080, 24, &Default::default()).join(" ");
         assert!(args.contains("-ss 2.5000 -i a.mov"));
         assert!(args.contains("fps=24,crop=1900:1060:10:20,scale=1920:1080"));
         assert!(args.contains("in_color_matrix=bt709") && args.ends_with("-pix_fmt rgb48le -f rawvideo -"));
