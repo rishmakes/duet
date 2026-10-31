@@ -173,66 +173,162 @@ function ChatWidthGrip() {
 }
 
 /** One project in the trash: its picture, its name, the folder it came from, and how long it stays. */
-function TrashRow({ t, onDone }: { t: Trashed; onDone: () => void }) {
+function TrashRow({ t, picked, onPick, onTick, onSweep, onDone }: { t: Trashed; picked: boolean; onPick: (e: React.MouseEvent) => void; onTick: () => void; onSweep: () => void; onDone: () => void }) {
   const src = usePreview(t.file);
   const left = Math.max(1, Math.ceil(TRASH_DAYS - (Date.now() - t.trashed) / 86400000));
   const folder = t.original.replace(/[\\/][^\\/]*$/, "").split(/[\\/]/).pop();
   return (
-    <div className="trash-row" title={t.original}>
-      <div className="trash-top">
-        <div className="chathome-thumb">{src ? <img src={src} alt="" /> : null}</div>
-        <div className="chathome-meta">
-          <div className="chathome-name">{t.name}</div>
-          <div className="chathome-when">
-            {folder ? `${folder} · ` : ""}
-            {left} {left === 1 ? "day" : "days"} left
-          </div>
+    <div className={`trash-row ${picked ? "on" : ""}`} title={t.original} onClick={onPick} onMouseEnter={onSweep}>
+      <button
+        className={`trash-tick ${picked ? "on" : ""}`}
+        role="checkbox"
+        aria-checked={picked}
+        aria-label={`Pick ${t.name}`}
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => {
+          e.preventDefault();
+          onTick();
+        }}
+      >
+        {picked && (
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M2 5.2 4.1 7.3 8 2.8" />
+          </svg>
+        )}
+      </button>
+      <div className="chathome-thumb">{src ? <img src={src} alt="" /> : null}</div>
+      <div className="chathome-meta">
+        <div className="chathome-name">{t.name}</div>
+        <div className="chathome-when">
+          {folder ? `${folder} · ` : ""}
+          {left} {left === 1 ? "day" : "days"} left
         </div>
       </div>
       <div className="trash-actions">
         <button
-          className="pill"
-          onClick={() =>
+          className="trash-btn"
+          title="Put back"
+          aria-label="Put back"
+          onClick={(e) => {
+            e.stopPropagation();
             void trashRestore(t.id)
               .then(onDone)
-              .catch((e) => message(`“${t.name}” could not be put back. ${String(e)}`, { title: "Put back", kind: "warning" }))
-          }
+              .catch((e) => message(`“${t.name}” could not be put back. ${String(e)}`, { title: "Put back", kind: "warning" }));
+          }}
         >
-          <Icon name="restore" size={14} /> Put back
+          <Icon name="restore" size={14} />
         </button>
         <button
-          className="pill"
-          onClick={async () => {
+          className="trash-btn"
+          title="Delete for good"
+          aria-label="Delete for good"
+          onClick={async (e) => {
+            e.stopPropagation();
             if (!(await ask(`Delete “${t.name}” for good? It cannot be brought back.`, { title: "Duet", kind: "warning", okLabel: "Delete", cancelLabel: "Keep it" }))) return;
             await trashDelete(t.id).catch(() => undefined);
             onDone();
           }}
         >
-          Delete now
+          <Icon name="trash" size={14} />
         </button>
       </div>
     </div>
   );
 }
 
-/** What is in the trash, in place of the projects list: each can be put back, or deleted for good. */
+/** What is in the trash, in place of the projects list: each can be put back, or deleted for good.
+ * The tick box adds or takes one from the pick, and dragging down or up over the boxes does the same to each; click picks one, Cmd or Ctrl click adds, Shift click picks a run.
+ * A click anywhere outside the list lets go of the pick. The picked ones go back or go together. */
 function TrashView({ onBack }: { onBack: () => void }) {
   const [items, setItems] = useState<Trashed[] | null>(null);
-  const load = () => void trashList().then(setItems);
+  const [picked, setPicked] = useState<string[]>([]);
+  const last = useRef<string | null>(null);
+  const load = () =>
+    void trashList().then((list) => {
+      setItems(list);
+      setPicked((p) => p.filter((id) => list.some((t) => t.id === id)));
+    });
   useEffect(load, []);
+  useEffect(() => {
+    const away = (e: MouseEvent) => {
+      if (!(e.target as Element).closest?.(".trash-row, .trash-foot, .sheet-back")) setPicked([]);
+    };
+    window.addEventListener("mousedown", away);
+    return () => window.removeEventListener("mousedown", away);
+  }, []);
+  // while the mouse is held after pressing a tick box: true ticks every box passed over, false clears it
+  const sweep = useRef<boolean | null>(null);
+  useEffect(() => {
+    const up = () => void (sweep.current = null);
+    window.addEventListener("mouseup", up);
+    return () => window.removeEventListener("mouseup", up);
+  }, []);
+  const tick = (id: string) => {
+    last.current = id;
+    sweep.current = !picked.includes(id);
+    setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  };
+  const swept = (id: string) => {
+    if (sweep.current === null) return;
+    const on = sweep.current;
+    setPicked((p) => (on ? (p.includes(id) ? p : [...p, id]) : p.filter((x) => x !== id)));
+  };
+  const pick = (id: string, e: React.MouseEvent) => {
+    const ids = (items ?? []).map((t) => t.id);
+    if (e.shiftKey && last.current && ids.includes(last.current)) {
+      const [a, b] = [ids.indexOf(last.current), ids.indexOf(id)].sort((x, y) => x - y);
+      setPicked(ids.slice(a, b + 1));
+      return;
+    }
+    last.current = id;
+    if (e.metaKey || e.ctrlKey) setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+    else setPicked((p) => (p.length === 1 && p[0] === id ? [] : [id]));
+  };
+  const named = (n: number) => (n === 1 ? "1 project" : `${n} projects`);
+  const putBack = async (ids: string[]) => {
+    for (const id of ids) {
+      const t = items?.find((x) => x.id === id);
+      await trashRestore(id).catch((e) => message(`“${t?.name ?? "A project"}” could not be put back. ${String(e)}`, { title: "Put back", kind: "warning" }));
+    }
+    load();
+  };
+  const deleteAll = async (ids: string[], what: string) => {
+    if (!(await ask(`Delete ${what} for good? ${ids.length === 1 ? "It" : "They"} cannot be brought back.`, { title: "Duet", kind: "warning", okLabel: "Delete", cancelLabel: "Keep them" }))) return;
+    for (const id of ids) await trashDelete(id).catch(() => undefined);
+    load();
+  };
   return (
     <div className="chathome-body trash-body">
       <div className="chathome-skills-head trash-head">
         <b>Trash</b>
         <button className="pill" onClick={onBack}>
-          Back to projects
+          Back
         </button>
       </div>
       <div className="trash-note">Projects stay here for {TRASH_DAYS} days, then they are cleared out.</div>
       <div className="trash-list">
-        {items?.map((t) => <TrashRow key={t.id} t={t} onDone={load} />)}
+        {items?.map((t) => <TrashRow key={t.id} t={t} picked={picked.includes(t.id)} onPick={(e) => pick(t.id, e)} onTick={() => tick(t.id)} onSweep={() => swept(t.id)} onDone={load} />)}
         {items && items.length === 0 && <div className="chathome-none">The trash is empty.</div>}
       </div>
+      {items && items.length > 0 && (
+        <div className="trash-foot">
+          {picked.length > 0 ? (
+            <>
+              <span>{picked.length} picked</span>
+              <button className="pill" onClick={() => void putBack(picked)}>
+                Put back
+              </button>
+              <button className="pill" onClick={() => void deleteAll(picked, named(picked.length))}>
+                Delete
+              </button>
+            </>
+          ) : (
+            <button className="pill" onClick={() => void deleteAll(items.map((t) => t.id), `all ${named(items.length)} in the Trash`)}>
+              Empty Trash
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -333,7 +429,15 @@ export default function ChatHome() {
     };
   }, [current.file]);
   const wordsOf = useWords(recents.map((r) => r.path), typed.trim() !== "");
-  const shown = matchProjects(recents, typed, wordsOf);
+  // open projects stay together at the top in the order of the Studio tabs, so opening or closing one never shuffles the rest
+  const rank = (path: string) => {
+    const at = tabs.indexOf(path);
+    return at >= 0 ? at : path === current.file || isParked(path) ? tabs.length : Infinity;
+  };
+  const shown = matchProjects(recents, typed, wordsOf)
+    .map((r, i) => ({ r, i, k: rank(r.path) }))
+    .sort((a, b) => (a.k === b.k ? a.i - b.i : a.k - b.k))
+    .map((x) => x.r);
 
   /** Close a project: its tab goes, and if it was on screen the next one comes up, or none. */
   // open: on screen, in a tab, or waiting in memory with an AI still at work

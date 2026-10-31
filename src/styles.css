@@ -5462,31 +5462,94 @@ input.chathome-name.rename {
 }
 .trash-row {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 6px;
-  border-radius: 9px;
-}
-.trash-top {
-  display: flex;
   align-items: center;
   gap: 9px;
-  min-width: 0;
-}
-.trash-actions {
-  display: flex;
-  gap: 6px;
-  padding-left: 49px;
+  padding: 4px 6px;
+  border-radius: 9px;
 }
 .trash-row:hover {
   background: var(--panel-2);
 }
-.trash-row .pill {
-  display: inline-flex;
+.trash-row.on {
+  background: var(--accent-soft);
+}
+.trash-row .chathome-meta {
+  min-width: 0;
+}
+.trash-row .chathome-when,
+.trash-row .chathome-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.trash-foot {
+  display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 3px 9px;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 8px 4px 2px;
+  border-top: 1px solid var(--line, rgba(255, 255, 255, 0.08));
   font-size: 12px;
+  color: var(--muted);
+}
+.trash-foot span {
+  margin-right: auto;
+}
+.trash-foot .pill {
+  white-space: nowrap;
+}
+/* put back and delete show over the end of the row on hover, so the name and days have the room otherwise */
+.trash-row {
+  position: relative;
+}
+.trash-actions {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: none;
+  gap: 2px;
+  padding-left: 6px;
+  border-radius: 6px;
+  background: var(--panel-2);
+}
+.trash-row:hover .trash-actions {
+  display: flex;
+}
+.trash-row.on .trash-actions {
+  background: #2d2645;
+}
+/* a tick box on every row, to pick several without keys */
+.trash-tick {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1.5px solid var(--muted);
+  border-radius: 4px;
+  background: none;
+  color: #fff;
+  cursor: pointer;
+}
+.trash-tick.on {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+.trash-btn {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+.trash-btn:hover {
+  background: var(--panel-3, rgba(255, 255, 255, 0.08));
 }
 /* every AI wears its own colour, the same one it has in the history line */
 .chat.docked .member-badge {
