@@ -2732,7 +2732,8 @@ option {
 }
 
 /* Edit: a video shows its frames and a sound its loudness, so these rows are taller */
-.time.cut .time-row {
+/* every row but the ruler: the ruler stays pinned on top while the tracks scroll under it */
+.time.cut .time-row:not(.ruler) {
   position: relative;
 }
 .time.cut .time-row.footage {
@@ -6381,20 +6382,38 @@ input.chathome-name.rename {
   left: 0;
   right: 0;
 }
+/* the two ends of the work area: tabs standing up from the bar, to grab and drag */
 .time-work .work-l,
 .time-work .work-r {
   position: absolute;
-  top: -4px;
-  bottom: -4px;
-  width: 7px;
+  bottom: 0;
+  height: 15px;
+  width: 6px;
+  background: var(--accent);
   cursor: ew-resize;
   z-index: 2;
 }
 .time-work .work-l {
-  left: -3px;
+  left: 0;
+  border-radius: 3px 0 0 3px;
 }
 .time-work .work-r {
-  right: -3px;
+  right: 0;
+  border-radius: 0 3px 3px 0;
+}
+/* a wider place to grab than the tab shows */
+.time-work .work-l::after,
+.time-work .work-r::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  bottom: -4px;
+  left: -5px;
+  right: -5px;
+}
+.time-work .work-l:hover,
+.time-work .work-r:hover {
+  filter: brightness(1.25);
 }
 /* a pause Cut silences will take away, shown while its settings are open */
 .time-silence {

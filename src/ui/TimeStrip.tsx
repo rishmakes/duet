@@ -1475,6 +1475,17 @@ export default function TimeStrip() {
                 >
                   ×
                 </button>
+                {frame.workArea && (
+                  <label>
+                    Make
+                    <select data-name="export-part" value={choice.whole ? "whole" : "work"} onChange={(e) => setChoice({ ...choice, whole: e.target.value === "whole" })}>
+                      <option value="work">
+                        The work area, {clockText(frame.workArea.start)} to {clockText(frame.workArea.end)}
+                      </option>
+                      <option value="whole">The whole scene, {clockText(frame.duration)}</option>
+                    </select>
+                  </label>
+                )}
                 <label>
                   Size
                   <select

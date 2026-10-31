@@ -219,6 +219,8 @@ export interface ExportChoice {
   to?: string;
   /** A ProRes .mov at 10-bit, to keep editing or grading elsewhere, instead of an MP4 to share. */
   master?: boolean;
+  /** The whole scene, even when a work area is marked. Left out, only the work area is made when there is one. */
+  whole?: boolean;
 }
 
 export const SIZES: { name: string; longSide: number }[] = [
@@ -341,9 +343,10 @@ export async function exportScene(sceneId: string, progress: (done: number) => v
   sheet.height = height;
   const ctx = sheet.getContext("2d", { willReadFrequently: true });
   if (!ctx) throw new Error("The video could not be drawn.");
-  // with a work area marked, only that part is made
-  const from = scene.workArea?.start ?? 0;
-  const to = scene.workArea?.end ?? scene.duration;
+  // with a work area marked, only that part is made, unless the whole scene was asked for
+  const part = choice.whole ? undefined : scene.workArea;
+  const from = part?.start ?? 0;
+  const to = part?.end ?? scene.duration;
   const total = Math.max(1, Math.round((to - from) * FPS));
   stop = false;
   pause();
