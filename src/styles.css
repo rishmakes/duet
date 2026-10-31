@@ -6366,8 +6366,8 @@ input.chathome-name.rename {
   bottom: 0;
   height: 5px;
   border-radius: 2px;
-  background: var(--accent);
-  opacity: 0.85;
+  /* see-through by its colour, not by opacity, so the handles on it stay pure white */
+  background: color-mix(in srgb, var(--accent) 85%, transparent);
   z-index: 1;
   cursor: grab;
 }
@@ -6388,8 +6388,12 @@ input.chathome-name.rename {
   position: absolute;
   bottom: 0;
   height: 15px;
-  width: 6px;
-  background: var(--accent);
+  width: 7px;
+  /* white, lightly raised, with two very thin grip lines */
+  background:
+    linear-gradient(90deg, transparent 2px, rgba(0, 0, 0, 0.2) 2px 2.6px, transparent 2.6px 4.2px, rgba(0, 0, 0, 0.2) 4.2px 4.8px, transparent 4.8px) center / 100% 8px no-repeat,
+    linear-gradient(180deg, #ffffff, #d9d9de);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.9);
   cursor: ew-resize;
   z-index: 2;
 }
