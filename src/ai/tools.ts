@@ -258,6 +258,12 @@ export const TOOLS: ToolDef[] = [
     inputSchema: { type: "object", properties: { id: { ...str, description: "A frame on the page." }, seconds: num }, required: ["id", "seconds"] },
   },
   {
+    name: "set_work_area",
+    description:
+      "Mark the part of a frame that plays that is being worked on, from start to end in seconds (the purple bar over the timeline). Playing starts and stops inside it, and Export video makes only that part. clear true makes the whole frame the work area again.",
+    inputSchema: { type: "object", properties: { id: { ...str, description: "A frame that plays." }, start: num, end: num, clear: { type: "boolean" } }, required: ["id"] },
+  },
+  {
     name: "set_timing",
     description:
       "When things show inside a frame that plays: the second they appear and the second they leave, counted from the start of the frame. end 0 means to the end of the frame. Whatever they do over time moves along with them. For a video clip, clipFrom is the second in its file where playing starts.",
@@ -413,7 +419,7 @@ export const TOOLS: ToolDef[] = [
   },
 ];
 
-const EDITS = new Set(["resolve_comment", "add_comment", "set_grade", "copy_grade", "create_instance", "create_element", "create_elements", "set_props", "duplicate_elements", "move_elements", "resize_element", "reparent_elements", "make_mask", "trace_image", "set_duration", "set_timing", "set_entrance", "animate", "set_curve"]);
+const EDITS = new Set(["resolve_comment", "add_comment", "set_grade", "copy_grade", "create_instance", "create_element", "create_elements", "set_props", "duplicate_elements", "move_elements", "resize_element", "reparent_elements", "make_mask", "trace_image", "set_duration", "set_work_area", "set_timing", "set_entrance", "animate", "set_curve"]);
 /** Things the designer is asked about first in Ask first mode: losing work, and reading or writing a file on the computer. */
 const RISKY = new Set(["load_look", "delete_elements", "place_image", "place_video", "place_sound", "export_frame", "export_video"]);
 
@@ -492,6 +498,8 @@ export function summarise(tool: string, a: Args): string {
       return `Bring in the sound at ${String(a.path)}`;
     case "set_duration":
       return Number(a.seconds) > 0 ? `Make ${nameOf(a.id)} play for ${String(a.seconds)} seconds` : `Make ${nameOf(a.id)} a still design`;
+    case "set_work_area":
+      return a.clear ? `Make all of ${nameOf(a.id)} the work area` : `Mark the work area of ${nameOf(a.id)}`;
     case "set_timing":
       return `Change when ${namesOf(a.ids)} ${Array.isArray(a.ids) && a.ids.length > 1 ? "show" : "shows"}`;
     case "set_entrance":
@@ -794,6 +802,14 @@ function prepare(tool: string, raw: Args, doc = R.currentDoc()): { args: Args } 
       if (!el) return { error: `No element with id: ${String(a.id)}.` };
       if (el.type !== "frame" || el.parentId) return { error: `${el.name} is not a frame on the page. Only a frame on the page can play.` };
       if (typeof a.seconds !== "number" || a.seconds < 0) return { error: "seconds must be a number, 0 or more." };
+      return { args: a };
+    }
+    case "set_work_area": {
+      const el = typeof a.id === "string" ? doc.elements[a.id] : undefined;
+      if (!el || el.type !== "frame" || !(el.duration > 0)) return { error: `${String(a.id)} is not a frame that plays.` };
+      if (a.clear === true) return { args: { id: a.id, clear: true } };
+      for (const k of ["start", "end"]) if (a[k] != null && !(typeof a[k] === "number" && (a[k] as number) >= 0)) return { error: `${k} must be a number, 0 or more.` };
+      if (a.start == null && a.end == null) return { error: "Give start, end, or clear." };
       return { args: a };
     }
     case "set_timing":
