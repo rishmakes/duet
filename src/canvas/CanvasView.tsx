@@ -250,7 +250,7 @@ export function pastePayload(payload: ClipPayload, duplicate = false) {
   const dy = pageFrame && sameSpot ? 0 : sameSpot || duplicate ? 16 : 0;
   // a track picked on the timeline of this frame: clips go on it, the first starting at the playhead
   const track = getPickedTrack();
-  const onTrack = !duplicate && track && track.frameId === parentId && doc.elements[parentId]?.duration > 0 ? { track: { kind: track.kind, index: track.index }, at: s.clock.t } : {};
+  const onTrack = !duplicate && track && track.frameId === parentId && doc.elements[parentId]?.duration > 0 ? { track: { index: track.index }, at: s.clock.t } : {};
   dispatch("paste_elements", { payload, parentId, dx, dy, idMap, above: duplicate, ...onTrack, label: duplicate ? "Duplicate" : "Paste" });
   select(payload.rootIds.map((id) => idMap[id]));
 }

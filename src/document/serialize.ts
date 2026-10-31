@@ -1,6 +1,6 @@
 import { isDerived, syncInstances } from "./components";
 import { relayout } from "./layout";
-import { keepTracks, trackKind } from "./tracks";
+import { keepTracks, oldTracks } from "./tracks";
 import { playsFile } from "./types";
 import type { Comment, Doc, El } from "./types";
 
@@ -195,11 +195,12 @@ export function parseDoc(text: string): Doc {
   const comments = Array.isArray(r.comments)
     ? r.comments.filter((c): c is Comment => !!c && typeof c.id === "string" && typeof c.text === "string" && Number.isFinite(c.x) && Number.isFinite(c.y)).map((c) => ({ ...c, by: c.by === "ai" ? "ai" : "you" }) as Comment)
     : [];
-  // a scene from before titles had tracks gets them once, as the rows it showed, so they stop moving about
+  // a scene gets its rows saved as tracks once, as they showed, so they stop moving about; tracks saved when
+  // each held one kind of thing become plain tracks in the same order, top to bottom
   for (const el of Object.values(elements)) {
     if (el.type !== "frame" || !(el.duration > 0)) continue;
     const saved = new Set((el.tracks ?? []).map((t) => t.id));
-    if (el.childIds.some((c) => trackKind(elements[c]) && !saved.has(elements[c].track ?? ""))) keepTracks({ version: 1, rootIds: [], elements }, el.id);
+    if (oldTracks(el) || el.childIds.some((c) => elements[c] && !saved.has(elements[c].track ?? ""))) keepTracks({ version: 1, rootIds: [], elements }, el.id);
   }
   return relayout(syncInstances({ version: 1, rootIds: r.rootIds as string[], elements, ...(background ? { background } : {}), ...(styles ? { styles } : {}), ...(guides ? { guides } : {}), ...(comments.length ? { comments } : {}) }));
 }

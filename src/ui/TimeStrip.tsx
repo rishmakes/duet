@@ -19,10 +19,10 @@ import { open as openDialog } from "./dialog";
 import { droppedPaths } from "../canvas/CanvasView";
 import type { ExportChoice } from "../video/scene";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import { DEFAULT_TRACK_H, TIME_MIN_H, getLayout, isColorOpen, setLayout, useLayout } from "./layout";
+import { DEFAULT_TRACK_H, NO_HEIGHTS, TIME_MIN_H, TRACK_MAX_H, TRACK_MIN_H, getLayout, isColorOpen, setLayout, useLayout } from "./layout";
 import { useDismiss } from "./useDismiss";
-import { trackKind, trackRows } from "../document/tracks";
-import type { TrackKind, TrackRow } from "../document/tracks";
+import { rowLook, trackRows } from "../document/tracks";
+import type { TrackRow } from "../document/tracks";
 import { getPickedTrack, pickTrack, usePickedTrack } from "./pickedTrack";
 
 /** Time under the canvas: a row for each thing in a frame that plays, when it shows, and where the clock is. */
@@ -50,10 +50,9 @@ function pageFrame(doc: Doc, id: string | undefined): El | null {
 }
 
 /** The last rows of a scene's tracks. While a video plays the clock moves on every frame but the design stays the same, so the rows are not worked out again each time. */
-let rowsMade: { doc: Doc; id: string; out: Record<TrackKind, TrackRow[]> } | null = null;
-function rowsOf(doc: Doc, frame: El): Record<TrackKind, TrackRow[]> {
-  if (rowsMade?.doc !== doc || rowsMade.id !== frame.id)
-    rowsMade = { doc, id: frame.id, out: { titles: trackRows(doc, frame, "titles"), clips: trackRows(doc, frame, "clips"), sound: trackRows(doc, frame, "sound") } };
+let rowsMade: { doc: Doc; id: string; out: TrackRow[] } | null = null;
+function rowsOf(doc: Doc, frame: El): TrackRow[] {
+  if (rowsMade?.doc !== doc || rowsMade.id !== frame.id) rowsMade = { doc, id: frame.id, out: trackRows(doc, frame) };
   return rowsMade.out;
 }
 
@@ -65,6 +64,7 @@ export default function TimeStrip() {
   const gradeEvery = useLayout((d) => d.gradeEvery);
   const timeH = useLayout((d) => d.timeH ?? 170);
   const trackH = useLayout((d) => d.trackH ?? DEFAULT_TRACK_H);
+  const rowHs = useLayout((d) => d.rowH ?? NO_HEIGHTS);
   // the names beside the rows can be pulled wider, to read long file names
   const NAMES = useLayout((d) => d.namesW ?? 150);
   const [growing, setGrowing] = useState<number | null>(null);
@@ -73,7 +73,7 @@ export default function TimeStrip() {
   const clock = useStore((s) => s.clock);
   const lanes = useRef<HTMLDivElement>(null);
   // the rows as last drawn, for the keys that pick the clip before or after
-  const rowsRef = useRef<{ items: El[]; track?: { kind: TrackKind; index: number } }[]>([]);
+  const rowsRef = useRef<{ items: El[]; track?: { index: number } }[]>([]);
   const [wide, setWide] = useState(600);
   const [zoom, setZoom] = useState(1);
   const [making, setMaking] = useState<number | null>(null);
@@ -99,7 +99,7 @@ export default function TimeStrip() {
   useDismiss(!!menu, () => setMenu(null), ".ctx");
   // the track picked by its name, which paste puts clips on, and the menu of a track's name
   const trackPick = usePickedTrack();
-  const [trackMenu, setTrackMenu] = useState<{ x: number; y: number; kind: TrackKind; index: number; name: string; key: string } | null>(null);
+  const [trackMenu, setTrackMenu] = useState<{ x: number; y: number; index: number; name: string; key: string } | null>(null);
   useDismiss(!!trackMenu, () => setTrackMenu(null), ".ctx");
   const [markerMenu, setMarkerMenu] = useState<{ x: number; y: number; id: string } | null>(null);
   useDismiss(!!markerMenu, () => setMarkerMenu(null), ".ctx");
@@ -530,23 +530,23 @@ export default function TimeStrip() {
     name: string;
     items: El[];
     onClick?: (e: React.MouseEvent) => void;
-    /** A row of clips or sounds in Edit: a track, by its place among the tracks of its kind. */
-    track?: { kind: TrackKind; index: number };
+    /** A row in Edit: a track, by its place among the tracks. */
+    track?: { index: number };
     /** The saved track behind a row in Edit, for its switches. */
     saved?: Track | null;
   }
 
-  const trackRow = (kind: TrackKind) =>
-    rowsOf(doc, frame)[kind].map((r) => ({
-      key: `${kind}-${r.index}`,
+  const trackRow = () =>
+    rowsOf(doc, frame).map((r) => ({
+      key: r.track?.id ?? `row-${r.index}`,
       name: r.name,
       items: r.items,
-      track: { kind, index: r.index },
+      track: { index: r.index },
       saved: r.track,
       onClick: () => {
         // picking a track picks its scene too, so what is pasted next goes into it
-        const on = trackPick?.frameId === frame.id && trackPick.kind === kind && trackPick.index === r.index;
-        pickTrack(on ? null : { frameId: frame.id, kind, index: r.index });
+        const on = trackPick?.frameId === frame.id && trackPick.index === r.index;
+        pickTrack(on ? null : { frameId: frame.id, index: r.index });
         select([frame.id]);
       },
     }));
@@ -559,16 +559,12 @@ export default function TimeStrip() {
           items: [el],
           onClick: (e: React.MouseEvent) => pick(e, el.id),
         }))
-      : [
-          ...trackRow("titles"),
-          ...trackRow("clips"),
-          ...trackRow("sound"),
-        ];
+      : trackRow();
   rowsRef.current = displayRows;
   const allHidden = (row: DisplayRow) => (row.track ? !!row.saved?.hidden : row.items.length > 0 && row.items.every((el) => el.hidden));
   // in Edit the switches belong to the track; in Motion they belong to each layer
   const quiet = (row: DisplayRow) => (row.track ? !!row.saved?.silent : row.items.filter(playsFile).every((el) => el.volume <= 0));
-  const trackPicked = (row: DisplayRow) => !!row.track && trackPick?.frameId === frame.id && trackPick.kind === row.track.kind && trackPick.index === row.track.index;
+  const trackPicked = (row: DisplayRow) => !!row.track && trackPick?.frameId === frame.id && trackPick.index === row.track.index;
 
 
   const scrub = (e: React.PointerEvent) => {
@@ -750,14 +746,13 @@ export default function TimeStrip() {
         let next = last > length ? runCommand(dragBase(), "set_duration", { id: frame.id, seconds: last }) : dragBase();
         next = runCommand(next, "set_timing", { ids: [el.id], start, end: start + long });
         for (const o of others) next = runCommand(next, "set_timing", { ids: [o.id], start: o.span.start + shift, end: o.span.end + shift });
-        // over another track of its kind, it goes on that track, with the clips moving with it
-        const kind = trackKind(el);
+        // over another track, it goes on that track, with the clips moving with it
         const over = Array.from(lanes.current?.querySelectorAll<HTMLElement>("[data-row]") ?? []).find((r) => {
           const b = r.getBoundingClientRect();
           return ev.clientY >= b.top && ev.clientY < b.bottom;
         });
         const row = over ? rowsRef.current[Number(over.dataset.row)] : undefined;
-        if (kind && look === "cut" && row?.track?.kind === kind) next = runCommand(next, "set_track", { ids: [el.id, ...others.map((o) => o.id)], track: row.track });
+        if (look === "cut" && row?.track) next = runCommand(next, "set_track", { ids: [el.id, ...others.map((o) => o.id)], track: row.track });
         dragPreviewDoc(next);
       } else if (stretch) {
         const raw = (part === "start" ? span.start : span.end) + by;
@@ -987,23 +982,22 @@ export default function TimeStrip() {
     window.addEventListener("pointerup", up);
   };
 
-  /** Drag the bottom edge of a row in Edit to resize all rows of that kind. */
-  const dragTrackHeight = (e: React.PointerEvent, kind: TrackKind) => {
+  /** Drag the bottom edge of a row in Edit to make it taller or shorter. A saved track keeps its own height; a row Duet made by itself sets the height of every row like it. */
+  const dragTrackHeight = (e: React.PointerEvent, row: DisplayRow, startH: number) => {
     if (e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
     const fromY = e.clientY;
-    const startH = (getLayout().trackH ?? DEFAULT_TRACK_H)[kind];
-    const limits = {
-      titles: { min: 18, max: 160 },
-      clips: { min: 36, max: 240 },
-      sound: { min: 24, max: 200 },
-    }[kind];
+    const id = row.saved?.id;
+    const kind = rowLook(row.items);
     const move = (ev: PointerEvent) => {
-      const nextH = Math.max(limits.min, Math.min(limits.max, Math.round(startH + ev.clientY - fromY)));
-      const cur = getLayout().trackH ?? DEFAULT_TRACK_H;
-      if (cur[kind] !== nextH) {
-        setLayout({ trackH: { ...cur, [kind]: nextH } });
+      const nextH = Math.max(TRACK_MIN_H, Math.min(TRACK_MAX_H, Math.round(startH + ev.clientY - fromY)));
+      if (id) {
+        const cur = getLayout().rowH ?? {};
+        if (cur[id] !== nextH) setLayout({ rowH: { ...cur, [id]: nextH } });
+      } else {
+        const cur = getLayout().trackH ?? DEFAULT_TRACK_H;
+        if (cur[kind] !== nextH) setLayout({ trackH: { ...cur, [kind]: nextH } });
       }
     };
     const up = () => {
@@ -1135,13 +1129,13 @@ export default function TimeStrip() {
     window.addEventListener("pointerup", up);
   };
 
-  const renderBar = (el: El, rowKind?: TrackKind) => {
+  const renderBar = (el: El, rowH?: number) => {
     const span = spanOf(el, frame);
     // in Cut the bars stay clean: a thing's marks are listed in the panel on the right
     const keyTimes = look === "cut" ? [] : [...new Set(MOVING.flatMap((p) => (el.keys[p] ?? []).map((k) => k.t)))];
     const isSelected = selection.includes(el.id);
-    const rH = look === "cut" && rowKind ? trackH[rowKind] : undefined;
-    const spanH = rH !== undefined ? Math.max(8, rH - (rowKind === "titles" ? 4 : 8)) : undefined;
+    const rH = look === "cut" ? rowH : undefined;
+    const spanH = rH !== undefined ? Math.max(8, rH - (playsFile(el) ? 8 : 4)) : undefined;
     const faceH = rH !== undefined ? Math.max(12, rH - 10) : el.type === "video" ? VIDEO_BAR : FOOTAGE_BAR;
     return (
       <div
@@ -1673,14 +1667,14 @@ export default function TimeStrip() {
           </div>
         </div>
         {displayRows.map((row, ri) => {
-          const rowTrackKind: TrackKind = row.track?.kind ?? (row.items.some((el) => el.type === "video") ? "clips" : row.items.some(playsFile) ? "sound" : "titles");
-          const rowH = look === "cut" ? trackH[rowTrackKind] : undefined;
+          const rowTrackKind = rowLook(row.items);
+          const rowH = look === "cut" ? (row.saved && rowHs[row.saved.id]) || trackH[rowTrackKind] : undefined;
           return (
             <Fragment key={row.key}>
               <div
                 data-row={ri}
                 data-kind={rowTrackKind}
-                className={`time-row ${rowH !== undefined && rowH <= 16 ? "row-compact" : ""} ${row.items.some((el) => selection.includes(el.id)) ? "on" : ""} ${look === "cut" && (row.track || row.items.some(playsFile)) ? "footage" : ""} ${look === "cut" && (row.track?.kind === "clips" || row.items.some((el) => el.type === "video")) ? "has-video" : ""} ${allHidden(row) ? "is-hidden" : ""} ${trackPicked(row) ? "picked" : ""} ${rowDrop === ri ? "drop-above" : ""} ${rowDrop === displayRows.length && ri === displayRows.length - 1 ? "drop-below" : ""}`}
+                className={`time-row ${rowH !== undefined && rowH <= 16 ? "row-compact" : ""} ${row.items.some((el) => selection.includes(el.id)) ? "on" : ""} ${look === "cut" && (row.track || row.items.some(playsFile)) ? "footage" : ""} ${look === "cut" && row.items.some((el) => el.type === "video") ? "has-video" : ""} ${allHidden(row) ? "is-hidden" : ""} ${trackPicked(row) ? "picked" : ""} ${rowDrop === ri ? "drop-above" : ""} ${rowDrop === displayRows.length && ri === displayRows.length - 1 ? "drop-below" : ""}`}
                 style={rowH !== undefined ? { height: rowH } : undefined}
               >
               <span
@@ -1716,7 +1710,7 @@ export default function TimeStrip() {
                 >
                   <Icon name={allHidden(row) ? "eye-off" : "eye"} size={12} />
                 </button>
-                {(row.track ? row.track.kind !== "titles" : row.items.some(playsFile)) && (
+                {(row.track || row.items.some(playsFile)) && (
                   <button
                     className={`time-eye time-sound ${quiet(row) ? "off" : ""}`}
                     data-name={`sound-${row.name}`}
@@ -1732,7 +1726,7 @@ export default function TimeStrip() {
                     <Icon name={quiet(row) ? "sound-off" : "sound"} size={12} />
                   </button>
                 )}
-                {!(row.track ? row.track.kind !== "titles" : row.items.some(playsFile)) && (
+                {!(row.track || row.items.some(playsFile)) && (
                   <button className="time-eye time-sound" disabled title="Nothing here has sound">
                     <Icon name="sound-off" size={12} />
                   </button>
@@ -1787,14 +1781,14 @@ export default function TimeStrip() {
                 <i className="names-grip" onPointerDown={pullNames} title="Pull to make the names wider or narrower" />
               </span>
               <div className="time-lane" style={{ width: laneWidth }} onPointerDown={look === "layers" ? sweep : scrub}>
-                {row.items.map((el) => renderBar(el, rowTrackKind))}
+                {row.items.map((el) => renderBar(el, rowH))}
               </div>
               {look === "cut" && (
                 <div
                   className="time-row-grip"
                   data-name={`resize-track-${rowTrackKind}`}
-                  title="Drag to make this kind of row taller or shorter"
-                  onPointerDown={(e) => dragTrackHeight(e, rowTrackKind)}
+                  title="Drag to make this track taller or shorter"
+                  onPointerDown={(e) => dragTrackHeight(e, row, rowH ?? trackH[rowTrackKind])}
                 />
               )}
             </div>
@@ -1810,8 +1804,8 @@ export default function TimeStrip() {
                 data-name="new-track"
                 title="A new track on top of the others, picked, so what you paste goes on it"
                 onClick={() => {
-                  dispatch("add_track", { id: frame.id, kind: "clips", index: 0 });
-                  pickTrack({ frameId: frame.id, kind: "clips", index: 0 });
+                  dispatch("add_track", { id: frame.id, index: 0 });
+                  pickTrack({ frameId: frame.id, index: 0 });
                   select([frame.id]);
                 }}
               >
@@ -1906,10 +1900,10 @@ export default function TimeStrip() {
               key={label}
               className="ctx-item"
               onClick={() => {
-                const { kind, index } = trackMenu;
+                const { index } = trackMenu;
                 setTrackMenu(null);
-                dispatch("add_track", { id: frame.id, kind, index: index + by });
-                pickTrack({ frameId: frame.id, kind, index: index + by });
+                dispatch("add_track", { id: frame.id, index: index + by });
+                pickTrack({ frameId: frame.id, index: index + by });
                 select([frame.id]);
               }}
             >
@@ -1920,12 +1914,12 @@ export default function TimeStrip() {
           <div
             className="ctx-item danger"
             onClick={() => {
-              const { kind, index } = trackMenu;
+              const { index } = trackMenu;
               setTrackMenu(null);
-              dispatch("delete_track", { id: frame.id, track: { kind, index } });
+              dispatch("delete_track", { id: frame.id, track: { index } });
               // the picked track keeps pointing at the same one
               const was = getPickedTrack();
-              if (was?.frameId === frame.id && was.kind === kind) pickTrack(was.index === index ? null : was.index > index ? { ...was, index: was.index - 1 } : was);
+              if (was?.frameId === frame.id) pickTrack(was.index === index ? null : was.index > index ? { ...was, index: was.index - 1 } : was);
             }}
           >
             <span>Delete track</span>

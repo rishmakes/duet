@@ -60,13 +60,18 @@ export interface Dock {
   videoTab: RightTab;
   /** In Photo, whether the right panel shows Properties or Colour. */
   photoTab: RightTab;
-  /** How tall each kind of row in Edit is. */
+  /** How tall each kind of row in Edit starts. */
   trackH: TrackHeights;
+  /** How tall a track in Edit is, by its id, once the designer has changed it. */
+  rowH?: Record<string, number>;
 }
 
 const KEY = "duet:layout";
 export const MIN_W = 180;
 export const MAX_W = 460;
+export const TRACK_MIN_H = 18;
+export const TRACK_MAX_H = 240;
+export const NO_HEIGHTS: Record<string, number> = {};
 export const DEFAULT_TRACK_H: TrackHeights = {
   titles: 28,
   clips: 80,
@@ -119,7 +124,11 @@ export function parseLayout(raw: unknown): Dock {
       clips: typeof rawTrackH?.clips === "number" ? Math.max(36, Math.min(240, Math.round(rawTrackH.clips))) : DEFAULT_TRACK_H.clips,
       sound: typeof rawTrackH?.sound === "number" ? Math.max(24, Math.min(200, Math.round(rawTrackH.sound))) : DEFAULT_TRACK_H.sound,
     };
-    return { ...defaults(), ...r, mode, space, timeLook, timeMax: false, videoTab, photoTab, historyLine, trackH };
+    const rowH: Record<string, number> = {};
+    const rawRowH = (r as Record<string, unknown>).rowH;
+    if (rawRowH && typeof rawRowH === "object")
+      for (const [id, h] of Object.entries(rawRowH)) if (typeof h === "number" && Number.isFinite(h)) rowH[id] = Math.max(TRACK_MIN_H, Math.min(TRACK_MAX_H, Math.round(h)));
+    return { ...defaults(), ...r, mode, space, timeLook, timeMax: false, videoTab, photoTab, historyLine, trackH, rowH };
   }
   return defaults();
 }

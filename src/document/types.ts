@@ -66,11 +66,10 @@ export interface Marker {
   color: string;
 }
 
-/** A row on a frame's timeline in Edit that clips, sounds, or titles (text and shapes) sit on. A higher one is in front. */
+/** A row on a frame's timeline in Edit. It holds clips, sounds, text and shapes alike. A higher one is in front. */
 export interface Track {
   id: string;
   name: string;
-  kind: "clips" | "sound" | "titles";
   /** Nothing on it is drawn, played or exported, including things put on it later. */
   hidden?: true;
   /** Nothing on it is heard, in playing or in export, including things put on it later. */
