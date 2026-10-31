@@ -45,10 +45,12 @@
   box-sizing: border-box;
 }
 
-/* Thin, quiet scroll bars. Windows otherwise draws its own wide grey ones. */
+/* Thin, quiet scroll bars. Windows otherwise draws its own wide grey ones.
+   No rubber band: lists stop at their ends instead of bouncing (Mac). */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--line) transparent;
+  overscroll-behavior: none;
 }
 
 html,
