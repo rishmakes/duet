@@ -3911,8 +3911,16 @@ button.agent-perm:hover {
   max-width: 190px;
 }
 .export-pop .export-where {
-  justify-content: flex-start;
-  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+}
+.export-pop .export-where span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .time:has(.export-pop) {
   overflow: visible;

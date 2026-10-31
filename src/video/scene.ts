@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { open, save } from "../ui/dialog";
+import { open } from "../ui/dialog";
 import { drawElement } from "../canvas/render";
 import { docAt, fileTimeAt, spanOf } from "../document/time";
 import { playsFile } from "../document/types";
@@ -203,8 +203,8 @@ export interface ExportChoice {
   fps: number;
   /** ffmpeg's own scale: lower is finer and makes a bigger file. */
   quality: number;
-  /** True to be asked where to save. Otherwise it goes to Documents, Duet, Exports. */
-  ask: boolean;
+  /** The folder it goes into. Left out, it goes to Documents, Duet, Exports. */
+  dir?: string;
   /** A full path, used by the builder tools in place of everything above about where. */
   to?: string;
   /** A ProRes .mov at 10-bit, to keep editing or grading elsewhere, instead of an MP4 to share. */
@@ -222,7 +222,10 @@ export const QUALITIES: { name: string; quality: number }[] = [
   { name: "Good", quality: 20 },
   { name: "Small file", quality: 27 },
 ];
-export const defaultChoice = (): ExportChoice => ({ longSide: 0, fps: 30, quality: 20, ask: false });
+export const defaultChoice = (): ExportChoice => ({ longSide: 0, fps: 30, quality: 20 });
+
+/** Where videos go when no folder was chosen: Documents, Duet, Exports. */
+export const exportsDir = async () => `${await invoke<string>("default_projects_dir")}/Exports`;
 
 /** The size a scene comes out at for a choice, in even numbers of pixels, as video needs. */
 export function exportSize(scene: { width: number; height: number }, longSide: number): [number, number] {
@@ -309,10 +312,9 @@ export async function exportScene(sceneId: string, progress: (done: number) => v
   let out: string | null;
   const ext = choice.master ? "mov" : "mp4";
   if (choice.to) out = choice.to;
-  else if (choice.ask) out = await save({ title: "Save your video", defaultPath: `${scene.name}.${ext}`, filters: [{ name: "Video", extensions: [ext] }] });
   else {
-    // no question asked: it goes beside the projects, named by the scene and the time
-    const dir = `${await invoke<string>("default_projects_dir")}/Exports`;
+    // no question asked: it goes in the chosen folder, or beside the projects, named by the scene and the time
+    const dir = choice.dir || (await exportsDir());
     await invoke("make_dir", { path: dir });
     const d = new Date();
     const two = (n: number) => String(n).padStart(2, "0");

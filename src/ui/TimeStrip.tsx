@@ -13,7 +13,9 @@ import { openScene, pause, seek, shuttle, togglePlay } from "../video/play";
 import Icon from "./Icons";
 import ClipFace from "./ClipFace";
 import { setKeyFocus } from "./keyFocus";
-import { QUALITIES, SIZES, addMedia, clipKind, defaultChoice, dropClips, exportScene, exportSize, keepDropped, stopExport } from "../video/scene";
+import { QUALITIES, SIZES, addMedia, clipKind, dropClips, exportScene, exportSize, keepDropped, stopExport } from "../video/scene";
+import { lastChoice, rememberExport, shortFolder } from "../video/exportPrefs";
+import { open as openDialog } from "./dialog";
 import { droppedPaths } from "../canvas/CanvasView";
 import type { ExportChoice } from "../video/scene";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
@@ -81,7 +83,10 @@ export default function TimeStrip() {
   const [hushing, setHushing] = useState(false);
   const [hush, setHush] = useState<SilenceChoice>(SILENCE_DEFAULT);
   const [hushPeaks, setHushPeaks] = useState<Map<string, Uint8Array> | null>(null);
-  const [choice, setChoice] = useState<ExportChoice>(defaultChoice);
+  const projectFile = useStore((s) => s.project.file);
+  const [choice, setChoice] = useState<ExportChoice>(() => lastChoice(projectFile));
+  // each project keeps its own export folder
+  useEffect(() => setChoice(lastChoice(projectFile)), [projectFile]);
   const [made, setMade] = useState<string | null>(null);
   // set while a keyframe mark is being dragged, so letting go is not taken for a click
   const draggedMark = useRef(false);
@@ -823,7 +828,8 @@ export default function TimeStrip() {
       const file = await exportScene(frame.id, setMaking, choice);
       if (file) {
         setMade(file);
-        setNote(choice.ask ? `Saved ${file.split(/[\\/]/).pop()}` : "Saved in Documents, Duet, Exports");
+        rememberExport(projectFile, choice);
+        setNote(`Saved in ${choice.dir ? shortFolder(choice.dir) : "Documents, Duet, Exports"}`);
       }
     } catch (e) {
       setNote(String(e instanceof Error ? e.message : e));
@@ -1420,11 +1426,22 @@ export default function TimeStrip() {
                     </select>
                   </label>
                 )}
-                <label className="export-where">
-                  <input type="checkbox" checked={choice.ask} onChange={(e) => setChoice({ ...choice, ask: e.target.checked })} />
-                  Ask me where to save
-                </label>
-                {!choice.ask && <div className="time-quiet">It goes to Documents, Duet, Exports.</div>}
+                <div className="export-where">
+                  <span className="time-quiet" title={choice.dir ?? "Documents, Duet, Exports"}>
+                    Saves in {choice.dir ? shortFolder(choice.dir) : "Documents, Duet, Exports"}
+                  </span>
+                  <button
+                    className="pill"
+                    data-name="export-folder"
+                    title="Choose the folder this project's videos go into. Duet remembers it."
+                    onClick={async () => {
+                      const dir = await openDialog({ directory: true, title: "Where this project's videos go", defaultPath: choice.dir });
+                      if (typeof dir === "string" && dir) setChoice({ ...choice, dir });
+                    }}
+                  >
+                    Change
+                  </button>
+                </div>
                 <button className="pill primary" data-name="export-go" onClick={make}>
                   Export
                 </button>
