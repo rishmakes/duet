@@ -5136,7 +5136,7 @@ input.chathome-name.rename {
   background: var(--panel-2);
 }
 .chathome-row.on {
-  background: var(--panel-2);
+  background: var(--accent-soft);
   color: var(--accent);
 }
 .chathome-none {
@@ -5392,23 +5392,32 @@ input.chathome-name.rename {
 .chathome-row {
   position: relative;
 }
-.chathome-dot {
+.chathome-close {
   margin-left: auto;
   flex: none;
-  width: 7px;
-  height: 7px;
-  margin-right: 4px;
-  border-radius: 50%;
-  background: var(--text);
-  opacity: 0.7;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-right: 2px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  opacity: 0.75;
+  cursor: pointer;
 }
-.chathome-dot.now {
-  background: var(--accent);
+.chathome-close:hover {
+  background: var(--panel-3, rgba(255, 255, 255, 0.08));
+  opacity: 1;
+}
+.chathome-close.now {
+  color: var(--accent);
   opacity: 1;
 }
 /* projects that are not open sit back a little */
 .chathome-row.shut .chathome-thumb {
-  opacity: 0.6;
+  opacity: 0.45;
 }
 .chathome-row.shut .chathome-name {
   color: var(--muted);

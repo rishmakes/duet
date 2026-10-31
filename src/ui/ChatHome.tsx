@@ -80,14 +80,25 @@ function useWords(paths: string[], searching: boolean): (path: string) => string
   return (path) => words.get(path);
 }
 
-/** A dot for an open project: purple for the one on screen, white for one waiting in the background. */
-function OpenDot({ on, open }: { on: boolean; open: boolean }) {
-  if (!on && !open) return null;
-  return <span className={`chathome-dot ${on ? "now" : ""}`} title={on ? "Open now" : "Open"} />;
+/** A cross on an open project that closes it: purple for the one on screen, white for one waiting in the background. */
+function CloseCross({ on, onClose }: { on: boolean; onClose: () => void }) {
+  return (
+    <button
+      className={`chathome-close ${on ? "now" : ""}`}
+      title="Close"
+      aria-label="Close"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClose();
+      }}
+    >
+      <Icon name="close" size={13} />
+    </button>
+  );
 }
 
 /** One project in the list: its picture, its name and when it was last opened. A dot says it is open. */
-function ProjectRow({ r, on, open, onOpen, onMenu, renaming, onRenamed }: { r: Recent; on: boolean; open: boolean; onOpen: () => void; onMenu: (x: number, y: number) => void; renaming: boolean; onRenamed: () => void }) {
+function ProjectRow({ r, on, open, onOpen, onClose, onMenu, renaming, onRenamed }: { r: Recent; on: boolean; open: boolean; onOpen: () => void; onClose: () => void; onMenu: (x: number, y: number) => void; renaming: boolean; onRenamed: () => void }) {
   const own = usePreview(r.thumb ? "" : r.path);
   const src = r.thumb ?? own;
   const [name, setName] = useState(r.name);
@@ -134,7 +145,7 @@ function ProjectRow({ r, on, open, onOpen, onMenu, renaming, onRenamed }: { r: R
         )}
         <div className="chathome-when">{r.missing ? "Cannot be found" : on ? "Open now" : open ? "Open" : ago(r.opened)}</div>
       </div>
-      <OpenDot on={on} open={open} />
+      {(on || open) && <CloseCross on={on} onClose={onClose} />}
     </div>
   );
 }
@@ -394,6 +405,7 @@ export default function ChatHome() {
                   onOpen={() => {
                     if (r.path !== current.file) void openProjectAt(r.path);
                   }}
+                  onClose={() => void leave(r.path)}
                   onMenu={(x, y) => setMenu({ x, y, r })}
                   renaming={renaming === r.path}
                   onRenamed={() => setRenaming(null)}
