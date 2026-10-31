@@ -36,8 +36,10 @@ pub fn parse(text: &str) -> Look {
 
 /// For PQ, the light in nits that becomes the top of an ordinary picture.
 const WHITE: f64 = 300.0;
-/// The screen curve HLG is made to look right on as it is, which is how it stays bright where it was filmed bright
-/// and dark where it was filmed dark. A fixed level of light for all of it made clips filmed in shade far too dark.
+/// HLG is read on a curve a little steeper than the screen it is shown on, which is how a Mac shows it: the same
+/// curve for every clip, so shade stays shade and bright stays bright. Measured against Duet's own preview of a phone
+/// clip; reading it on the screen's curve alone came out pale, and a fixed level of light made shade far too dark.
+const READ: f64 = 3.0;
 const SCREEN: f64 = 2.4;
 /// Light above this part of white is eased in, so bright skies keep some shape instead of clipping.
 const KNEE: f64 = 0.75;
@@ -73,9 +75,9 @@ pub fn cube(kind: Hdr) -> String {
         for gi in 0..SIZE {
             for ri in 0..SIZE {
                 let e = [ri as f64 / step, gi as f64 / step, bi as f64 / step];
-                // HLG is shown as an ordinary picture is, on its own screen curve, with only its colours brought into Rec.709
+                // HLG is read on its steeper curve, its colours brought into Rec.709, and shown on the screen's curve
                 if kind == Hdr::Hlg {
-                    let l = e.map(|v| v.powf(SCREEN));
+                    let l = e.map(|v| v.powf(READ));
                     let l = [0, 1, 2].map(|i| (TO_709[i][0] * l[0] + TO_709[i][1] * l[1] + TO_709[i][2] * l[2]).clamp(0.0, 1.0).powf(1.0 / SCREEN));
                     out.push_str(&format!("{:.6} {:.6} {:.6}\n", l[0], l[1], l[2]));
                     continue;
@@ -98,7 +100,7 @@ pub fn cube(kind: Hdr) -> String {
 /// The colour table's file, made once in the computer's temporary folder.
 fn cube_file(kind: Hdr) -> Option<PathBuf> {
     let name = match kind {
-        Hdr::Hlg => "duet-hlg-to-sdr-2.cube",
+        Hdr::Hlg => "duet-hlg-to-sdr-3.cube",
         Hdr::Pq => "duet-pq-to-sdr-2.cube",
     };
     let path = std::env::temp_dir().join(name);
