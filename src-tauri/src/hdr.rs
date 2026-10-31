@@ -1,7 +1,7 @@
 //! Clips filmed in HDR (most new phones film HLG; some cameras PQ) hold brighter light and wider colour
 //! than an ordinary video can. Read as if they were ordinary, they come out pale and grey. The ffmpeg that
 //! ships with Duet has no HDR conversion of its own, so Duet makes the conversion as a colour table that
-//! ffmpeg applies: HDR light brought down to an ordinary picture, its colours brought into Rec.709.
+//! ffmpeg applies: HLG shown on its own screen curve as it was made to be, PQ light brought down, colours brought into Rec.709.
 
 use std::path::PathBuf;
 
@@ -34,19 +34,15 @@ pub fn parse(text: &str) -> Look {
     Look { wide: line.contains("bt2020nc") || line.contains("bt2020c") || hdr.is_some(), hdr }
 }
 
-/// The light, in nits, that becomes the top of an ordinary picture. Chosen to match how macOS shows HDR
-/// clips as ordinary pictures, with a little more of their colour kept.
-const WHITE: f64 = 500.0;
+/// For PQ, the light in nits that becomes the top of an ordinary picture.
+const WHITE: f64 = 300.0;
+/// The screen curve HLG is made to look right on as it is, which is how it stays bright where it was filmed bright
+/// and dark where it was filmed dark. A fixed level of light for all of it made clips filmed in shade far too dark.
+const SCREEN: f64 = 2.4;
 /// Light above this part of white is eased in, so bright skies keep some shape instead of clipping.
 const KNEE: f64 = 0.75;
 /// Points along each side of the colour table.
 const SIZE: usize = 33;
-
-/// HLG's signal back to the light the camera saw, 0 to 1.
-fn hlg_light(e: f64) -> f64 {
-    let (a, b, c) = (0.17883277, 0.28466892, 0.55991073);
-    if e <= 0.5 { e * e / 3.0 } else { (((e - c) / a).exp() + b) / 12.0 }
-}
 
 /// PQ's signal to the light it stands for, in nits.
 fn pq_nits(e: f64) -> f64 {
@@ -58,10 +54,7 @@ fn pq_nits(e: f64) -> f64 {
 /// The colour table for one kind of HDR, as a .cube file.
 pub fn cube(kind: Hdr) -> String {
     const TO_709: [[f64; 3]; 3] = [[1.6605, -0.5876, -0.0728], [-0.1246, 1.1329, -0.0083], [-0.0182, -0.1006, 1.1187]];
-    let peak = match kind {
-        Hdr::Hlg => 1000.0,
-        Hdr::Pq => 10000.0,
-    } / WHITE;
+    let peak = 10000.0 / WHITE;
     let ease = |x: f64| {
         if x <= KNEE {
             return x;
@@ -80,17 +73,15 @@ pub fn cube(kind: Hdr) -> String {
         for gi in 0..SIZE {
             for ri in 0..SIZE {
                 let e = [ri as f64 / step, gi as f64 / step, bi as f64 / step];
-                // light on a screen, as a part of white
-                let mut l = match kind {
-                    Hdr::Hlg => {
-                        // HLG's own step from the scene to a 1000 nit screen
-                        let s = e.map(hlg_light);
-                        let y = 0.2627 * s[0] + 0.6780 * s[1] + 0.0593 * s[2];
-                        let k = if y > 0.0 { 1000.0 * y.powf(0.2) / WHITE } else { 0.0 };
-                        s.map(|v| v * k)
-                    }
-                    Hdr::Pq => e.map(|v| pq_nits(v) / WHITE),
-                };
+                // HLG is shown as an ordinary picture is, on its own screen curve, with only its colours brought into Rec.709
+                if kind == Hdr::Hlg {
+                    let l = e.map(|v| v.powf(SCREEN));
+                    let l = [0, 1, 2].map(|i| (TO_709[i][0] * l[0] + TO_709[i][1] * l[1] + TO_709[i][2] * l[2]).clamp(0.0, 1.0).powf(1.0 / SCREEN));
+                    out.push_str(&format!("{:.6} {:.6} {:.6}\n", l[0], l[1], l[2]));
+                    continue;
+                }
+                // PQ: light on a screen, as a part of white
+                let mut l = e.map(|v| pq_nits(v) / WHITE);
                 l = [0, 1, 2].map(|i| (TO_709[i][0] * l[0] + TO_709[i][1] * l[1] + TO_709[i][2] * l[2]).max(0.0));
                 let top = l[0].max(l[1]).max(l[2]);
                 if top > KNEE {
@@ -107,8 +98,8 @@ pub fn cube(kind: Hdr) -> String {
 /// The colour table's file, made once in the computer's temporary folder.
 fn cube_file(kind: Hdr) -> Option<PathBuf> {
     let name = match kind {
-        Hdr::Hlg => "duet-hlg-to-sdr-1.cube",
-        Hdr::Pq => "duet-pq-to-sdr-1.cube",
+        Hdr::Hlg => "duet-hlg-to-sdr-2.cube",
+        Hdr::Pq => "duet-pq-to-sdr-2.cube",
     };
     let path = std::env::temp_dir().join(name);
     if !path.is_file() {
