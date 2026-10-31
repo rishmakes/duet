@@ -47,8 +47,11 @@ Restart `tauri dev` after installing a new npm package. Vite re-bundles dependen
 - Only build and promise what is real. Half-built features stay out of the interface.
 - Nothing copied from other design tools. Own icons, colours and code.
 - Commits carry the author's identity only. No tool names or attribution lines.
-- Every commit names its issue (`#123`). The same day, label that issue `built - needs testing`.
+- Every commit names its issue (`#123`). The same day, move that issue to "Built - not tested" on the board "Duet: where everything stands" (project 6).
+- Where an issue stands is its board column only (Idea, Planned, In Progress, Built - not tested, Tested, Shipped). Labels say what kind of thing it is (bug, enhancement, Design, AI, Video, Photo, Files, Windows). Milestones are the initiatives it belongs to. Never use a label for status.
+- The board never lies. Every move needs proof on the issue: In Progress says what is built and what is missing; Built - not tested names the commit; Tested has Antigravity's step-by-step report from Duet dev (a fail goes back to In Progress with the reason); Shipped means it is in a published release.
 - Antigravity tests each fix step by step in Duet dev and posts its report on the issue. If it all passes, Claude closes the issue and moves it to Tested. The creator gives one-line verdicts from using Duet and can reopen anything.
+- The day a release is published, everything in it moves from Tested to Shipped. Before each session, compare the board with the code and releases and fix any card in the wrong column.
 - Words for status: "checks pass" (code tests only), "checked in Duet dev" (Antigravity used it), "tried by the creator". Never just "tested".
 - Before opening an issue, search open and closed issues for a similar one (`gh issue list --state all --search "<words>"`). Never skip this. If one exists, comment there instead.
 - No secrets in the repository. The agent token lives only in `~/.duet/session.json`.
