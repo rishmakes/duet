@@ -7,6 +7,8 @@ let raf = 0;
 let last = 0;
 /** How fast the clock runs: 1 is play, 2 to 8 faster, negative backwards. Clips only lead the clock at 1. */
 let rate = 1;
+/** Playing started inside the work area, so it keeps to it. Started outside, it plays the whole scene from there. */
+let inWork = true;
 
 function tick(now: number) {
   const s = getState();
@@ -22,7 +24,7 @@ function tick(now: number) {
   last = now;
   // running backwards, it stops at the start of the work area, or of the frame
   if (rate < 0) {
-    const from = scene.workArea?.start ?? 0;
+    const from = inWork ? scene.workArea?.start ?? 0 : 0;
     if (t <= from) {
       raf = 0;
       rate = 1;
@@ -33,8 +35,8 @@ function tick(now: number) {
     raf = requestAnimationFrame(tick);
     return;
   }
-  // with a work area, playing stops at its end
-  const stop = scene.workArea ? Math.min(scene.workArea.end, scene.duration) : scene.duration;
+  // with a work area, playing stops at its end, unless it started outside it
+  const stop = scene.workArea && inWork ? Math.min(scene.workArea.end, scene.duration) : scene.duration;
   if (t >= stop) {
     raf = 0;
     rate = 1;
@@ -49,11 +51,15 @@ export function play() {
   const s = getState();
   const scene = s.clock.scene ? currentDoc(s).elements[s.clock.scene] : null;
   if (!scene?.duration || s.clock.playing) return;
-  // pressing play at the end, or outside the work area, starts again from its beginning
+  // pressing play at the end of the work area, or of the scene, starts again from the work area's beginning.
+  // With the playhead put outside the work area on purpose, it plays from there to the end of the scene.
   const from = scene.workArea?.start ?? 0;
   const to = scene.workArea ? Math.min(scene.workArea.end, scene.duration) : scene.duration;
+  const t = s.clock.t;
+  const atEnd = Math.abs(t - to) <= 0.01 || t >= scene.duration - 0.01;
+  inWork = atEnd || (t >= from - 0.01 && t < to);
   rate = 1;
-  setClock({ playing: true, t: s.clock.t >= to - 0.01 || s.clock.t < from - 0.01 ? from : s.clock.t });
+  setClock({ playing: true, t: atEnd ? from : t });
   last = performance.now();
   if (!raf) raf = requestAnimationFrame(tick);
 }
@@ -86,7 +92,10 @@ export function shuttle(dir: 1 | -1) {
     } else play();
     return;
   }
-  if (s.clock.t <= (scene.workArea?.start ?? 0) + 0.01) return;
+  const from = scene.workArea?.start ?? 0;
+  const to = scene.workArea ? Math.min(scene.workArea.end, scene.duration) : scene.duration;
+  inWork = s.clock.t >= from - 0.01 && s.clock.t <= to + 0.01;
+  if (s.clock.t <= (inWork ? from : 0) + 0.01) return;
   rate = -1;
   last = performance.now();
   setClock({ playing: true });
