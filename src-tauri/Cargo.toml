@@ -1,6 +1,6 @@
 [package]
 name = "duet-app"
-version = "0.15.0"
+version = "0.15.1"
 description = "An opinionated design tool, built by designers, for designers. You and your AI work hand in hand on one canvas."
 authors = ["Sourish Mazumdar"]
 license = "PolyForm-Shield-1.0.0"
