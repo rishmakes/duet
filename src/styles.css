@@ -1556,6 +1556,13 @@ body.eyedropping * {
 .find:hover {
   background: var(--accent);
 }
+/* the top of the left panel: its tabs and hint, pinned while the list scrolls under them */
+.left-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--panel);
+}
 .tip-line {
   padding: 6px 14px;
   color: var(--muted);

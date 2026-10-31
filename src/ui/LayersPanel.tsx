@@ -339,6 +339,8 @@ export default function LayersPanel() {
 
   return (
     <aside className="left">
+      {/* the tabs and the hint stay put while the list under them scrolls */}
+      <div className="left-head">
       <div className="tabs">
         <div className={`tab ${tab === "layers" ? "on" : ""}`} onClick={() => setTab("layers")}>
           Layers
@@ -350,9 +352,10 @@ export default function LayersPanel() {
           Skills
         </div>
       </div>
+      {tab === "layers" && <div className="tip-line">Click a layer to find it. Cmd or Ctrl click to zoom to it.</div>}
+      </div>
       {tab === "skills" && <SkillsPanel />}
       {tab === "assets" && <AssetsPanel />}
-      {tab === "layers" && <div className="tip-line">Click a layer to find it. Cmd or Ctrl click to zoom to it.</div>}
       <div
         className="layers"
         hidden={tab !== "layers"}
