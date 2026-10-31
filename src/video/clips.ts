@@ -91,9 +91,12 @@ function clipPlayer(el: { id: string; src: string }): HTMLMediaElement {
   return lightPlayer(el.src, clipPlayers, el.id);
 }
 
-/** Let go of the clip players needed longest ago, keeping the ones in use now. */
-function letGoOfOldClips(keep: Set<string>) {
-  if (clipPlayers.size <= MAX_CLIP_PLAYERS) return;
+/**
+ * Let go of the clip players needed longest ago, keeping the ones in use now. While playing, a player is
+ * let go only when far too many are open: taking one down mid-play can stall the picture for a moment.
+ */
+function letGoOfOldClips(keep: Set<string>, playing: boolean) {
+  if (clipPlayers.size <= (playing ? MAX_CLIP_PLAYERS * 2 : MAX_CLIP_PLAYERS)) return;
   const old = [...clipPlayers.keys()].filter((id) => !keep.has(id)).sort((a, b) => (lastUsed.get(a) ?? 0) - (lastUsed.get(b) ?? 0));
   for (const id of old.slice(0, clipPlayers.size - MAX_CLIP_PLAYERS)) {
     const v = clipPlayers.get(id)!;
@@ -318,7 +321,7 @@ export function syncClips(doc: Doc, sceneId: string | null, t: number, playing: 
     if (!v.paused) v.pause();
   }
   for (const v of players.values()) if (!v.paused) v.pause();
-  letGoOfOldClips(live);
+  letGoOfOldClips(live, playing);
 }
 
 /**
