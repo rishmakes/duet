@@ -5153,6 +5153,18 @@ input.chathome-name.rename {
 .chat.docked .csize {
   display: none;
 }
+/* the chat as a tab on the right panel in Video: it fills the panel, the box to write in at the bottom */
+.right.right-chat {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.right.right-chat > .chat.docked {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 .chathome > .canvas {
   grid-area: auto;
 }

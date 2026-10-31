@@ -1,3 +1,4 @@
+import ChatPanel from "./ChatPanel";
 import { useEffect, useRef, useState } from "react";
 import { dragCancel, dragPreview, getState, workDoc, dispatch, select, useStore, currentDoc } from "../state/store";
 import { playsFile } from "../document/types";
@@ -1060,9 +1061,30 @@ export default function PropertiesPanel() {
         >
           Colour
         </button>
+        {mode === "motion" && (
+          <button
+            type="button"
+            className={tab === "chat" ? "active" : ""}
+            data-name="switch-chat"
+            title="Chat with the AI here, out of the way of the picture"
+            onClick={() => setTab("chat")}
+          >
+            Chat
+          </button>
+        )}
       </div>
     </div>
   ) : null;
+
+  // in Video the chat sits here as a tab, so it never covers the picture while working by hand
+  if (tab === "chat" && mode === "motion") {
+    return (
+      <aside className="right right-chat">
+        {switchElement}
+        <ChatPanel docked />
+      </aside>
+    );
+  }
 
   if (tab === "color") {
     const topElement = (

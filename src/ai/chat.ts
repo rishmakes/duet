@@ -460,8 +460,9 @@ export function askDesigner(summary: string): Promise<boolean> {
     // asked where the designer is looking, the main chat or a task, so it is never missed
     const where = state.thread ?? undefined;
     const id = addMsg({ role: "note", text: "", approval: { summary, status: "waiting" } }, where);
-    // an AI working from outside may ask while the chat is folded away
+    // an AI working from outside may ask while the chat is folded away, or behind another tab in Video
     set({ minimized: false });
+    if (typeof window !== "undefined") window.dispatchEvent(new Event("duet:show-chat"));
     pendingApprovals.set(id, (allowed) => {
       updateMsg(id, { approval: { summary, status: allowed ? "allowed" : "declined" } }, where);
       resolve(allowed);

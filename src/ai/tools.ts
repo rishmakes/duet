@@ -1484,6 +1484,7 @@ async function answerTool(name: string, raw: unknown, by?: string): Promise<Tool
   if (mode === "suggest") {
     addMsg({ role: "note", text: "", proposal: { tool: name, args: check.args, summary, status: "open", by } }, said());
     setMinimized(false);
+    if (typeof window !== "undefined") window.dispatchEvent(new Event("duet:show-chat"));
     return { text: "Suggestion shown to the designer. Nothing has been changed yet. Do not repeat it. Tell the designer in plain words what you suggested." };
   }
   if (RISKY.has(name) && mode === "ask") {

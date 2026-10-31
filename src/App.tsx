@@ -109,6 +109,15 @@ export default function App() {
   useEffect(() => {
     if (dock.space === "edit") setMinimized(!dock.editChatOpen);
   }, [dock.space]);
+  // the AI asks something or suggests a change: in Video the right panel turns to the chat so it is seen
+  useEffect(() => {
+    const show = () => {
+      const d = getLayout();
+      if (d.space === "edit" && d.mode === "motion" && !d.rightHidden && d.videoTab !== "chat") setLayout({ videoTab: "chat" });
+    };
+    window.addEventListener("duet:show-chat", show);
+    return () => window.removeEventListener("duet:show-chat", show);
+  }, []);
 
   useEffect(() => {
     const stop = startAutosave();
@@ -330,7 +339,8 @@ export default function App() {
             <Grip side="l" />
             <Grip side="r" />
             {isColorOpen(dock) && <BeforeAfter />}
-            <ChatPanel />
+            {/* in Video the chat is a tab on the right panel instead of floating over the picture */}
+            {(dock.mode !== "motion" || dock.rightHidden) && <ChatPanel />}
           </main>
           {!dock.rightHidden && <PropertiesPanel />}
           <TimeStrip />

@@ -7,7 +7,8 @@ export type Mode = "design" | "motion" | "photo";
 /** Agent (called chat inside): talk to the AI beside your projects and watch the canvas. Studio (called edit inside): every tool. */
 export type Space = "chat" | "edit";
 export type TimeLook = "layers" | "cut";
-export type RightTab = "properties" | "color";
+/** What the right panel shows. Chat is a tab only in Video. */
+export type RightTab = "properties" | "color" | "chat";
 
 export interface TrackHeights {
   titles: number;
@@ -56,7 +57,7 @@ export interface Dock {
   wheelZooms: boolean;
   /** The chat is open when Studio comes up. Off, it waits folded away until clicked. */
   editChatOpen: boolean;
-  /** In Video, whether the right panel shows Properties or Colour. */
+  /** In Video, whether the right panel shows Properties, Colour or the chat. */
   videoTab: RightTab;
   /** In Photo, whether the right panel shows Properties or Colour. */
   photoTab: RightTab;
@@ -114,7 +115,7 @@ export function parseLayout(raw: unknown): Dock {
     const r = raw as Partial<Dock>;
     const timeLook: TimeLook = r.timeLook === "cut" ? "cut" : "layers";
     const space: Space = r.space === "chat" ? "chat" : "edit";
-    const videoTab: RightTab = r.videoTab === "color" ? "color" : "properties";
+    const videoTab: RightTab = r.videoTab === "color" || r.videoTab === "chat" ? r.videoTab : "properties";
     const photoTab: RightTab = r.photoTab === "properties" ? "properties" : "color";
     // the history line was hidden by default before 0.12.1; it shows unless the designer hid it themselves
     const historyLine = r.historyLineChosen ? r.historyLine !== false : true;
