@@ -3386,9 +3386,9 @@ option {
   font-weight: 600;
   color: var(--text);
   margin-bottom: 2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* a long name like YouTube thumbnail takes a second line instead of being cut */
+  text-wrap: balance;
+  line-height: 1.25;
   width: 100%;
 }
 
