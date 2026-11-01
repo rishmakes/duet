@@ -32,7 +32,7 @@ function ago(ms: number): string {
 const previews = new Map<string, string | null>();
 
 /** The small picture saved with a project, if there is one. */
-function usePreview(path: string): string | null {
+export function usePreview(path: string): string | null {
   const [src, setSrc] = useState<string | null>(previews.get(path) ?? null);
   useEffect(() => {
     if (!path || !inTauri() || previews.has(path)) return;
@@ -174,73 +174,95 @@ function ChatWidthGrip() {
 }
 
 /** One project in the trash: its picture, its name, the folder it came from, and how long it stays. */
-function TrashRow({ t, picked, onPick, onTick, onSweep, onDone }: { t: Trashed; picked: boolean; onPick: (e: React.MouseEvent) => void; onTick: () => void; onSweep: () => void; onDone: () => void }) {
+function TrashRow({ t, card, picked, onPick, onTick, onSweep, onDone }: { t: Trashed; card?: boolean; picked: boolean; onPick: (e: React.MouseEvent) => void; onTick: () => void; onSweep: () => void; onDone: () => void }) {
   const src = usePreview(t.file);
   const left = Math.max(1, Math.ceil(TRASH_DAYS - (Date.now() - t.trashed) / 86400000));
   const folder = t.original.replace(/[\\/][^\\/]*$/, "").split(/[\\/]/).pop();
-  return (
-    <div className={`trash-row ${picked ? "on" : ""}`} title={t.original} onClick={onPick} onMouseEnter={onSweep}>
+  const tickBox = (
+    <button
+      className={`trash-tick ${picked ? "on" : ""}`}
+      role="checkbox"
+      aria-checked={picked}
+      aria-label={`Pick ${t.name}`}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => {
+        e.preventDefault();
+        onTick();
+      }}
+    >
+      {picked && (
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M2 5.2 4.1 7.3 8 2.8" />
+        </svg>
+      )}
+    </button>
+  );
+  const when = `${folder ? `${folder} · ` : ""}${left} ${left === 1 ? "day" : "days"} left`;
+  const actions = (
+    <div className="trash-actions">
       <button
-        className={`trash-tick ${picked ? "on" : ""}`}
-        role="checkbox"
-        aria-checked={picked}
-        aria-label={`Pick ${t.name}`}
-        onClick={(e) => e.stopPropagation()}
-        onMouseDown={(e) => {
-          e.preventDefault();
-          onTick();
+        className="trash-btn"
+        title="Put back"
+        aria-label="Put back"
+        onClick={(e) => {
+          e.stopPropagation();
+          void trashRestore(t.id)
+            .then(onDone)
+            .catch((e) => message(`“${t.name}” could not be put back. ${String(e)}`, { title: "Put back", kind: "warning" }));
         }}
       >
-        {picked && (
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M2 5.2 4.1 7.3 8 2.8" />
-          </svg>
-        )}
+        <Icon name="restore" size={14} />
       </button>
+      <button
+        className="trash-btn"
+        title="Delete for good"
+        aria-label="Delete for good"
+        onClick={async (e) => {
+          e.stopPropagation();
+          if (!(await ask(`Delete “${t.name}” for good? It cannot be brought back.`, { title: "Duet", kind: "warning", okLabel: "Delete", cancelLabel: "Keep it" }))) return;
+          await trashDelete(t.id).catch(() => undefined);
+          onDone();
+        }}
+      >
+        <Icon name="trash" size={14} />
+      </button>
+    </div>
+  );
+  // on Home the Trash is laid out like Recent work, one card per project
+  if (card)
+    return (
+      <div className={`recent-card trash-card ${picked ? "on" : ""}`} title={t.original} onClick={onPick} onMouseEnter={onSweep}>
+        <div className="recent-thumb">
+          {tickBox}
+          {actions}
+          {src ? (
+            <img src={src} alt="" />
+          ) : (
+            <div className="recent-thumb-blank">
+              <Icon name="frame" size={26} />
+            </div>
+          )}
+        </div>
+        <div className="recent-info">
+          <div className="recent-name">{t.name}</div>
+          <div className="recent-meta">{when}</div>
+        </div>
+      </div>
+    );
+  return (
+    <div className={`trash-row ${picked ? "on" : ""}`} title={t.original} onClick={onPick} onMouseEnter={onSweep}>
+      {tickBox}
       <div className="chathome-thumb">{src ? <img src={src} alt="" /> : null}</div>
       <div className="chathome-meta">
         <div className="chathome-name">{t.name}</div>
-        <div className="chathome-when">
-          {folder ? `${folder} · ` : ""}
-          {left} {left === 1 ? "day" : "days"} left
-        </div>
+        <div className="chathome-when">{when}</div>
       </div>
-      <div className="trash-actions">
-        <button
-          className="trash-btn"
-          title="Put back"
-          aria-label="Put back"
-          onClick={(e) => {
-            e.stopPropagation();
-            void trashRestore(t.id)
-              .then(onDone)
-              .catch((e) => message(`“${t.name}” could not be put back. ${String(e)}`, { title: "Put back", kind: "warning" }));
-          }}
-        >
-          <Icon name="restore" size={14} />
-        </button>
-        <button
-          className="trash-btn"
-          title="Delete for good"
-          aria-label="Delete for good"
-          onClick={async (e) => {
-            e.stopPropagation();
-            if (!(await ask(`Delete “${t.name}” for good? It cannot be brought back.`, { title: "Duet", kind: "warning", okLabel: "Delete", cancelLabel: "Keep it" }))) return;
-            await trashDelete(t.id).catch(() => undefined);
-            onDone();
-          }}
-        >
-          <Icon name="trash" size={14} />
-        </button>
-      </div>
+      {actions}
     </div>
   );
 }
 
-/** What is in the trash, in place of the projects list: each can be put back, or deleted for good.
- * The tick box adds or takes one from the pick, and dragging down or up over the boxes does the same to each; click picks one, Cmd or Ctrl click adds, Shift click picks a run.
- * A click anywhere outside the list lets go of the pick. The picked ones go back or go together. */
-export function TrashView({ onBack }: { onBack: () => void }) {
+export function TrashView({ onBack, cards }: { onBack: () => void; cards?: boolean }) {
   const [items, setItems] = useState<Trashed[] | null>(null);
   const [picked, setPicked] = useState<string[]>([]);
   const last = useRef<string | null>(null);
@@ -252,7 +274,7 @@ export function TrashView({ onBack }: { onBack: () => void }) {
   useEffect(load, []);
   useEffect(() => {
     const away = (e: MouseEvent) => {
-      if (!(e.target as Element).closest?.(".trash-row, .trash-foot, .sheet-back")) setPicked([]);
+      if (!(e.target as Element).closest?.(".trash-row, .trash-card, .trash-foot, .sheet-back")) setPicked([]);
     };
     window.addEventListener("mousedown", away);
     return () => window.removeEventListener("mousedown", away);
@@ -298,6 +320,36 @@ export function TrashView({ onBack }: { onBack: () => void }) {
     for (const id of ids) await trashDelete(id).catch(() => undefined);
     load();
   };
+  const foot = items && items.length > 0 && (
+    <div className="trash-foot">
+      {picked.length > 0 ? (
+        <>
+          <span>{picked.length} picked</span>
+          <button className="pill" onClick={() => void putBack(picked)}>
+            Put back
+          </button>
+          <button className="pill" onClick={() => void deleteAll(picked, named(picked.length))}>
+            Delete
+          </button>
+        </>
+      ) : (
+        <button className="pill" onClick={() => void deleteAll(items.map((t) => t.id), `all ${named(items.length)} in the Trash`)}>
+          Empty Trash
+        </button>
+      )}
+    </div>
+  );
+  const rows = items?.map((t) => <TrashRow key={t.id} t={t} card={cards} picked={picked.includes(t.id)} onPick={(e) => pick(t.id, e)} onTick={() => tick(t.id)} onSweep={() => swept(t.id)} onDone={load} />);
+  if (cards)
+    return (
+      <div className="trash-cards">
+        <div className="trash-bar">
+          <span className="trash-note">Projects stay here for {TRASH_DAYS} days, then they are cleared out.</span>
+          {foot}
+        </div>
+        {items && items.length === 0 ? <div className="recents-empty">The Trash is empty.</div> : <div className="recents-grid">{rows}</div>}
+      </div>
+    );
   return (
     <div className="chathome-body trash-body">
       <div className="chathome-skills-head trash-head">
@@ -308,28 +360,10 @@ export function TrashView({ onBack }: { onBack: () => void }) {
       </div>
       <div className="trash-note">Projects stay here for {TRASH_DAYS} days, then they are cleared out.</div>
       <div className="trash-list">
-        {items?.map((t) => <TrashRow key={t.id} t={t} picked={picked.includes(t.id)} onPick={(e) => pick(t.id, e)} onTick={() => tick(t.id)} onSweep={() => swept(t.id)} onDone={load} />)}
+        {rows}
         {items && items.length === 0 && <div className="chathome-none">The trash is empty.</div>}
       </div>
-      {items && items.length > 0 && (
-        <div className="trash-foot">
-          {picked.length > 0 ? (
-            <>
-              <span>{picked.length} picked</span>
-              <button className="pill" onClick={() => void putBack(picked)}>
-                Put back
-              </button>
-              <button className="pill" onClick={() => void deleteAll(picked, named(picked.length))}>
-                Delete
-              </button>
-            </>
-          ) : (
-            <button className="pill" onClick={() => void deleteAll(items.map((t) => t.id), `all ${named(items.length)} in the Trash`)}>
-              Empty Trash
-            </button>
-          )}
-        </div>
-      )}
+      {foot}
     </div>
   );
 }

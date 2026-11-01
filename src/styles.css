@@ -7585,10 +7585,58 @@ input.chathome-name.rename {
 .recent-card:hover .recent-more {
   opacity: 1;
 }
-.home-trash-list {
-  max-width: 560px;
+/* Home's Trash: the same cards as Recent work, a tick to pick on the left, put back and delete on the right */
+.trash-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
-/* on Home the section above already names the Trash and has the way back */
-.home-trash-list .trash-head {
-  display: none;
+.trash-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 28px;
+}
+.trash-bar .trash-note {
+  padding: 0;
+}
+.trash-bar .trash-foot {
+  padding: 0;
+  border: 0;
+  margin: 0;
+}
+.trash-card .trash-tick {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 1;
+  background: var(--panel);
+  opacity: 0;
+}
+.trash-card .trash-actions {
+  position: absolute;
+  top: 6px;
+  transform: none;
+  right: 6px;
+  z-index: 1;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--r-sm);
+  background: var(--panel);
+  opacity: 0;
+}
+.trash-card:hover .trash-tick,
+.trash-card:hover .trash-actions,
+.trash-card.on .trash-tick,
+.trash-cards:has(.trash-card.on) .trash-tick {
+  opacity: 1;
+}
+.trash-card .trash-tick.on {
+  background: var(--accent);
+}
+.trash-card.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
 }

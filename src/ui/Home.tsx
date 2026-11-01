@@ -10,7 +10,7 @@ import Icon from "./Icons";
 import { clampDim, CREATE_TILES, CUSTOM_PRESETS, editedAgo } from "./homeLogic";
 import type { CreateTile } from "./homeLogic";
 import { resetPageFocus } from "./pageFocus";
-import { isProjectOpen, ProjectMenu, TrashView } from "./ChatHome";
+import { isProjectOpen, ProjectMenu, TrashView, usePreview } from "./ChatHome";
 
 interface HomeProps {
   onClose: () => void;
@@ -363,14 +363,18 @@ export default function Home({ onClose }: HomeProps) {
                 {visibleRecents.length} {visibleRecents.length === 1 ? "project" : "projects"}
               </span>
             )}
-            <button type="button" className={`home-trash ${trash ? "on" : ""}`} data-name="home-trash" title="Projects moved to the Trash" onClick={() => setTrash(!trash)}>
-              <Icon name="trash" size={13} /> {trash ? "Back to recent work" : "Trash"}
-            </button>
+            {trash ? (
+              <button type="button" className="home-trash" data-name="home-trash-back" title="Back to your recent projects" onClick={() => setTrash(false)}>
+                ← Recent work
+              </button>
+            ) : (
+              <button type="button" className="home-trash" data-name="home-trash" title="Projects moved to the Trash" onClick={() => setTrash(true)}>
+                <Icon name="trash" size={13} /> Trash
+              </button>
+            )}
           </div>
           {trash ? (
-            <div className="home-trash-list">
-              <TrashView onBack={() => setTrash(false)} />
-            </div>
+            <TrashView cards onBack={() => setTrash(false)} />
           ) : visibleRecents.length === 0 ? (
             <div className="recents-empty">No projects yet. Pick a format above or tell Duet what to make.</div>
           ) : (
@@ -401,13 +405,7 @@ export default function Home({ onClose }: HomeProps) {
                     >
                       <Icon name="dots" size={14} />
                     </button>
-                    {r.thumb ? (
-                      <img src={r.thumb} alt={r.name} />
-                    ) : (
-                      <div className="recent-thumb-blank">
-                        <Icon name="frame" size={26} />
-                      </div>
-                    )}
+                    <RecentPicture r={r} />
                   </div>
                   <div className="recent-info">
                     <div className="recent-name" title={r.name}>
@@ -422,6 +420,19 @@ export default function Home({ onClose }: HomeProps) {
         </section>
       </main>
       {menu && <ProjectMenu at={menu} onDone={() => setMenu(null)} />}
+    </div>
+  );
+}
+
+/** The picture of a recent project: the one kept on this computer, else the one saved inside its file. */
+function RecentPicture({ r }: { r: Recent }) {
+  const kept = usePreview(r.thumb ? "" : r.path);
+  const src = r.thumb ?? kept;
+  return src ? (
+    <img src={src} alt={r.name} />
+  ) : (
+    <div className="recent-thumb-blank">
+      <Icon name="frame" size={26} />
     </div>
   );
 }

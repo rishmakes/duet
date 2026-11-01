@@ -376,9 +376,15 @@ async function oops(text: string) {
   else console.error(text);
 }
 
-/** A small picture of the first screen, as PNG data. Null when there is nothing to show. */
+/** The screen a project's picture is taken of: the first frame with something on it, else the first frame. */
+export function previewRoot(doc: Doc): string | undefined {
+  const screens = doc.rootIds.filter((i) => doc.elements[i]?.type === "frame" || doc.elements[i]?.type === "instance");
+  return screens.find((i) => doc.elements[i].type === "instance" || doc.elements[i].childIds.length > 0) ?? screens[0] ?? doc.rootIds[0];
+}
+
+/** A small picture of the first screen with something on it, as PNG data. Null when there is nothing to show. */
 async function previewPng(doc: Doc): Promise<string | null> {
-  const id = doc.rootIds.find((i) => doc.elements[i]?.type === "frame" || doc.elements[i]?.type === "instance") ?? doc.rootIds[0];
+  const id = previewRoot(doc);
   if (!id) return null;
   const el = doc.elements[id];
   await preloadPictures(doc);
