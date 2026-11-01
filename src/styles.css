@@ -2253,14 +2253,8 @@ option {
   font-size: 0.92em;
 }
 
-/* Duet dev: a second Duet used only to check work on Duet itself. It must never be taken for the real one. */
-.app.check .tabbar {
-  box-shadow: inset 0 3px 0 #ff9f1c;
-}
+/* Duet dev: a second Duet used only to check work on Duet itself. The DEV mark beside the name is enough to tell it apart. */
 /* a picture of Duet for the site shows it as everyone has it */
-.picturing .app.check .tabbar {
-  box-shadow: none;
-}
 .picturing .checkmark {
   display: none;
 }
