@@ -7640,3 +7640,14 @@ input.chathome-name.rename {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);
 }
+
+/* Design panel: the canvas background, with Reset beside it once it has its own colour */
+.bg-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bg-row > :first-child {
+  flex: 1;
+  min-width: 0;
+}

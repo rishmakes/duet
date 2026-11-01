@@ -28,6 +28,7 @@ import { EFFECT_DEFS, EFFECT_KINDS } from "../document/effects";
 import type { Effect, EffectControl } from "../document/effects";
 import { assetUrl } from "../project/assets";
 import { setBrushSettings, useBrushSettings } from "../canvas/brushSettings";
+import { COLORS } from "../canvas/render";
 
 function NumField({
   label,
@@ -1142,12 +1143,15 @@ export default function PropertiesPanel() {
         <div className="panel-title">Design</div>
         <div className="sec">
           <h4>Background</h4>
-          <ColorField value={doc.background ?? "#141417"} onCommit={(c) => dispatch("set_background", { color: c })} />
-          {doc.background && (
-            <button className="mini" onClick={() => dispatch("set_background", { color: null })}>
-              Back to dark
-            </button>
-          )}
+          {/* left alone, the canvas follows the light or dark look; Reset hands it back to the look */}
+          <div className="bg-row">
+            <ColorField value={doc.background ?? COLORS.bg} onCommit={(c) => dispatch("set_background", { color: c })} />
+            {doc.background && (
+              <button className="mini" title="Use the canvas colour of the light or dark look again" onClick={() => dispatch("set_background", { color: null })}>
+                Reset
+              </button>
+            )}
+          </div>
         </div>
         <div className="empty pad">Select something to change it.</div>
         <CommentsList />
