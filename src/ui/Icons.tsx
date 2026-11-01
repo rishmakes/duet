@@ -195,8 +195,13 @@ const PATHS: Record<IconName, React.ReactNode> = {
       <path d="M9.5 21v-6a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v6" />
     </>
   ),
+  // a megaphone, so it is never taken for the chat
   feedback: (
-    <path d="M4.5 5.5h15a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-9.5l-5 3.5v-3.5h-0.5a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2z" />
+    <>
+      <path d="M3.5 10v4a1 1 0 0 0 1 1h3l9 4.5v-15l-9 4.5h-3a1 1 0 0 0-1 1z" />
+      <path d="M7.5 15l1.5 5h2.5l-1.2-4" />
+      <path d="M20 10v4" />
+    </>
   ),
 };
 
