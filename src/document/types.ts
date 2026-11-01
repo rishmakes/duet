@@ -178,6 +178,8 @@ export interface El {
   link: string | null;
   /** What a click does: go to the screen (empty), open it on top as an overlay, or go back. */
   linkKind: "" | "overlay" | "back";
+  /** When it happens: on a click (empty), or while the pointer is over it (hover), like a menu that drops down. */
+  trigger: "" | "hover";
   /** How the next screen arrives: empty for straight away, or dissolve, push-left, push-right, push-up, push-down. */
   transition: string;
   /** How long that takes, in milliseconds. 0 means the default of 300. */

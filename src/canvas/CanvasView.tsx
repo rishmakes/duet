@@ -1,5 +1,6 @@
 import { message } from "../ui/dialog";
 import { onOpenBoard, openBoard, pinnedOn } from "../document/boards";
+import { linkDot, onLinkDot, screenAt, screenOf } from "./links";
 import { clipKind, dropClips, keepDropped } from "../video/scene";
 import { getLayout, setLayout, useLayout } from "../ui/layout";
 import { RULER, gapsAround, snapEqualGaps, snapToGuides } from "./guides";
@@ -119,6 +120,7 @@ function hitTest(doc: Doc, x: number, y: number, ignore?: Set<string>, deep?: bo
 }
 
 type Drag =
+  | { kind: "link"; from: string }
   | { kind: "pen"; index: number | null }
   | { kind: "node"; hit: NodeHit; start: AbsNode[]; at: { x: number; y: number }; sx: number; sy: number; moved: boolean }
   | { kind: "node-marquee"; start: { x: number; y: number }; prev: number[]; additive: boolean; pathId: string; moved: boolean; sx: number; sy: number }
@@ -907,6 +909,9 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
   // rulers are drawn on the canvas, so switching them redraws it at once, not at the next click
   const rulersOn = useLayout((d) => d.rulers);
   useEffect(() => schedule(), [rulersOn]);
+  // so are prototype connections
+  const linksOn = useLayout((d) => d.linksShown);
+  useEffect(() => schedule(), [linksOn]);
 
   // ---------- helpers ----------
   // A pointer the system does not know, as from a check in Duet dev, cannot be held. Everything else still works.
@@ -1018,6 +1023,16 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
       dragRef.current = { kind: "pan", sx: p.sx, sy: p.sy, vx: s.viewport.x, vy: s.viewport.y };
       setCursor("grabbing");
       return;
+    }
+
+    // the dot beside the picked thing drags out a prototype connection, dropped on the screen it should open
+    if (s.tool === "move" && e.button === 0) {
+      const dot = linkDot(s, workDoc());
+      if (dot && onLinkDot(dot, p.sx, p.sy)) {
+        dragRef.current = { kind: "link", from: dot.id };
+        setOverlay({ linkDrag: { from: dot.id, x: p.x, y: p.y, to: null } });
+        return;
+      }
     }
 
     // with rulers on, a drag from a ruler pulls out a guide, and a guide can be picked up and moved
@@ -1230,6 +1245,12 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
       return;
     }
 
+    if (d?.kind === "link") {
+      const doc = workDoc();
+      setOverlay({ linkDrag: { from: d.from, x: p.x, y: p.y, to: screenAt(doc, p.x, p.y, screenOf(doc, d.from)) } });
+      return;
+    }
+
     if (!d) {
       if (s.editingId) return;
       if (spaceRef.current || s.tool === "hand") return setCursor("grab");
@@ -1245,6 +1266,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
         if (near) return setCursor(near.axis === "x" ? "col-resize" : "row-resize");
         if (p.sy < RULER || p.sx < RULER) return setCursor("default");
       }
+      if (onLinkDot(linkDot(s, workDoc()), p.sx, p.sy)) return setCursor("crosshair");
       const h = handleAt(p.sx, p.sy);
       if (h) {
         if (s.overlay.hoverId) setOverlay({ hoverId: null });
@@ -1472,6 +1494,14 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     letGo(e.pointerId);
     if (!d) return;
     const p = point(e);
+
+    if (d.kind === "link") {
+      const to = getState().overlay.linkDrag?.to ?? null;
+      setOverlay({ linkDrag: null });
+      const el = workDoc().elements[d.from];
+      if (to && el && (el.link !== to || el.linkKind === "back")) dispatch("set_props", { ids: [d.from], props: { link: to, ...(el.linkKind === "back" ? { linkKind: "" as const } : {}) }, label: "Link to a screen" });
+      return;
+    }
 
     if (d.kind === "node") {
       if (d.moved) {

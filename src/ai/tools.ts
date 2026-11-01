@@ -1,4 +1,5 @@
 import { outline } from "./outline";
+import { prototypeMap } from "./prototype";
 import { componentsIn } from "../document/components";
 import { lookAtDesign, lookAtImage } from "./vision";
 import { lookAtAttachment } from "./pictures";
@@ -57,7 +58,7 @@ const ids = { type: "array", items: str, description: "Element ids, from get_doc
 const props = {
   type: "object",
   description:
-    "Any of: name, x, y, width, height (numbers, in pixels), fill (hex colour like #1b1b1f), stroke (hex colour, or null for none), strokeWidth, radius (corner radius), opacity (0 to 1), blend (normal, multiply, screen, overlay, soft-light, darken, lighten or add; screen makes black clear, for a black and white mist or light clip over a scene), component (true to make this something that can be reused: place copies of it with create_instance, and changing it changes every copy), rotation (degrees, clockwise, around its own middle; on a group it turns everything inside together; frames and copies of components cannot be turned), d (a path only: redraw its outline, as SVG path text measured from the corner of its parent frame), text, fontSize, fontFamily (any installed font name, or empty for the system font), fontWeight (300 to 900, 400 is regular, 700 is bold), textAlign (left, center or right), lineHeight (a multiple of the size, like 1.4), letterSpacing (pixels), textFixed (true to keep the width and wrap words), shadow ({x, y, blur, color} or null), gradient ({from, to, angle in degrees, 90 runs top to bottom} or null, replaces the fill), link (id of a frame to open when this is clicked in Present mode, or null), linkKind (empty to go to that screen, overlay to open it on top, back to go back), transition (empty, dissolve, push-left, push-right, push-up or push-down), transitionMs (milliseconds, 300 if 0), scroll (on a screen: true so that what is below its bottom edge can be scrolled in Present mode), layout (frames only: auto layout that lines up the children, as {dir is row or column, gap, padX, padY, align is start, center, end or stretch, justify is start, center, end or between, hug true or false}, or null to turn it off; children are placed in their layer order), locked (true to stop it being picked on the canvas), hidden (true to hide it: not drawn, picked or exported; false to show it again), grow (inside an auto layout frame: 1 to fill the free space along the direction, 0 to keep its size).",
+    "Any of: name, x, y, width, height (numbers, in pixels), fill (hex colour like #1b1b1f), stroke (hex colour, or null for none), strokeWidth, radius (corner radius), opacity (0 to 1), blend (normal, multiply, screen, overlay, soft-light, darken, lighten or add; screen makes black clear, for a black and white mist or light clip over a scene), component (true to make this something that can be reused: place copies of it with create_instance, and changing it changes every copy), rotation (degrees, clockwise, around its own middle; on a group it turns everything inside together; frames and copies of components cannot be turned), d (a path only: redraw its outline, as SVG path text measured from the corner of its parent frame), text, fontSize, fontFamily (any installed font name, or empty for the system font), fontWeight (300 to 900, 400 is regular, 700 is bold), textAlign (left, center or right), lineHeight (a multiple of the size, like 1.4), letterSpacing (pixels), textFixed (true to keep the width and wrap words), shadow ({x, y, blur, color} or null), gradient ({from, to, angle in degrees, 90 runs top to bottom} or null, replaces the fill), link (id of a frame to open when this is clicked in Present mode, or null), linkKind (empty to go to that screen, overlay to open it on top, back to go back), trigger (empty for on click, hover for while the pointer is over it, like a menu that drops down), transition (empty, dissolve, push-left, push-right, push-up or push-down), transitionMs (milliseconds, 300 if 0), scroll (on a screen: true so that what is below its bottom edge can be scrolled in Present mode), layout (frames only: auto layout that lines up the children, as {dir is row or column, gap, padX, padY, align is start, center, end or stretch, justify is start, center, end or between, hug true or false}, or null to turn it off; children are placed in their layer order), locked (true to stop it being picked on the canvas), hidden (true to hide it: not drawn, picked or exported; false to show it again), grow (inside an auto layout frame: 1 to fill the free space along the direction, 0 to keep its size).",
 };
 
 export const TOOLS: ToolDef[] = [
@@ -77,6 +78,12 @@ export const TOOLS: ToolDef[] = [
     name: "get_working_rules",
     description:
       "How to work in Duet, and the skills the designer has turned on, in full. For an AI connected from outside Duet's own chat: call it once before your first change in a job. Duet's own chat already gives you this, so do not call it from there.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "get_prototype",
+    description:
+      "The prototype on the open board in one small read: every screen, and every connection between them, with what is clicked or hovered, its words, what it does (go, open on top, back), where to, and how it moves. Also the screens nothing leads to, and the dead ends. Use it before and after you connect screens, and to build the real website or app from the design.",
     inputSchema: { type: "object", properties: {} },
   },
   {
@@ -1499,6 +1506,7 @@ async function answerTool(name: string, raw: unknown, by?: string): Promise<Tool
     return { text: "The designer now sees where you are working. Build there." };
   }
   if (name === "get_context") return { text: context() };
+  if (name === "get_prototype") return { text: JSON.stringify(prototypeMap(R.currentDoc())) };
   if (name === "get_working_rules") return { text: `${outsideRules()}\n\n${skillsText()}` };
   if (name === "get_outline") return { text: outline(R.currentDoc(), Array.isArray(a.ids) ? (a.ids as unknown[]).map(String) : undefined) };
   if (name === "get_document") {

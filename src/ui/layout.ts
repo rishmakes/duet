@@ -53,6 +53,8 @@ export interface Dock {
   namesW: number;
   /** The comment pins on the canvas are put away. */
   commentsHidden: boolean;
+  /** Every prototype connection is drawn on the canvas, and the picked thing has a dot to drag onto a screen. */
+  linksShown: boolean;
   /** A mouse wheel zooms, like in Adobe apps. A trackpad still slides the canvas. */
   wheelZooms: boolean;
   /** The chat is open when Studio comes up. Off, it waits folded away until clicked. */
@@ -99,6 +101,7 @@ export const defaults = (): Dock => ({
   timeMax: false,
   namesW: 150,
   commentsHidden: false,
+  linksShown: false,
   wheelZooms: true,
   editChatOpen: false,
   videoTab: "properties",

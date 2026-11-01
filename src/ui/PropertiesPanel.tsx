@@ -1,3 +1,4 @@
+import { onOpenBoard } from "../document/boards";
 import ChatPanel from "./ChatPanel";
 import { useEffect, useRef, useState } from "react";
 import { dragCancel, dragPreview, getState, workDoc, dispatch, select, useStore, currentDoc } from "../state/store";
@@ -1011,6 +1012,7 @@ export default function PropertiesPanel() {
   const mode = useLayout((d) => d.mode);
   const videoTab = useLayout((d) => d.videoTab);
   const photoTab = useLayout((d) => d.photoTab);
+  const linksShown = useLayout((d) => d.linksShown);
 
   // When the Video space opens, the right panel shows Properties, not Colour
   const openedMode = useRef<string | null>(null);
@@ -1129,7 +1131,9 @@ export default function PropertiesPanel() {
   }
 
   const ids = els.map((e) => e.id);
-  const frames = Object.values(doc.elements).filter((e) => e.type === "frame");
+  // only screens on the open board can be linked to
+  const here = onOpenBoard(doc);
+  const frames = Object.values(doc.elements).filter((e) => e.type === "frame" && here.has(e.id));
   const one = els.length === 1 ? els[0] : null;
   const scene = one ? sceneOf(doc, one.id) : null;
   const set = (props: Partial<El>, label?: string) => dispatch("set_props", { ids, props, label });
@@ -1381,6 +1385,8 @@ export default function PropertiesPanel() {
       {mode === "design" && one && frames.length > 0 && (
         <div className="sec">
           <h4>Prototype</h4>
+          <Seg value={one.trigger === "hover" ? "hover" : "click"} options={[["click", "On click"], ["hover", "On hover"]]} onPick={(v) => set({ trigger: v === "hover" ? "hover" : "" }, "Change when it happens")} />
+          <div className="gap" />
           <Seg
             value={one.linkKind === "back" ? "back" : one.linkKind === "overlay" ? "overlay" : "go"}
             options={[["go", "Go to"], ["overlay", "Open on top"], ["back", "Go back"]]}
@@ -1432,7 +1438,11 @@ export default function PropertiesPanel() {
               <Seg value={one.scroll ? "on" : "off"} options={[["off", "Fixed"], ["on", "Scrolls in Present"]]} onPick={(v) => set({ scroll: v === "on" }, "Change scrolling")} />
             </>
           )}
-          <div className="hint2">Press Present at the top to click through your screens.</div>
+          <div className="gap" />
+          <button className={`mini ${linksShown ? "on" : ""}`} data-name="show-connections" onClick={() => setLayout({ linksShown: !linksShown })}>
+            {linksShown ? "Hide connections" : "Show connections"}
+          </button>
+          <div className="hint2">{linksShown ? "Drag the dot beside what is picked onto a screen to connect them. " : ""}Press Present at the top to click through your screens.</div>
         </div>
       )}
 

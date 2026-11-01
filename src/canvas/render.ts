@@ -13,6 +13,7 @@ import { applyEffects } from "./effects";
 import { getChat } from "../ai/chat";
 import { nameOf } from "../ai/names";
 import { HANDLES } from "./handles";
+import { drawLinks } from "./links";
 import { agentColour } from "../ai/colours";
 import { plainName } from "../ai/who";
 import { RULER, rulerTicks } from "./guides";
@@ -1042,6 +1043,9 @@ export function draw(ctx: CanvasRenderingContext2D, s: State, w: number, h: numb
   }
 
   // draft shape
+  // prototype connections, and the dot to drag a new one from
+  drawLinks(ctx, s, doc, COLORS.accent);
+
   if (s.overlay.draft) {
     const r = screenRect(s, s.overlay.draft.rect);
     ctx.strokeStyle = COLORS.accent;

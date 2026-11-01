@@ -38,6 +38,7 @@ const EL_KEYS: (keyof El)[] = [
   "effectMaskInvert",
   "link",
   "linkKind",
+  "trigger",
   "transition",
   "transitionMs",
   "scroll",
@@ -76,7 +77,7 @@ const TEXT_ONLY = new Set<keyof El>(["fontFamily", "fontWeight", "textAlign", "l
 /** Written only when set, so a still design's file stays as it was. */
 const TIME_ONLY = new Set<keyof El>(["duration", "start", "end", "clipFrom"]);
 
-const PROTOTYPE_ONLY = new Set<keyof El>(["linkKind", "transition", "transitionMs", "scroll"]);
+const PROTOTYPE_ONLY = new Set<keyof El>(["linkKind", "trigger", "transition", "transitionMs", "scroll"]);
 
 const FALLBACK: Omit<El, "id" | "type"> = {
   name: "Untitled",
@@ -110,6 +111,7 @@ const FALLBACK: Omit<El, "id" | "type"> = {
   paint: {},
   link: null,
   linkKind: "",
+  trigger: "",
   transition: "",
   transitionMs: 0,
   scroll: false,

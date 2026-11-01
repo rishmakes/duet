@@ -10,6 +10,7 @@ import bento from "./skills/bento.md?raw";
 import autoLayout from "./skills/auto-layout.md?raw";
 import calmAndTrusted from "./skills/calm-and-trusted.md?raw";
 import friendlyAndModern from "./skills/friendly-and-modern.md?raw";
+import prototypes from "./skills/prototypes.md?raw";
 
 export interface Skill {
   id: string;
@@ -31,6 +32,7 @@ const SHIPPED: Record<string, string> = {
   bento,
   "calm-and-trusted": calmAndTrusted,
   "friendly-and-modern": friendlyAndModern,
+  prototypes,
 };
 
 /** Skills that change the whole look of a design. They ship switched off, and a designer turns one on when they want it. */

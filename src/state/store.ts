@@ -51,6 +51,8 @@ export interface Overlay {
   nodeEdit: { id: string; selected: number[] } | null;
   /** The angle being shown while something is turned by hand, or null. */
   turning: number | null;
+  /** A prototype connection being dragged from a thing: where the pointer is, in page pixels, and the screen under it. */
+  linkDrag: { from: string; x: number; y: number; to: string | null } | null;
 }
 
 export interface Project {
@@ -100,7 +102,7 @@ export interface State {
   clock: Clock;
 }
 
-const noOverlay = (): Overlay => ({ draft: null, guidesX: [], guidesY: [], gaps: [], guideNow: null, marquee: null, hoverId: null, pen: null, nodeEdit: null, turning: null });
+const noOverlay = (): Overlay => ({ draft: null, guidesX: [], guidesY: [], gaps: [], guideNow: null, marquee: null, hoverId: null, pen: null, nodeEdit: null, turning: null, linkDrag: null });
 
 const initial = (): State => ({
   project: { path: null, file: null, name: "Untitled", status: "unsaved", error: null },

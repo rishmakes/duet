@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { drawElement, presentScroll } from "../canvas/render";
 import { ancestors, hitTest, worldPos } from "../document/geometry";
-import type { Doc } from "../document/types";
+import type { Doc, El } from "../document/types";
 import { currentDoc, getState } from "../state/store";
 
 /** The screen to start on: the selected screen, or the one holding the selection, or the first one. */
@@ -22,14 +22,16 @@ export interface LinkInfo {
   ms: number;
 }
 
-/** What does a click at this spot do? Looks at what was clicked and everything around it. */
-export function linkInfoAt(doc: Doc, frameId: string, wx: number, wy: number): LinkInfo | null {
+/** What does a click at this spot do, or the pointer resting on it for hover? Looks at what is there and everything around it. */
+export function linkInfoAt(doc: Doc, frameId: string, wx: number, wy: number, trigger: El["trigger"] = ""): LinkInfo | null {
   const hit = hitTest(doc, wx, wy);
   if (!hit) return null;
   const chain = [hit, ...ancestors(doc, hit)];
   if (!chain.includes(frameId)) return null;
   for (const id of chain) {
     const el = doc.elements[id];
+    if (id === frameId && el.trigger !== trigger) break;
+    if (el && (el.trigger ?? "") !== trigger) continue;
     if (el?.linkKind === "back") return { kind: "back", target: null, transition: el.transition, ms: el.transitionMs || 300 };
     const target = el?.link;
     if (el && target && doc.elements[target]?.type === "frame") {
@@ -63,6 +65,8 @@ export default function PresentView({ onClose }: { onClose: () => void }) {
   const [overlays, setOverlays] = useState<string[]>([]);
   const [trail, setTrail] = useState<string[]>([]);
   const [hot, setHot] = useState(false);
+  /** The screen a hover opened on top, closed again when the pointer leaves it and what opened it. */
+  const hovered = useRef<string | null>(null);
   const [device, setDevice] = useState(false);
   const canvas = useRef<HTMLCanvasElement>(null);
   const placed = useRef<{ base: Placed | null; overlay: Placed | null }>({ base: null, overlay: null });
@@ -81,6 +85,7 @@ export default function PresentView({ onClose }: { onClose: () => void }) {
 
   const go = (id: string, transition = "", ms = 300) => {
     if (!current || id === current) return;
+    hovered.current = null;
     delete presentScroll[id];
     if (transition) anim.current = { from: current, to: id, kind: transition, t0: performance.now(), ms };
     setTrail((t) => [...t, current]);
@@ -203,9 +208,9 @@ export default function PresentView({ onClose }: { onClose: () => void }) {
   }, [current, overlays, trail]);
 
   /** What is under the pointer: the top overlay if there is one, otherwise the screen. */
-  const probe = (e: { clientX: number; clientY: number }): { id: string; info: LinkInfo | null; inside: boolean } | null => {
+  const probe = (e: { clientX: number; clientY: number }, trigger: El["trigger"] = "", under = false): { id: string; info: LinkInfo | null; inside: boolean } | null => {
     if (!current) return null;
-    const top = overlays[overlays.length - 1];
+    const top = under ? (overlays.length > 1 ? overlays[overlays.length - 2] : undefined) : overlays[overlays.length - 1];
     const p = top ? placed.current.overlay : placed.current.base;
     const id = top ?? current;
     if (!p) return null;
@@ -215,7 +220,7 @@ export default function PresentView({ onClose }: { onClose: () => void }) {
     const inside = lx >= 0 && ly >= 0 && lx <= el.width && ly <= el.height;
     if (!inside) return { id, info: null, inside: false };
     const origin = worldPos(doc, id);
-    return { id, info: linkInfoAt(doc, id, origin.x + lx, origin.y + ly + (presentScroll[id] ?? 0)), inside: true };
+    return { id, info: linkInfoAt(doc, id, origin.x + lx, origin.y + ly + (presentScroll[id] ?? 0), trigger), inside: true };
   };
 
   if (!current) {
@@ -250,7 +255,23 @@ export default function PresentView({ onClose }: { onClose: () => void }) {
       <canvas
         ref={canvas}
         style={{ cursor: hot ? "pointer" : "default" }}
-        onMouseMove={(e) => setHot(!!probe(e)?.info)}
+        onMouseMove={(e) => {
+          setHot(!!probe(e)?.info);
+          if (hovered.current) {
+            // what a hover opened stays while the pointer is on it, or on what opened it
+            if (probe(e)?.inside || probe(e, "hover", true)?.info?.target === hovered.current) return;
+            hovered.current = null;
+            setOverlays((o) => o.slice(0, -1));
+            return;
+          }
+          const info = probe(e, "hover")?.info;
+          if (!info) return;
+          if (info.kind === "back") back(info.transition, info.ms);
+          else if (info.kind === "overlay" && info.target) {
+            hovered.current = info.target;
+            setOverlays((o) => [...o, info.target as string]);
+          } else if (info.target) go(info.target, info.transition, info.ms);
+        }}
         onWheel={(e) => {
           const hit = probe(e);
           const el = hit ? doc.elements[hit.id] : null;
