@@ -7318,3 +7318,128 @@ input.chathome-name.rename {
   color: var(--text);
   line-height: 1.5;
 }
+
+/* page strip (#250) */
+.page-strip-container {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 6px 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 25;
+  user-select: none;
+}
+
+.page-thumbnail-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  cursor: grab;
+  position: relative;
+}
+
+.page-thumbnail-item:active {
+  cursor: grabbing;
+}
+
+.page-mini-card {
+  width: 48px;
+  height: 48px;
+  border-radius: 6px;
+  border: 1.5px solid var(--line);
+  background: var(--panel-2);
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.page-thumbnail-item:hover .page-mini-card {
+  border-color: var(--muted);
+  transform: translateY(-1px);
+}
+
+.page-thumbnail-item.active .page-mini-card {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.page-number-pill {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.page-thumbnail-item.active .page-number-pill {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.page-thumbnail-item.drop-before::before {
+  content: "";
+  position: absolute;
+  left: -5px;
+  top: 2px;
+  bottom: 15px;
+  width: 2px;
+  background: var(--accent);
+  border-radius: 1px;
+}
+
+.page-thumbnail-item.drop-after::after {
+  content: "";
+  position: absolute;
+  right: -5px;
+  top: 2px;
+  bottom: 15px;
+  width: 2px;
+  background: var(--accent);
+  border-radius: 1px;
+}
+
+.add-page-btn,
+.all-pages-btn {
+  height: 48px;
+  padding: 0 12px;
+  border-radius: 6px;
+  border: 1.5px solid var(--line);
+  background: var(--panel-2);
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  align-self: flex-start;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+
+.add-page-btn {
+  border-style: dashed;
+}
+
+.add-page-btn:hover,
+.all-pages-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--panel);
+}
+
+.all-pages-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}

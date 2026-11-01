@@ -34,6 +34,7 @@ import Home from "./ui/Home";
 import LayersPanel from "./ui/LayersPanel";
 import PropertiesPanel from "./ui/PropertiesPanel";
 import Toolbar from "./ui/Toolbar";
+import PageStrip from "./ui/PageStrip";
 import { currentDoc, getState, useStore } from "./state/store";
 import "./styles.css";
 
@@ -351,6 +352,7 @@ export default function App() {
             {isColorOpen(dock) && <BeforeAfter />}
             {/* in Video the chat is a tab on the right panel instead of floating over the picture */}
             {(dock.mode !== "motion" || dock.rightHidden) && <ChatPanel />}
+            <PageStrip />
           </main>
           {!dock.rightHidden && <PropertiesPanel />}
           <TimeStrip />

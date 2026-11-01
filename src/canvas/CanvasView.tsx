@@ -95,7 +95,8 @@ import {
   useBrushSettings,
   type BrushSettings,
 } from "./brushSettings";
-import { draw, labelRect, screenRect, setQuietCanvas, setSceneOnly, shownOn } from "./render";
+import { draw, labelRect, screenRect, setOnlyFrame, setQuietCanvas, setSceneOnly, shownOn } from "./render";
+import { openPage, usePageFocus } from "../ui/pageFocus";
 import { fontCss, layoutText, lineStep, textLift } from "./text";
 import { getPickedTrack } from "../ui/pickedTrack";
 import { maskSelection } from "../ui/actions";
@@ -123,7 +124,7 @@ type Drag =
   | { kind: "pan"; sx: number; sy: number; vx: number; vy: number }
   | { kind: "guide"; axis: "x" | "y"; from: number | null; moved: boolean; sx: number; sy: number }
   | { kind: "create"; type: ElementType; start: { x: number; y: number }; parentId: string | null; sx: number; sy: number }
-  | { kind: "move"; start: { x: number; y: number }; ids: string[]; base: Doc; moved: boolean; sx: number; sy: number; duplicate?: boolean }
+  | { kind: "move"; start: { x: number; y: number }; ids: string[]; base: Doc; moved: boolean; sx: number; sy: number; duplicate?: boolean; labelId?: string | null }
   | { kind: "resize"; handle: HandleKey; id: string; orig: Rect; turn: number; sx: number; sy: number; start: { x: number; y: number }; many?: { id: string; r: Rect }[] }
   | { kind: "turn"; id: string; centre: { x: number; y: number }; from: number; base: number; sx: number; sy: number; moved: boolean; spun: number; free: boolean; many?: { id: string; r: Rect; rot: number }[] }
   | { kind: "zoom"; sx: number; sy: number; startZoom: number; vx: number; vy: number; moved: boolean; priorGlide: { zoom: number; zoomIn?: boolean } | null }
@@ -440,24 +441,52 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
   const designing = useLayout((d) => d.mode === "design" || d.mode === "photo");
   const motion = useLayout((d) => d.mode === "motion");
   const scene = useStore((s) => s.clock.scene);
-  // in Motion the scene sits still in the middle: no scrolling, panning or zooming away from it
+  const doc = useStore((s) => workDoc(s));
+  const { activePageId, isAllPages } = usePageFocus(doc);
+  const isPageView = designing && !!doc.pages && !viewOnly;
+  const isPageLocked = isPageView && !!activePageId && !isAllPages;
+
+  // in Motion or Page View the frame sits still in the middle: no scrolling, panning or zooming away from it
   const lockedRef = useRef(false);
-  lockedRef.current = motion && !!scene && !viewOnly;
+  lockedRef.current = (motion && !!scene && !viewOnly) || isPageLocked;
+
   useEffect(() => {
     setSceneOnly(motion ? scene : null);
+    if (isPageView && activePageId && !isAllPages) {
+      setOnlyFrame(activePageId);
+    } else {
+      setOnlyFrame(null);
+    }
     window.dispatchEvent(new Event("duet:repaint"));
-    return () => setSceneOnly(null);
-  }, [motion, scene]);
+    return () => {
+      setSceneOnly(null);
+      setOnlyFrame(null);
+    };
+  }, [motion, scene, isPageView, activePageId, isAllPages]);
+
   const before = useRef<{ x: number; y: number; zoom: number } | null>(null);
   useEffect(() => {
     if (scene) {
       before.current ??= getState().viewport;
       zoomToElements([scene], sizeRef.current.w, sizeRef.current.h);
-    } else if (designing && before.current) {
+    } else if (isPageLocked && activePageId) {
+      before.current ??= getState().viewport;
+      zoomToElements([activePageId], sizeRef.current.w, sizeRef.current.h);
+    } else if (isPageView && isAllPages) {
+      zoomToFit(sizeRef.current.w, sizeRef.current.h);
+    } else if (designing && !doc.pages && before.current) {
       glideTo(before.current);
       before.current = null;
     }
-  }, [scene, designing]);
+  }, [scene, isPageLocked, activePageId, isPageView, isAllPages, designing, doc.pages]);
+
+  useEffect(() => {
+    const onAllPages = () => {
+      zoomToFit(sizeRef.current.w, sizeRef.current.h);
+    };
+    window.addEventListener("duet:all-pages", onAllPages);
+    return () => window.removeEventListener("duet:all-pages", onAllPages);
+  }, []);
   const editingId = useStore((s) => s.editingId);
   const viewport = useStore((s) => s.viewport);
   // a comment being written: where its pin goes, and the thing under it
@@ -846,7 +875,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
       canvas.style.width = `${w}px`;
       canvas.style.height = `${h}px`;
       sizeRef.current = { w, h, dpr };
-      const open = getState().clock.scene;
+      const open = motion ? getState().clock.scene : activePageId;
       if (lockedRef.current && open) zoomToElements([open], w, h);
       schedule();
     };
@@ -971,6 +1000,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
 
     // beside the chat the canvas only looks: any drag moves the view
     if (viewOnly || e.button === 1 || spaceRef.current || s.tool === "hand") {
+      if (lockedRef.current) return;
       // the middle button drags the view in every tool and in Motion too, as in other video and design tools
       if (e.button === 1) e.preventDefault();
       stopGlide();
@@ -1158,7 +1188,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
           return;
         }
       }
-      dragRef.current = { kind: "move", start: { x: p.x, y: p.y }, ids, base: dragBase(), moved: false, sx: p.sx, sy: p.sy };
+      dragRef.current = { kind: "move", start: { x: p.x, y: p.y }, ids, base: dragBase(), moved: false, sx: p.sx, sy: p.sy, labelId: label };
       return;
     }
 
@@ -1214,8 +1244,12 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
         return setCursor(TURN_CURSOR);
       }
       const doc = workDoc(s);
-      const hover = labelAt(p.sx, p.sy) ?? hitTest(doc, p.x, p.y);
+      const hoverLabel = labelAt(p.sx, p.sy);
+      const hover = hoverLabel ?? hitTest(doc, p.x, p.y);
       if (hover !== s.overlay.hoverId) setOverlay({ hoverId: hover });
+      if (isPageView && isAllPages && hoverLabel && doc.elements[hoverLabel]?.type === "frame" && !doc.elements[hoverLabel]?.parentId) {
+        return setCursor("pointer");
+      }
       if (e.altKey && isMovable(doc, hover)) return setCursor("copy");
       setCursor("default");
       return;
@@ -1530,7 +1564,13 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
           }
         }
         dragCommit(label);
-      } else dragCancel();
+      } else {
+        dragCancel();
+        if (d.labelId && isPageView && isAllPages && doc.elements[d.labelId]?.type === "frame" && !doc.elements[d.labelId]?.parentId) {
+          openPage(d.labelId);
+          select([d.labelId]);
+        }
+      }
       setOverlay({ guidesX: [], guidesY: [], gaps: [] });
       if (e.altKey) {
         setCursor(isMovable(workDoc(), labelAt(p.sx, p.sy) ?? hitTest(workDoc(), p.x, p.y)) ? "copy" : "default");
@@ -1600,7 +1640,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     let pinch: { zoom: number; wx: number; wy: number } | null = null;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      if (getState().editingId) return;
+      if (getState().editingId || lockedRef.current) return;
       stopGlide();
       const p = point(e);
       // A mouse wheel turns in whole notches of 120 (or by lines); a trackpad slides in small steps.
@@ -1622,6 +1662,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     type GestureEvent = Event & { scale: number; clientX: number; clientY: number };
     const onGestureStart = (e: Event) => {
       e.preventDefault();
+      if (lockedRef.current) return;
       stopGlide();
       const vp = getState().viewport;
       const p = point(e as GestureEvent);

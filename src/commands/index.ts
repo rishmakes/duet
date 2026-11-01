@@ -13,6 +13,8 @@ import { EFFECT_DEFS, canHaveEffects, defaultEffectValues, newEffectId } from ".
 import type { Effect, EffectKind } from "../document/effects";
 import { freshName, keepTracks, newTrackId, stackByTrack } from "../document/tracks";
 import type { CreatePresetFrameArgs } from "./presets";
+import { setPages, addPage, reorderPages } from "./pages";
+import type { SetPagesArgs, AddPageArgs, ReorderPagesArgs } from "./pages";
 
 /**
  * Every change to a design goes through one of these named commands.
@@ -2308,8 +2310,27 @@ const removeShapeKey: CommandDef<RemoveShapeKeyArgs> = {
   },
 };
 
+// ---- page view commands ----
+const setPagesDef: CommandDef<SetPagesArgs> = {
+  label: (a) => (a.on ? "Use pages" : "Use canvas"),
+  run: (doc, a) => setPages(doc, a),
+};
+
+const addPageDef: CommandDef<AddPageArgs> = {
+  label: () => "Add page",
+  run: (doc, a) => addPage(doc, a),
+};
+
+const reorderPagesDef: CommandDef<ReorderPagesArgs> = {
+  label: () => "Reorder pages",
+  run: (doc, a) => reorderPages(doc, a),
+};
+
 // ---- registry ----
 export const commands = {
+  set_pages: setPagesDef,
+  add_page: addPageDef,
+  reorder_pages: reorderPagesDef,
   create_element: createElement,
   create_elements: createElements,
   create_preset_frame: createPresetFrameDef,
@@ -2397,4 +2418,6 @@ export function commandLabel<N extends CommandName>(name: N, args: ArgsOf<N>): s
 
 export { FRAME_PRESETS, createPresetFrame } from "./presets";
 export type { FramePreset, CreatePresetFrameArgs } from "./presets";
+export { setPages, addPage, reorderPages } from "./pages";
+export type { SetPagesArgs, AddPageArgs, ReorderPagesArgs } from "./pages";
 

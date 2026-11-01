@@ -79,6 +79,7 @@ export default function Home({ onClose }: HomeProps) {
     }
     if (tile.kind === "sized" && tile.width && tile.height) {
       await newDesignTab();
+      dispatch("set_pages", { on: true });
       const id = newId("frame");
       dispatch("create_preset_frame", {
         preset: { name: tile.title, width: tile.width, height: tile.height },
@@ -97,6 +98,7 @@ export default function Home({ onClose }: HomeProps) {
     const w = clampDim(customW, 1080);
     const h = clampDim(customH, 1350);
     await newDesignTab();
+    dispatch("set_pages", { on: true });
     const id = newId("frame");
     dispatch("create_preset_frame", {
       preset: { name: "Custom", width: w, height: h },
