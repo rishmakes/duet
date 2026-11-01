@@ -246,6 +246,8 @@ export interface Doc {
   guides?: { x: number[]; y: number[] };
   /** Comments pinned on the canvas, oldest first. Left out when there are none. */
   comments?: Comment[];
+  /** True when the design was started from a size, so it opens one page at a time. Left out for the open canvas. */
+  pages?: true;
   rootIds: string[];
   elements: Record<string, El>;
 }

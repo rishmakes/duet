@@ -1200,6 +1200,12 @@ describe("text", () => {
     expect(serializeDoc(emptyDoc())).not.toContain("background");
   });
 
+  it("remembers in the saved file that a design opens as pages", () => {
+    expect(parseDoc(serializeDoc({ ...emptyDoc(), pages: true })).pages).toBe(true);
+    expect(parseDoc(serializeDoc(emptyDoc())).pages).toBeUndefined();
+    expect(serializeDoc(emptyDoc())).not.toContain("pages");
+  });
+
   it("changes the canvas colour, and clearing it goes back to the standard dark", () => {
     let d = runCommand(emptyDoc(), "set_background", { color: "#F4F1EA" });
     expect(d.background).toBe("#f4f1ea");

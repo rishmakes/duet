@@ -156,6 +156,7 @@ export function serializeDoc(doc: Doc): string {
   if (doc.styles && Object.keys(doc.styles).length) out.styles = doc.styles;
   if (doc.guides && (doc.guides.x.length || doc.guides.y.length)) out.guides = { x: [...doc.guides.x].sort((a, b) => a - b), y: [...doc.guides.y].sort((a, b) => a - b) };
   if (doc.comments?.length) out.comments = doc.comments;
+  if (doc.pages) out.pages = true;
   return JSON.stringify(out, null, 2) + "\n";
 }
 
@@ -202,5 +203,5 @@ export function parseDoc(text: string): Doc {
     const saved = new Set((el.tracks ?? []).map((t) => t.id));
     if (oldTracks(el) || el.childIds.some((c) => elements[c] && !saved.has(elements[c].track ?? ""))) keepTracks({ version: 1, rootIds: [], elements }, el.id);
   }
-  return relayout(syncInstances({ version: 1, rootIds: r.rootIds as string[], elements, ...(background ? { background } : {}), ...(styles ? { styles } : {}), ...(guides ? { guides } : {}), ...(comments.length ? { comments } : {}) }));
+  return relayout(syncInstances({ version: 1, rootIds: r.rootIds as string[], elements, ...(background ? { background } : {}), ...(styles ? { styles } : {}), ...(guides ? { guides } : {}), ...(comments.length ? { comments } : {}), ...(r.pages === true ? { pages: true as const } : {}) }));
 }
