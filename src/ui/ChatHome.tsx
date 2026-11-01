@@ -17,6 +17,7 @@ import Icon from "./Icons";
 import { setLayout, useLayout } from "./layout";
 import SkillsPanel from "./SkillsPanel";
 import { takeFindProject } from "./findProject";
+import { askFeedback } from "./Feedback";
 
 /** How long ago, in plain words. */
 function ago(ms: number): string {
@@ -456,6 +457,9 @@ export default function ChatHome() {
     <div className="chathome" style={homeChatW ? { gridTemplateColumns: `276px ${homeChatW}px minmax(0, 1fr)` } : undefined}>
       <aside className="chathome-projects">
         <nav className="chathome-rail">
+          <button className="rail-btn" title="Home" onClick={() => window.dispatchEvent(new Event("duet:home"))}>
+            <Icon name="home" size={18} />
+          </button>
           <button className="rail-btn" title="New project" onClick={() => void newProject()} disabled={!inTauri()}>
             <Icon name="new-chat" size={18} />
           </button>
@@ -473,6 +477,13 @@ export default function ChatHome() {
             onClick={() => setTrash(!trash)}
           >
             <Icon name="trash" size={18} />
+          </button>
+          <button
+            className="rail-btn"
+            title="Tell the creator what went wrong or what you want. Cmd or Ctrl, Shift, F"
+            onClick={askFeedback}
+          >
+            <Icon name="feedback" size={18} />
           </button>
           <button className="rail-btn" title="Settings" onClick={() => window.dispatchEvent(new Event("duet:settings"))}>
             <Icon name="settings" size={18} />

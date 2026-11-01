@@ -4,6 +4,7 @@ import type { Tool } from "../state/store";
 import { pickImages } from "../project/imageImport";
 import { cutNow } from "../video/edit";
 import { deleteSelection } from "./actions";
+import { askFeedback } from "./Feedback";
 import type { CutKind } from "../video/edit";
 import Icon from "./Icons";
 import type { IconName } from "./Icons";
@@ -111,6 +112,16 @@ export default function Toolbar({ row = false }: { row?: boolean }) {
 
   return (
     <div className={row ? "toolbar row" : "toolbar"} data-name="toolbar">
+      {!row && (
+        <button
+          className="tool tool-home"
+          data-name="tool-home"
+          title="Home"
+          onClick={() => window.dispatchEvent(new Event("duet:home"))}
+        >
+          <Icon name="home" />
+        </button>
+      )}
       {toolsList.map((t) => (
         <button
           key={t.tool}
@@ -165,13 +176,23 @@ export default function Toolbar({ row = false }: { row?: boolean }) {
         <Icon name="trash" />
       </button>
       {!row && (
-        <button
-          className="tool tool-settings"
-          title="Settings"
-          onClick={() => window.dispatchEvent(new Event("duet:settings"))}
-        >
-          <Icon name="settings" />
-        </button>
+        <>
+          <button
+            className="tool tool-feedback"
+            data-name="tool-feedback"
+            title="Tell the creator what went wrong or what you want. Cmd or Ctrl, Shift, F"
+            onClick={askFeedback}
+          >
+            <Icon name="feedback" />
+          </button>
+          <button
+            className="tool tool-settings"
+            title="Settings"
+            onClick={() => window.dispatchEvent(new Event("duet:settings"))}
+          >
+            <Icon name="settings" />
+          </button>
+        </>
       )}
       </div>
 

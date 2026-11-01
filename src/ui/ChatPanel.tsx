@@ -217,6 +217,18 @@ export default function ChatPanel({ docked = false }: { docked?: boolean }) {
     if (nobody && inTauri()) void detectAgent();
   }, [nobody]);
 
+  useEffect(() => {
+    const onDraft = (e: Event) => {
+      const detail = (e as CustomEvent<{ text: string }>).detail;
+      if (detail?.text) {
+        setText(detail.text);
+        setTimeout(() => textareaRef.current?.focus(), 50);
+      }
+    };
+    window.addEventListener("duet:chat-draft", onDraft);
+    return () => window.removeEventListener("duet:chat-draft", onDraft);
+  }, []);
+
   const dragging = moving !== null;
   useLayoutEffect(() => {
     const el = box.current;

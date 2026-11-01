@@ -28,12 +28,13 @@ import Versions from "./ui/Versions";
 import PresentView from "./ui/PresentView";
 import SendCopy from "./ui/SendCopy";
 import Update from "./ui/Update";
-import Feedback, { askFeedback } from "./ui/Feedback";
+import Feedback from "./ui/Feedback";
 import Settings from "./ui/Settings";
+import Home from "./ui/Home";
 import LayersPanel from "./ui/LayersPanel";
 import PropertiesPanel from "./ui/PropertiesPanel";
 import Toolbar from "./ui/Toolbar";
-import { useStore } from "./state/store";
+import { currentDoc, getState, useStore } from "./state/store";
 import "./styles.css";
 
 const STATUS: Record<string, string> = {
@@ -87,9 +88,7 @@ export default function App() {
   const [theme] = useTheme();
   useDismiss(zoomMenu, () => setZoomMenu(false), ".zoomwrap.zoomonly");
   const [presenting, setPresenting] = useState(false);
-  // there is no separate home any more: Chat is where your projects are
-  const home = false;
-  const setHome = (on: boolean) => on && setLayout({ space: "chat" });
+  const [homeOpen, setHomeOpen] = useState(false);
   // in full screen there are no window buttons, so the name moves to the very left
   const [full, setFull] = useState(false);
   useEffect(() => {
@@ -126,6 +125,10 @@ export default function App() {
     // every launch starts at your projects; the last one is a click away ("Back to ...")
     void restoreLast().then(() => {
       if (isCheckCopy()) return setCheck(true);
+      const s = getState();
+      if (!s.project.file && currentDoc(s).rootIds.length === 0) {
+        setHomeOpen(true);
+      }
     });
     const stops: (() => void)[] = [];
     let alive = true;
@@ -155,7 +158,7 @@ export default function App() {
       startAgentListeners().then((f) => (alive ? stops.push(f) : f()));
     }
     // the menu bar and other parts of the app ask for these
-    const openHome = () => setLayout({ space: "chat" });
+    const openHome = () => setHomeOpen(true);
     const openPresent = () => setPresenting(true);
     const openSend = () => setSending(true);
     const openSettings = () => setSettings(true);
@@ -240,9 +243,6 @@ export default function App() {
             Du<b>et</b>
             {check && <i className="checkmark" title="Duet dev, used only to build and check Duet itself. It never opens your projects by itself.">dev</i>}
             <i className="early-tag" title="Duet is in early access. Some things are unfinished and you may meet bugs. Save versions of work that matters.">Early access</i>
-            <button className="early-tag feedback-tag" data-name="feedback" title="Tell the creator what went wrong or what you want. Cmd or Ctrl, Shift, F" onClick={askFeedback}>
-              Feedback
-            </button>
           </span>
           <span data-tauri-drag-region className={`status ${project.status}`} title={project.error ?? undefined}>
             {project.path ? STATUS[project.status] : "Not saved yet"}
@@ -335,7 +335,7 @@ export default function App() {
       {/* in Edit, under it: the open projects like tabs in a browser, and the kind of work */}
       {!chatting && (
         <div className="tabbar">
-          <Tabs home={home} setHome={setHome} />
+          <Tabs home={homeOpen} setHome={setHomeOpen} />
         </div>
       )}
       {chatting ? (
@@ -365,6 +365,7 @@ export default function App() {
       <Update />
       <Feedback />
       {settings && <Settings check={check} onClose={() => setSettings(false)} />}
+      {homeOpen && <Home onClose={() => setHomeOpen(false)} />}
     </div>
   );
 }
