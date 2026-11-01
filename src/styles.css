@@ -17,6 +17,10 @@
   --duet-soft: rgba(255, 138, 92, 0.16);
   --canvas: #141315;
 
+  /* Corner tokens */
+  --r-sm: 5px;
+  --r-md: 8px;
+
   /* Canvas surround */
   --canvas-dot: #2a2a31;
   --ruler: #1c1c21;
@@ -78,6 +82,10 @@
   --duet: #ee6a38;
   --duet-soft: rgba(238, 106, 56, 0.14);
   --canvas: #e3e3e6;
+
+  /* Corner tokens */
+  --r-sm: 5px;
+  --r-md: 8px;
 
   /* Canvas surround */
   --canvas-dot: #c8c7cc;
@@ -226,17 +234,18 @@ button {
 .right {
   background: var(--panel);
   overflow: auto;
-  margin: 8px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 .left {
   grid-area: left;
-  margin-right: 0;
+  border-right: 1px solid var(--line);
 }
 .right {
   grid-area: right;
-  margin-left: 0;
+  border-left: 1px solid var(--line);
 }
 .panel-title {
   padding: 12px 14px;
@@ -291,14 +300,14 @@ button {
   padding: 14px;
 }
 .layers {
-  padding: 8px;
+  padding: 4px 0;
 }
 .row {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   cursor: default;
 }
 .row:hover {
@@ -306,14 +315,14 @@ button {
 }
 .row.sel {
   background: var(--accent-soft);
-  outline: 1px solid var(--accent);
+  outline: none;
 }
 .fold-arrow {
   display: grid;
   place-items: center;
   width: 14px;
   height: 14px;
-  border-radius: 3px;
+  border-radius: var(--r-sm);
   color: var(--muted);
   flex: none;
   cursor: pointer;
@@ -344,7 +353,7 @@ button {
   height: 20px;
   display: grid;
   place-items: center;
-  border-radius: 5px;
+  border-radius: var(--r-sm);
   color: var(--muted);
   font-size: 16px;
   line-height: 1;
@@ -360,7 +369,7 @@ button {
   place-items: center;
   width: 20px;
   height: 20px;
-  border-radius: 5px;
+  border-radius: var(--r-sm);
   color: var(--muted);
   opacity: 0;
   flex: none;
@@ -390,7 +399,7 @@ button {
   min-width: 0;
   background: var(--panel-2);
   border: 1px solid var(--accent);
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   color: var(--text);
   padding: 1px 4px;
   font: inherit;
@@ -424,7 +433,7 @@ button {
 .brush-tip {
   width: 72px;
   height: 72px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   /* a quiet check shows how see-through the tip is */
   background: repeating-conic-gradient(var(--panel-2) 0 25%, var(--panel) 0 50%) 0 0 / 12px 12px;
   border: 1px solid var(--line);
@@ -448,7 +457,7 @@ button {
   align-items: center;
   gap: 6px;
   padding: 5px 8px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--line);
   background: var(--panel-2);
 }
@@ -490,7 +499,7 @@ button {
   height: 20px;
   padding: 0;
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: var(--r-sm);
   background: repeating-conic-gradient(#8a8a90 0% 25%, #d9d9de 0% 50%) 0 0 / 8px 8px;
   overflow: hidden;
   cursor: pointer;
@@ -519,7 +528,7 @@ button {
   padding: 10px;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--r-md);
   box-shadow: 0 14px 40px var(--shadow-strong);
   user-select: none;
   -webkit-user-select: none;
@@ -527,7 +536,7 @@ button {
 .cpick-square {
   position: relative;
   height: 150px;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   cursor: crosshair;
   background-image: linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, transparent) !important;
   background-blend-mode: normal;
@@ -536,7 +545,7 @@ button {
 .cpick-strip {
   position: relative;
   height: 12px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   cursor: pointer;
   touch-action: none;
 }
@@ -549,7 +558,7 @@ button {
 .cpick-fade {
   position: absolute;
   inset: 0;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
 }
 .cpick-knob {
   position: absolute;
@@ -573,7 +582,7 @@ button {
   padding: 0 7px;
   background: var(--panel-2);
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   color: var(--text);
   font: inherit;
   font-size: 12px;
@@ -606,7 +615,7 @@ button {
   padding: 0;
   background: var(--panel-2);
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   color: var(--text);
   cursor: pointer;
 }
@@ -628,7 +637,7 @@ body.eyedropping * {
   aspect-ratio: 1;
   padding: 0;
   border: 1px solid var(--tint-strong);
-  border-radius: 5px;
+  border-radius: var(--r-sm);
   cursor: pointer;
 }
 .cpick-sw:hover,
@@ -706,7 +715,7 @@ body.eyedropping * {
   place-items: center;
   border: 0;
   background: none;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   color: var(--muted);
   cursor: pointer;
 }
@@ -844,7 +853,7 @@ body.eyedropping * {
   transform: translate(-50%, -100%);
   white-space: nowrap;
   padding: 4px 8px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   background: #000;
   color: #fff;
   font-size: 11px;
@@ -858,7 +867,7 @@ body.eyedropping * {
 }
 .mini {
   padding: 4px 10px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--line);
   background: var(--panel-2);
   cursor: pointer;
@@ -886,7 +895,7 @@ body.eyedropping * {
   max-height: 360px;
   overflow: auto;
   padding: 12px;
-  border-radius: 12px;
+  border-radius: var(--r-md);
   background: var(--panel);
   border: 1px solid var(--line);
   box-shadow: 0 14px 40px var(--shadow-strong);
@@ -909,7 +918,7 @@ body.eyedropping * {
   flex: 1;
   min-width: 0;
   padding: 6px 8px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--line);
   background: var(--panel-2);
   color: var(--text);
@@ -932,7 +941,7 @@ body.eyedropping * {
   justify-content: space-between;
   gap: 10px;
   padding: 8px;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
 }
 .pop-version:hover {
   background: var(--panel-2);
@@ -1024,7 +1033,7 @@ body.eyedropping * {
   align-items: center;
   gap: 10px;
   padding: 8px 6px;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
 }
 .skill:hover {
   background: var(--panel-2);
@@ -1075,7 +1084,7 @@ body.eyedropping * {
   padding: 8px;
   text-align: center;
   border: 1px dashed var(--line);
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   color: var(--muted);
   cursor: pointer;
 }
@@ -1097,7 +1106,7 @@ body.eyedropping * {
 .newskill textarea {
   width: 100%;
   padding: 6px 8px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--line);
   background: var(--panel-2);
   color: var(--text);
@@ -1169,7 +1178,7 @@ body.eyedropping * {
   flex-direction: column;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--r-md);
   box-shadow: 0 14px 40px var(--shadow-strong);
   /* clip, not hidden: a hidden box can still be scrolled from code, which slid the title out of view */
   overflow: clip;
@@ -1195,7 +1204,7 @@ body.eyedropping * {
 .av {
   width: 22px;
   height: 22px;
-  border-radius: 7px;
+  border-radius: var(--r-sm);
   background: var(--duet);
   display: grid;
   place-items: center;
@@ -1243,7 +1252,7 @@ body.eyedropping * {
 }
 .m {
   padding: 8px 10px;
-  border-radius: 10px;
+  border-radius: var(--r-md);
   background: var(--panel-2);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -1332,7 +1341,7 @@ body.eyedropping * {
   min-width: 0;
   resize: none;
   padding: 6px 8px;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--line);
   background: var(--panel-2);
   color: var(--text);
@@ -1375,7 +1384,7 @@ body.eyedropping * {
   width: 44px;
   height: 44px;
   object-fit: cover;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--line);
   background: var(--panel-2);
 }
@@ -1454,7 +1463,7 @@ body.eyedropping * {
   width: 240px;
   padding: 10px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   background: var(--panel);
   color: var(--text);
   box-shadow: 0 8px 24px var(--shadow);
@@ -1483,7 +1492,7 @@ body.eyedropping * {
 .comment-actions button {
   padding: 4px 10px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   background: transparent;
   color: var(--text);
   font: inherit;
@@ -1512,7 +1521,7 @@ body.eyedropping * {
   margin-top: 6px;
   padding: 6px;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   background: transparent;
   color: var(--text);
   font: inherit;
@@ -1569,7 +1578,7 @@ body.eyedropping * {
   height: 22px;
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   background: transparent;
   color: var(--muted);
   font-size: 16px;
@@ -1639,7 +1648,7 @@ body.eyedropping * {
   top: calc(100% + 6px);
   min-width: 200px;
   padding: 6px;
-  border-radius: 10px;
+  border-radius: var(--r-md);
   background: var(--panel);
   border: 1px solid var(--line);
   box-shadow: 0 14px 40px var(--shadow-strong);
@@ -1650,7 +1659,7 @@ body.eyedropping * {
   justify-content: space-between;
   gap: 16px;
   padding: 7px 10px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   cursor: pointer;
 }
 .zmenu div:hover {
@@ -1684,7 +1693,7 @@ body.eyedropping * {
 .tool-row select {
   flex: 1;
   padding: 4px 6px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--line);
   background: var(--panel-2);
   color: var(--text);
@@ -1703,7 +1712,7 @@ body.eyedropping * {
   margin: 0 0 10px;
   padding: 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--r-md);
   background: var(--panel-2);
   font-size: 11px;
 }
@@ -1736,7 +1745,7 @@ body.eyedropping * {
   display: flex;
   margin-bottom: 8px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   overflow: hidden;
 }
 .seg2 span {
@@ -1984,7 +1993,7 @@ option {
 .pcard {
   position: relative;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--r-md);
   background: var(--panel);
   overflow: hidden;
   cursor: pointer;
@@ -2065,7 +2074,7 @@ option {
   color: var(--muted);
   padding: 18px;
   border: 1px dashed var(--line);
-  border-radius: 14px;
+  border-radius: var(--r-md);
   line-height: 1.55;
   max-width: 640px;
 }
@@ -2079,10 +2088,14 @@ option {
 
 /* panels you can move, resize and hide */
 .app.swapped .left {
-  margin: 8px 8px 8px 0;
+  margin: 0;
+  border-right: none;
+  border-left: 1px solid var(--line);
 }
 .app.swapped .right {
-  margin: 8px 0 8px 8px;
+  margin: 0;
+  border-left: none;
+  border-right: 1px solid var(--line);
 }
 .grip {
   position: absolute;
@@ -2168,7 +2181,7 @@ option {
   width: 380px;
   max-width: calc(100vw - 32px);
   padding: 18px;
-  border-radius: 14px;
+  border-radius: var(--r-md);
   background: var(--panel);
   border: 1px solid var(--line);
   box-shadow: 0 14px 40px var(--shadow-strong);
@@ -2193,7 +2206,7 @@ option {
   align-items: flex-start;
   padding: 8px;
   margin: 0 -8px 4px;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   cursor: pointer;
 }
 .sheet-choice:hover {
@@ -2215,7 +2228,7 @@ option {
 .sheet-path {
   margin-bottom: 14px;
   padding: 8px;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   background: var(--panel-2);
   word-break: break-all;
   user-select: text;
@@ -2234,7 +2247,7 @@ option {
 }
 .m code {
   padding: 0 4px;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   background: var(--panel-2);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.92em;
@@ -2390,7 +2403,7 @@ option {
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   cursor: pointer;
   background: transparent;
   border: 1px solid transparent;
@@ -2454,7 +2467,7 @@ option {
 .vc-player {
   max-width: 100%;
   max-height: calc(100vh - 280px);
-  border-radius: 12px;
+  border-radius: var(--r-md);
   background: #000;
   box-shadow: 0 8px 24px var(--shadow);
 }
@@ -2478,7 +2491,7 @@ option {
   padding: 14px 18px;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--r-md);
 }
 
 .vc-slider-row {
@@ -2587,7 +2600,7 @@ option {
   color: var(--muted);
   font-size: 11px;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   cursor: pointer;
 }
 .time-quiet-btn:hover {
@@ -2604,7 +2617,7 @@ option {
   background: var(--panel-2);
   color: var(--text);
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   padding: 3px 6px;
   font: inherit;
 }
@@ -2710,7 +2723,7 @@ option {
   position: absolute;
   top: 4px;
   height: 16px;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   background: var(--time-shape-soft);
   border: 1px solid var(--time-shape);
   cursor: grab;
@@ -2867,7 +2880,7 @@ option {
   left: 0;
   top: 0;
   pointer-events: none;
-  border-radius: 3px;
+  border-radius: var(--r-sm);
 }
 .clip-face.wave {
   color: var(--time-sound);
@@ -3013,7 +3026,7 @@ option {
   box-sizing: border-box;
   padding: 8px 12px;
   margin-bottom: 8px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--line);
   background: var(--panel-2);
   color: var(--text);
@@ -3043,7 +3056,7 @@ option {
   background: none;
   border: none;
   padding: 8px 12px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   color: var(--muted);
   cursor: pointer;
   font-size: 13px;
@@ -3121,7 +3134,7 @@ option {
   flex-direction: column;
   gap: 2px;
   padding: 8px 12px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   background: var(--panel);
   border: 1px solid var(--line);
 }
@@ -3238,7 +3251,7 @@ option {
 .create-card {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--r-md);
   padding: 16px 10px 14px;
   display: flex;
   flex-direction: column;
@@ -3276,7 +3289,7 @@ option {
 .shape-square {
   width: 44px;
   height: 44px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   background: var(--accent-soft);
   border: 1.5px solid var(--accent);
 }
@@ -3284,7 +3297,7 @@ option {
 .shape-story {
   width: 27px;
   height: 48px;
-  border-radius: 5px;
+  border-radius: var(--r-sm);
   background: var(--time-image-soft);
   border: 1.5px solid var(--time-image);
 }
@@ -3292,7 +3305,7 @@ option {
 .shape-video {
   width: 52px;
   height: 29px;
-  border-radius: 5px;
+  border-radius: var(--r-sm);
   background: var(--duet-soft);
   border: 1.5px solid var(--duet);
 }
@@ -3300,7 +3313,7 @@ option {
 .shape-slide {
   width: 52px;
   height: 29px;
-  border-radius: 5px;
+  border-radius: var(--r-sm);
   background: var(--time-frame-soft);
   border: 1.5px solid var(--time-frame);
 }
@@ -3308,7 +3321,7 @@ option {
 .shape-a4 {
   width: 32px;
   height: 45px;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   background: var(--time-text-soft);
   border: 1.5px solid var(--time-text);
   position: relative;
@@ -3338,7 +3351,7 @@ option {
 .screen-phone {
   width: 14px;
   height: 26px;
-  border-radius: 3px;
+  border-radius: var(--r-sm);
   background: var(--time-instance-soft);
   border: 1.5px solid var(--time-instance);
 }
@@ -3346,7 +3359,7 @@ option {
 .screen-desk {
   width: 28px;
   height: 19px;
-  border-radius: 3px;
+  border-radius: var(--r-sm);
   background: var(--time-instance-soft);
   border: 1.5px solid var(--time-instance);
 }
@@ -3354,7 +3367,7 @@ option {
 .shape-canvas {
   width: 46px;
   height: 36px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   border: 1.5px dashed var(--muted);
   background: var(--panel-2);
 }
@@ -3362,7 +3375,7 @@ option {
 .shape-custom {
   width: 44px;
   height: 44px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   border: 1.5px dashed var(--muted);
   background: var(--panel-2);
   display: grid;
@@ -3373,7 +3386,7 @@ option {
 .shape-file {
   width: 46px;
   height: 36px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   background: var(--panel-2);
   border: 1.5px solid var(--line);
   display: grid;
@@ -3401,7 +3414,7 @@ option {
 .home-chat-banner {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--r-md);
   padding: 8px 14px;
   display: flex;
   align-items: center;
@@ -3418,7 +3431,7 @@ option {
 .chat-ai-quiet {
   width: 28px;
   height: 28px;
-  border-radius: 7px;
+  border-radius: var(--r-sm);
   background: var(--panel-2);
   border: 1px solid var(--line);
   color: var(--muted);
@@ -3475,7 +3488,7 @@ option {
 .chat-send-btn {
   width: 28px;
   height: 28px;
-  border-radius: 7px;
+  border-radius: var(--r-sm);
   background: var(--accent);
   border: none;
   color: #fff;
@@ -3503,7 +3516,7 @@ option {
   width: 280px;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--r-md);
   box-shadow: 0 16px 44px var(--shadow-strong), 0 0 0 1px var(--line);
   padding: 16px;
   z-index: 50;
@@ -3542,7 +3555,7 @@ option {
 .popover-close {
   width: 22px;
   height: 22px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   border: none;
   background: transparent;
   color: var(--muted);
@@ -3579,7 +3592,7 @@ option {
   display: flex;
   align-items: center;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   background: var(--panel-2);
   padding: 6px 8px;
 }
@@ -3621,7 +3634,7 @@ option {
 
 .preset-pill {
   padding: 4px 8px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--line);
   background: var(--panel-2);
   font-size: 11px;
@@ -3671,7 +3684,7 @@ option {
   text-align: center;
   background: var(--panel);
   border: 1px dashed var(--line);
-  border-radius: 12px;
+  border-radius: var(--r-md);
 }
 
 .recents-grid {
@@ -3683,7 +3696,7 @@ option {
 .recent-card {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--r-md);
   overflow: hidden;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -3795,7 +3808,7 @@ option {
   padding: 6px;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--r-md);
   box-shadow: 0 14px 40px var(--shadow-strong);
 }
 .ctx-item {
@@ -3803,7 +3816,7 @@ option {
   justify-content: space-between;
   gap: 18px;
   padding: 7px 10px;
-  border-radius: 7px;
+  border-radius: var(--r-sm);
   cursor: default;
 }
 .ctx-item:hover {
@@ -4133,7 +4146,7 @@ option {
   max-width: calc(100vw - 32px);
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--r-md);
   box-shadow: 0 12px 32px var(--shadow-strong);
   padding: 12px;
   display: flex;
@@ -4151,7 +4164,7 @@ option {
 .agent-pop select {
   width: 100%;
   padding: 4px 6px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--line);
   background: var(--panel-2);
   color: var(--text);
@@ -4267,7 +4280,7 @@ option {
   align-items: center;
   justify-content: center;
   padding: 4px;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   line-height: 1;
   flex: none;
 }
@@ -4284,7 +4297,7 @@ option {
   align-items: center;
   gap: 4px;
   padding: 3px 6px;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   font: inherit;
   font-size: 11px;
   line-height: 1;
@@ -4308,7 +4321,7 @@ option {
   overflow-y: auto;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--r-md);
   box-shadow: 0 12px 32px var(--shadow-strong);
   padding: 12px;
   display: flex;
@@ -4340,7 +4353,7 @@ option {
   align-items: center;
   gap: 8px;
   padding: 4px 6px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   cursor: pointer;
   font-size: 11px;
   color: var(--text);
@@ -4419,7 +4432,7 @@ option {
   left: 36px;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--r-md);
   box-shadow: 0 8px 24px var(--shadow);
   padding: 4px;
   min-width: 160px;
@@ -4434,7 +4447,7 @@ option {
   align-items: center;
   gap: 6px;
   padding: 4px 8px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   cursor: pointer;
   font-size: 11px;
   color: var(--text);
@@ -4483,7 +4496,7 @@ option {
   margin: 0 10px 10px;
   padding: 8px 8px 8px 10px;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--r-sm);
   background: var(--panel-2);
 }
 .cfoot:focus-within {
@@ -4534,7 +4547,7 @@ option {
   overflow-y: auto;
   border: 0;
   border-top: 1px solid var(--line);
-  border-radius: 0 0 14px 14px;
+  border-radius: 0 0 var(--r-md) var(--r-md);
   box-shadow: none;
   padding: 14px 16px 18px;
   z-index: 6;
@@ -4613,7 +4626,7 @@ button.agent-perm:hover {
   padding: 14px;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--r-md);
   box-shadow: 0 12px 32px var(--shadow-strong);
 }
 .export-pop .export-close {
@@ -4631,7 +4644,7 @@ button.agent-perm:hover {
   font-size: 16px;
   line-height: 1;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   padding: 0;
 }
 .export-pop .export-close:hover {
@@ -4650,7 +4663,7 @@ button.agent-perm:hover {
   background: var(--panel-2);
   color: var(--text);
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   padding: 4px 6px;
   font: inherit;
   max-width: 190px;
@@ -4736,7 +4749,7 @@ button.agent-perm.auto:hover .agent-btn-v {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--line);
   background: var(--panel-2);
   font-size: 11px;
@@ -4761,7 +4774,7 @@ button.agent-perm.auto:hover .agent-btn-v {
   margin: 10px 14px 4px;
   padding: 10px 12px;
   border: 1px dashed var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   font-size: 11px;
   line-height: 1.45;
   color: var(--muted);
@@ -4781,7 +4794,7 @@ button.agent-perm {
   flex-direction: column;
   gap: 3px;
   padding: 7px 8px;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   cursor: pointer;
 }
 .perm-row:hover,
@@ -4911,7 +4924,7 @@ button.agent-perm {
   margin: 0 4px 0 -10px;
   padding: 0;
   border: 0;
-  border-radius: 3px;
+  border-radius: var(--r-sm);
   background: none;
   color: var(--muted);
   opacity: 0.55;
@@ -4959,7 +4972,7 @@ button.agent-perm {
   height: 14px;
   padding: 0;
   border: 0;
-  border-radius: 3px;
+  border-radius: var(--r-sm);
   background: none;
   color: var(--muted);
   cursor: pointer;
@@ -5012,7 +5025,7 @@ button.agent-perm {
   margin: 0 12px 6px;
   padding: 4px 8px;
   border: 1px dashed var(--accent);
-  border-radius: 8px;
+  border-radius: var(--r-md);
   color: var(--accent);
   font-size: 11px;
 }
@@ -5084,7 +5097,7 @@ button.agent-perm {
   flex: 0 1 200px;
   min-width: 72px;
   height: 30px;
-  border-radius: 9px 9px 0 0;
+  border-radius: var(--r-sm) var(--r-sm) 0 0;
   color: var(--muted);
   font-size: 12px;
 }
@@ -5118,7 +5131,7 @@ button.agent-perm {
   width: 20px;
   height: 20px;
   margin-right: 6px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   opacity: 0.55;
 }
 .project-tab .tab-x:hover {
@@ -5134,7 +5147,7 @@ button.agent-perm {
   height: 26px;
   margin: 0 4px 2px 0;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--r-sm);
   background: none;
   color: var(--muted);
   cursor: pointer;
@@ -5156,7 +5169,7 @@ button.agent-perm {
   height: 26px;
   margin: 0 0 2px 4px;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--r-sm);
   background: none;
   color: var(--muted);
   cursor: pointer;
@@ -5199,7 +5212,7 @@ button.agent-perm {
   height: 22px;
   padding: 0;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--r-sm);
   background: none;
   color: var(--muted);
   cursor: pointer;
@@ -5314,7 +5327,7 @@ button.agent-perm {
   margin-top: 10px;
   padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   background: var(--panel-2);
   color: var(--text);
   font: inherit;
@@ -5339,7 +5352,7 @@ button.agent-perm {
   display: block;
   height: 56px;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--r-sm);
 }
 .feedback-pic button {
   position: absolute;
@@ -5436,7 +5449,7 @@ button.agent-perm {
   height: 150px;
   background: var(--canvas);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--r-md);
   cursor: crosshair;
   touch-action: none;
 }
@@ -5466,7 +5479,7 @@ button.agent-perm {
   color: var(--muted);
   background: none;
   border: none;
-  border-radius: 5px;
+  border-radius: var(--r-sm);
   cursor: pointer;
 }
 .curve-tab.moved {
@@ -5514,7 +5527,7 @@ button.agent-perm {
   color: var(--text);
   background: var(--panel-2);
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
 }
 .grade-num:focus {
   border-color: var(--accent);
@@ -5543,7 +5556,7 @@ button.agent-perm {
 .effect-card {
   position: relative;
   background: var(--panel-alt);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   padding: 6px 8px;
   border: 1px solid var(--line);
 }
@@ -5590,13 +5603,13 @@ button.agent-perm {
   overflow-y: auto;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--r-md);
   box-shadow: 0 12px 32px var(--shadow-strong);
   padding: 4px;
 }
 .font-row {
   padding: 6px 8px;
-  border-radius: 5px;
+  border-radius: var(--r-sm);
   font-size: 14px;
   color: var(--text);
   white-space: nowrap;
@@ -5661,7 +5674,7 @@ button.agent-perm {
   box-sizing: border-box;
   background: var(--panel-2);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--r-md);
   color: var(--text);
   padding: 7px 10px;
   font-size: 13px;
@@ -5685,7 +5698,7 @@ button.agent-perm {
   align-items: center;
   gap: 9px;
   padding: 4px 6px;
-  border-radius: 9px;
+  border-radius: var(--r-sm);
   cursor: pointer;
   color: var(--text);
 }
@@ -5693,7 +5706,7 @@ button.agent-perm {
   flex: none;
   width: 40px;
   height: 30px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   background: var(--panel-2);
   border: 1px solid var(--line);
   overflow: hidden;
@@ -5721,7 +5734,7 @@ input.chathome-name.rename {
   padding: 1px 4px;
   margin: -2px -5px;
   border: 1px solid var(--accent);
-  border-radius: 5px;
+  border-radius: var(--r-sm);
   background: var(--bg);
   color: var(--text);
   font: inherit;
@@ -5746,7 +5759,7 @@ input.chathome-name.rename {
   padding: 0 6px;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--r-md);
 }
 .toolbar.row {
   flex: 1;
@@ -5786,7 +5799,7 @@ input.chathome-name.rename {
   color: var(--text);
   background: var(--panel-2);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--r-md);
   cursor: pointer;
 }
 .chatbar-drop::after {
@@ -5880,7 +5893,7 @@ input.chathome-name.rename {
   box-sizing: border-box;
   padding: 7px 10px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   background: transparent;
   color: var(--text);
   font-size: 13.5px;
@@ -5931,7 +5944,7 @@ input.chathome-name.rename {
   width: 32px;
   height: 32px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   background: transparent;
   color: var(--muted);
   cursor: pointer;
@@ -5956,7 +5969,7 @@ input.chathome-name.rename {
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   background: var(--panel-2);
   color: var(--muted);
 }
@@ -5984,12 +5997,12 @@ input.chathome-name.rename {
   padding: 4px;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   box-shadow: 0 12px 32px var(--shadow-strong);
 }
 .chathome-menu div {
   padding: 7px 10px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   font-size: 13px;
   cursor: default;
 }
@@ -6085,7 +6098,7 @@ input.chathome-name.rename {
   height: 22px;
   margin-right: 2px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   background: none;
   color: var(--text);
   opacity: 0.75;
@@ -6149,7 +6162,7 @@ input.chathome-name.rename {
   align-items: center;
   gap: 9px;
   padding: 4px 6px;
-  border-radius: 9px;
+  border-radius: var(--r-sm);
 }
 .trash-row:hover {
   background: var(--panel-2);
@@ -6194,7 +6207,7 @@ input.chathome-name.rename {
   display: none;
   gap: 2px;
   padding-left: 6px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   background: var(--panel-2);
 }
 .trash-row:hover .trash-actions {
@@ -6212,7 +6225,7 @@ input.chathome-name.rename {
   height: 16px;
   padding: 0;
   border: 1.5px solid var(--muted);
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   background: none;
   color: #fff;
   cursor: pointer;
@@ -6227,7 +6240,7 @@ input.chathome-name.rename {
   width: 26px;
   height: 26px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   background: none;
   color: var(--text);
   cursor: pointer;
@@ -6318,7 +6331,7 @@ input.chathome-name.rename {
   gap: 7px;
   height: 26px;
   padding: 0 6px;
-  border-radius: 7px;
+  border-radius: var(--r-sm);
   font-size: 12px;
   color: var(--muted);
   cursor: pointer;
@@ -6371,7 +6384,7 @@ input.chathome-name.rename {
   height: 18px;
   padding: 0;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   background: none;
   color: var(--muted);
   font-size: 14px;
@@ -6397,7 +6410,7 @@ input.chathome-name.rename {
 
 /* The chat, calmer: you in a soft bubble on the right, each AI speaking in its own colour on the left */
 .m.you {
-  border-radius: 16px;
+  border-radius: var(--r-md);
   padding: 9px 13px;
 }
 .m.ai {
@@ -6442,7 +6455,7 @@ input.chathome-name.rename {
 
 /* who answers: each AI in its colour, what it uses under its name, the chosen one tinted with a tick */
 .cfoot .agent-pop {
-  border-radius: 16px;
+  border-radius: var(--r-md);
   padding: 14px;
   gap: 14px;
 }
@@ -6452,7 +6465,7 @@ input.chathome-name.rename {
 }
 .agent-pop .who-answer-row {
   padding: 8px 10px;
-  border-radius: 12px;
+  border-radius: var(--r-sm);
   border: 1px solid transparent;
   gap: 10px;
 }
@@ -6518,7 +6531,7 @@ input.chathome-name.rename {
 
 /* the ask box: soft and round, and send is a round arrow in the colour of who answers */
 .cfoot {
-  border-radius: 18px;
+  border-radius: var(--r-sm);
   padding: 10px 10px 10px 12px;
 }
 .cfoot > button.primary.send-round {
@@ -6541,7 +6554,7 @@ input.chathome-name.rename {
 }
 .pick-choice.wrap {
   flex-wrap: wrap;
-  border-radius: 14px;
+  border-radius: var(--r-sm);
 }
 .pick-choice.wrap button {
   flex: 1 0 auto;
@@ -6654,7 +6667,7 @@ input.chathome-name.rename {
 .hl .lit {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
 }
 
 /* changes, folded into one chip */
@@ -6805,7 +6818,7 @@ input.chathome-name.rename {
   width: 100%;
   padding: 6px 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   background: var(--panel-2);
   color: var(--text);
   font: inherit;
@@ -6827,7 +6840,7 @@ input.chathome-name.rename {
   overflow: auto;
   padding: 4px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   background: var(--panel);
   box-shadow: 0 14px 40px var(--shadow-strong);
 }
@@ -6836,7 +6849,7 @@ input.chathome-name.rename {
   align-items: baseline;
   gap: 8px;
   padding: 6px 8px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   font-size: 12px;
   cursor: pointer;
 }
@@ -6953,7 +6966,7 @@ input.chathome-name.rename {
   position: relative;
   flex: 1;
   min-height: 0;
-  border-radius: 8px;
+  border-radius: var(--r-md);
   background: var(--canvas);
   overflow: hidden;
 }
@@ -6987,7 +7000,7 @@ input.chathome-name.rename {
   font-size: 12px;
   color: var(--muted);
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   background: var(--panel-2);
 }
 
@@ -7057,7 +7070,7 @@ input.chathome-name.rename {
   height: 26px;
   padding: 0;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--r-sm);
   background: none;
   color: var(--muted);
   cursor: pointer;
@@ -7270,7 +7283,7 @@ input.chathome-name.rename {
 /* Add-ons in Settings */
 .addon {
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   padding: 14px 16px;
   display: flex;
   flex-direction: column;
@@ -7309,7 +7322,7 @@ input.chathome-name.rename {
   color: var(--text);
   background: var(--panel-2);
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   padding: 5px 8px;
 }
 .addon-steps {
@@ -7397,7 +7410,7 @@ input.chathome-name.rename {
 .page-mini-card {
   width: 48px;
   height: 48px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   border: 1.5px solid var(--line);
   background: var(--panel-2);
   overflow: hidden;
@@ -7455,7 +7468,7 @@ input.chathome-name.rename {
 .all-pages-btn {
   height: 48px;
   padding: 0 12px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   border: 1.5px solid var(--line);
   background: var(--panel-2);
   color: var(--muted);
