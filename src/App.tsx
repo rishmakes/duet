@@ -125,7 +125,7 @@ export default function App() {
     const stop = startAutosave();
     // every launch starts at your projects; the last one is a click away ("Back to ...")
     void restoreLast().then(async () => {
-      if (isCheckCopy()) return setCheck(true);
+      if (isCheckCopy()) setCheck(true);
       // a project file double-clicked in Finder or Explorer opens straight in, without Home
       const f = inTauri() ? await invoke<string | null>("launch_file").catch(() => null) : null;
       if (f) return void openProjectAt(f);

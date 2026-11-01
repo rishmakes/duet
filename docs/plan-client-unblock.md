@@ -17,3 +17,5 @@ Who builds: Claude does 1 to 4 (data, export, player). Antigravity does 5 to 7 i
 11. Export sizes make sense for the scene: "Same as the scene (1080 x 1920)" first; no 4K offered as if it were the scene's size.
 
 31 Oct 10am: he said start now; installing is fine.
+
+31 Oct ~10:30: 1, 2, 4 (best guess), 5, 6, 7, 10, 11 built and installed. 3: export matches the source within 1% (checked with ffmpeg); the preview differs, not the file. Also: export now honours the work area. Left: 8 chat as a tab (waits for his yes), 9 any track holds anything.

@@ -35,3 +35,9 @@ The site is live with 0.13.0 downloads and the status list. Still missing: new p
 - Then release 0.13.1 (eraser undo, SVG keeps paint, New paint layer), then the site. Agy should mechanically test erase and SVG export in Duet dev first.
 - Open idea for Sourish: a checkerboard where nothing is, in Photo, so see-through spots read as see-through instead of dark.
 - Site: post, help pages and pictures are committed in duet-site (76bb490), not deployed. The paint picture there shows the old black-hole eraser and must be retaken after 0.13.1 (brief pattern: scratch/agy-brief-paint-shot.md, only one tab open, his other tab names must not show). Fix the post's paint wording to match then. Antigravity is fine to use (its limit is not used up).
+
+## 29 Oct midday: 0.13.1 building
+- Pushed main and tag v0.13.1 (Release run 40832614981). Draft release, not published, not tested in Duet dev yet.
+- In it: eraser leaves see-through pixels, checkerboard in Photo, New paint layer (right-click in Photo or Shift Cmd N), SVG export keeps paint. Issue #209 filed (Photoshop shape and text layers).
+- Still to do when Sourish is back: agy mechanical test of those four in Duet dev, then he publishes (`gh release edit v0.13.1 --draft=false`), then site text only (no screenshots; pictures weekly via agy). Amit is waiting to use these.
+- 13:00ish: v0.13.1 published, site deployed with 0.13.1 text (duet-site b71cd66 + release sync, not pushed). Agy mechanical test of the four changes still not done.
