@@ -32,7 +32,34 @@ export const COLORS = {
   ruler: "#1c1c21",
   muted: "#8d8d98",
   white: "#ffffff",
+  rulerLine: "#2c2c33",
+  rulerTick: "#55555f",
+  aiWorkText: "#101014",
+  accentSoft: "rgba(124, 92, 255, 0.16)",
+  duet: "#ff8a5c",
 };
+
+/** Read canvas surround and interface colours from the active theme. */
+export function updateCanvasColors() {
+  if (typeof document === "undefined" || typeof getComputedStyle === "undefined") return;
+  const cs = getComputedStyle(document.documentElement);
+  const get = (name: string, fallback: string) => cs.getPropertyValue(name).trim() || fallback;
+
+  COLORS.bg = get("--canvas", COLORS.bg);
+  COLORS.dot = get("--canvas-dot", COLORS.dot);
+  COLORS.accent = get("--accent", COLORS.accent);
+  COLORS.ruler = get("--ruler", COLORS.ruler);
+  COLORS.muted = get("--muted", COLORS.muted);
+  COLORS.rulerLine = get("--ruler-line", COLORS.rulerLine);
+  COLORS.rulerTick = get("--ruler-tick", COLORS.rulerTick);
+  COLORS.aiWorkText = get("--ai-pill-text", COLORS.aiWorkText);
+  COLORS.accentSoft = get("--accent-soft", COLORS.accentSoft);
+  COLORS.duet = get("--duet", COLORS.duet);
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("duet:theme", updateCanvasColors);
+}
 
 const toScreen = (s: State, wx: number, wy: number) => ({
   x: wx * s.viewport.zoom + s.viewport.x,
@@ -169,7 +196,7 @@ function drawImage(ctx: CanvasRenderingContext2D, el: El, x: number, y: number) 
   if (!pic) {
     // a quiet box stands in until the picture has loaded
     roundedPath(ctx, x, y, el.width, el.height, el.radius);
-    ctx.fillStyle = "#2a2a31";
+    ctx.fillStyle = COLORS.dot;
     ctx.fill();
   } else {
     try {
@@ -531,9 +558,6 @@ function drawGrid(ctx: CanvasRenderingContext2D, s: State, w: number, h: number,
   }
 }
 
-/** Duet's own AI, the same orange as in the history line. */
-const DUET_ORANGE = "#ff8a5c";
-
 function pill(ctx: CanvasRenderingContext2D, text: string, cx: number, y: number) {
   ctx.font = `600 11px ${FONT_STACK}`;
   const w = ctx.measureText(text).width + 12;
@@ -587,7 +611,7 @@ function drawRulers(ctx: CanvasRenderingContext2D, s: State, doc: Doc, w: number
   ctx.fillStyle = COLORS.ruler;
   ctx.fillRect(0, 0, w, RULER);
   ctx.fillRect(0, 0, RULER, h);
-  ctx.strokeStyle = "#2c2c33";
+  ctx.strokeStyle = COLORS.rulerLine;
   ctx.beginPath();
   ctx.moveTo(0, RULER + 0.5);
   ctx.lineTo(w, RULER + 0.5);
@@ -595,7 +619,7 @@ function drawRulers(ctx: CanvasRenderingContext2D, s: State, doc: Doc, w: number
   ctx.lineTo(RULER + 0.5, h);
   ctx.stroke();
   ctx.fillStyle = COLORS.muted;
-  ctx.strokeStyle = "#55555f";
+  ctx.strokeStyle = COLORS.rulerTick;
   ctx.font = `500 9px ${FONT_STACK}`;
   ctx.textBaseline = "alphabetic";
   ctx.textAlign = "left";
@@ -786,7 +810,7 @@ export function draw(ctx: CanvasRenderingContext2D, s: State, w: number, h: numb
     const w = Math.max(...boxes.map((r) => r.x + r.width)) + pad - x;
     const h = Math.max(...boxes.map((r) => r.y + r.height)) + pad - y;
     const by = s.aiWork?.by;
-    const colour = by ? agentColour(plainName(by)) : DUET_ORANGE;
+    const colour = by ? agentColour(plainName(by)) : COLORS.duet;
     ctx.save();
     ctx.fillStyle = colour;
     ctx.globalAlpha = 0.15;
@@ -834,7 +858,7 @@ export function draw(ctx: CanvasRenderingContext2D, s: State, w: number, h: numb
     ctx.beginPath();
     ctx.roundRect(x + 14, ly - 11, lw, 22, 11);
     ctx.fill();
-    ctx.fillStyle = "#101014";
+    ctx.fillStyle = COLORS.aiWorkText;
     ctx.textBaseline = "middle";
     ctx.fillText(label, x + 22, ly + 0.5);
     ctx.restore();
@@ -1035,7 +1059,7 @@ export function draw(ctx: CanvasRenderingContext2D, s: State, w: number, h: numb
   // marquee
   if (s.overlay.marquee) {
     const r = screenRect(s, s.overlay.marquee);
-    ctx.fillStyle = "rgba(124,92,255,.12)";
+    ctx.fillStyle = COLORS.accentSoft;
     ctx.fillRect(r.x, r.y, r.width, r.height);
     ctx.strokeStyle = COLORS.accent;
     ctx.lineWidth = 1;

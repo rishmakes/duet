@@ -37,7 +37,7 @@ describe("Settings search", () => {
     expect(groups).not.toContain("Change things");
   });
 
-  it("matches General rows by tool name or version or update", () => {
+  it("matches General rows by tool name or version or update or look", () => {
     const meta = { agentName: "Claude", version: "0.11.0" };
 
     expect(matchGeneralRow("ai", "claude", meta)).toBe(true);
@@ -47,11 +47,18 @@ describe("Settings search", () => {
     expect(matchGeneralRow("version", "0.11", meta)).toBe(true);
     expect(matchGeneralRow("version", "update", meta)).toBe(true);
     expect(matchGeneralRow("ai", "update", meta)).toBe(false);
+
+    expect(matchGeneralRow("look", "look", meta)).toBe(true);
+    expect(matchGeneralRow("look", "dark", meta)).toBe(true);
+    expect(matchGeneralRow("look", "light", meta)).toBe(true);
+    expect(matchGeneralRow("look", "theme", meta)).toBe(true);
+    expect(matchGeneralRow("look", "update", meta)).toBe(false);
   });
 
-  it("matches both General rows when searching general", () => {
+  it("matches all General rows when searching general", () => {
     const meta = { agentName: "Claude", version: "0.11.0" };
     expect(matchGeneralRow("ai", "general", meta)).toBe(true);
     expect(matchGeneralRow("version", "general", meta)).toBe(true);
+    expect(matchGeneralRow("look", "general", meta)).toBe(true);
   });
 });

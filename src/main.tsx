@@ -2,6 +2,18 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import { watchForFreezes } from "./freezeWatch";
+import { initTheme } from "./ui/theme";
+
+// Apply saved theme before first paint so there is no dark flash
+try {
+  const theme = localStorage.getItem("duet.theme");
+  if (theme === "light") {
+    document.documentElement.setAttribute("data-theme", "light");
+  }
+} catch {
+  /* localStorage not accessible */
+}
+initTheme();
 
 // In development only: lets a developer look at the app's state from the console.
 if (import.meta.env.DEV) void import("./state/store").then((m) => ((window as unknown as { __duet: unknown }).__duet = m));

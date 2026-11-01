@@ -13,6 +13,7 @@ import ContextMenu from "./ui/ContextMenu";
 import { installMenu } from "./ui/menu";
 import { setMinimized } from "./ai/chat";
 import { clampW, getLayout, isColorOpen, keepMode, modeOf, setLayout, useLayout } from "./ui/layout";
+import { toggleTheme, useTheme } from "./ui/theme";
 import Icon from "./ui/Icons";
 import ChatHome from "./ui/ChatHome";
 import VideoCut from "./ui/VideoCut";
@@ -83,6 +84,7 @@ export default function App() {
     if (project.path) keepMode(project.path, spaceMode);
   }, [spaceMode]);
   const [zoomMenu, setZoomMenu] = useState(false);
+  const [theme] = useTheme();
   useDismiss(zoomMenu, () => setZoomMenu(false), ".zoomwrap.zoomonly");
   const [presenting, setPresenting] = useState(false);
   // there is no separate home any more: Chat is where your projects are
@@ -256,6 +258,14 @@ export default function App() {
         </div>
         <div />
         <div className="top-side end" data-tauri-drag-region>
+          <button
+            className="pill icon theme-toggle"
+            title={theme === "light" ? "Dark look" : "Light look"}
+            onClick={toggleTheme}
+            data-name="theme-toggle"
+          >
+            <Icon name={theme === "light" ? "moon" : "sun"} size={15} />
+          </button>
           {!chatting && (
           <div className="pill mode-switch kind-switch">
           <button

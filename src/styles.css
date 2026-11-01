@@ -1,8 +1,11 @@
 :root {
+  color-scheme: dark;
   /* Two hands, two colours: violet is you, coral is Duet. */
   --bg: #1b1a1c;
   --panel: #232123;
   --panel-2: #2c292c;
+  --panel-3: rgba(255, 255, 255, 0.08);
+  --panel-alt: #1c1c21;
   --line: #3a3639;
   --text: #ece8e6;
   --muted: #9b9296;
@@ -13,6 +16,23 @@
   --duet: #ff8a5c;
   --duet-soft: rgba(255, 138, 92, 0.16);
   --canvas: #141315;
+
+  /* Canvas surround */
+  --canvas-dot: #2a2a31;
+  --ruler: #1c1c21;
+  --ruler-line: #2c2c33;
+  --ruler-tick: #55555f;
+  --ai-pill-text: #101014;
+
+  /* Interface tints, overlays, shadows & semantic UI */
+  --tint: rgba(255, 255, 255, 0.06);
+  --tint-strong: rgba(255, 255, 255, 0.12);
+  --shadow: rgba(0, 0, 0, 0.35);
+  --shadow-strong: rgba(0, 0, 0, 0.5);
+  --overlay: rgba(0, 0, 0, 0.5);
+  --link: #cbbdff;
+  --error: #f87171;
+  --error-soft: rgba(248, 113, 113, 0.14);
 
   /* Timeline layers */
   --time-frame: #4e8ce9;
@@ -39,6 +59,46 @@
   --time-sound-soft: rgba(229, 169, 60, 0.16);
   --time-instance: #22b8cf;
   --time-instance-soft: rgba(34, 184, 207, 0.16);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #ececee;
+  --panel: #ffffff;
+  --panel-2: #f3f3f5;
+  --panel-3: rgba(0, 0, 0, 0.06);
+  --panel-alt: #f3f3f5;
+  --line: #e0dfe3;
+  --text: #18171a;
+  --muted: #6c6870;
+  --accent: #6a48f5;
+  --accent-soft: rgba(106, 72, 245, 0.12);
+  --key: #c08a0c;
+  --key-soft: rgba(192, 138, 12, 0.14);
+  --duet: #ee6a38;
+  --duet-soft: rgba(238, 106, 56, 0.14);
+  --canvas: #e3e3e6;
+
+  /* Canvas surround */
+  --canvas-dot: #c8c7cc;
+  --ruler: #f3f3f5;
+  --ruler-line: #e0dfe3;
+  --ruler-tick: #8d8d98;
+  --ai-pill-text: #ffffff;
+
+  /* Interface tints, overlays, shadows & semantic UI */
+  --tint: rgba(0, 0, 0, 0.05);
+  --tint-strong: rgba(0, 0, 0, 0.1);
+  --shadow: rgba(0, 0, 0, 0.1);
+  --shadow-strong: rgba(0, 0, 0, 0.18);
+  --overlay: rgba(0, 0, 0, 0.35);
+  --link: #6a48f5;
+  --error: #dc2626;
+  --error-soft: rgba(220, 38, 38, 0.12);
+
+  /* Timeline layers */
+  --time-shape: #6a48f5;
+  --time-shape-soft: rgba(106, 72, 245, 0.12);
 }
 
 * {
@@ -460,7 +520,7 @@ button {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 12px;
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 14px 40px var(--shadow-strong);
   user-select: none;
   -webkit-user-select: none;
 }
@@ -567,7 +627,7 @@ body.eyedropping * {
 .cpick-sw {
   aspect-ratio: 1;
   padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--tint-strong);
   border-radius: 5px;
   cursor: pointer;
 }
@@ -750,7 +810,7 @@ body.eyedropping * {
   cursor: pointer;
 }
 .pt.ai {
-  border-color: rgba(255, 138, 92, 0.5);
+  border-color: color-mix(in srgb, var(--duet) 50%, transparent);
 }
 .pt.ai.now {
   opacity: 1;
@@ -829,7 +889,7 @@ body.eyedropping * {
   border-radius: 12px;
   background: var(--panel);
   border: 1px solid var(--line);
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 14px 40px var(--shadow-strong);
   z-index: 10;
 }
 .pop-title {
@@ -1110,7 +1170,7 @@ body.eyedropping * {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 14px;
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 14px 40px var(--shadow-strong);
   /* clip, not hidden: a hidden box can still be scrolled from code, which slid the title out of view */
   overflow: clip;
 }
@@ -1194,8 +1254,8 @@ body.eyedropping * {
   max-width: 88%;
 }
 .m.err {
-  background: rgba(248, 113, 113, 0.14);
-  color: #fca5a5;
+  background: var(--error-soft);
+  color: var(--error);
 }
 .m.working {
   background: none;
@@ -1211,7 +1271,7 @@ body.eyedropping * {
 .m.note .undo,
 .m.card .act span {
   margin-left: 8px;
-  color: #cbbdff;
+  color: var(--link);
   cursor: pointer;
   text-decoration: underline;
 }
@@ -1379,7 +1439,7 @@ body.eyedropping * {
   font-weight: 600;
   line-height: 20px;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 2px 8px var(--shadow);
 }
 .comment-pin.ai {
   background: var(--duet);
@@ -1397,7 +1457,7 @@ body.eyedropping * {
   border-radius: 10px;
   background: var(--panel);
   color: var(--text);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 24px var(--shadow);
   font-size: 12px;
 }
 .comment-card p {
@@ -1552,7 +1612,7 @@ body.eyedropping * {
   border: 1px solid var(--accent);
   background: var(--panel);
   color: var(--text);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 24px var(--shadow);
   cursor: pointer;
 }
 .find:hover {
@@ -1582,7 +1642,7 @@ body.eyedropping * {
   border-radius: 10px;
   background: var(--panel);
   border: 1px solid var(--line);
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 14px 40px var(--shadow-strong);
   z-index: 20;
 }
 .zmenu div {
@@ -1691,7 +1751,7 @@ body.eyedropping * {
   color: #fff;
 }
 .linkbtn {
-  color: #cbbdff;
+  color: var(--link);
   cursor: pointer;
   text-decoration: underline;
 }
@@ -2050,6 +2110,23 @@ option {
 .pill.icon.on {
   color: var(--text);
 }
+.pill.icon.theme-toggle {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 50%;
+  flex: none;
+}
+.pill.icon.theme-toggle:hover {
+  color: var(--text);
+}
+.settings-row .look-switch {
+  position: static;
+  transform: none;
+}
+.settings-row:has(.look-switch) {
+  align-items: center;
+}
 .chat.c-tl {
   left: 16px;
   top: 16px;
@@ -2085,7 +2162,7 @@ option {
   z-index: 90;
   display: grid;
   place-items: center;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
 }
 .sheet {
   width: 380px;
@@ -2094,7 +2171,7 @@ option {
   border-radius: 14px;
   background: var(--panel);
   border: 1px solid var(--line);
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 14px 40px var(--shadow-strong);
 }
 .sheet-title {
   font-size: 14px;
@@ -2258,7 +2335,7 @@ option {
 }
 
 .vc-error {
-  color: #f87171;
+  color: var(--error);
   font-size: 11px;
 }
 
@@ -2267,12 +2344,12 @@ option {
   flex-direction: column;
   gap: 4px;
   padding: 8px 16px;
-  background: rgba(248, 113, 113, 0.1);
+  background: var(--error-soft);
   border-bottom: 1px solid var(--line);
 }
 
 .vc-problem {
-  color: #f87171;
+  color: var(--error);
   font-size: 11px;
 }
 
@@ -2379,7 +2456,7 @@ option {
   max-height: calc(100vh - 280px);
   border-radius: 12px;
   background: #000;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 24px var(--shadow);
 }
 
 .vc-controls {
@@ -3112,7 +3189,7 @@ option {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 12px;
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 14px 40px var(--shadow-strong);
 }
 .ctx-item {
   display: flex;
@@ -3450,7 +3527,7 @@ option {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 12px 32px var(--shadow-strong);
   padding: 12px;
   display: flex;
   flex-direction: column;
@@ -3524,7 +3601,7 @@ option {
 }
 .m.note .note-toggle {
   margin-left: 8px;
-  color: #cbbdff;
+  color: var(--link);
   cursor: pointer;
   text-decoration: underline;
 }
@@ -3567,7 +3644,7 @@ option {
 }
 .member-badge.outside {
   opacity: 0.5;
-  border: 1px dashed #141315;
+  border: 1px dashed var(--text);
   box-sizing: border-box;
 }
 .member-badge.answers-ring {
@@ -3625,7 +3702,7 @@ option {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 12px 32px var(--shadow-strong);
   padding: 12px;
   display: flex;
   flex-direction: column;
@@ -3736,7 +3813,7 @@ option {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 8px 24px var(--shadow);
   padding: 4px;
   min-width: 160px;
   z-index: 35;
@@ -3930,7 +4007,7 @@ button.agent-perm:hover {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 12px 32px var(--shadow-strong);
 }
 .export-pop .export-close {
   position: absolute;
@@ -4540,11 +4617,11 @@ button.agent-perm {
 /* in Motion, a property that changes over time: tinted when it moves, stronger when a keyframe sits at the playhead */
 .f.moves-animated {
   background: var(--accent-soft);
-  border-color: rgba(124, 92, 255, 0.35);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
 }
 .f.moves-here {
   background: var(--key-soft);
-  border-color: rgba(242, 193, 78, 0.45);
+  border-color: color-mix(in srgb, var(--key) 45%, transparent);
 }
 .f.moves-animated .key-here {
   color: var(--accent);
@@ -4750,7 +4827,7 @@ button.agent-perm {
   display: block;
   width: 100%;
   height: 150px;
-  background: #141316;
+  background: var(--canvas);
   border: 1px solid var(--line);
   border-radius: 8px;
   cursor: crosshair;
@@ -4858,10 +4935,10 @@ button.agent-perm {
 /* effects panel: live drag reordering and accent drop indicator line */
 .effect-card {
   position: relative;
-  background: var(--panel-alt, #1c1c21);
+  background: var(--panel-alt);
   border-radius: 6px;
   padding: 6px 8px;
-  border: 1px solid var(--line, #2a2a31);
+  border: 1px solid var(--line);
 }
 .effect-card.is-off {
   opacity: 0.6;
@@ -4907,7 +4984,7 @@ button.agent-perm {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 12px 32px var(--shadow-strong);
   padding: 4px;
 }
 .font-row {
@@ -5301,7 +5378,7 @@ input.chathome-name.rename {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 10px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 12px 32px var(--shadow-strong);
 }
 .chathome-menu div {
   padding: 7px 10px;
@@ -5408,7 +5485,7 @@ input.chathome-name.rename {
   cursor: pointer;
 }
 .chathome-close:hover {
-  background: var(--panel-3, rgba(255, 255, 255, 0.08));
+  background: var(--panel-3);
   opacity: 1;
 }
 .chathome-close.now {
@@ -5488,7 +5565,7 @@ input.chathome-name.rename {
   justify-content: flex-end;
   gap: 6px;
   padding: 8px 4px 2px;
-  border-top: 1px solid var(--line, rgba(255, 255, 255, 0.08));
+  border-top: 1px solid var(--line);
   font-size: 12px;
   color: var(--muted);
 }
@@ -5517,7 +5594,7 @@ input.chathome-name.rename {
   display: flex;
 }
 .trash-row.on .trash-actions {
-  background: #2d2645;
+  background: var(--accent-soft);
 }
 /* a tick box on every row, to pick several without keys */
 .trash-tick {
@@ -5549,7 +5626,7 @@ input.chathome-name.rename {
   cursor: pointer;
 }
 .trash-btn:hover {
-  background: var(--panel-3, rgba(255, 255, 255, 0.08));
+  background: var(--panel-3);
 }
 /* every AI wears its own colour, the same one it has in the history line */
 .chat.docked .member-badge {
@@ -5853,6 +5930,7 @@ input.chathome-name.rename {
 }
 .cfoot > button.send-round.stop {
   background: var(--text);
+  color: var(--bg);
 }
 .pick-choice.wrap {
   flex-wrap: wrap;
@@ -6144,7 +6222,7 @@ input.chathome-name.rename {
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--panel);
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 14px 40px var(--shadow-strong);
 }
 .chat-find-row {
   display: flex;
@@ -6269,7 +6347,7 @@ input.chathome-name.rename {
   flex: 1;
   min-height: 0;
   border-radius: 8px;
-  background: #0e0d0f;
+  background: var(--canvas);
   overflow: hidden;
 }
 .ba-pic canvas {
@@ -6530,7 +6608,7 @@ input.chathome-name.rename {
   position: absolute;
   top: 20px;
   bottom: 0;
-  background: rgba(10, 10, 12, 0.45);
+  background: var(--overlay);
   pointer-events: none;
   z-index: 1;
 }

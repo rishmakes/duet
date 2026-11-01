@@ -8,6 +8,7 @@ import { useStore } from "../state/store";
 import { getVersion } from "@tauri-apps/api/app";
 import { setLayout, useLayout } from "./layout";
 import { ConnectAddon } from "./AddOns";
+import { useTheme } from "./theme";
 
 interface SettingsProps {
   check?: boolean;
@@ -39,7 +40,7 @@ export function matchShortcuts(
 }
 
 export function matchGeneralRow(
-  row: "ai" | "version",
+  row: "ai" | "version" | "look",
   query: string,
   meta: { agentName?: string; version?: string }
 ): boolean {
@@ -62,6 +63,15 @@ export function matchGeneralRow(
       "updates".includes(q)
     );
   }
+  if (row === "look") {
+    return (
+      "look:".includes(q) ||
+      "look".includes(q) ||
+      "theme".includes(q) ||
+      "dark".includes(q) ||
+      "light".includes(q)
+    );
+  }
   return false;
 }
 
@@ -69,6 +79,7 @@ export default function Settings({ check = false, onClose }: SettingsProps) {
   const [section, setSection] = useState<"Keyboard shortcuts" | "General" | "Add-ons" | "Developer">("Keyboard shortcuts");
   const [search, setSearch] = useState("");
   const [version, setVersion] = useState("");
+  const [theme, setTheme] = useTheme();
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => void getVersion().then(setVersion).catch(() => undefined), []);
@@ -109,11 +120,12 @@ export default function Settings({ check = false, onClose }: SettingsProps) {
   const matchingShortcuts = searching ? matchShortcuts(SHORTCUTS, search, MAC) : [];
   const matchAiTool = searching && matchGeneralRow("ai", search, { agentName, version });
   const matchVersion = searching && matchGeneralRow("version", search, { agentName, version });
+  const matchLook = searching && matchGeneralRow("look", search, { agentName, version });
   const wheelZooms = useLayout((d) => d.wheelZooms);
   const matchWheel = searching && ["general", "mouse wheel zooms", "scroll", "zoom"].some((w) => w.includes(search.trim().toLowerCase()));
   const editChatOpen = useLayout((d) => d.editChatOpen);
   const matchEditChat = searching && ["general", "chat open in studio", "chat", "studio"].some((w) => w.includes(search.trim().toLowerCase()));
-  const hasGeneralMatches = matchAiTool || matchVersion || matchWheel || matchEditChat;
+  const hasGeneralMatches = matchAiTool || matchVersion || matchLook || matchWheel || matchEditChat;
   const matchAddons = searching && ["add-ons", "addons", "connect to chatgpt and claude", "web"].some((w) => w.includes(search.trim().toLowerCase()));
 
   const q = search.trim().toLowerCase();
@@ -215,6 +227,19 @@ export default function Settings({ check = false, onClose }: SettingsProps) {
                       </button>
                     </div>
                   )}
+                  {matchLook && (
+                    <div className="settings-row">
+                      <span>Look:</span>
+                      <div className="pill mode-switch look-switch">
+                        <button className={theme === "dark" ? "active" : ""} onClick={() => setTheme("dark")}>
+                          Dark
+                        </button>
+                        <button className={theme === "light" ? "active" : ""} onClick={() => setTheme("light")}>
+                          Light
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   {matchWheel && (
                     <label className="settings-row">
                       <span>Mouse wheel zooms</span>
@@ -307,6 +332,17 @@ export default function Settings({ check = false, onClose }: SettingsProps) {
                     >
                       Check for updates
                     </button>
+                  </div>
+                  <div className="settings-row">
+                    <span>Look:</span>
+                    <div className="pill mode-switch look-switch">
+                      <button className={theme === "dark" ? "active" : ""} onClick={() => setTheme("dark")}>
+                        Dark
+                      </button>
+                      <button className={theme === "light" ? "active" : ""} onClick={() => setTheme("light")}>
+                        Light
+                      </button>
+                    </div>
                   </div>
                   <label className="settings-row">
                     <span>Mouse wheel zooms</span>
