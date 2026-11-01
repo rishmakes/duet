@@ -910,7 +910,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
   const rulersOn = useLayout((d) => d.rulers);
   useEffect(() => schedule(), [rulersOn]);
   // so are prototype connections
-  const linksOn = useLayout((d) => d.linksShown);
+  const linksOn = useLayout((d) => d.prototyping);
   useEffect(() => schedule(), [linksOn]);
 
   // ---------- helpers ----------
