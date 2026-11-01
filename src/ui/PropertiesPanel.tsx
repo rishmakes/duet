@@ -1012,7 +1012,7 @@ export default function PropertiesPanel() {
   const mode = useLayout((d) => d.mode);
   const videoTab = useLayout((d) => d.videoTab);
   const photoTab = useLayout((d) => d.photoTab);
-  const linksShown = useLayout((d) => d.linksShown);
+  const prototyping = useLayout((d) => d.prototyping);
 
   // When the Video space opens, the right panel shows Properties, not Colour
   const openedMode = useRef<string | null>(null);
@@ -1041,8 +1041,21 @@ export default function PropertiesPanel() {
     else if (mode === "motion") setLayout({ videoTab: next });
   };
 
+  // in Design, the right panel has a Prototype tab, so prototypes stay out of the way while designing
+  const designSwitch = mode === "design" ? (
+    <div className="panel-switch-wrap">
+      <div className="pill time-look panel-switch">
+        <button type="button" className={prototyping ? "" : "active"} data-name="switch-design" onClick={() => setLayout({ prototyping: false })}>
+          Design
+        </button>
+        <button type="button" className={prototyping ? "active" : ""} data-name="switch-prototype" title="Connect screens so they can be clicked through" onClick={() => setLayout({ prototyping: true })}>
+          Prototype
+        </button>
+      </div>
+    </div>
+  ) : null;
   const showSwitch = mode === "motion" || mode === "photo";
-  const switchElement = showSwitch ? (
+  const switchElement = designSwitch ?? (showSwitch ? (
     <div className="panel-switch-wrap">
       <div className="pill time-look panel-switch">
         <button
@@ -1076,7 +1089,7 @@ export default function PropertiesPanel() {
         )}
       </div>
     </div>
-  ) : null;
+  ) : null);
 
   // in Video the chat sits here as a tab, so it never covers the picture while working by hand
   if (tab === "chat" && mode === "motion") {
@@ -1107,6 +1120,18 @@ export default function PropertiesPanel() {
       );
     }
     return <ColorPanel els={els} top={topElement} />;
+  }
+
+  if (prototyping && mode === "design" && els.length !== 1) {
+    return (
+      <aside className="right">
+        {switchElement}
+        <div className="panel-title">Prototype</div>
+        <div className="empty pad">
+          {els.length ? "Pick one thing to connect it." : "Pick a button or a card. Drag the dot beside it onto the screen it should open. Press Present at the top to click through."}
+        </div>
+      </aside>
+    );
   }
 
   if (els.length === 0) {
@@ -1150,6 +1175,73 @@ export default function PropertiesPanel() {
   const keyed = mode === "motion" && one && scene && one.id !== scene.id ? one : null;
   const now = Math.round(getState().clock.t * 1000) / 1000;
   const mark = (prop: Moving) => (keyed ? keyMark(keyed, [prop], now) : undefined);
+
+  // the Prototype tab holds only what a click or hover does
+  if (prototyping && mode === "design" && one) {
+    return (
+      <aside className="right">
+        {switchElement}
+        <div className="panel-title">Prototype</div>
+          <div className="sec">
+            <Seg value={one.trigger === "hover" ? "hover" : "click"} options={[["click", "On click"], ["hover", "On hover"]]} onPick={(v) => set({ trigger: v === "hover" ? "hover" : "" }, "Change when it happens")} />
+            <div className="gap" />
+            <Seg
+              value={one.linkKind === "back" ? "back" : one.linkKind === "overlay" ? "overlay" : "go"}
+              options={[["go", "Go to"], ["overlay", "Open on top"], ["back", "Go back"]]}
+              onPick={(v) => set({ linkKind: v === "go" ? "" : (v as "overlay" | "back") }, "Change what a click does")}
+            />
+            {one.linkKind !== "back" && (
+              <>
+                <div className="gap" />
+                <label className="f">
+                  <span>Screen</span>
+                  <select value={one.link ?? ""} onChange={(e) => set({ link: e.target.value || null }, e.target.value ? "Link to a screen" : "Remove link")}>
+                    <option value="">Nothing</option>
+                    {frames
+                      .filter((f) => f.id !== one.id && !f.id.includes("::"))
+                      .map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.name}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              </>
+            )}
+            {(one.link || one.linkKind === "back") && (
+              <>
+                <div className="gap" />
+                <label className="f">
+                  <span>Moves</span>
+                  <select value={one.transition} onChange={(e) => set({ transition: e.target.value }, "Change the animation")}>
+                    <option value="">Instantly</option>
+                    <option value="dissolve">Dissolve</option>
+                    <option value="push-left">Push left</option>
+                    <option value="push-right">Push right</option>
+                    <option value="push-up">Push up</option>
+                    <option value="push-down">Push down</option>
+                  </select>
+                </label>
+                {one.transition && (
+                  <>
+                    <div className="gap" />
+                    <NumField label="Ms" value={one.transitionMs || 300} min={50} onCommit={(n) => set({ transitionMs: Math.round(n) }, "Change the animation time")} onDrag={(n) => preview({ transitionMs: Math.round(n) })} />
+                  </>
+                )}
+              </>
+            )}
+            {one.type === "frame" && !one.parentId && (
+              <>
+                <div className="gap" />
+                <Seg value={one.scroll ? "on" : "off"} options={[["off", "Fixed"], ["on", "Scrolls in Present"]]} onPick={(v) => set({ scroll: v === "on" }, "Change scrolling")} />
+              </>
+            )}
+            <div className="hint2">Drag the dot beside it onto a screen to connect them. Press Present at the top to click through.</div>
+          </div>
+        {frames.length < 2 && <div className="empty pad">Make another screen to connect to.</div>}
+      </aside>
+    );
+  }
 
   return (
     <aside className="right">
@@ -1382,69 +1474,6 @@ export default function PropertiesPanel() {
         </div>
       )}
 
-      {mode === "design" && one && frames.length > 0 && (
-        <div className="sec">
-          <h4>Prototype</h4>
-          <Seg value={one.trigger === "hover" ? "hover" : "click"} options={[["click", "On click"], ["hover", "On hover"]]} onPick={(v) => set({ trigger: v === "hover" ? "hover" : "" }, "Change when it happens")} />
-          <div className="gap" />
-          <Seg
-            value={one.linkKind === "back" ? "back" : one.linkKind === "overlay" ? "overlay" : "go"}
-            options={[["go", "Go to"], ["overlay", "Open on top"], ["back", "Go back"]]}
-            onPick={(v) => set({ linkKind: v === "go" ? "" : (v as "overlay" | "back") }, "Change what a click does")}
-          />
-          {one.linkKind !== "back" && (
-            <>
-              <div className="gap" />
-              <label className="f">
-                <span>Screen</span>
-                <select value={one.link ?? ""} onChange={(e) => set({ link: e.target.value || null }, e.target.value ? "Link to a screen" : "Remove link")}>
-                  <option value="">Nothing</option>
-                  {frames
-                    .filter((f) => f.id !== one.id && !f.id.includes("::"))
-                    .map((f) => (
-                      <option key={f.id} value={f.id}>
-                        {f.name}
-                      </option>
-                    ))}
-                </select>
-              </label>
-            </>
-          )}
-          {(one.link || one.linkKind === "back") && (
-            <>
-              <div className="gap" />
-              <label className="f">
-                <span>Moves</span>
-                <select value={one.transition} onChange={(e) => set({ transition: e.target.value }, "Change the animation")}>
-                  <option value="">Instantly</option>
-                  <option value="dissolve">Dissolve</option>
-                  <option value="push-left">Push left</option>
-                  <option value="push-right">Push right</option>
-                  <option value="push-up">Push up</option>
-                  <option value="push-down">Push down</option>
-                </select>
-              </label>
-              {one.transition && (
-                <>
-                  <div className="gap" />
-                  <NumField label="Ms" value={one.transitionMs || 300} min={50} onCommit={(n) => set({ transitionMs: Math.round(n) }, "Change the animation time")} onDrag={(n) => preview({ transitionMs: Math.round(n) })} />
-                </>
-              )}
-            </>
-          )}
-          {one.type === "frame" && !one.parentId && (
-            <>
-              <div className="gap" />
-              <Seg value={one.scroll ? "on" : "off"} options={[["off", "Fixed"], ["on", "Scrolls in Present"]]} onPick={(v) => set({ scroll: v === "on" }, "Change scrolling")} />
-            </>
-          )}
-          <div className="gap" />
-          <button className={`mini ${linksShown ? "on" : ""}`} data-name="show-connections" onClick={() => setLayout({ linksShown: !linksShown })}>
-            {linksShown ? "Hide connections" : "Show connections"}
-          </button>
-          <div className="hint2">{linksShown ? "Drag the dot beside what is picked onto a screen to connect them. " : ""}Press Present at the top to click through your screens.</div>
-        </div>
-      )}
 
 
       {keyed && scene && <InAndOut el={keyed} scene={scene} />}

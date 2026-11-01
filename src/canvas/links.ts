@@ -1,6 +1,6 @@
 import { onOpenBoard } from "../document/boards";
 import { isDerived } from "../document/components";
-import { descendants, worldRect } from "../document/geometry";
+import { worldRect } from "../document/geometry";
 import type { Doc, El, Rect } from "../document/types";
 import type { State } from "../state/store";
 import { getLayout } from "../ui/layout";
@@ -16,7 +16,7 @@ export const isLinked = (doc: Doc, el: El | undefined): el is El => !!el && (el.
 
 /** The dot on the picked thing that a connection is dragged from, in screen pixels. Only while connections are shown. */
 export function linkDot(s: State, doc: Doc): { x: number; y: number; id: string } | null {
-  if (!getLayout().linksShown || getLayout().mode !== "design" || s.selection.length !== 1) return null;
+  if (!getLayout().prototyping || getLayout().mode !== "design" || s.selection.length !== 1) return null;
   const id = s.selection[0];
   if (!doc.elements[id] || isDerived(id)) return null;
   const r = toScreen(s, worldRect(doc, id));
@@ -92,16 +92,13 @@ function wordsFor(el: El): string {
   return [when, what].filter(Boolean).join(", ");
 }
 
-/**
- * Prototype connections: a line from each thing to the screen it opens. All of them while connections are shown,
- * otherwise only those of what is picked. Back buttons get a small Back tag instead.
- */
+/** Prototype connections, on the Prototype tab: a line from each thing to the screen it opens. Back buttons get a small Back tag instead. */
 export function drawLinks(ctx: CanvasRenderingContext2D, s: State, doc: Doc, colour: string) {
   if (getLayout().mode !== "design") return;
   const here = onOpenBoard(doc);
-  let ids: string[];
-  if (getLayout().linksShown) ids = [...here];
-  else ids = s.selection.filter((id) => here.has(id)).flatMap((id) => [id, ...descendants(doc, id)]);
+  // only on the Prototype tab: while designing, nothing about prototypes shows
+  if (!getLayout().prototyping) return;
+  const ids = [...here];
   const drag = s.overlay.linkDrag;
   for (const id of ids) {
     const el = doc.elements[id];

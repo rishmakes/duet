@@ -53,8 +53,8 @@ export interface Dock {
   namesW: number;
   /** The comment pins on the canvas are put away. */
   commentsHidden: boolean;
-  /** Every prototype connection is drawn on the canvas, and the picked thing has a dot to drag onto a screen. */
-  linksShown: boolean;
+  /** In Design, the right panel's Prototype tab is open: connections are drawn on the canvas, and the picked thing has a dot to drag onto a screen. */
+  prototyping: boolean;
   /** A mouse wheel zooms, like in Adobe apps. A trackpad still slides the canvas. */
   wheelZooms: boolean;
   /** The chat is open when Studio comes up. Off, it waits folded away until clicked. */
@@ -101,7 +101,7 @@ export const defaults = (): Dock => ({
   timeMax: false,
   namesW: 150,
   commentsHidden: false,
-  linksShown: false,
+  prototyping: false,
   wheelZooms: true,
   editChatOpen: false,
   videoTab: "properties",
@@ -132,7 +132,7 @@ export function parseLayout(raw: unknown): Dock {
     const rawRowH = (r as Record<string, unknown>).rowH;
     if (rawRowH && typeof rawRowH === "object")
       for (const [id, h] of Object.entries(rawRowH)) if (typeof h === "number" && Number.isFinite(h)) rowH[id] = Math.max(TRACK_MIN_H, Math.min(TRACK_MAX_H, Math.round(h)));
-    return { ...defaults(), ...r, mode, space, timeLook, timeMax: false, videoTab, photoTab, historyLine, trackH, rowH };
+    return { ...defaults(), ...r, prototyping: false, mode, space, timeLook, timeMax: false, videoTab, photoTab, historyLine, trackH, rowH };
   }
   return defaults();
 }
