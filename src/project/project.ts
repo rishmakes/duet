@@ -886,6 +886,8 @@ async function saveAsDialog() {
  */
 export function giveHome(): Promise<boolean> {
   if (getState().project.path) return Promise.resolve(true);
+  // a project being opened already has its home: its history arrives a moment before its path does
+  if (loadingHistory) return Promise.resolve(false);
   if (!inTauri() || inTest) return Promise.resolve(false);
   // asked again while it is being done, it is done once
   homing ??= (async () => {
@@ -901,6 +903,8 @@ export function giveHome(): Promise<boolean> {
   return homing;
 }
 let homing: Promise<boolean> | null = null;
+/** True while a saved project is being opened, so its last AI step does not make a copy of it as Untitled. */
+let loadingHistory = false;
 
 async function saveTo(picked: string) {
   const doc = committed();
@@ -1131,12 +1135,17 @@ async function loadFrom(path: string, quiet: boolean, file: string): Promise<boo
       loadDoc(doc);
       await startHistory(path, "Start of project");
     } else {
+      loadingHistory = true;
       const last = entries[entries.length - 1];
       // The file on disk can be newer than the last saved step (edited elsewhere, or the app closed mid-save).
       if (serializeDoc(last.doc) !== serializeDoc(doc)) {
         entries.push({ doc, label: "Opened with newer changes", actor: "you", time: Date.now() });
       }
-      loadTimeline(entries);
+      try {
+        loadTimeline(entries);
+      } finally {
+        loadingHistory = false;
+      }
     }
     lastSaved = committed();
     setProject({ path, file, name: baseName(file), status: "saved", error: null });
