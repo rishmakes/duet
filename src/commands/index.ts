@@ -17,6 +17,8 @@ import { setPages, addPage, reorderPages } from "./pages";
 import { openBoard } from "../document/boards";
 import { addBoard, deleteBoard, moveBoard, moveToBoard, openBoardCmd, renameBoard } from "./boards";
 import type { AddBoardArgs, DeleteBoardArgs, MoveBoardArgs, MoveToBoardArgs, OpenBoardArgs, RenameBoardArgs } from "./boards";
+import { addBrandColour, changeBrandColour, makeBrandKit, removeBrandColour, setBrand } from "./brand";
+import type { AddBrandColourArgs, ChangeBrandColourArgs, MakeBrandKitArgs, RemoveBrandColourArgs, SetBrandArgs } from "./brand";
 import type { SetPagesArgs, AddPageArgs, ReorderPagesArgs } from "./pages";
 
 /**
@@ -2365,8 +2367,39 @@ const moveToBoardDef: CommandDef<MoveToBoardArgs> = {
   run: (doc, a) => moveToBoard(doc, a),
 };
 
+// ---- brand kit: the colours, fonts, logo and voice a project keeps to ----
+const setBrandDef: CommandDef<SetBrandArgs> = {
+  label: (a) => (a.locked === true ? "Lock the brand kit" : a.locked === false ? "Unlock the brand kit" : "Change the brand kit"),
+  run: (doc, a) => setBrand(doc, a),
+};
+
+const addBrandColourDef: CommandDef<AddBrandColourArgs> = {
+  label: (a) => `Add ${a.name || "a colour"} to the brand kit`,
+  run: (doc, a) => addBrandColour(doc, a),
+};
+
+const changeBrandColourDef: CommandDef<ChangeBrandColourArgs> = {
+  label: (a) => (a.hex ? "Change a brand colour" : "Rename a brand colour"),
+  run: (doc, a) => changeBrandColour(doc, a),
+};
+
+const removeBrandColourDef: CommandDef<RemoveBrandColourArgs> = {
+  label: () => "Remove a brand colour",
+  run: (doc, a) => removeBrandColour(doc, a),
+};
+
+const makeBrandKitDef: CommandDef<MakeBrandKitArgs> = {
+  label: () => "Make a brand kit from this design",
+  run: (doc, a) => makeBrandKit(doc, a),
+};
+
 // ---- registry ----
 export const commands = {
+  set_brand: setBrandDef,
+  add_brand_colour: addBrandColourDef,
+  change_brand_colour: changeBrandColourDef,
+  remove_brand_colour: removeBrandColourDef,
+  make_brand_kit: makeBrandKitDef,
   add_board: addBoardDef,
   open_board: openBoardDef,
   rename_board: renameBoardDef,

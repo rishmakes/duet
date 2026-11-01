@@ -6,6 +6,7 @@ import { lookAtAttachment } from "./pictures";
 import { checkLayout } from "./designCheck";
 import { checkExport } from "./exportCheck";
 import { commandLabel, newId, runCommand } from "../commands";
+import { brandRules, offBrand } from "./brandLock";
 import type { CommandName } from "../commands";
 import { measureText } from "../canvas/text";
 import { extractPayload } from "../document/clipboard";
@@ -1442,6 +1443,8 @@ function context(): string {
       // where the designer has pointed you. Work there. You may look elsewhere, nothing outside it is blocked.
       focus: s.focus.filter((i) => doc.elements[i]).map((i) => ({ id: i, name: doc.elements[i].name, type: doc.elements[i].type })),
       frames,
+      // the brand kit the designer set for this project: keep to it
+      brand: brandRules(doc) || undefined,
       // separate canvases in this file; only the open one is drawn, outlined and changed
       boards: boardsOf(doc).map((b) => ({ id: b.id, name: b.name, open: b.id === openBoard(doc), things: b.rootIds.length })),
       components: componentsIn(doc).map((c) => ({ id: c.id, name: c.name, width: c.width, height: c.height })),
@@ -1507,7 +1510,7 @@ async function answerTool(name: string, raw: unknown, by?: string): Promise<Tool
   }
   if (name === "get_context") return { text: context() };
   if (name === "get_prototype") return { text: JSON.stringify(prototypeMap(R.currentDoc())) };
-  if (name === "get_working_rules") return { text: `${outsideRules()}\n\n${skillsText()}` };
+  if (name === "get_working_rules") return { text: [outsideRules(), brandRules(R.currentDoc()), skillsText()].filter(Boolean).join("\n\n") };
   if (name === "get_outline") return { text: outline(R.currentDoc(), Array.isArray(a.ids) ? (a.ids as unknown[]).map(String) : undefined) };
   if (name === "get_document") {
     const d = R.currentDoc();
@@ -1548,6 +1551,9 @@ async function answerTool(name: string, raw: unknown, by?: string): Promise<Tool
   if (!EDITS.has(name) && !RISKY.has(name)) return fail(`Unknown tool ${name}.`);
   const check = prepare(name, a);
   if ("error" in check) return fail(check.error);
+  // a locked brand kit is kept by Duet, not left to the AI
+  const off = offBrand(R.currentDoc(), check.args);
+  if (off) return fail(off);
   const summary = summarise(name, check.args);
   // Duet may be running with no window for an outside AI: anything the designer must answer,
   // or a change to work that is saved nowhere, brings the window back so nothing is missed or lost

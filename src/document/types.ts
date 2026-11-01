@@ -248,12 +248,35 @@ export interface Board {
   rootIds?: string[];
 }
 
+/** A named colour the brand uses. */
+export interface BrandColour {
+  id: string;
+  name: string;
+  /** Like #1f6feb. */
+  hex: string;
+}
+
+/** The project's brand kit: what every design in it, and the AI, keeps to. */
+export interface Brand {
+  colours: BrandColour[];
+  /** Font names the brand uses. Empty means any font. */
+  fonts: string[];
+  /** The thing on the canvas that is the logo, or left out. */
+  logoId?: string;
+  /** One line on how the brand speaks. */
+  voice?: string;
+  /** True when the AI may only use the kit's colours and fonts. */
+  locked?: true;
+}
+
 export interface Doc {
   version: 1;
   /** The colour of the canvas behind the design, like #141417. Left out means the standard dark one. */
   background?: string;
   /** Saved text styles, by id. */
   styles?: Record<string, TextStyle>;
+  /** The brand kit, or left out when there is none. */
+  brand?: Brand;
   /** Ruler guides pulled out from the rulers: the page pixel each runs through. Left out when there are none. */
   guides?: { x: number[]; y: number[] };
   /** Comments pinned on the canvas, oldest first. Left out when there are none. */
