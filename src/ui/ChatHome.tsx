@@ -240,7 +240,7 @@ function TrashRow({ t, picked, onPick, onTick, onSweep, onDone }: { t: Trashed; 
 /** What is in the trash, in place of the projects list: each can be put back, or deleted for good.
  * The tick box adds or takes one from the pick, and dragging down or up over the boxes does the same to each; click picks one, Cmd or Ctrl click adds, Shift click picks a run.
  * A click anywhere outside the list lets go of the pick. The picked ones go back or go together. */
-function TrashView({ onBack }: { onBack: () => void }) {
+export function TrashView({ onBack }: { onBack: () => void }) {
   const [items, setItems] = useState<Trashed[] | null>(null);
   const [picked, setPicked] = useState<string[]>([]);
   const last = useRef<string | null>(null);
@@ -374,6 +374,107 @@ function TaskList({ project }: { project: string }) {
   );
 }
 
+/** Open: on screen, in a tab, or waiting in memory with an AI still at work. */
+export const isProjectOpen = (path: string) => path === getState().project.file || getTabs().includes(path) || isParked(path);
+
+/** Close a project: its tab goes, and if it was on screen the next one comes up, or none. */
+export async function leaveProject(path: string): Promise<boolean> {
+  if (!(await readyToLeave(true, path))) return false;
+  const on = getState().project.file;
+  const next = path === on ? getTabs().filter((p) => p !== path).pop() : null;
+  closeTab(path);
+  if (path === on) {
+    if (!next || !(await openProjectAt(next, true))) await closeProject();
+  }
+  return true;
+}
+
+/** What can be done with a project, on a right click in a list of them: here and on Home. */
+export function ProjectMenu({ at, onDone, onRename }: { at: { x: number; y: number; r: Recent }; onDone: () => void; onRename?: (path: string) => void }) {
+  const warn = (title: string) => (why: string | null) => void (why && message(why, { title, kind: "warning" }));
+  useEffect(() => {
+    window.addEventListener("pointerdown", onDone);
+    window.addEventListener("blur", onDone);
+    return () => {
+      window.removeEventListener("pointerdown", onDone);
+      window.removeEventListener("blur", onDone);
+    };
+  }, [onDone]);
+  return (
+    <div className="chathome-menu" style={{ left: at.x, top: at.y }} onPointerDown={(e) => e.stopPropagation()}>
+      <div
+        onClick={() => {
+          void revealItemInDir(at.r.path);
+          onDone();
+        }}
+      >
+        <Icon name="folder" size={15} /> Show in Finder
+      </div>
+      {onRename && (
+        <div
+          onClick={() => {
+            onRename(at.r.path);
+            onDone();
+          }}
+        >
+          <Icon name="pen" size={15} /> Rename
+        </div>
+      )}
+      <div
+        onClick={() => {
+          const r = at.r;
+          onDone();
+          void moveProjectTo(r.path).then(warn("Move to"));
+        }}
+        title="Move the file to another folder. Its history and conversation go with it."
+      >
+        <Icon name="move-to" size={15} /> Move to…
+      </div>
+      <div
+        onClick={() => {
+          const r = at.r;
+          onDone();
+          void copyProject(r.path).then(warn("Save a copy"));
+        }}
+        title="Save a second file somewhere else. This one stays as it is."
+      >
+        <Icon name="copy" size={15} /> Save a copy…
+      </div>
+      {isProjectOpen(at.r.path) && (
+        <div
+          onClick={() => {
+            void leaveProject(at.r.path);
+            onDone();
+          }}
+          title="Your work is saved."
+        >
+          <Icon name="close" size={15} /> Close
+        </div>
+      )}
+      <div
+        onClick={() => {
+          removeRecent(at.r.path);
+          onDone();
+        }}
+        title="Takes it off this list. The file is not deleted."
+      >
+        <Icon name="unlist" size={15} /> Remove from list
+      </div>
+      <div
+        onClick={async () => {
+          const r = at.r;
+          onDone();
+          if (isProjectOpen(r.path) && !(await leaveProject(r.path))) return;
+          await trashProject(r.path).catch((e) => message(`“${r.name}” could not be moved to the Trash. ${String(e)}`, { title: "Move to Trash", kind: "warning" }));
+        }}
+        title={`Kept ${TRASH_DAYS} days in the Trash, then cleared out.`}
+      >
+        <Icon name="trash" size={15} /> Move to Trash
+      </div>
+    </div>
+  );
+}
+
 export default function ChatHome() {
   const current = useStore((s) => s.project);
   const [typed, setTyped] = useState("");
@@ -409,17 +510,6 @@ export default function ChatHome() {
   }, []);
   const [menu, setMenu] = useState<{ x: number; y: number; r: Recent } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
-  const warn = (title: string) => (why: string | null) => void (why && message(why, { title, kind: "warning" }));
-  useEffect(() => {
-    if (!menu) return;
-    const close = () => setMenu(null);
-    window.addEventListener("pointerdown", close);
-    window.addEventListener("blur", close);
-    return () => {
-      window.removeEventListener("pointerdown", close);
-      window.removeEventListener("blur", close);
-    };
-  }, [menu]);
   // the canvas shows the whole design here, and the view goes back to where it was when you return to Edit
   useEffect(() => {
     const before = getState().viewport;
@@ -440,18 +530,8 @@ export default function ChatHome() {
     .sort((a, b) => (a.k === b.k ? a.i - b.i : a.k - b.k))
     .map((x) => x.r);
 
-  /** Close a project: its tab goes, and if it was on screen the next one comes up, or none. */
-  // open: on screen, in a tab, or waiting in memory with an AI still at work
-  const isOpen = (path: string) => path === current.file || tabs.includes(path) || isParked(path);
-  const leave = async (path: string) => {
-    if (!(await readyToLeave(true, path))) return false;
-    const next = path === current.file ? getTabs().filter((p) => p !== path).pop() : null;
-    closeTab(path);
-    if (path === current.file) {
-      if (!next || !(await openProjectAt(next, true))) await closeProject();
-    }
-    return true;
-  };
+  const isOpen = isProjectOpen;
+  const leave = leaveProject;
 
   return (
     <div className="chathome" style={homeChatW ? { gridTemplateColumns: `276px ${homeChatW}px minmax(0, 1fr)` } : undefined}>
@@ -533,78 +613,7 @@ export default function ChatHome() {
         </div>
         )}
       </aside>
-      {menu && (
-        <div className="chathome-menu" style={{ left: menu.x, top: menu.y }} onPointerDown={(e) => e.stopPropagation()}>
-          <div
-            onClick={() => {
-              void revealItemInDir(menu.r.path);
-              setMenu(null);
-            }}
-          >
-            <Icon name="folder" size={15} /> Show in Finder
-          </div>
-          <div
-            onClick={() => {
-              setTyped("");
-              setRenaming(menu.r.path);
-              setMenu(null);
-            }}
-          >
-            <Icon name="pen" size={15} /> Rename
-          </div>
-          <div
-            onClick={() => {
-              const r = menu.r;
-              setMenu(null);
-              void moveProjectTo(r.path).then(warn("Move to"));
-            }}
-            title="Move the file to another folder. Its history and conversation go with it."
-          >
-            <Icon name="move-to" size={15} /> Move to…
-          </div>
-          <div
-            onClick={() => {
-              const r = menu.r;
-              setMenu(null);
-              void copyProject(r.path).then(warn("Save a copy"));
-            }}
-            title="Save a second file somewhere else. This one stays as it is."
-          >
-            <Icon name="copy" size={15} /> Save a copy…
-          </div>
-          {isOpen(menu.r.path) && (
-            <div
-              onClick={() => {
-                void leave(menu.r.path);
-                setMenu(null);
-              }}
-              title="Your work is saved."
-            >
-              <Icon name="close" size={15} /> Close
-            </div>
-          )}
-          <div
-            onClick={() => {
-              removeRecent(menu.r.path);
-              setMenu(null);
-            }}
-            title="Takes it off this list. The file is not deleted."
-          >
-            <Icon name="unlist" size={15} /> Remove from list
-          </div>
-          <div
-            onClick={async () => {
-              const r = menu.r;
-              setMenu(null);
-              if (isOpen(r.path) && !(await leave(r.path))) return;
-              await trashProject(r.path).catch((e) => message(`“${r.name}” could not be moved to the Trash. ${String(e)}`, { title: "Move to Trash", kind: "warning" }));
-            }}
-            title={`Kept ${TRASH_DAYS} days in the Trash, then cleared out.`}
-          >
-            <Icon name="trash" size={15} /> Move to Trash
-          </div>
-        </div>
-      )}
+      {menu && <ProjectMenu at={menu} onDone={() => setMenu(null)} onRename={(path) => (setTyped(""), setRenaming(path))} />}
       <section className="chathome-chat">
         <ChatWidthGrip />
         {skills ? (

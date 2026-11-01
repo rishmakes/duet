@@ -10,6 +10,7 @@ import Icon from "./Icons";
 import { clampDim, CREATE_TILES, CUSTOM_PRESETS, editedAgo } from "./homeLogic";
 import type { CreateTile } from "./homeLogic";
 import { resetPageFocus } from "./pageFocus";
+import { isProjectOpen, ProjectMenu, TrashView } from "./ChatHome";
 
 interface HomeProps {
   onClose: () => void;
@@ -42,11 +43,18 @@ export default function Home({ onClose }: HomeProps) {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [customOpen, onClose]);
 
-  // Keep recents reactive
+  const [trash, setTrash] = useState(false);
+  const [menu, setMenu] = useState<{ x: number; y: number; r: Recent } | null>(null);
+
+  // Keep recents reactive, and which of them are open
   useEffect(() => {
     const reload = () => setRecents(listedProjects());
     window.addEventListener("duet:recents", reload);
-    return () => window.removeEventListener("duet:recents", reload);
+    window.addEventListener("duet:tabs", reload);
+    return () => {
+      window.removeEventListener("duet:recents", reload);
+      window.removeEventListener("duet:tabs", reload);
+    };
   }, []);
 
   // Dismiss popover on outside click
@@ -349,14 +357,21 @@ export default function Home({ onClose }: HomeProps) {
         {/* Recent Work */}
         <section className="recents-section">
           <div className="section-label">
-            <span>Recent work</span>
-            {visibleRecents.length > 0 && (
+            <span>{trash ? "Trash" : "Recent work"}</span>
+            {!trash && visibleRecents.length > 0 && (
               <span className="section-subcount">
                 {visibleRecents.length} {visibleRecents.length === 1 ? "project" : "projects"}
               </span>
             )}
+            <button type="button" className={`home-trash ${trash ? "on" : ""}`} data-name="home-trash" title="Projects moved to the Trash" onClick={() => setTrash(!trash)}>
+              <Icon name="trash" size={13} /> {trash ? "Back to recent work" : "Trash"}
+            </button>
           </div>
-          {visibleRecents.length === 0 ? (
+          {trash ? (
+            <div className="home-trash-list">
+              <TrashView onBack={() => setTrash(false)} />
+            </div>
+          ) : visibleRecents.length === 0 ? (
             <div className="recents-empty">No projects yet. Pick a format above or tell Duet what to make.</div>
           ) : (
             <div className="recents-grid">
@@ -366,8 +381,26 @@ export default function Home({ onClose }: HomeProps) {
                   className="recent-card"
                   data-name="recent-project-card"
                   onClick={() => void handleOpenRecent(r.path)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setMenu({ x: e.clientX, y: e.clientY, r });
+                  }}
                 >
                   <div className="recent-thumb">
+                    {isProjectOpen(r.path) && <span className="recent-open">Open</span>}
+                    <button
+                      type="button"
+                      className="recent-more"
+                      title="More: show in Finder, close, move to Trash"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const b = e.currentTarget.getBoundingClientRect();
+                        setMenu({ x: b.left, y: b.bottom + 4, r });
+                      }}
+                      onPointerDown={(e) => e.stopPropagation()}
+                    >
+                      <Icon name="dots" size={14} />
+                    </button>
                     {r.thumb ? (
                       <img src={r.thumb} alt={r.name} />
                     ) : (
@@ -388,6 +421,7 @@ export default function Home({ onClose }: HomeProps) {
           )}
         </section>
       </main>
+      {menu && <ProjectMenu at={menu} onDone={() => setMenu(null)} />}
     </div>
   );
 }

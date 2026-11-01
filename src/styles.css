@@ -7530,3 +7530,65 @@ input.chathome-name.rename {
   color: var(--muted);
   font-size: 11px;
 }
+
+/* Home: which recent projects are open, a menu on each, and the Trash */
+.section-label .home-trash {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+  cursor: pointer;
+}
+.section-label .home-trash:hover,
+.section-label .home-trash.on {
+  background: var(--panel-2);
+  color: var(--text);
+}
+.recent-open {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 1;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+.recent-more {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--panel);
+  color: var(--text);
+  opacity: 0;
+  cursor: pointer;
+}
+.recent-card:hover .recent-more {
+  opacity: 1;
+}
+.home-trash-list {
+  max-width: 560px;
+}
+/* on Home the section above already names the Trash and has the way back */
+.home-trash-list .trash-head {
+  display: none;
+}
