@@ -35,7 +35,7 @@ import LayersPanel from "./ui/LayersPanel";
 import PropertiesPanel from "./ui/PropertiesPanel";
 import Toolbar from "./ui/Toolbar";
 import PageStrip from "./ui/PageStrip";
-import { currentDoc, getState, useStore } from "./state/store";
+import { useStore } from "./state/store";
 import "./styles.css";
 
 const STATUS: Record<string, string> = {
@@ -124,18 +124,16 @@ export default function App() {
   useEffect(() => {
     const stop = startAutosave();
     // every launch starts at your projects; the last one is a click away ("Back to ...")
-    void restoreLast().then(() => {
+    void restoreLast().then(async () => {
       if (isCheckCopy()) return setCheck(true);
-      const s = getState();
-      if (!s.project.file && currentDoc(s).rootIds.length === 0) {
-        setHomeOpen(true);
-      }
+      // a project file double-clicked in Finder or Explorer opens straight in, without Home
+      const f = inTauri() ? await invoke<string | null>("launch_file").catch(() => null) : null;
+      if (f) return void openProjectAt(f);
+      setHomeOpen(true);
     });
     const stops: (() => void)[] = [];
     let alive = true;
     if (inTauri()) {
-      // a project file double-clicked in Finder or Explorer
-      void invoke<string | null>("launch_file").then((f) => f && void openProjectAt(f));
       void listen<string>("open-file", (e) => void openProjectAt(e.payload));
       // make sure the last save is in the file before the window closes
       // a slow or failed save must never keep the window open
