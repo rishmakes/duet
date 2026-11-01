@@ -7320,24 +7320,68 @@ input.chathome-name.rename {
 }
 
 /* page strip (#250) */
-.page-strip-container {
+.canvas:has(.page-strip-bar) .canvas-wrap {
+  bottom: 72px;
+}
+
+.canvas:has(.page-strip-bar) .chat:not(.c-tl):not(.c-tr):not(.free) {
+  bottom: calc(72px + 12px);
+}
+
+.page-strip-bar {
   position: absolute;
-  bottom: 14px;
-  left: 50%;
-  transform: translateX(-50%);
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 72px;
   background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 6px 10px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  border-top: 1px solid var(--line);
   display: flex;
   align-items: center;
-  gap: 8px;
-  z-index: 25;
+  padding: 0 16px;
+  box-sizing: border-box;
+  z-index: 20;
   user-select: none;
 }
 
+.page-strip-scroll {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-right: 12px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+.page-strip-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+
+.page-strip-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.page-strip-scroll::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 2px;
+}
+
+.page-strip-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 12px;
+  border-left: 1px solid var(--line);
+}
+
 .page-thumbnail-item {
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   align-items: center;

@@ -1,5 +1,6 @@
-import { useSyncExternalStore } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import type { Doc } from "../document/types";
+import { getState, subscribe as subscribeStore, useStore } from "../state/store";
 
 let activePageId: string | null = null;
 let allPagesMode = false;
@@ -20,9 +21,24 @@ export function showAllPages() {
 }
 
 export function resetPageFocus() {
+  if (activePageId === null && !allPagesMode) return;
   activePageId = null;
   allPagesMode = false;
   notify();
+}
+
+// Reset page focus whenever tabs change or project changes
+let lastTabId: string | null = null;
+if (typeof window !== "undefined") {
+  window.addEventListener("duet:tabs", resetPageFocus);
+  subscribeStore(() => {
+    const s = getState();
+    const curId = s.project.file ?? s.project.path ?? (s.timeline[0]?.time ? String(s.timeline[0].time) : null);
+    if (lastTabId !== null && curId !== lastTabId) {
+      resetPageFocus();
+    }
+    lastTabId = curId;
+  });
 }
 
 export function getActivePage(doc: Doc): string | null {
@@ -46,6 +62,16 @@ const subscribe = (listener: () => void) => {
 
 export function usePageFocus(doc: Doc): { activePageId: string | null; isAllPages: boolean } {
   useSyncExternalStore(subscribe, () => `${activePageId}:${allPagesMode}`);
+
+  const tabKey = useStore((s) => s.project.file ?? s.project.path ?? (s.timeline[0]?.time ? String(s.timeline[0].time) : "live"));
+  const lastTab = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (lastTab.current !== null && lastTab.current !== tabKey) {
+      resetPageFocus();
+    }
+    lastTab.current = tabKey;
+  }, [tabKey]);
 
   if (!doc.pages) {
     return { activePageId: null, isAllPages: false };

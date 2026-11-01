@@ -9,6 +9,7 @@ import { sendToTask } from "../ai/agent";
 import Icon from "./Icons";
 import { clampDim, CREATE_TILES, CUSTOM_PRESETS, editedAgo } from "./homeLogic";
 import type { CreateTile } from "./homeLogic";
+import { resetPageFocus } from "./pageFocus";
 
 interface HomeProps {
   onClose: () => void;
@@ -78,6 +79,7 @@ export default function Home({ onClose }: HomeProps) {
       return;
     }
     if (tile.kind === "sized" && tile.width && tile.height) {
+      resetPageFocus();
       await newDesignTab();
       dispatch("set_pages", { on: true });
       const id = newId("frame");
@@ -95,6 +97,7 @@ export default function Home({ onClose }: HomeProps) {
   };
 
   const handleCreateCustom = async () => {
+    resetPageFocus();
     const w = clampDim(customW, 1080);
     const h = clampDim(customH, 1350);
     await newDesignTab();

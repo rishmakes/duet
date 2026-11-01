@@ -28,3 +28,18 @@
   - "All pages" smoothly displays all pages in a row on the infinite canvas.
   - Clicking any page name label on the canvas opens that page directly in single page view.
   - Screenshots saved to `scratch/`: `01-home.png`, `02-single-page-focused.png`, `03-two-pages-added.png`, `04-all-pages-canvas.png`, `05-reopened-page-1.png`.
+
+
+## Follow-up Fixes (#250)
+1. **Full-width Docked Page Strip Bar**:
+   - Replaced floating `.page-strip-container` with docked full-width `.page-strip-bar` at the bottom of the canvas.
+   - Updated `.canvas:has(.page-strip-bar) .canvas-wrap { bottom: 72px; }` so the page view canvas area ends above the strip and automatically fits in the remaining space.
+   - Docked floating chat bar above the strip with `.canvas:has(.page-strip-bar) .chat { bottom: calc(72px + 12px); }`, ensuring the chat bar never sits under or overlaps the strip.
+   - Structured `.page-strip-scroll` with horizontal scroll for many thumbnails, keeping `.page-strip-actions` (`+ Add page` and `All pages`) permanently visible at the right end.
+2. **Prevent Tab Leak in pageFocus.ts**:
+   - Added `resetPageFocus` listener to `duet:tabs` event, store project change watcher, and hooked into `Tabs.tsx` (`show`, `afterClosing`, `startNew`) and `Home.tsx`.
+   - Verified that entering `All pages` in one tab does not leak into newly opened or switched tabs.
+   - Added unit tests in `src/ui/pageFocus.test.ts`.
+3. **Multi-Viewport & Theme Verification**:
+   - Verified 6 pages layout at 1280x800 and 1440x900 across both Dark and Light themes.
+   - Screenshots: `scratch/1280x800-dark-6pages.png`, `scratch/1280x800-light-6pages.png`, `scratch/1440x900-light-6pages.png`, `scratch/1440x900-dark-6pages.png`.

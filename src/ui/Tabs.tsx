@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ask } from "./dialog";
 import { addTab, closeProject, closeTab, closeUntitled, getTabs, getUntitled, inTauri, isUntitled, liveKey, newDesignTab, openProjectAt, tabTitle } from "../project/project";
+import { resetPageFocus } from "./pageFocus";
 import { currentDoc, useStore } from "../state/store";
 import { readyToLeave } from "../ai/agent";
 import { useChat } from "../ai/chat";
@@ -44,11 +45,13 @@ export default function Tabs({ home, setHome }: { home: boolean; setHome: (on: b
   const unsaved = !live && !(home && empty);
 
   const show = async (path: string) => {
+    resetPageFocus();
     if (path === live || (await openProjectAt(path))) setHome(false);
   };
 
   /** What is left after the project on screen is closed: the next tab, or all your projects. */
   const afterClosing = async (rest: string[]) => {
+    resetPageFocus();
     const next = rest[rest.length - 1];
     // a next project whose file cannot be found is not opened; the screen empties as if it were the last
     if (next && (await openProjectAt(next, true))) return void setHome(false);
@@ -82,6 +85,7 @@ export default function Tabs({ home, setHome }: { home: boolean; setHome: (on: b
 
   /** + starts a new, empty design in its own tab, like a new tab in a browser. Every other tab keeps its work. */
   const startNew = async () => {
+    resetPageFocus();
     await newDesignTab();
     setHome(false);
   };
