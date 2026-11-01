@@ -132,7 +132,7 @@ type Drag =
   | { kind: "turn"; id: string; centre: { x: number; y: number }; from: number; base: number; sx: number; sy: number; moved: boolean; spun: number; free: boolean; many?: { id: string; r: Rect; rot: number }[] }
   | { kind: "zoom"; sx: number; sy: number; startZoom: number; vx: number; vy: number; moved: boolean; priorGlide: { zoom: number; zoomIn?: boolean } | null }
   | { kind: "marquee"; start: { x: number; y: number }; prev: string[]; additive: boolean; scope: string[] }
-  | { kind: "deep"; hit: string; start: { x: number; y: number }; sx: number; sy: number; shift: boolean; prev: string[] };
+  | { kind: "deep"; hit: string; start: { x: number; y: number }; sx: number; sy: number; shift: boolean; prev: string[]; drop?: boolean };
 
 interface StrokeState {
   elId: string;
@@ -1182,13 +1182,13 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     const label = labelAt(p.sx, p.sy);
     const hit = label ?? hitTest(doc, p.x, p.y, new Set(), deep);
     // A drag on the empty part of a page frame that holds things draws a box around those things, as
-    // in other design apps. A click still picks the frame; its name label, or picking it first, moves it.
+    // in other design apps. A click there drops what is picked; the frame is picked by its name label or from Layers.
     const hitEl = hit ? doc.elements[hit] : undefined;
     const roomy = !label && !e.shiftKey && !e.altKey && hitEl?.type === "frame" && !hitEl.parentId && hitEl.childIds.length > 0;
     // Cmd or Ctrl on something not yet picked waits: a drag draws a box inside the frame under the pointer, a click picks the thing
     if ((deep || roomy) && hit && !s.selection.includes(hit)) {
       // a plain click on the frame picks it alone; Cmd or Ctrl adds it to what is picked
-      dragRef.current = { kind: "deep", hit, start: { x: p.x, y: p.y }, sx: p.sx, sy: p.sy, shift: e.shiftKey, prev: deep ? s.selection : [] };
+      dragRef.current = { kind: "deep", hit, start: { x: p.x, y: p.y }, sx: p.sx, sy: p.sy, shift: e.shiftKey, prev: deep ? s.selection : [], drop: !deep };
       return;
     }
     if (hit) {
@@ -1518,6 +1518,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     if (d.kind === "pen") return;
 
     if (d.kind === "deep") {
+      if (d.drop) return select([]);
       const doc = workDoc();
       if (!isMovable(doc, d.hit)) return;
       const within = (inner: string, outer: string) => {
