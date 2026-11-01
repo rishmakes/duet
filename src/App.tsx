@@ -257,17 +257,8 @@ export default function App() {
             </button>
           </div>
         </div>
-        <div />
-        <div className="top-side end" data-tauri-drag-region>
-          <button
-            className="pill icon theme-toggle"
-            title={theme === "light" ? "Dark look" : "Light look"}
-            onClick={toggleTheme}
-            data-name="theme-toggle"
-          >
-            <Icon name={theme === "light" ? "moon" : "sun"} size={15} />
-          </button>
-          {!chatting && (
+        {/* the kind of work sits in the middle, so it stays put whatever the sides hold */}
+        {chatting ? <div /> : (
           <div className="pill mode-switch kind-switch">
           <button
             className={dock.mode === "design" ? "active" : ""}
@@ -294,7 +285,16 @@ export default function App() {
             Photo
           </button>
         </div>
-          )}
+        )}
+        <div className="top-side end" data-tauri-drag-region>
+          <button
+            className="pill icon theme-toggle"
+            title={theme === "light" ? "Dark look" : "Light look"}
+            onClick={toggleTheme}
+            data-name="theme-toggle"
+          >
+            <Icon name={theme === "light" ? "moon" : "sun"} size={15} />
+          </button>
           {!chatting && dock.mode === "design" && (
             <button className="pill" disabled={!hasFrames} onClick={() => setPresenting(true)} title="Click through your screens (Cmd or Ctrl Enter)">
               Present
