@@ -513,6 +513,10 @@ button {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
+.cswatch.round,
+.cswatch.round span {
+  border-radius: 50%;
+}
 /* no colour: a slash across white */
 .cswatch.none {
   background: #fff linear-gradient(to top right, transparent calc(50% - 1px), #e5484d calc(50% - 1px), #e5484d calc(50% + 1px), transparent calc(50% + 1px));
@@ -1056,6 +1060,9 @@ body.eyedropping * {
 .sw {
   width: 28px;
   height: 16px;
+  border: 0;
+  padding: 0;
+  outline: none;
   border-radius: 999px;
   background: var(--line);
   position: relative;
@@ -1764,6 +1771,18 @@ body.eyedropping * {
   cursor: pointer;
   text-decoration: underline;
 }
+button.linkbtn {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--link);
+  cursor: pointer;
+  text-decoration: underline;
+}
+button.linkbtn:hover {
+  color: var(--text);
+}
 .hint2 {
   margin-top: 8px;
   color: var(--muted);
@@ -1906,6 +1925,115 @@ option {
 .add-copy {
   color: var(--accent);
   font-size: 11px;
+}
+
+/* Brand kit in Assets panel */
+.brand-colour-row {
+  position: relative;
+}
+.brand-colour-name {
+  cursor: default;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.brand-rename-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--panel-2);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  padding: 1px 4px;
+}
+.brand-rename-input:focus {
+  outline: none;
+}
+.brand-remove {
+  opacity: 0;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-sm);
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+.brand-colour-row:hover .brand-remove,
+.brand-colour-row .brand-remove:focus {
+  opacity: 1;
+}
+.brand-remove:hover {
+  color: var(--text);
+  background: var(--panel-3);
+}
+.brand-add-colour {
+  margin: 4px 0 8px;
+}
+.brand-fonts {
+  margin: 10px 6px 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.brand-logo-section {
+  margin: 8px 6px;
+}
+.brand-logo-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.brand-logo-label {
+  color: var(--muted);
+}
+.brand-logo-name {
+  font-weight: 500;
+}
+.brand-logo-btn {
+  margin-top: 4px;
+}
+.brand-voice-row {
+  margin: 8px 6px;
+}
+.brand-voice-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+.brand-voice-input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+.brand-lock-row {
+  margin-top: 6px;
+}
+.brand-make-wrap {
+  margin: 10px 6px 14px;
+  text-align: center;
+}
+.brand-make-btn {
+  font-size: 11px;
+}
+.brand-make-btn-init {
+  margin: 6px 0 14px;
+}
+.brand-comp-head {
+  margin-top: 16px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
 }
 
 /* projects home: a page of its own */
