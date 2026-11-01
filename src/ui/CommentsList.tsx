@@ -1,11 +1,14 @@
 import { useState } from "react";
+import { openBoard, pinnedOn } from "../document/boards";
 import { dispatch, useStore, workDoc } from "../state/store";
 import { setLayout, useLayout } from "./layout";
 import { showComment, useOpenComment } from "./commentFocus";
 
 /** Every comment on the canvas: open ones by number, as on their pins, and the resolved ones folded away with what was done. */
 export default function CommentsList({ onClose }: { onClose?: () => void }) {
-  const list = useStore((s) => workDoc(s).comments);
+  const all = useStore((s) => workDoc(s).comments);
+  const board = useStore((s) => openBoard(workDoc(s)));
+  const list = all?.filter((c) => pinnedOn(c, board));
   const hidden = useLayout((d) => d.commentsHidden);
   const open = useOpenComment();
   const [showDone, setShowDone] = useState(false);

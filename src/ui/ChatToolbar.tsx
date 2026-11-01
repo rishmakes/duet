@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { setOnlyFrame } from "../canvas/render";
 import { useStore } from "../state/store";
+import { commentsHere } from "../document/boards";
 import Toolbar from "./Toolbar";
 import CommentsList from "./CommentsList";
 import { setLayout, useLayout } from "./layout";
@@ -26,7 +27,7 @@ export default function ChatToolbar() {
   const [only, setOnly] = useState<string | null>(null);
   const [open, setOpen] = useState<"kind" | "frame" | "comments" | null>(null);
   const commentsRef = useRef<HTMLButtonElement>(null);
-  const openComments = (doc.comments ?? []).filter((c) => !c.resolved).length;
+  const openComments = commentsHere(doc).filter((c) => !c.resolved).length;
   const kindRef = useRef<HTMLButtonElement>(null);
   const frameRef = useRef<HTMLButtonElement>(null);
 
@@ -60,7 +61,7 @@ export default function ChatToolbar() {
         {KINDS.find((k) => k.mode === mode)?.label}
       </button>
       <Toolbar row />
-      {!!doc.comments?.length && (
+      {!!commentsHere(doc).length && (
         <button
           ref={commentsRef}
           className={`chatbar-drop end ${open === "comments" ? "on" : ""}`}

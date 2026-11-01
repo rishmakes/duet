@@ -2,7 +2,7 @@ import { isDerived, syncInstances } from "./components";
 import { relayout } from "./layout";
 import { keepTracks, oldTracks } from "./tracks";
 import { playsFile } from "./types";
-import type { Comment, Doc, El } from "./types";
+import type { Board, Comment, Doc, El } from "./types";
 
 /** Property order inside each element, so Git diffs stay small and stable. */
 const EL_KEYS: (keyof El)[] = [
@@ -157,6 +157,11 @@ export function serializeDoc(doc: Doc): string {
   if (doc.guides && (doc.guides.x.length || doc.guides.y.length)) out.guides = { x: [...doc.guides.x].sort((a, b) => a - b), y: [...doc.guides.y].sort((a, b) => a - b) };
   if (doc.comments?.length) out.comments = doc.comments;
   if (doc.pages) out.pages = true;
+  if (doc.boards && doc.boards.length > 1) {
+    // the open board's things are the rootIds above, so they are not written twice
+    out.boards = doc.boards.map((b) => (b.id === doc.board ? { id: b.id, name: b.name } : { id: b.id, name: b.name, rootIds: b.rootIds ?? [] }));
+    out.board = doc.board;
+  }
   return JSON.stringify(out, null, 2) + "\n";
 }
 
@@ -188,6 +193,21 @@ export function parseDoc(text: string): Doc {
   for (const el of Object.values(elements)) {
     for (const c of el.childIds) if (!elements[c]) throw new DesignFileError(`${el.name} lists a missing child ${c}.`);
   }
+  // boards: separate canvases in one file. A board that is not open lists its own tops; each thing sits on one board only
+  let boards: Board[] | undefined;
+  let board: string | undefined;
+  if (Array.isArray(r.boards) && r.boards.length > 1) {
+    const list = r.boards as Partial<Board>[];
+    if (list.some((b) => !b || typeof b.id !== "string" || typeof b.name !== "string")) throw new DesignFileError("A board in this file has no name.");
+    board = typeof r.board === "string" && list.some((b) => b.id === r.board) ? r.board : (list[0].id as string);
+    const seen = new Set<string>(r.rootIds);
+    boards = list.map((b) => {
+      if (b.id === board) return { id: b.id as string, name: b.name as string };
+      const tops = Array.isArray(b.rootIds) ? b.rootIds.filter((id): id is string => typeof id === "string" && !!elements[id] && !seen.has(id)) : [];
+      tops.forEach((id) => seen.add(id));
+      return { id: b.id as string, name: b.name as string, rootIds: tops };
+    });
+  }
   const styles = r.styles && typeof r.styles === "object" ? (r.styles as Doc["styles"]) : undefined;
   const background = typeof r.background === "string" && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(r.background) ? r.background : undefined;
   const g = (r as { guides?: { x?: unknown; y?: unknown } }).guides;
@@ -203,5 +223,5 @@ export function parseDoc(text: string): Doc {
     const saved = new Set((el.tracks ?? []).map((t) => t.id));
     if (oldTracks(el) || el.childIds.some((c) => elements[c] && !saved.has(elements[c].track ?? ""))) keepTracks({ version: 1, rootIds: [], elements }, el.id);
   }
-  return relayout(syncInstances({ version: 1, rootIds: r.rootIds as string[], elements, ...(background ? { background } : {}), ...(styles ? { styles } : {}), ...(guides ? { guides } : {}), ...(comments.length ? { comments } : {}), ...(r.pages === true ? { pages: true as const } : {}) }));
+  return relayout(syncInstances({ version: 1, rootIds: r.rootIds as string[], elements, ...(background ? { background } : {}), ...(styles ? { styles } : {}), ...(guides ? { guides } : {}), ...(comments.length ? { comments } : {}), ...(r.pages === true ? { pages: true as const } : {}), ...(boards ? { boards, board } : {}) }));
 }

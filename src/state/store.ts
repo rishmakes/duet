@@ -244,7 +244,9 @@ export function resetStoreKeepingParked() {
   listeners.forEach((l) => l());
 }
 
-function cleanSelection(sel: string[], doc: Doc): string[] {
+/** What is still there to be picked. On another board nothing stays picked, since nothing from the last one is seen. */
+function cleanSelection(sel: string[], doc: Doc, was?: Doc): string[] {
+  if (was && was.board !== doc.board) return [];
   return sel.filter((id) => doc.elements[id]);
 }
 
@@ -267,8 +269,8 @@ function commit(doc: Doc, label: string, actor: Actor, by?: string, box: Box = l
     timeline,
     cursor: timeline.length - 1,
     transientDoc: null,
-    selection: cleanSelection(s.selection, doc),
-    focus: cleanSelection(s.focus, doc),
+    selection: cleanSelection(s.selection, doc, base),
+    focus: cleanSelection(s.focus, doc, base),
   });
 }
 
@@ -379,7 +381,8 @@ export function goTo(index: number, box: Box = liveBox) {
   const s = box.get();
   const i = Math.max(0, Math.min(s.timeline.length - 1, index));
   const doc = s.timeline[i].doc;
-  box.set({ cursor: i, transientDoc: null, selection: cleanSelection(s.selection, doc), focus: cleanSelection(s.focus, doc), editingId: null });
+  const was = s.timeline[s.cursor].doc;
+  box.set({ cursor: i, transientDoc: null, selection: cleanSelection(s.selection, doc, was), focus: cleanSelection(s.focus, doc, was), editingId: null });
 }
 
 /** Undo and redo follow the direction you are on. */

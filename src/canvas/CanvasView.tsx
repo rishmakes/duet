@@ -1,4 +1,5 @@
 import { message } from "../ui/dialog";
+import { onOpenBoard, openBoard, pinnedOn } from "../document/boards";
 import { clipKind, dropClips, keepDropped } from "../video/scene";
 import { getLayout, setLayout, useLayout } from "../ui/layout";
 import { RULER, gapsAround, snapEqualGaps, snapToGuides } from "./guides";
@@ -479,6 +480,16 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
       before.current = null;
     }
   }, [scene, isPageLocked, activePageId, isPageView, isAllPages, designing, doc.pages]);
+
+  // another board opened: show what is on it
+  const board = openBoard(doc);
+  const lastBoard = useRef(board);
+  useEffect(() => {
+    if (lastBoard.current === board) return;
+    lastBoard.current = board;
+    // in page view the page itself is brought into view
+    if (!isPageLocked) zoomToFit(sizeRef.current.w, sizeRef.current.h);
+  }, [board, isPageLocked]);
 
   useEffect(() => {
     const onAllPages = () => {
@@ -1332,7 +1343,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
           skip.add(id);
           descendants(d.base, id).forEach((x) => skip.add(x));
         }
-        const others = Object.keys(d.base.elements)
+        const others = [...onOpenBoard(d.base)]
           .filter((id) => !skip.has(id))
           .map((id) => worldBounds(d.base, id));
         const box = unionRect(d.ids.map((id) => worldBounds(d.base, id)));
@@ -2186,7 +2197,9 @@ function normalize(x1: number, y1: number, x2: number, y2: number): Rect {
 
 /** The comments pinned on the canvas, and the box a new one is written in. Resolved ones are gone from view. */
 function Comments({ zoom, vx, vy, draft, onDraftDone }: { zoom: number; vx: number; vy: number; draft: { x: number; y: number; on: string | null } | null; onDraftDone: () => void }) {
-  const list = useStore((s) => workDoc(s).comments);
+  const all = useStore((s) => workDoc(s).comments);
+  const board = useStore((s) => openBoard(workDoc(s)));
+  const list = all?.filter((c) => pinnedOn(c, board));
   const hidden = useLayout((d) => d.commentsHidden);
   const open = useOpenComment();
   const [editing, setEditing] = useState<string | null>(null);

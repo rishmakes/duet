@@ -230,10 +230,20 @@ export interface Comment {
   by: "you" | "ai";
   /** The thing under the pin when it was placed, if any. */
   on?: string;
+  /** The board it was pinned on, in a file with boards. Left out means the first board the file had. */
+  board?: string;
   /** Dealt with: the pin goes away. */
   resolved?: boolean;
   /** What was done about it, said when it was resolved. */
   reply?: string;
+}
+
+/** A separate canvas inside one file, like New design, Old website or Ideas. */
+export interface Board {
+  id: string;
+  name: string;
+  /** What sits at the top of this board, back to front. Left out for the open board: its things are the design's rootIds. */
+  rootIds?: string[];
 }
 
 export interface Doc {
@@ -248,6 +258,11 @@ export interface Doc {
   comments?: Comment[];
   /** True when the design was started from a size, so it opens one page at a time. Left out for the open canvas. */
   pages?: true;
+  /** Every board in the file, in order. Left out for a file with one canvas. */
+  boards?: Board[];
+  /** The board that is open. Its things are in rootIds. */
+  board?: string;
+  /** What sits at the top of the open board, back to front. */
   rootIds: string[];
   elements: Record<string, El>;
 }

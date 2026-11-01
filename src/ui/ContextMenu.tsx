@@ -11,6 +11,7 @@ import { maskChoice, maskSelection, newPaintLayer, paintLayerSpot, traceSelectio
 import { getLayout } from "./layout";
 import { canBeComponent } from "../document/components";
 import { useDismiss } from "./useDismiss";
+import { boardsOf, onOpenBoard, openBoard } from "../document/boards";
 
 /** What you can do with the selection, found where you right-click. */
 interface Item {
@@ -91,6 +92,20 @@ function itemsFor(): Item[] {
         if (currentDoc().elements[id]) select([id]);
       },
     });
+  }
+
+  // send what is picked to another board in this file
+  const here = onOpenBoard(doc);
+  if (doc.boards?.length && ids.every((i) => here.has(i))) {
+    for (const b of boardsOf(doc).filter((b) => b.id !== openBoard(doc))) {
+      out.push({
+        label: `Move to ${b.name}`,
+        run: () => {
+          dispatch("move_to_board", { ids, board: b.id });
+          select([]);
+        },
+      });
+    }
   }
 
   const locked = els.every((e) => e.locked);

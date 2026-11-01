@@ -1,3 +1,4 @@
+import { onOpenBoard } from "../document/boards";
 import { gradeChanges } from "../document/grade";
 import { isDerived } from "../document/components";
 import type { Doc, El } from "../document/types";
@@ -64,6 +65,6 @@ export function outline(doc: Doc, ids?: string[], maxDepth = 8): string {
   };
   const roots = ids && ids.length ? ids.filter((i) => doc.elements[i]) : doc.rootIds;
   for (const id of roots) walk(id, 0);
-  const head = `${Object.keys(doc.elements).filter((i) => !isDerived(i)).length} things. x,y are relative to the parent frame (the page for top-level things). Sizes in pixels.`;
+  const head = `${[...onOpenBoard(doc)].filter((i) => !isDerived(i)).length} things. x,y are relative to the parent frame (the page for top-level things). Sizes in pixels.`;
   return `${head}\n${lines.join("\n") || "(empty page)"}`;
 }

@@ -13,6 +13,7 @@ import { defaultLayout } from "../document/layout";
 import { outlineFromData } from "../document/path";
 import { ENTRANCES, sceneOf } from "../document/time";
 import { MOVING, emptyDoc } from "../document/types";
+import { boardsOf, commentsHere, onOpenBoard, openBoard } from "../document/boards";
 import { GRADE_CONTROLS, canGrade, gradeChanges } from "../document/grade";
 import { readings as gradeReadings } from "../canvas/grade";
 import type { Doc, El } from "../document/types";
@@ -77,6 +78,32 @@ export const TOOLS: ToolDef[] = [
     description:
       "How to work in Duet, and the skills the designer has turned on, in full. For an AI connected from outside Duet's own chat: call it once before your first change in a job. Duet's own chat already gives you this, so do not call it from there.",
     inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "add_board",
+    description:
+      "Start a new board and open it. A board is a separate canvas in the same file, like New design, Old website or Ideas: only the open board is drawn, outlined and changed. get_context lists the boards and which is open.",
+    inputSchema: { type: "object", properties: { name: str } },
+  },
+  {
+    name: "open_board",
+    description: "Open another board by its id from get_context. The designer sees it too. Everything you read and change after this is on that board.",
+    inputSchema: { type: "object", properties: { id: str }, required: ["id"] },
+  },
+  {
+    name: "rename_board",
+    description: "Give a board a new name.",
+    inputSchema: { type: "object", properties: { id: str, name: str }, required: ["id", "name"] },
+  },
+  {
+    name: "move_to_board",
+    description: "Move things from the open board to another board, with everything inside them. They land to the right of what is already there. The open board stays open.",
+    inputSchema: { type: "object", properties: { ids, board: { type: "string", description: "The board's id, from get_context." } }, required: ["ids", "board"] },
+  },
+  {
+    name: "delete_board",
+    description: "Delete a board and everything on it. The last board cannot be deleted.",
+    inputSchema: { type: "object", properties: { id: str }, required: ["id"] },
   },
   {
     name: "get_outline",
@@ -419,9 +446,9 @@ export const TOOLS: ToolDef[] = [
   },
 ];
 
-const EDITS = new Set(["resolve_comment", "add_comment", "set_grade", "copy_grade", "create_instance", "create_element", "create_elements", "set_props", "duplicate_elements", "move_elements", "resize_element", "reparent_elements", "make_mask", "trace_image", "set_duration", "set_work_area", "set_timing", "set_entrance", "animate", "set_curve"]);
+const EDITS = new Set(["add_board", "open_board", "rename_board", "move_to_board", "resolve_comment", "add_comment", "set_grade", "copy_grade", "create_instance", "create_element", "create_elements", "set_props", "duplicate_elements", "move_elements", "resize_element", "reparent_elements", "make_mask", "trace_image", "set_duration", "set_work_area", "set_timing", "set_entrance", "animate", "set_curve"]);
 /** Things the designer is asked about first in Ask first mode: losing work, and reading or writing a file on the computer. */
-const RISKY = new Set(["load_look", "delete_elements", "place_image", "place_video", "place_sound", "export_frame", "export_video"]);
+const RISKY = new Set(["load_look", "delete_elements", "delete_board", "place_image", "place_video", "place_sound", "export_frame", "export_video"]);
 
 type Args = Record<string, unknown>;
 
@@ -471,6 +498,10 @@ function liftProps(own: Args): { el: Args } | { error: string } {
 
 /** Shown with every mistake in create_elements: an agent that cannot see the tool's fields learns them from its first wrong call. */
 const BATCH_USAGE = ` How to call it: {"elements":[{"type":"frame","x":0,"y":0,"width":360,"height":640,"fill":"#ffffff","children":[{"type":"text","x":24,"y":80,"text":"Welcome back","fontSize":28,"fontWeight":700},{"type":"rect","x":24,"y":160,"width":312,"height":48,"fill":"#f1f1f4","radius":8}]}]}. One frame holds everything in children. Each thing needs type, x, y. x and y are from the frame's corner. Style (fill, stroke, radius, text, fontSize, fontWeight, opacity...) goes beside x and y. Never give a child a parentId.`;
+
+function boardName(id: unknown): string {
+  return boardsOf(R.currentDoc()).find((b) => b.id === id)?.name ?? String(id);
+}
 
 /** A sentence a designer would say, for approvals and suggestions. */
 export function summarise(tool: string, a: Args): string {
@@ -529,6 +560,16 @@ export function summarise(tool: string, a: Args): string {
       return `Move ${namesOf(a.ids)} ${a.parentId ? `into ${nameOf(a.parentId)}` : "out to the page"}`;
     case "delete_elements":
       return `Delete ${namesOf(a.ids)}`;
+    case "add_board":
+      return `Start a new board${a.name ? ` called ${String(a.name)}` : ""}`;
+    case "open_board":
+      return `Open the board ${boardName(a.id)}`;
+    case "rename_board":
+      return `Rename the board ${boardName(a.id)} to ${String(a.name)}`;
+    case "move_to_board":
+      return `Move ${namesOf(a.ids)} to the board ${boardName(a.board)}`;
+    case "delete_board":
+      return `Delete the board ${boardName(a.id)} and everything on it`;
     case "resolve_comment":
       return `Resolve the comment "${String(R.currentDoc().comments?.find((c) => c.id === a.id)?.text ?? "").slice(0, 40)}"`;
     case "add_comment":
@@ -904,6 +945,27 @@ function prepare(tool: string, raw: Args, doc = R.currentDoc()): { args: Args } 
     case "delete_elements": {
       const bad = missing(a.ids);
       if (bad.length) return { error: `No element with id: ${bad.join(", ")}.` };
+      return { args: a };
+    }
+    case "add_board":
+      return { args: { id: newId("board"), ...(typeof a.name === "string" && a.name.trim() ? { name: a.name.trim() } : {}) } };
+    case "open_board":
+    case "rename_board":
+    case "delete_board": {
+      const boards = boardsOf(doc);
+      if (!boards.some((b) => b.id === a.id)) return { error: `No board with id ${String(a.id)}. get_context lists them.` };
+      if (tool === "rename_board" && (typeof a.name !== "string" || !a.name.trim())) return { error: "Give the new name." };
+      if (tool === "delete_board" && boards.length <= 1) return { error: "This is the only board, so it cannot be deleted." };
+      return { args: a };
+    }
+    case "move_to_board": {
+      const bad = missing(a.ids);
+      if (bad.length) return { error: `No element with id: ${bad.join(", ")}.` };
+      const here = onOpenBoard(doc);
+      const away = (a.ids as string[]).filter((i) => !here.has(i));
+      if (away.length) return { error: `${away.join(", ")} is not on the open board. Open its board first.` };
+      if (!boardsOf(doc).some((b) => b.id === a.board)) return { error: `No board with id ${String(a.board)}. get_context lists them.` };
+      if (a.board === openBoard(doc)) return { error: "They are on that board already." };
       return { args: a };
     }
     default:
@@ -1302,6 +1364,7 @@ async function apply(tool: string, args: Args, by?: string): Promise<ToolResult>
     const box = el?.type === "path" ? ` Its box sits at ${Math.round(el.x)},${Math.round(el.y)} and is ${Math.round(el.width)} by ${Math.round(el.height)}.` : "";
     return { text: `Created ${String(args.id)} named "${el?.name}" (${label}).${box}` };
   }
+  if (tool === "add_board" || tool === "open_board") return { text: `Done: the board ${boardName(args.id)} is open. Everything you read and change now is on it.` };
   return { text: `Done: ${label}.` };
 }
 
@@ -1338,10 +1401,11 @@ export function undoAiStep(msgId: number) {
 
 /** The comments not yet dealt with, each with the thing under it, the frame it is in, and the things around it. */
 function openComments(doc: Doc) {
-  return (doc.comments ?? [])
+  const here = onOpenBoard(doc);
+  return commentsHere(doc)
     .filter((c) => !c.resolved)
     .map((c) => {
-      const near = Object.keys(doc.elements)
+      const near = [...here]
         .filter((id) => !doc.elements[id].hidden)
         .map((id) => ({ id, r: worldBounds(doc, id) }))
         .filter(({ r }) => c.x >= r.x - 60 && c.x <= r.x + r.width + 60 && c.y >= r.y - 60 && c.y <= r.y + r.height + 60)
@@ -1371,6 +1435,8 @@ function context(): string {
       // where the designer has pointed you. Work there. You may look elsewhere, nothing outside it is blocked.
       focus: s.focus.filter((i) => doc.elements[i]).map((i) => ({ id: i, name: doc.elements[i].name, type: doc.elements[i].type })),
       frames,
+      // separate canvases in this file; only the open one is drawn, outlined and changed
+      boards: boardsOf(doc).map((b) => ({ id: b.id, name: b.name, open: b.id === openBoard(doc), things: b.rootIds.length })),
       components: componentsIn(doc).map((c) => ({ id: c.id, name: c.name, width: c.width, height: c.height })),
       elementCount: Object.keys(doc.elements).length,
       units: "pixels. x and y are relative to the parent frame, or to the page for top-level things.",

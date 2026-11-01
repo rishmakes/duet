@@ -7494,3 +7494,39 @@ input.chathome-name.rename {
   color: var(--accent);
   background: var(--accent-soft);
 }
+
+/* boards: separate canvases in one file, listed above the layers */
+.boards {
+  padding: 4px 6px 6px;
+  border-bottom: 1px solid var(--line);
+}
+.boards-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px 2px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.boards-add {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--muted);
+}
+.boards-add:hover {
+  background: var(--panel-2);
+  color: var(--text);
+}
+.board-row .name {
+  flex: 1;
+}
+.board-count {
+  color: var(--muted);
+  font-size: 11px;
+}

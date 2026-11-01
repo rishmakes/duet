@@ -6,6 +6,118 @@ import { ancestors, descendants, topLevelOnly } from "../document/geometry";
 import type { Doc, El } from "../document/types";
 import { currentDoc, dispatch, getState, select, useStore } from "../state/store";
 import SkillsPanel from "./SkillsPanel";
+import { boardsOf, openBoard } from "../document/boards";
+import { newId } from "../commands";
+import { ask } from "./dialog";
+import { useDismiss } from "./useDismiss";
+
+/**
+ * The boards in this file, at the top of the layers: separate canvases, like New design, Old website and Ideas.
+ * Click one to open it, double click to rename, right click for more. Drop layers on a board to move them there.
+ */
+function Boards({ doc, dragging, onDropped }: { doc: Doc; dragging: React.MutableRefObject<string[]>; onDropped: () => void }) {
+  const boards = boardsOf(doc);
+  const open = openBoard(doc);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [over, setOver] = useState<string | null>(null);
+  const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  useDismiss(!!menu, () => setMenu(null), ".ctx");
+
+  const rename = (id: string, value: string) => {
+    setRenaming(null);
+    const name = value.trim();
+    const b = boards.find((x) => x.id === id);
+    if (!name || !b || name === b.name) return;
+    // a file with one canvas becomes boards when its board is named
+    if (!doc.boards?.length) return;
+    dispatch("rename_board", { id, name });
+  };
+  const remove = async (id: string) => {
+    const b = boards.find((x) => x.id === id);
+    if (!b) return;
+    const things = b.rootIds.length;
+    if (things && !(await ask(`Delete the board "${b.name}" and the ${things === 1 ? "thing" : `${things} things`} on it? Undo brings it back.`, { title: "Delete board", okLabel: "Delete", cancelLabel: "Keep" }))) return;
+    dispatch("delete_board", { id });
+  };
+
+  return (
+    <div className="boards">
+      <div className="boards-head">
+        <span>Boards</span>
+        <button className="boards-add" title="New board" onClick={() => dispatch("add_board", { id: newId("board") })}>
+          <Icon name="plus" size={13} />
+        </button>
+      </div>
+      {boards.map((b) => (
+        <div
+          key={b.id}
+          className={`row board-row ${b.id === open ? "sel" : ""} ${over === b.id ? "drop-inside" : ""}`}
+          title={b.id === open ? undefined : "Open this board. Drop layers here to move them to it."}
+          onClick={() => b.id !== open && dispatch("open_board", { id: b.id })}
+          onDoubleClick={() => doc.boards?.length && setRenaming(b.id)}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            if (doc.boards?.length) setMenu({ id: b.id, x: e.clientX, y: e.clientY });
+          }}
+          onDragOver={(e) => {
+            if (b.id === open || !dragging.current.length) return;
+            e.preventDefault();
+            setOver(b.id);
+          }}
+          onDragLeave={() => setOver(null)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setOver(null);
+            if (b.id === open || !dragging.current.length) return;
+            dispatch("move_to_board", { ids: dragging.current, board: b.id });
+            select([]);
+            onDropped();
+          }}
+        >
+          <Icon name="grid" size={13} className="ico" />
+          {renaming === b.id ? (
+            <input
+              className="rename"
+              autoFocus
+              defaultValue={b.name}
+              onFocus={(e) => e.currentTarget.select()}
+              onBlur={(e) => rename(b.id, e.currentTarget.value)}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === "Enter") e.currentTarget.blur();
+                if (e.key === "Escape") setRenaming(null);
+              }}
+            />
+          ) : (
+            <span className="name">{b.name}</span>
+          )}
+          <span className="board-count">{b.rootIds.length || ""}</span>
+        </div>
+      ))}
+      {menu && (
+        <div className="ctx" style={{ left: Math.min(menu.x, window.innerWidth - 230), top: menu.y }}>
+          <div className="ctx-item" onClick={() => (setMenu(null), setRenaming(menu.id))}>
+            <span>Rename</span>
+          </div>
+          {boards.findIndex((b) => b.id === menu.id) > 0 && (
+            <div className="ctx-item" onClick={() => (setMenu(null), dispatch("move_board", { id: menu.id, toIndex: boards.findIndex((b) => b.id === menu.id) - 1 }))}>
+              <span>Move up</span>
+            </div>
+          )}
+          {boards.findIndex((b) => b.id === menu.id) < boards.length - 1 && (
+            <div className="ctx-item" onClick={() => (setMenu(null), dispatch("move_board", { id: menu.id, toIndex: boards.findIndex((b) => b.id === menu.id) + 1 }))}>
+              <span>Move down</span>
+            </div>
+          )}
+          <div className="ctx-line" />
+          <div className="ctx-item danger" onClick={() => (setMenu(null), void remove(menu.id))}>
+            <span>Delete board</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** Which parent IDs are currently folded and need to be unfolded for this selection. */
 export function idsToUnfoldForSelection(
@@ -352,6 +464,7 @@ export default function LayersPanel() {
           Skills
         </div>
       </div>
+      {tab === "layers" && <Boards doc={doc} dragging={dragging} onDropped={end} />}
       {tab === "layers" && <div className="tip-line">Click a layer to find it. Cmd or Ctrl click to zoom to it.</div>}
       </div>
       {tab === "skills" && <SkillsPanel />}

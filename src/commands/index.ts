@@ -14,6 +14,9 @@ import type { Effect, EffectKind } from "../document/effects";
 import { freshName, keepTracks, newTrackId, stackByTrack } from "../document/tracks";
 import type { CreatePresetFrameArgs } from "./presets";
 import { setPages, addPage, reorderPages } from "./pages";
+import { openBoard } from "../document/boards";
+import { addBoard, deleteBoard, moveBoard, moveToBoard, openBoardCmd, renameBoard } from "./boards";
+import type { AddBoardArgs, DeleteBoardArgs, MoveBoardArgs, MoveToBoardArgs, OpenBoardArgs, RenameBoardArgs } from "./boards";
 import type { SetPagesArgs, AddPageArgs, ReorderPagesArgs } from "./pages";
 
 /**
@@ -1727,6 +1730,7 @@ const addComment: CommandDef<AddCommentArgs> = {
     const next = clone(doc);
     const c: Comment = { id: a.id ?? newId("comment"), x: round(a.x), y: round(a.y), text, by: a.by ?? "you" };
     if (a.on && doc.elements[a.on]) c.on = a.on;
+    if (doc.boards?.length) c.board = openBoard(doc);
     next.comments = [...(next.comments ?? []), c];
     return next;
   },
@@ -2326,8 +2330,45 @@ const reorderPagesDef: CommandDef<ReorderPagesArgs> = {
   run: (doc, a) => reorderPages(doc, a),
 };
 
+// ---- boards: separate canvases in one file ----
+const addBoardDef: CommandDef<AddBoardArgs> = {
+  label: () => "New board",
+  run: (doc, a) => addBoard(doc, a),
+};
+
+const openBoardDef: CommandDef<OpenBoardArgs> = {
+  label: () => "Open board",
+  run: (doc, a) => openBoardCmd(doc, a),
+};
+
+const renameBoardDef: CommandDef<RenameBoardArgs> = {
+  label: () => "Rename board",
+  run: (doc, a) => renameBoard(doc, a),
+};
+
+const deleteBoardDef: CommandDef<DeleteBoardArgs> = {
+  label: () => "Delete board",
+  run: (doc, a) => deleteBoard(doc, a),
+};
+
+const moveBoardDef: CommandDef<MoveBoardArgs> = {
+  label: () => "Reorder boards",
+  run: (doc, a) => moveBoard(doc, a),
+};
+
+const moveToBoardDef: CommandDef<MoveToBoardArgs> = {
+  label: () => "Move to another board",
+  run: (doc, a) => moveToBoard(doc, a),
+};
+
 // ---- registry ----
 export const commands = {
+  add_board: addBoardDef,
+  open_board: openBoardDef,
+  rename_board: renameBoardDef,
+  delete_board: deleteBoardDef,
+  move_board: moveBoardDef,
+  move_to_board: moveToBoardDef,
   set_pages: setPagesDef,
   add_page: addPageDef,
   reorder_pages: reorderPagesDef,
