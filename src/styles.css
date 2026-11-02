@@ -7784,3 +7784,316 @@ input.chathome-name.rename {
   flex: 1;
   min-width: 0;
 }
+
+/* Kitchen: recipes on the left, the steps as joined boxes in the middle, the design and the chat on the right */
+.kitchen {
+  grid-area: kitchen;
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1.25fr) minmax(0, 1fr);
+  min-height: 0;
+  min-width: 0;
+}
+.kitchen-recipes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-right: 1px solid var(--line);
+  min-height: 0;
+}
+.kitchen-head,
+.kitchen-bar,
+.kitchen-step-row,
+.kitchen-step-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.kitchen-head {
+  justify-content: space-between;
+}
+.kitchen-list {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.kitchen-recipe {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: var(--r-md);
+  text-align: left;
+  color: var(--text);
+}
+.kitchen-recipe:hover {
+  background: var(--panel-3);
+}
+.kitchen-recipe.on {
+  background: var(--accent-soft);
+}
+.kitchen-recipe-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+.kitchen-recipe-about {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.kitchen-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.kitchen-middle {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-right: 1px solid var(--line);
+}
+.kitchen-bar {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.kitchen-name {
+  font: inherit;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  padding: 4px 6px;
+  min-width: 0;
+  flex: 0 1 320px;
+}
+.kitchen-name:hover,
+.kitchen-name:focus {
+  border-color: var(--line);
+  outline: none;
+}
+.kitchen-gap {
+  flex: 1;
+}
+.kitchen-board {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background-color: var(--canvas);
+  background-image: radial-gradient(var(--canvas-dot) 1px, transparent 1px);
+  background-size: 20px 20px;
+  cursor: grab;
+  touch-action: none;
+}
+.kitchen-world {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+}
+.kitchen-lines {
+  position: absolute;
+  overflow: visible;
+  pointer-events: none;
+}
+.kitchen-lines path {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 2;
+}
+.kitchen-lines path.cooked {
+  stroke: var(--accent);
+}
+.kitchen-node {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--muted);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  user-select: none;
+}
+.kitchen-node.ai {
+  border-left-color: var(--accent);
+}
+.kitchen-node.ask {
+  border-left-color: var(--duet);
+}
+.kitchen-node.review {
+  border-left-color: var(--key);
+}
+.kitchen-node.picked {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.kitchen-node.done {
+  opacity: 0.7;
+}
+.kitchen-node.working,
+.kitchen-node.turn {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.kitchen-node.working {
+  animation: kitchen-cook 1.4s ease-in-out infinite;
+}
+@keyframes kitchen-cook {
+  50% {
+    outline-color: transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kitchen-node.working {
+    animation: none;
+  }
+}
+.kitchen-node-kind {
+  font-size: 11px;
+  color: var(--muted);
+}
+.kitchen-node-title {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kitchen-node-state {
+  position: absolute;
+  top: -10px;
+  right: 10px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  background: var(--accent);
+  color: var(--ai-pill-text);
+}
+.kitchen-add {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  cursor: pointer;
+}
+.kitchen-add.between {
+  opacity: 0;
+}
+.kitchen-board:hover .kitchen-add.between {
+  opacity: 1;
+}
+.kitchen-add:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+.kitchen-step {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+  max-height: 46%;
+  overflow: auto;
+}
+.kitchen-step.quiet {
+  color: var(--muted);
+}
+.kitchen-step.turn {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.kitchen-step-kind {
+  font-size: 12px;
+  color: var(--muted);
+}
+.kitchen-step-does,
+.kitchen-step-note {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+.kitchen-step-reply {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--panel-2);
+  white-space: pre-wrap;
+  line-height: 1.45;
+}
+.kitchen-step-error {
+  margin: 0;
+  color: var(--error);
+}
+.kitchen-step-title {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 6px 8px;
+}
+.kitchen-does,
+.kitchen-answer {
+  min-height: 84px;
+  resize: vertical;
+  font: inherit;
+  line-height: 1.45;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 8px 10px;
+}
+.kitchen-step-actions {
+  justify-content: flex-end;
+}
+.kitchen-preview {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.kitchen-preview > .canvas {
+  flex: 1.3;
+  min-height: 0;
+}
+.kitchen-chat {
+  flex: 1;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line);
+}
+.kitchen-tools {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: flex;
+  gap: 6px;
+  z-index: 5;
+}
+.kitchen-empty {
+  margin: auto;
+  color: var(--muted);
+}

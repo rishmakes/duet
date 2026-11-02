@@ -32,6 +32,7 @@ import Update from "./ui/Update";
 import Feedback from "./ui/Feedback";
 import Settings from "./ui/Settings";
 import Home from "./ui/Home";
+import Kitchen from "./ui/Kitchen";
 import LayersPanel from "./ui/LayersPanel";
 import PropertiesPanel from "./ui/PropertiesPanel";
 import Toolbar from "./ui/Toolbar";
@@ -234,9 +235,11 @@ export default function App() {
   const lw = dock.leftHidden ? 0 : dock.leftW;
   const rw = dock.rightHidden ? 0 : dock.rightW;
   const chatting = dock.space === "chat";
-  const timeMax = dock.timeMax && !chatting && dock.mode === "motion";
-  const appStyle = chatting
-    ? { gridTemplateColumns: "minmax(0, 1fr)", gridTemplateRows: `44px minmax(0, 1fr) ${dock.historyLine ? "48px" : "0"}`, gridTemplateAreas: '"top" "chathome" "hist"' }
+  // Kitchen, like Chat, is a whole page of its own: no tools, panels or tabs around it
+  const cooking = dock.space === "kitchen";
+  const timeMax = dock.timeMax && !chatting && !cooking && dock.mode === "motion";
+  const appStyle = chatting || cooking
+    ? { gridTemplateColumns: "minmax(0, 1fr)", gridTemplateRows: `44px minmax(0, 1fr) ${dock.historyLine ? "48px" : "0"}`, gridTemplateAreas: cooking ? '"top" "kitchen" "hist"' : '"top" "chathome" "hist"' }
     : {
     gridTemplateColumns: dock.swapped ? `auto ${rw}px 1fr ${lw}px` : `auto ${lw}px 1fr ${rw}px`,
     gridTemplateAreas: timeMax
@@ -262,15 +265,18 @@ export default function App() {
           </span>
           <div className="pill mode-switch space-switch">
             <button className={chatting ? "active" : ""} data-name="space-chat" onClick={() => setLayout({ space: "chat" })} title="Your projects and the AI">
-              Agent
+              Chat
             </button>
-            <button className={chatting ? "" : "active"} data-name="space-edit" onClick={() => setLayout({ space: "edit" })} title="Every tool, to work on the design yourself">
+            <button className={cooking ? "active" : ""} data-name="space-kitchen" onClick={() => setLayout({ space: "kitchen" })} title="Make work from recipes, step by step">
+              Kitchen
+            </button>
+            <button className={chatting || cooking ? "" : "active"} data-name="space-edit" onClick={() => setLayout({ space: "edit" })} title="Every tool, to work on the design yourself">
               Studio
             </button>
           </div>
         </div>
         {/* the kind of work sits in the middle, so it stays put whatever the sides hold */}
-        {chatting ? <div /> : (
+        {chatting || cooking ? <div /> : (
           <div className="pill mode-switch kind-switch">
           <button
             className={dock.mode === "design" ? "active" : ""}
@@ -307,12 +313,12 @@ export default function App() {
           >
             <Icon name={theme === "light" ? "moon" : "sun"} size={15} />
           </button>
-          {!chatting && dock.mode === "design" && (
+          {!chatting && !cooking && dock.mode === "design" && (
             <button className="pill" disabled={!hasFrames} onClick={() => setPresenting(true)} title="Click through your screens (Cmd or Ctrl Enter)">
               Present
             </button>
           )}
-          {!chatting && (
+          {!chatting && !cooking && (
           <>
           <button className={`pill icon ${dock.leftHidden ? "" : "on"}`} title="Show or hide the layers panel" onClick={() => setLayout({ leftHidden: !dock.leftHidden })}>
             <Icon name="panel-left" size={15} />
@@ -346,13 +352,15 @@ export default function App() {
         </div>
       </header>
       {/* in Edit, under it: the open projects like tabs in a browser, and the kind of work */}
-      {!chatting && (
+      {!chatting && !cooking && (
         <div className="tabbar">
           <Tabs home={homeOpen} setHome={setHomeOpen} />
         </div>
       )}
       {chatting ? (
         <ChatHome />
+      ) : cooking ? (
+        <Kitchen />
       ) : (
         <>
           <Toolbar />

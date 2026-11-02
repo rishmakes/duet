@@ -5,7 +5,7 @@ import { useSyncExternalStore } from "react";
 export type Corner = "tl" | "tr" | "bl" | "br";
 export type Mode = "design" | "motion" | "photo";
 /** Agent (called chat inside): talk to the AI beside your projects and watch the canvas. Studio (called edit inside): every tool. */
-export type Space = "chat" | "edit";
+export type Space = "chat" | "kitchen" | "edit";
 export type TimeLook = "layers" | "cut";
 /** What the right panel shows. Chat is a tab only in Video. */
 export type RightTab = "properties" | "color" | "chat";
@@ -117,7 +117,7 @@ export function parseLayout(raw: unknown): Dock {
     const mode: Mode = rawMode === "motion" ? "motion" : rawMode === "photo" || rawMode === "color" ? "photo" : "design";
     const r = raw as Partial<Dock>;
     const timeLook: TimeLook = r.timeLook === "cut" ? "cut" : "layers";
-    const space: Space = r.space === "chat" ? "chat" : "edit";
+    const space: Space = r.space === "chat" || r.space === "kitchen" ? r.space : "edit";
     const videoTab: RightTab = r.videoTab === "color" || r.videoTab === "chat" ? r.videoTab : "properties";
     const photoTab: RightTab = r.photoTab === "properties" ? "properties" : "color";
     // the history line was hidden by default before 0.12.1; it shows unless the designer hid it themselves
