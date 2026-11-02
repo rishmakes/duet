@@ -2,6 +2,7 @@ import { whoColour } from "../ai/colours";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { useChat } from "../ai/chat";
 import { nameOf } from "../ai/names";
+import { toolLabel } from "../ai/who";
 import { wordsBehind } from "../memory/steps";
 import { goTo, redo, undo, useStore } from "../state/store";
 import { childOf, directionOf } from "../state/directions";
@@ -95,7 +96,7 @@ export default function HistoryStrip() {
           {timeline.map((e, i) => {
             const isOld = i < cutoff;
             const words = wordsBehind(said, e) ?? wordsBehind(earlier, e);
-            const who = e.actor === "ai" ? (e.by ? `${nameOf(e.by, names)} · ${e.by}` : "Duet") : "You";
+            const who = e.actor === "ai" ? (e.by ? `${nameOf(e.by, names)} · ${toolLabel(e.by)}` : "Duet") : "You";
             const asked = words ? ` · You asked: “${words.length > 90 ? `${words.slice(0, 89).trimEnd()}…` : words}”` : "";
             const ringX = getX(i, timeline.length);
             const outlineColor = outlineFor(e.actor, e.by, e.version);

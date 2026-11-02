@@ -3,8 +3,6 @@
  * one colour everywhere: the designer is white, Duet's own AI is orange, and any AI that says its
  * name gets a colour of its own that never changes for that name.
  */
-import { plainName } from "./who";
-
 const AI_PALETTE = ["#35c9b5", "#5aa9ff", "#e6c14a", "#c58bff", "#7ed957"];
 
 /** The agents designers meet most keep a colour of their own, the same on every computer. */
@@ -19,6 +17,6 @@ export function agentColour(name: string): string {
 
 export function whoColour(actor: "you" | "ai", by?: string): string {
   if (actor === "you") return "var(--text)";
-  // each agent has one colour, whether it answers in the chat or works from its own window
-  return by ? agentColour(plainName(by)) : "var(--duet)";
+  // the same tool working from its own window is another AI, so it has a colour of its own
+  return by ? agentColour(by) : "var(--duet)";
 }

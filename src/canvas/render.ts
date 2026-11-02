@@ -15,7 +15,6 @@ import { nameOf } from "../ai/names";
 import { HANDLES } from "./handles";
 import { drawLinks } from "./links";
 import { agentColour } from "../ai/colours";
-import { plainName } from "../ai/who";
 import { RULER, rulerTicks } from "./guides";
 import { getLayout } from "../ui/layout";
 import { FONT_STACK, fontCss, layoutText, lineStep, lineWidth, measureText } from "./text";
@@ -811,7 +810,7 @@ export function draw(ctx: CanvasRenderingContext2D, s: State, w: number, h: numb
     const w = Math.max(...boxes.map((r) => r.x + r.width)) + pad - x;
     const h = Math.max(...boxes.map((r) => r.y + r.height)) + pad - y;
     const by = s.aiWork?.by;
-    const colour = by ? agentColour(plainName(by)) : COLORS.duet;
+    const colour = by ? agentColour(by) : COLORS.duet;
     ctx.save();
     ctx.fillStyle = colour;
     ctx.globalAlpha = 0.15;

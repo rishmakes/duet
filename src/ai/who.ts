@@ -23,6 +23,8 @@ export const OUTSIDE = " (outside)";
 export const isOutside = (by: string | null | undefined) => !!by && by.endsWith(OUTSIDE);
 /** The name without that mark. */
 export const plainName = (by: string) => (by.endsWith(OUTSIDE) ? by.slice(0, -OUTSIDE.length) : by);
+/** The tool, said for a designer: "Claude Code", or "Claude Code, from its own window". */
+export const toolLabel = (by: string) => (isOutside(by) ? `${plainName(by)}, from its own window` : by);
 
 /** The name to show for an AI tool, or undefined when it did not say who it is. */
 export function toolName(client: string | null | undefined): string | undefined {

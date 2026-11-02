@@ -1,4 +1,4 @@
-import { isOutside, plainName } from "../ai/who";
+import { OUTSIDE, isOutside, toolLabel } from "../ai/who";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { detectAgent, sendToAgent, sendToTask, stopAgent } from "../ai/agent";
 import { invoke } from "@tauri-apps/api/core";
@@ -152,7 +152,8 @@ export default function ChatPanel({ docked = false }: { docked?: boolean }) {
   const [mentionIndex, setMentionIndex] = useState(0);
 
   const chatTool = AGENTS.find((a) => a.id === agent)?.name || "AI";
-  const workingTool = running ? chatTool : busyName;
+  // an AI from its own window is kept apart from the chat's own, so it shows under its own name
+  const workingTool = running ? chatTool : busyName && busyName + OUTSIDE;
   const isWorking = Boolean(workingTool);
   const [waitingLine, setWaitingLine] = useState("");
   const workStartRef = useRef<number | null>(null);
@@ -404,23 +405,21 @@ export default function ChatPanel({ docked = false }: { docked?: boolean }) {
 
   const outsideAgents: string[] = [];
   for (const e of timeline) {
-    if (e.actor === "ai" && isOutside(e.by) && !outsideAgents.includes(plainName(e.by as string))) {
-      outsideAgents.push(plainName(e.by as string));
-    }
+    if (e.actor === "ai" && e.by && isOutside(e.by) && !outsideAgents.includes(e.by)) outsideAgents.push(e.by);
   }
-  if (seenName && !outsideAgents.includes(seenName)) outsideAgents.push(seenName);
+  if (seenName && !outsideAgents.includes(seenName + OUTSIDE)) outsideAgents.push(seenName + OUTSIDE);
 
   const members = AGENTS.filter((a) => a.runnable && Boolean(installed[a.id]));
 
   // an AI keeps its name once it has said or changed something here; until then it shows the name it will get
   const acted: string[] = [];
   for (const m of messages) if (m.role === "duet" && m.by && !acted.includes(m.by)) acted.push(m.by);
-  for (const e of timeline) if (e.actor === "ai" && e.by && !acted.includes(plainName(e.by))) acted.push(plainName(e.by));
+  for (const e of timeline) if (e.actor === "ai" && e.by && !acted.includes(e.by)) acted.push(e.by);
   const actedKey = acted.join("|");
   useEffect(() => {
     if (actedKey) nameAgents(actedKey.split("|"));
   }, [actedKey]);
-  const names = giveNames([...acted, toolName, ...members.map((m) => m.name)], given);
+  const names = giveNames([...acted, toolName, ...members.map((m) => m.name), ...outsideAgents], given);
   /** The name an AI goes by here: "Juniper". */
   const nm = (tool: string | undefined) => nameOf(tool, names) || "AI";
   const chatName = found === false ? toolName : nm(toolName);
@@ -518,7 +517,7 @@ export default function ChatPanel({ docked = false }: { docked?: boolean }) {
   const renderChanges = (item: Extract<Item, { kind: "changes" }>) => {
     const colour = item.actor === "you" ? "var(--text)" : whoColour("ai", item.by);
     const count = item.changes.length;
-    const who = item.actor === "you" ? "You" : isOutside(item.by) ? `${nm(item.by)}, from its own window` : "";
+    const who = item.actor === "you" ? "You" : isOutside(item.by) ? `${nm(item.by)} · ${toolLabel(item.by as string)}` : "";
     const shown = count === 1 ? "all" : openGroups[item.key];
     const allLater = item.changes.every((c) => later(c.at));
     const allOther = item.changes.every((c) => other(c.at));
@@ -731,16 +730,16 @@ export default function ChatPanel({ docked = false }: { docked?: boolean }) {
               </div>
             );
           })}
-          {/* the same tool opened in its own window is another AI, so it gets its own badge, under the tool's name */}
-          {outsideAgents.map((name) => (
+          {/* the same tool opened in its own window is another AI, so it gets its own badge and its own name */}
+          {outsideAgents.map((by) => (
             <div
-              key={name}
-              className={`member-badge outside ${busyName === name ? "answering" : ""}`}
-              style={{ backgroundColor: agentColour(name), ["--who" as string]: agentColour(name) }}
-              title={`${name}, from its own window`}
+              key={by}
+              className={`member-badge outside ${workingTool === by ? "answering" : ""}`}
+              style={{ backgroundColor: agentColour(by), ["--who" as string]: agentColour(by) }}
+              title={`${nm(by)} · ${toolLabel(by)}`}
               onClick={openPicker}
             >
-              {name.charAt(0)}
+              {nm(by).charAt(0)}
             </div>
           ))}
 
@@ -1001,7 +1000,8 @@ export default function ChatPanel({ docked = false }: { docked?: boolean }) {
             </div>
             {isWorking && workingTool && waitingLine && (
               <div className="chat-working-line">
-                <span className="chat-working-tool" style={{ color: agentColour(workingTool) }}>{nm(workingTool)}</span>: {waitingLine}
+                <span className="chat-working-tool" style={{ color: agentColour(workingTool) }}>{nm(workingTool)}</span>
+                <span className="chat-working-which"> · {toolLabel(workingTool)}</span>: {waitingLine}
               </div>
             )}
           </div>

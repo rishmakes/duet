@@ -13,9 +13,14 @@ describe("AI names", () => {
     expect(giveNames(["Claude Code"], a)).toBe(a);
   });
 
-  it("knows a tool working from its own window by the same name", () => {
-    const a = giveNames(["Cursor (outside)"], {});
-    expect(nameOf("Cursor (outside)", a)).toBe("Juniper");
+  it("gives the same tool working from its own window a name of its own", () => {
+    const a = giveNames(["Claude Code", "Claude Code (outside)"], {});
+    expect(nameOf("Claude Code", a)).toBe("Juniper");
+    expect(nameOf("Claude Code (outside)", a)).toBe("Moss");
+  });
+
+  it("shows the tool's own name for one from its own window that has none yet", () => {
+    expect(nameOf("Cursor (outside)", {})).toBe("Cursor");
   });
 
   it("skips a name the designer gave by hand", () => {
