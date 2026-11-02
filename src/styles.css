@@ -660,6 +660,8 @@ body.eyedropping * {
 .canvas-wrap {
   position: absolute;
   inset: 0;
+  /* everything on the canvas, comments too, stays under the chat and panels floating over it */
+  isolation: isolate;
 }
 .canvas-wrap canvas {
   display: block;
@@ -4607,6 +4609,9 @@ option {
 }
 .chat-working-tool {
   font-weight: 500;
+}
+.chat-working-which {
+  color: var(--muted);
 }
 
 /* The chat's foot is one soft box: the words on top with room to breathe, and a quiet row under them
