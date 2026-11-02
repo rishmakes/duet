@@ -476,3 +476,60 @@ describe("checkLayout", () => {
     expect(last.message).toContain("2 more problems");
   });
 });
+
+describe("design basics", () => {
+  const page = () => runCommand(emptyDoc(), "create_element", { id: "f", type: "frame", x: 0, y: 0, width: 1000, height: 800, props: { fill: "#ffffff" } });
+  const add = (d: ReturnType<typeof page>, id: string, type: string, box: [number, number, number, number], props: Record<string, unknown> = {}, parentId = "f") =>
+    runCommand(d, "create_element", { id, type, x: box[0], y: box[1], width: box[2], height: box[3], parentId, keepOrder: true, props: { name: id, ...props } } as never);
+  const kinds = (d: ReturnType<typeof page>) => checkLayout(d, "f").map((p) => p.kind);
+
+  it("finds empty space under the last line of text", () => {
+    let d = add(page(), "Quote", "text", [100, 100, 300, 24], { text: "One short line", fontSize: 16, fill: "#000000", textFixed: true });
+    d = runCommand(d, "set_props", { ids: ["Quote"], props: { height: 120 } });
+    expect(kinds(d)).toContain("text-gap");
+  });
+
+  it("finds a symbol the font draws as a smudge", () => {
+    const d = add(page(), "Pick", "text", [100, 100, 40, 20], { text: "Garia ▾", fontSize: 12, fill: "#000000" });
+    expect(kinds(d)).toContain("glyph");
+  });
+
+  it("finds a button whose corners do not follow the field around it", () => {
+    let d = add(page(), "Field", "rect", [100, 100, 500, 64], { fill: "#eeeeee", radius: 16 });
+    d = add(d, "Search", "rect", [480, 108, 112, 48], { fill: "#cc2222", radius: 2 });
+    const p = checkLayout(d, "f").find((x) => x.kind === "corners");
+    expect(p?.name).toBe("Search");
+    expect(p?.message).toContain("about 8px");
+  });
+
+  it("finds buttons with different corners and heights side by side", () => {
+    let d = add(page(), "Book", "rect", [100, 100, 120, 48], { fill: "#cc2222", radius: 24 });
+    d = add(d, "Book label", "text", [120, 112, 80, 24], { text: "Book", fontSize: 16, fill: "#ffffff" });
+    d = add(d, "Call", "rect", [240, 104, 120, 40], { fill: "#cc2222", radius: 6 });
+    d = add(d, "Call label", "text", [260, 112, 80, 24], { text: "Call", fontSize: 16, fill: "#ffffff" });
+    expect(kinds(d).filter((k) => k === "buttons")).toHaveLength(2);
+  });
+
+  it("finds stacked blocks that start together but end apart", () => {
+    let d = add(page(), "Search bar", "rect", [100, 100, 600, 64], { fill: "#eeeeee" });
+    d = add(d, "Review card", "rect", [100, 190, 640, 100], { fill: "#eeeeee" });
+    expect(checkLayout(d, "f").find((p) => p.kind === "edges")?.name).toBe("Review card");
+  });
+
+  it("finds a card that is mostly empty, and a label off its icon", () => {
+    let d = add(page(), "Door", "frame", [100, 100, 300, 200], { fill: "#f4f4f4" });
+    d = add(d, "Icon", "ellipse", [20, 20, 40, 40], { fill: "#cc2222" }, "Door");
+    d = add(d, "Label", "text", [10, 70, 100, 24], { text: "Packages", fontSize: 16, fill: "#000000" }, "Door");
+    const k = kinds(d);
+    expect(k).toContain("empty");
+    expect(k).toContain("off-centre");
+  });
+
+  it("leaves a tidy card alone", () => {
+    let d = add(page(), "Card", "frame", [100, 100, 200, 100], { fill: "#f4f4f4", radius: 16 });
+    d = add(d, "Icon", "ellipse", [80, 12, 40, 40], { fill: "#cc2222" }, "Card");
+    d = runCommand(d, "create_element", { id: "Label", type: "text", x: 0, y: 64, width: 200, height: 20, parentId: "Card", props: { name: "Label", text: "Packages", fontSize: 16, fill: "#000000", textAlign: "center", textFixed: true } } as never);
+    d = runCommand(d, "set_props", { ids: ["Label"], props: { width: 200 } });
+    expect(checkLayout(d, "f").filter((p) => ["off-centre", "empty", "text-gap", "corners", "buttons", "edges"].includes(p.kind)).map((p) => p.message)).toEqual([]);
+  });
+});
