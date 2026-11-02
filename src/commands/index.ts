@@ -393,11 +393,15 @@ const setProps: CommandDef<SetPropsArgs> = {
         el.rotation = canTurn(next, id) ? (el.keys.rotation?.length ? Math.round(turn * 100) / 100 : tidyAngle(turn)) : was;
         if (el.type === "group" && el.rotation !== was) turnGroup(next, id, el.rotation - was);
       }
-      // text that changes how it looks or what it says gets the size it needs, unless the size was given
-      if (el.type === "text" && TEXT_LOOK.some((k) => k in a.props) && !("width" in a.props) && !("height" in a.props)) {
-        const m = fitText(el);
-        el.width = m.width;
-        el.height = m.height;
+      if (el.type === "text" && !("height" in a.props)) {
+        // a width given to text is kept, like pulling the box by hand, and the words wrap inside it
+        if ("width" in a.props && !("textFixed" in a.props)) el.textFixed = true;
+        // text that changes its width, how it looks or what it says gets the height it needs
+        if ("width" in a.props || TEXT_LOOK.some((k) => k in a.props)) {
+          const m = fitText(el);
+          el.width = m.width;
+          el.height = m.height;
+        }
       }
     }
     return next;

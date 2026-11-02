@@ -1187,6 +1187,24 @@ describe("text", () => {
     expect(d.elements.t.height).toBe(h0);
   });
 
+  it("fits the height when the AI widens wrapped text, and leaves no gap", () => {
+    let d = withText("one two three four five six seven eight nine ten");
+    const h0 = d.elements.t.height;
+    d = runCommand(d, "set_props", { ids: ["t"], props: { width: 90 } });
+    expect(d.elements.t.textFixed).toBe(true);
+    expect(d.elements.t.height).toBeGreaterThan(h0 * 2);
+    d = runCommand(d, "set_props", { ids: ["t"], props: { width: 2000, textFixed: true } });
+    expect(d.elements.t.width).toBe(2000);
+    expect(d.elements.t.height).toBe(h0);
+  });
+
+  it("keeps a width the AI gave when the words change", () => {
+    let d = withText("short");
+    d = runCommand(d, "set_props", { ids: ["t"], props: { width: 400 } });
+    d = runCommand(d, "set_props", { ids: ["t"], props: { text: "A headline\nwith a break" } });
+    expect(d.elements.t.width).toBe(400);
+  });
+
   it("breaks text into lines the way the box asks", () => {
     const face = { fontFamily: "", fontWeight: 400, fontSize: 10, lineHeight: 0, letterSpacing: 0 };
     expect(wrapLines("aa bb cc", face, undefined)).toEqual(["aa bb cc"]);
