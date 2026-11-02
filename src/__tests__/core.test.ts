@@ -8,6 +8,7 @@ import { findStep, newStepId, stepsLine, wordsBehind } from "../memory/steps";
 import { leftOut } from "../ui/SendCopy";
 import { richParts } from "../ui/rich";
 import { defaultLayout, relayout } from "../document/layout";
+import { describeMark } from "../document/boards";
 import { distanceToLine, flatten, fromAbs, isSmooth, nearestOnLine, pathData, removeNode, removeNodes, splitSegment, toggleSmooth } from "../document/path";
 import { resizeRect } from "../canvas/handles";
 import { outline } from "../ai/outline";
@@ -2868,6 +2869,51 @@ describe("comments on the canvas", () => {
     const gone = runCommand(runCommand(resolved, "delete_comment", { id: "c1" }), "delete_comment", { id: "c2" });
     expect(gone.comments).toBeUndefined();
     expect(serializeDoc(gone)).not.toContain("comments");
+  });
+
+  it("keeps a mark drawn with the comment (box, arrow, freehand)", () => {
+    const start = emptyDoc();
+    const withBox = runCommand(start, "add_comment", {
+      id: "cb",
+      x: 480,
+      y: 80,
+      text: "Tighten this card",
+      mark: { kind: "box", points: [120, 80, 480, 300] },
+    });
+    expect(withBox.comments?.[0].mark).toEqual({ kind: "box", points: [120, 80, 480, 300] });
+    expect(describeMark(withBox.comments?.[0].mark)).toBe("marks the box 120,80 to 480,300");
+
+    const withArrow = runCommand(withBox, "add_comment", {
+      id: "ca",
+      x: 200,
+      y: 150,
+      text: "Check this icon",
+      mark: { kind: "arrow", points: [100, 50, 200, 150] },
+    });
+    expect(withArrow.comments?.[1].mark).toEqual({ kind: "arrow", points: [100, 50, 200, 150] });
+    expect(describeMark(withArrow.comments?.[1].mark)).toBe("arrow from 100,50 to 200,150");
+
+    const withFree = runCommand(withArrow, "add_comment", {
+      id: "cf",
+      x: 55,
+      y: 95,
+      text: "Weird gap",
+      mark: { kind: "free", points: [10, 20, 30, 40, 55, 95] },
+    });
+    expect(withFree.comments?.[2].mark).toEqual({ kind: "free", points: [10, 20, 30, 40, 55, 95] });
+    expect(describeMark(withFree.comments?.[2].mark)).toBe("freehand around 10,20 to 55,95");
+
+    // Old comment without mark has undefined mark and describeMark returns undefined
+    const plain = runCommand(start, "add_comment", { id: "cp", x: 1, y: 1, text: "plain" });
+    expect(plain.comments?.[0].mark).toBeUndefined();
+    expect(describeMark(plain.comments?.[0].mark)).toBeUndefined();
+
+    // Mark survives serialization, editing, and resolving
+    expect(parseDoc(serializeDoc(withFree)).comments).toEqual(withFree.comments);
+    const edited = runCommand(withFree, "edit_comment", { id: "cb", text: "New text" });
+    expect(edited.comments?.[0].mark).toEqual({ kind: "box", points: [120, 80, 480, 300] });
+    const resolved = runCommand(withFree, "resolve_comment", { id: "cb", reply: "Fixed" });
+    expect(resolved.comments?.[0].mark).toEqual({ kind: "box", points: [120, 80, 480, 300] });
   });
 });
 

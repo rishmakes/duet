@@ -4,7 +4,7 @@ import { ancestors, canMask, canTurn, descendants, tidyAngle, topLevelOnly, turn
 import { canBeComponent, captureOverrides, detachInstance, isDerived, syncInstances } from "../document/components";
 import { orderByPosition, relayout } from "../document/layout";
 import { MOVING, playsFile } from "../document/types";
-import type { Blend, Comment, Doc, El, ElementType, Key, Layout, Moving, ShapeKey, TextStyle } from "../document/types";
+import type { Blend, Comment, CommentMark, Doc, El, ElementType, Key, Layout, Moving, ShapeKey, TextStyle } from "../document/types";
 import { CURVES, ENTRANCES, entranceKeys, fileTimeAt, outlineOf, sceneOf, spanOf, valueAt, withKey, withShapeKey } from "../document/time";
 import type { CurveName, Entrance } from "../document/time";
 import { canGrade, mergeGrade } from "../document/grade";
@@ -1733,6 +1733,8 @@ export interface AddCommentArgs {
   by?: "you" | "ai";
   /** The thing under the pin. */
   on?: string | null;
+  /** An optional area or pointer drawn on the canvas with this comment. In page pixels. */
+  mark?: CommentMark;
 }
 
 const addComment: CommandDef<AddCommentArgs> = {
@@ -1744,6 +1746,12 @@ const addComment: CommandDef<AddCommentArgs> = {
     const c: Comment = { id: a.id ?? newId("comment"), x: round(a.x), y: round(a.y), text, by: a.by ?? "you" };
     if (a.on && doc.elements[a.on]) c.on = a.on;
     if (doc.boards?.length) c.board = openBoard(doc);
+    if (a.mark && Array.isArray(a.mark.points) && a.mark.points.length >= 2) {
+      c.mark = {
+        kind: a.mark.kind,
+        points: a.mark.points.filter((p) => Number.isFinite(p)).map((p) => round(p)),
+      };
+    }
     next.comments = [...(next.comments ?? []), c];
     return next;
   },

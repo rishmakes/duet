@@ -222,6 +222,14 @@ export interface TextStyle {
   letterSpacing: number;
 }
 
+export type CommentMarkKind = "box" | "arrow" | "free";
+
+export interface CommentMark {
+  kind: CommentMarkKind;
+  /** box: x1,y1,x2,y2; arrow: from x,y to x,y; free: x,y pairs */
+  points: number[];
+}
+
 /** A note pinned to a spot on the canvas, for the AI or for later. Not part of the design: never drawn in an export. */
 export interface Comment {
   id: string;
@@ -232,6 +240,8 @@ export interface Comment {
   by: "you" | "ai";
   /** The thing under the pin when it was placed, if any. */
   on?: string;
+  /** An optional area or pointer drawn on the canvas with this comment. In page pixels. */
+  mark?: CommentMark;
   /** The board it was pinned on, in a file with boards. Left out means the first board the file had. */
   board?: string;
   /** Dealt with: the pin goes away. */
