@@ -29,6 +29,7 @@ import { mentioned, setAgent } from "./chat";
 import { FROM_CHAT, OUTSIDE } from "./who";
 import { chatRules } from "./rules";
 import { nameOf } from "./names";
+import { busyOutside } from "./outside";
 import { aiStarted, bindAi } from "./tools";
 
 /** Runs the AI tool the designer already has, and shows what it says as chat. */
@@ -489,6 +490,25 @@ export async function stopAgent(key?: string) {
   ended(r);
   addMsg({ role: "note", text: "Stopped." }, r.where);
   keepIt();
+}
+
+/** Every AI at work right now, by the name it goes by and its tool: "Juniper (Claude Code)". */
+export function workingNow(): string[] {
+  const names = getChat().names;
+  const out: string[] = [];
+  for (const r of runs.values()) {
+    const tool = r.live ? speaker(r) : undefined;
+    if (tool) out.push(`${nameOf(tool, names)} (${tool})`);
+  }
+  // an AI from its own window counts while its last change is recent
+  const outside = busyOutside(15000);
+  if (outside) out.push(`${nameOf(outside + OUTSIDE, names)} (${outside}, from its own window)`);
+  return [...new Set(out)];
+}
+
+/** Stop every AI Duet started, in the chat and in tasks. */
+export async function stopAll() {
+  await Promise.all([...runs.entries()].filter(([, r]) => r.live).map(([k]) => stopAgent(k)));
 }
 
 /** A task is closed: its AI stops if it was at work. */

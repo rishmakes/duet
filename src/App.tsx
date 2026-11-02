@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useDismiss } from "./ui/useDismiss";
 import Tabs from "./ui/Tabs";
-import { detectAgent, startAgentListeners } from "./ai/agent";
+import { detectAgent, startAgentListeners, stopAll, workingNow } from "./ai/agent";
+import { ask } from "./ui/dialog";
 import { startMcp } from "./ai/mcp";
 import { loadSkills } from "./ai/skills";
 import CanvasView from "./canvas/CanvasView";
@@ -35,7 +36,7 @@ import LayersPanel from "./ui/LayersPanel";
 import PropertiesPanel from "./ui/PropertiesPanel";
 import Toolbar from "./ui/Toolbar";
 import PageStrip from "./ui/PageStrip";
-import { useStore } from "./state/store";
+import { getState, useStore } from "./state/store";
 import "./styles.css";
 
 const STATUS: Record<string, string> = {
@@ -138,8 +139,21 @@ export default function App() {
       // make sure the last save is in the file before the window closes
       // a slow or failed save must never keep the window open
       void getCurrentWindow().onCloseRequested(async (e) => {
-        // an AI is still working: hide the window and let it finish; Duet quits when it is done
-        if (await invoke<boolean>("keep_running_for_ai").catch(() => false)) {
+        // an AI is still working: say who, and let the designer choose to keep it going or stop it
+        const who = workingNow();
+        if (who.length) {
+          const where = getState().project.name || "this design";
+          const keep = await ask(`${who.join(" and ")} ${who.length > 1 ? "are" : "is"} still working on ${where}. Keep going in the background, or stop and close?`, {
+            title: "Duet",
+            kind: "warning",
+            okLabel: "Keep going",
+            cancelLabel: "Stop and close",
+          });
+          // kept: the window hides and Duet quits once the work is done
+          if (keep && (await invoke<boolean>("keep_running_for_ai").catch(() => false))) e.preventDefault();
+          if (!keep) await stopAll();
+        } else if (await invoke<boolean>("keep_running_for_ai").catch(() => false)) {
+          // Duet still saw an AI's call a moment ago, though none is named: let it finish quietly
           e.preventDefault();
         }
         await Promise.race([flushPack().catch(() => undefined), new Promise((done) => setTimeout(done, 4000))]);
