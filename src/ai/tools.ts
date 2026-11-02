@@ -15,7 +15,7 @@ import { defaultLayout } from "../document/layout";
 import { outlineFromData } from "../document/path";
 import { ENTRANCES, sceneOf } from "../document/time";
 import { MOVING, emptyDoc } from "../document/types";
-import { boardsOf, commentsHere, onOpenBoard, openBoard } from "../document/boards";
+import { boardsOf, commentsHere, describeMark, onOpenBoard, openBoard } from "../document/boards";
 import { GRADE_CONTROLS, canGrade, gradeChanges } from "../document/grade";
 import { readings as gradeReadings } from "../canvas/grade";
 import type { Doc, El } from "../document/types";
@@ -444,8 +444,17 @@ export const TOOLS: ToolDef[] = [
   },
   {
     name: "add_comment",
-    description: "Pin a short note on the canvas for the designer, at page pixels x and y, such as a question about one spot. Use it rarely: talk in the chat first.",
-    inputSchema: { type: "object", properties: { x: num, y: num, text: str }, required: ["x", "y", "text"] },
+    description: "Pin a short note on the canvas for the designer, at page pixels x and y, such as a question about one spot. Use it rarely: talk in the chat first. To point at an area, add a mark: a box (points x1,y1,x2,y2), an arrow (from x,y to x,y) or a freehand line (x,y pairs).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        x: num,
+        y: num,
+        text: str,
+        mark: { type: "object", properties: { kind: { type: "string", enum: ["box", "arrow", "free"] }, points: { type: "array", items: num } }, required: ["kind", "points"] },
+      },
+      required: ["x", "y", "text"],
+    },
   },
   {
     name: "delete_elements",
@@ -632,7 +641,9 @@ function prepare(tool: string, raw: Args, doc = R.currentDoc()): { args: Args } 
     }
     case "add_comment": {
       if (typeof a.x !== "number" || typeof a.y !== "number" || typeof a.text !== "string" || !a.text.trim()) return { error: "Give x and y as numbers, and the text." };
-      return { args: { x: a.x, y: a.y, text: a.text, by: "ai" } };
+      const m = a.mark as { kind?: unknown; points?: unknown } | undefined;
+      if (m !== undefined && (!["box", "arrow", "free"].includes(String(m?.kind)) || !Array.isArray(m?.points) || m.points.length < 4 || m.points.some((n) => typeof n !== "number"))) return { error: "A mark needs kind box, arrow or free, and at least 4 numbers in points." };
+      return { args: { x: a.x, y: a.y, text: a.text, by: "ai", ...(m ? { mark: m } : {}) } };
     }
     case "create_element": {
       if (!["frame", "rect", "ellipse", "text", "path"].includes(String(a.type))) return { error: "type must be frame, rect, ellipse, text or path." };
@@ -1420,17 +1431,22 @@ function openComments(doc: Doc) {
   return commentsHere(doc)
     .filter((c) => !c.resolved)
     .map((c) => {
+      // a marked area means the things in it; a pin means the things around its spot
+      const pts = c.mark?.points ?? [];
+      const xs = pts.filter((_, i) => i % 2 === 0);
+      const ys = pts.filter((_, i) => i % 2 === 1);
+      const area = xs.length && ys.length ? { x1: Math.min(...xs), y1: Math.min(...ys), x2: Math.max(...xs), y2: Math.max(...ys) } : { x1: c.x - 60, y1: c.y - 60, x2: c.x + 60, y2: c.y + 60 };
       const near = [...here]
         .filter((id) => !doc.elements[id].hidden)
         .map((id) => ({ id, r: worldBounds(doc, id) }))
-        .filter(({ r }) => c.x >= r.x - 60 && c.x <= r.x + r.width + 60 && c.y >= r.y - 60 && c.y <= r.y + r.height + 60)
+        .filter(({ r }) => r.x <= area.x2 && r.x + r.width >= area.x1 && r.y <= area.y2 && r.y + r.height >= area.y1)
         // smallest first: the closest things around the spot, not the frame they sit in
         .sort((p, q) => p.r.width * p.r.height - q.r.width * q.r.height)
         .slice(0, 6)
         .map(({ id }) => ({ id, name: doc.elements[id].name, type: doc.elements[id].type }));
       const under = c.on && doc.elements[c.on] ? c.on : near[0]?.id;
       const frame = under ? frameOf(doc, under) : null;
-      return { id: c.id, text: c.text, by: c.by, x: c.x, y: c.y, on: under ? { id: under, name: doc.elements[under].name } : null, frame: frame ? doc.elements[frame].name : null, near };
+      return { id: c.id, text: c.text, by: c.by, x: c.x, y: c.y, ...(c.mark ? { marks: describeMark(c.mark) } : {}), on: under ? { id: under, name: doc.elements[under].name } : null, frame: frame ? doc.elements[frame].name : null, near };
     });
 }
 

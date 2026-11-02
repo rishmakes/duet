@@ -1746,7 +1746,7 @@ const addComment: CommandDef<AddCommentArgs> = {
     const c: Comment = { id: a.id ?? newId("comment"), x: round(a.x), y: round(a.y), text, by: a.by ?? "you" };
     if (a.on && doc.elements[a.on]) c.on = a.on;
     if (doc.boards?.length) c.board = openBoard(doc);
-    if (a.mark && Array.isArray(a.mark.points) && a.mark.points.length >= 2) {
+    if (a.mark && ["box", "arrow", "free"].includes(a.mark.kind) && Array.isArray(a.mark.points) && a.mark.points.length >= 2) {
       c.mark = {
         kind: a.mark.kind,
         points: a.mark.points.filter((p) => Number.isFinite(p)).map((p) => round(p)),
