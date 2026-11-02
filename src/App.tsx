@@ -89,7 +89,8 @@ export default function App() {
   const [theme] = useTheme();
   useDismiss(zoomMenu, () => setZoomMenu(false), ".zoomwrap.zoomonly");
   const [presenting, setPresenting] = useState(false);
-  const [homeOpen, setHomeOpen] = useState(false);
+  // Home shows from the first moment, so the studio never flashes up empty while the last design loads behind it
+  const [homeOpen, setHomeOpen] = useState(true);
   // in full screen there are no window buttons, so the name moves to the very left
   const [full, setFull] = useState(false);
   useEffect(() => {
@@ -128,8 +129,7 @@ export default function App() {
       if (isCheckCopy()) setCheck(true);
       // a project file double-clicked in Finder or Explorer opens straight in, without Home
       const f = inTauri() ? await invoke<string | null>("launch_file").catch(() => null) : null;
-      if (f) return void openProjectAt(f);
-      setHomeOpen(true);
+      if (f) return (setHomeOpen(false), void openProjectAt(f));
     });
     const stops: (() => void)[] = [];
     let alive = true;
