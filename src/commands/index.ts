@@ -710,6 +710,8 @@ export interface ReparentArgs {
   parentId: string | null;
   /** Position in the new parent's list. Later means in front. Defaults to the front. */
   index?: number;
+  /** Keep the order asked for, instead of the order things sit in on an auto layout frame. */
+  keepOrder?: boolean;
   label?: string;
 }
 
@@ -745,7 +747,8 @@ const reparentElements: CommandDef<ReparentArgs> = {
       el.y = w.y - parentWorld.y;
       index = at + 1;
     }
-    orderByPosition(next, a.parentId);
+    // a place asked for is kept; only a plain drop is put where it sits
+    if (a.index === undefined && !a.keepOrder) orderByPosition(next, a.parentId);
     return next;
   },
 };

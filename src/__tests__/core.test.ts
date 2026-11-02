@@ -1701,6 +1701,19 @@ describe("what the AI can ask for", () => {
     expect(getChat().pictures).toEqual([]);
   });
 
+  it("makes the AI's frames inside a frame see-through, and no bigger than the room they sit in", async () => {
+    await callTool("create_elements", {
+      elements: [{ type: "frame", x: 0, y: 0, width: 600, height: 64, layout: { dir: "row", gap: 8, padX: 8, padY: 8, align: "center", justify: "start", hug: false }, children: [{ type: "frame", x: 0, y: 0, grow: 1 }] }],
+    });
+    const els = Object.values(currentDoc().elements);
+    const bar = els.find((e) => e.width === 600)!;
+    const inner = els.find((e) => e.parentId === bar.id)!;
+    expect(bar.fill).toBe("#ffffff");
+    expect(inner.fill).toBe("#ffffff00");
+    expect(inner.height).toBeLessThanOrEqual(48);
+    expect(inner.y).toBeGreaterThanOrEqual(0);
+  });
+
   it("holds every AI to the designer's setting, and marks what it changes as Duet's step", async () => {
     await callTool("create_element", { type: "rect", x: 0, y: 0, width: 10, height: 10 });
     const a = Object.keys(currentDoc().elements)[0];
@@ -2495,6 +2508,23 @@ describe("create_elements", () => {
       ],
     });
     expect(doc.elements.row.childIds).toEqual(["left", "right"]);
+  });
+
+  it("moves a layer to the place asked for inside an auto layout frame", () => {
+    const row = defaultLayout();
+    const make = (keepOrder: boolean) =>
+      runCommand(emptyDoc(), "create_elements", {
+        items: [
+          { id: "row", type: "frame", x: 0, y: 0, width: 400, height: 100, props: { layout: { ...row, dir: "row" } } },
+          { id: "a", type: "rect", x: 0, y: 0, width: 40, height: 20, parentId: "row", keepOrder: true },
+          { id: "b", type: "rect", x: 0, y: 0, width: 40, height: 20, parentId: "row", keepOrder: true },
+          { id: "c", type: "rect", x: 0, y: 0, width: 40, height: 20, parentId: "row", keepOrder: true },
+          { id: "loose", type: "rect", x: 0, y: 0, width: 40, height: 20, keepOrder },
+        ],
+      });
+    expect(runCommand(make(true), "reparent_elements", { ids: ["b"], parentId: "row", index: 3 }).elements.row.childIds).toEqual(["a", "c", "b"]);
+    // the AI's move with no place goes to the end, not to where the thing happened to sit
+    expect(runCommand(make(true), "reparent_elements", { ids: ["loose"], parentId: "row", keepOrder: true }).elements.row.childIds).toEqual(["a", "b", "c", "loose"]);
   });
 
   it("starts clear when a wrapper frame inside an auto layout frame has no fill", () => {

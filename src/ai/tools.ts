@@ -663,7 +663,12 @@ function prepare(tool: string, raw: Args, doc = R.currentDoc()): { args: Args } 
           return { error: e instanceof Error ? e.message : String(e) };
         }
       } else {
-        const fallback = a.type === "frame" ? { w: 360, h: 640 } : { w: 120, h: 120 };
+        const holder = a.parentId != null ? doc.elements[String(a.parentId)] : undefined;
+        // a frame made inside another one with no size given fits inside it, not a whole phone screen
+        const room = holder ? { w: holder.width - 2 * (holder.layout?.padX ?? 0), h: holder.height - 2 * (holder.layout?.padY ?? 0) } : null;
+        // the AI groups things in frames it never means to paint, so one inside another starts see-through
+        if (a.type === "frame" && holder && !("fill" in p)) p.fill = "#ffffff00";
+        const fallback = a.type === "frame" ? { w: Math.max(1, Math.min(360, room?.w ?? 360)), h: Math.max(1, Math.min(640, room?.h ?? 640)) } : { w: 120, h: 120 };
         a.width = typeof a.width === "number" ? a.width : fallback.w;
         a.height = typeof a.height === "number" ? a.height : fallback.h;
       }
@@ -948,6 +953,8 @@ function prepare(tool: string, raw: Args, doc = R.currentDoc()): { args: Args } 
       if (bad.length) return { error: `No element with id: ${bad.join(", ")}.` };
       if (a.parentId != null && doc.elements[String(a.parentId)]?.type !== "frame") return { error: `parentId ${String(a.parentId)} is not a frame.` };
       a.parentId = a.parentId ?? null;
+      // the AI means the place it asks for, or the end of the list
+      a.keepOrder = true;
       return { args: a };
     }
     case "delete_elements": {
