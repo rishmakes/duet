@@ -30,7 +30,7 @@ import {
 } from "../document/geometry";
 import { canBeComponent } from "../document/components";
 import { docAt } from "../document/time";
-import type { Doc, El, ElementType, Rect } from "../document/types";
+import type { CommentMark, Doc, El, ElementType, Rect } from "../document/types";
 import {
   clearOverlay,
   workDoc,
@@ -120,6 +120,7 @@ function hitTest(doc: Doc, x: number, y: number, ignore?: Set<string>, deep?: bo
 }
 
 type Drag =
+  | { kind: "comment"; start: { x: number; y: number }; sx: number; sy: number; moved: boolean; freePoints: number[] }
   | { kind: "link"; from: string }
   | { kind: "pen"; index: number | null }
   | { kind: "node"; hit: NodeHit; start: AbsNode[]; at: { x: number; y: number }; sx: number; sy: number; moved: boolean }
@@ -502,8 +503,10 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
   }, []);
   const editingId = useStore((s) => s.editingId);
   const viewport = useStore((s) => s.viewport);
-  // a comment being written: where its pin goes, and the thing under it
-  const [draft, setDraft] = useState<{ x: number; y: number; on: string | null } | null>(null);
+  // a comment being written: where its pin goes, the thing under it, and an optional mark (box, arrow, freehand)
+  const [draft, setDraft] = useState<{ x: number; y: number; on: string | null; mark?: CommentMark } | null>(null);
+  // a mark being drawn live as the designer drags with the comment tool
+  const [drawingMark, setDrawingMark] = useState<CommentMark | null>(null);
   // a comment picked in the list comes to the middle of the canvas, its pins shown
   useEffect(() => {
     const go = (e: Event) => {
@@ -1082,10 +1085,17 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
 
     stopGlide();
 
-    // the comment tool pins a note where you click, on whatever is there
+    // the comment tool pins a note where you click, or draws a mark when dragged
     if (s.tool === "comment") {
       if (getLayout().commentsHidden) setLayout({ commentsHidden: false });
-      setDraft({ x: p.x, y: p.y, on: hitTest(workDoc(s), p.x, p.y, new Set(), true) });
+      dragRef.current = {
+        kind: "comment",
+        start: { x: p.x, y: p.y },
+        sx: p.sx,
+        sy: p.sy,
+        moved: false,
+        freePoints: [p.x, p.y],
+      };
       return;
     }
 
@@ -1242,6 +1252,28 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     }
     if (strokeRef.current) {
       handleStrokeMove(e);
+      return;
+    }
+
+    if (d?.kind === "comment") {
+      const moved = Math.hypot(p.sx - d.sx, p.sy - d.sy) >= 4;
+      if (moved) d.moved = true;
+      if (e.altKey) {
+        const lastX = d.freePoints[d.freePoints.length - 2];
+        const lastY = d.freePoints[d.freePoints.length - 1];
+        if (Math.hypot(p.x - lastX, p.y - lastY) >= 2) {
+          d.freePoints.push(p.x, p.y);
+        }
+        setDrawingMark({ kind: "free", points: [...d.freePoints] });
+      } else if (e.shiftKey) {
+        setDrawingMark({ kind: "arrow", points: [d.start.x, d.start.y, p.x, p.y] });
+      } else if (d.moved) {
+        const x1 = Math.min(d.start.x, p.x);
+        const y1 = Math.min(d.start.y, p.y);
+        const x2 = Math.max(d.start.x, p.x);
+        const y2 = Math.max(d.start.y, p.y);
+        setDrawingMark({ kind: "box", points: [x1, y1, x2, y2] });
+      }
       return;
     }
 
@@ -1494,6 +1526,42 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     letGo(e.pointerId);
     if (!d) return;
     const p = point(e);
+
+    if (d.kind === "comment") {
+      setDrawingMark(null);
+      const moved = d.moved || Math.hypot(p.sx - d.sx, p.sy - d.sy) >= 4;
+      if (!moved) {
+        // A click still drops a pin
+        setDraft({ x: p.x, y: p.y, on: hitTest(workDoc(), p.x, p.y, new Set(), true) });
+        return;
+      }
+      // A drag draws a mark: box by default, arrow with Shift held, freehand with Option/Alt held.
+      // On release the comment box opens; its pin sits at the end of the mark (box: top-right corner; arrow: its head; free: last point).
+      if (e.altKey || d.freePoints.length > 2) {
+        const lastX = d.freePoints[d.freePoints.length - 2];
+        const lastY = d.freePoints[d.freePoints.length - 1];
+        if (Math.hypot(p.x - lastX, p.y - lastY) >= 1) {
+          d.freePoints.push(p.x, p.y);
+        }
+        const mark: CommentMark = { kind: "free", points: d.freePoints };
+        const pinX = d.freePoints[d.freePoints.length - 2];
+        const pinY = d.freePoints[d.freePoints.length - 1];
+        setDraft({ x: pinX, y: pinY, on: hitTest(workDoc(), pinX, pinY, new Set(), true), mark });
+      } else if (e.shiftKey) {
+        const mark: CommentMark = { kind: "arrow", points: [d.start.x, d.start.y, p.x, p.y] };
+        setDraft({ x: p.x, y: p.y, on: hitTest(workDoc(), p.x, p.y, new Set(), true), mark });
+      } else {
+        const x1 = Math.min(d.start.x, p.x);
+        const y1 = Math.min(d.start.y, p.y);
+        const x2 = Math.max(d.start.x, p.x);
+        const y2 = Math.max(d.start.y, p.y);
+        const mark: CommentMark = { kind: "box", points: [x1, y1, x2, y2] };
+        const pinX = x2;
+        const pinY = y1;
+        setDraft({ x: pinX, y: pinY, on: hitTest(workDoc(), pinX, pinY, new Set(), true) ?? hitTest(workDoc(), d.start.x, d.start.y, new Set(), true), mark });
+      }
+      return;
+    }
 
     if (d.kind === "link") {
       const to = getState().overlay.linkDrag?.to ?? null;
@@ -2004,6 +2072,11 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
         return;
       }
       if (e.key === "Escape") {
+        if (dragRef.current?.kind === "comment") {
+          dragRef.current = null;
+          setDrawingMark(null);
+          return;
+        }
         if (strokeRef.current) {
           cancelStroke(strokeRef.current);
           strokeRef.current = null;
@@ -2208,7 +2281,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
         </button>
       )}
       {editingId && <TextEditor key={editingId} id={editingId} zoom={viewport.zoom} vx={viewport.x} vy={viewport.y} />}
-      {!viewOnly && <Comments zoom={viewport.zoom} vx={viewport.x} vy={viewport.y} draft={draft} onDraftDone={() => setDraft(null)} />}
+      {!viewOnly && <Comments zoom={viewport.zoom} vx={viewport.x} vy={viewport.y} draft={draft} drawingMark={drawingMark} onDraftDone={() => setDraft(null)} />}
     </div>
   );
 }
@@ -2229,8 +2302,71 @@ function normalize(x1: number, y1: number, x2: number, y2: number): Rect {
   return { x: Math.min(x1, x2), y: Math.min(y1, y2), width: Math.abs(x2 - x1), height: Math.abs(y2 - y1) };
 }
 
+/** A mark drawn with a comment: a box, an arrow, or a freehand stroke. Drawn as a thin SVG line in the pin colour. */
+function CommentMarkSvg({ mark, by, zoom, vx, vy }: { mark: CommentMark; by?: "you" | "ai"; zoom: number; vx: number; vy: number }) {
+  const cls = `comment-mark${by === "ai" ? " ai" : ""}`;
+  if (mark.kind === "box" && mark.points.length >= 4) {
+    const minX = Math.min(mark.points[0], mark.points[2]);
+    const minY = Math.min(mark.points[1], mark.points[3]);
+    const maxX = Math.max(mark.points[0], mark.points[2]);
+    const maxY = Math.max(mark.points[1], mark.points[3]);
+    const x = minX * zoom + vx;
+    const y = minY * zoom + vy;
+    const w = (maxX - minX) * zoom;
+    const h = (maxY - minY) * zoom;
+    return <rect className={cls} x={x} y={y} width={w} height={h} rx={3} />;
+  }
+  if (mark.kind === "arrow" && mark.points.length >= 4) {
+    const x1 = mark.points[0] * zoom + vx;
+    const y1 = mark.points[1] * zoom + vy;
+    const x2 = mark.points[2] * zoom + vx;
+    const y2 = mark.points[3] * zoom + vy;
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const len = Math.hypot(dx, dy);
+    if (len < 1) return null;
+    const angle = Math.atan2(dy, dx);
+    const headLen = Math.min(12, Math.max(8, len * 0.3));
+    const headAngle = Math.PI / 6;
+    const w1x = x2 - headLen * Math.cos(angle - headAngle);
+    const w1y = y2 - headLen * Math.sin(angle - headAngle);
+    const w2x = x2 - headLen * Math.cos(angle + headAngle);
+    const w2y = y2 - headLen * Math.sin(angle + headAngle);
+    const d = `M ${x1} ${y1} L ${x2} ${y2} M ${w1x} ${w1y} L ${x2} ${y2} L ${w2x} ${w2y}`;
+    return <path className={cls} d={d} />;
+  }
+  if (mark.kind === "free" && mark.points.length >= 2) {
+    let d = "";
+    for (let i = 0; i < mark.points.length; i += 2) {
+      const px = mark.points[i];
+      const py = mark.points[i + 1];
+      if (!Number.isFinite(px) || !Number.isFinite(py)) continue;
+      const sx = px * zoom + vx;
+      const sy = py * zoom + vy;
+      d += i === 0 ? `M ${sx} ${sy}` : ` L ${sx} ${sy}`;
+    }
+    if (!d) return null;
+    return <path className={cls} d={d} />;
+  }
+  return null;
+}
+
 /** The comments pinned on the canvas, and the box a new one is written in. Resolved ones are gone from view. */
-function Comments({ zoom, vx, vy, draft, onDraftDone }: { zoom: number; vx: number; vy: number; draft: { x: number; y: number; on: string | null } | null; onDraftDone: () => void }) {
+function Comments({
+  zoom,
+  vx,
+  vy,
+  draft,
+  drawingMark,
+  onDraftDone,
+}: {
+  zoom: number;
+  vx: number;
+  vy: number;
+  draft: { x: number; y: number; on: string | null; mark?: CommentMark } | null;
+  drawingMark?: CommentMark | null;
+  onDraftDone: () => void;
+}) {
   const all = useStore((s) => workDoc(s).comments);
   const board = useStore((s) => openBoard(workDoc(s)));
   const list = all?.filter((c) => pinnedOn(c, board));
@@ -2242,6 +2378,13 @@ function Comments({ zoom, vx, vy, draft, onDraftDone }: { zoom: number; vx: numb
   const stop = (e: React.PointerEvent | React.MouseEvent) => e.stopPropagation();
   return (
     <>
+      {!hidden && (
+        <svg className="comment-marks" aria-hidden="true">
+          {shown.map((c) => (c.mark ? <CommentMarkSvg key={c.id} mark={c.mark} by={c.by} zoom={zoom} vx={vx} vy={vy} /> : null))}
+          {draft?.mark && <CommentMarkSvg key="draft" mark={draft.mark} by="you" zoom={zoom} vx={vx} vy={vy} />}
+          {drawingMark && <CommentMarkSvg key="drawing" mark={drawingMark} by="you" zoom={zoom} vx={vx} vy={vy} />}
+        </svg>
+      )}
       {shown.map((c, i) => (
         <div key={c.id} className="comment" style={{ left: c.x * zoom + vx, top: c.y * zoom + vy }} onPointerDown={stop} onDoubleClick={stop}>
           <button className={`comment-pin${c.by === "ai" ? " ai" : ""}${open === c.id ? " open" : ""}`} title={c.text} onClick={() => setOpen(open === c.id ? null : c.id)}>
@@ -2274,12 +2417,12 @@ function Comments({ zoom, vx, vy, draft, onDraftDone }: { zoom: number; vx: numb
           )}
         </div>
       ))}
-      {draft && <CommentDraft key={`${draft.x},${draft.y}`} at={draft} left={draft.x * zoom + vx} top={draft.y * zoom + vy} onDone={onDraftDone} />}
+      {draft && !hidden && <CommentDraft key={`${draft.x},${draft.y}`} at={draft} left={draft.x * zoom + vx} top={draft.y * zoom + vy} onDone={onDraftDone} />}
     </>
   );
 }
 
-function CommentDraft({ at, left, top, onDone }: { at: { x: number; y: number; on: string | null }; left: number; top: number; onDone: () => void }) {
+function CommentDraft({ at, left, top, onDone }: { at: { x: number; y: number; on: string | null; mark?: CommentMark }; left: number; top: number; onDone: () => void }) {
   return (
     <div className="comment" style={{ left, top }} onPointerDown={(e) => e.stopPropagation()}>
       <span className="comment-pin open" />
@@ -2287,7 +2430,7 @@ function CommentDraft({ at, left, top, onDone }: { at: { x: number; y: number; o
         <CommentText
           start=""
           onDone={(text) => {
-            if (text) dispatch("add_comment", { x: at.x, y: at.y, text, on: at.on });
+            if (text) dispatch("add_comment", { x: at.x, y: at.y, text, on: at.on, ...(at.mark ? { mark: at.mark } : {}) });
             onDone();
           }}
         />
