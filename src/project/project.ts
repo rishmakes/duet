@@ -1008,7 +1008,9 @@ export async function startTestDesign(doc: Doc = emptyDoc()): Promise<string | n
   await opening.catch(() => undefined);
   const s = getState();
   if (!inTest) {
-    if (!s.project.path && s.timeline.length > 1) return "There is work here that has not been saved. Save it first.";
+    // in Duet dev unsaved work is only an earlier test, so it is let go rather than refusing and
+    // leaving the AI drawing into it, which would give it a home as yet another Untitled
+    if (!s.project.path && s.timeline.length > 1 && !checkCopy) return "There is work here that has not been saved. Save it first.";
     // no question on the screen here: whoever asked for a test design cannot answer one
     if (getChat().busy !== null) return "The AI in the chat is still working. Wait for it or stop it first.";
     clearTimeout(timer);

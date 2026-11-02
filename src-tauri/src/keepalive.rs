@@ -73,6 +73,14 @@ pub fn run_hidden(app: &AppHandle) {
 /// The AI needs the designer (a question, a suggestion, or a change to work saved nowhere).
 #[tauri::command]
 pub fn bring_back(app: AppHandle) {
+    // only a window that is gone comes back; one already on screen is never pulled forward,
+    // so the designer is not moved to another desktop while an AI works
+    if let Some(window) = app.get_webview_window("main") {
+        let shown = window.is_visible().unwrap_or(false) && !window.is_minimized().unwrap_or(false);
+        if shown {
+            return;
+        }
+    }
     show_window(&app);
 }
 

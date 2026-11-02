@@ -1562,9 +1562,10 @@ async function answerTool(name: string, raw: unknown, by?: string): Promise<Tool
   const off = offBrand(R.currentDoc(), check.args);
   if (off) return fail(off);
   const summary = summarise(name, check.args);
-  // Duet may be running with no window for an outside AI: anything the designer must answer,
-  // or a change to work that is saved nowhere, brings the window back so nothing is missed or lost
-  if (mode === "suggest" || (RISKY.has(name) && mode === "ask") || !R.getState().project.path) {
+  // Duet may be running with no window for an outside AI: anything the designer must answer brings
+  // the window back. A plain change does not: work saved nowhere is given a home by itself, and the
+  // designer keeps their screen while the AI works
+  if (mode === "suggest" || (RISKY.has(name) && mode === "ask")) {
     void invoke("bring_back").catch(() => undefined);
   }
 

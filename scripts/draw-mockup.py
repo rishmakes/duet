@@ -32,7 +32,11 @@ def dot(p, x, y, d, fill, name="Step", stroke=None): el("ellipse", x - d / 2, y 
 def text(p, x, y, t, size=13, fill="#e8e8ee", weight=400, w=None, name=None): el("text", x, y, w, None, parent=p, name=name or t[:24], text=t, fontSize=size, fill=fill, fontWeight=weight, **({"textFixed": True} if w else {}))
 mode = json.loads(call("get_context")).get("permission")
 if mode != "auto": sys.exit(f"Duet dev is on '{mode}'. Set it to Auto first.")
-print(call("dev_test_design")[:40])
+started = call("dev_test_design")
+print(started[:40])
+# drawing into whatever is open would save it as a new Untitled
+if not started.startswith("A clean test design"):
+    sys.exit("No test design: " + started)
 exec(open(sys.argv[1]).read())
 print(count, "things drawn")
 print(call("dev_keep_test_design", {"path": sys.argv[2]}))
