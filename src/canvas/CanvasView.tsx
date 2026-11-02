@@ -1676,11 +1676,14 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
 
   // ---------- wheel, pinch ----------
   useEffect(() => {
-    const canvas = canvasRef.current!;
+    // listened for on the whole canvas area, so a scroll or pinch over a comment still moves the design
+    const canvas = wrapRef.current!;
     // A pinch on a Mac trackpad arrives as gesture events. While one is running, ignore wheel zoom,
     // so the same pinch is never counted twice.
     let pinch: { zoom: number; wx: number; wy: number } | null = null;
     const onWheel = (e: WheelEvent) => {
+      // words being typed scroll their own box
+      if ((e.target as Element).closest?.("textarea, input")) return;
       e.preventDefault();
       if (getState().editingId || lockedRef.current) return;
       stopGlide();
