@@ -666,8 +666,8 @@ export default function ChatPanel({ docked = false, extra, onFold }: { docked?: 
           )}
           {running && <span className="chat-status">{nm(members.find((m) => m.id === agent)?.name ?? "The AI")} is working…</span>}
         </div>
-        {/* the chat stands in a column on the left, or floats over the canvas: the designer picks, in each space */}
-        <button
+        {/* the chat stands in a column on the left, or floats over the canvas: the designer picks, in Studio; Kitchen keeps it in its side */}
+        {!onFold && <button
           type="button"
           className="chat-dock-btn"
           data-name={docked ? "chat-float" : "chat-dock"}
@@ -680,7 +680,7 @@ export default function ChatPanel({ docked = false, extra, onFold }: { docked?: 
           }}
         >
           <Icon name="panel-left" size={14} />
-        </button>
+        </button>}
         {extra && (
           <div className="chat-extra" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
             {extra}

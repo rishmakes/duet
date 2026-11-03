@@ -53,7 +53,8 @@ export default function Kitchen() {
   const recipes = useRecipes();
   const cooking = useCooking();
   const tool = useStore((s) => s.tool);
-  const docked = useLayout((d) => d.chatDocked.kitchen);
+  // in Kitchen the chat always lives in the side, under the recipe; it gets small or big there, never floats
+  const docked = true;
   const chatW = useLayout((d) => d.kitchenChatW);
   const plays = useStore((s) => Object.values(s.timeline[s.cursor].doc.elements).some((e) => e.type === "frame" && e.duration > 0));
   const recipeW = useLayout((d) => d.recipeW);
