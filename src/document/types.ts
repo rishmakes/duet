@@ -242,6 +242,9 @@ export interface Comment {
   on?: string;
   /** An optional area or pointer drawn on the canvas with this comment. In page pixels. */
   mark?: CommentMark;
+  /** On a frame that plays: the scene, and the second in it the comment is about. It shows as a marker on the timeline. */
+  scene?: string;
+  t?: number;
   /** The board it was pinned on, in a file with boards. Left out means the first board the file had. */
   board?: string;
   /** Dealt with: the pin goes away. */

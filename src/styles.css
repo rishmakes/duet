@@ -8956,16 +8956,6 @@ input.chathome-name.rename {
   border-top: 1px solid var(--line);
   margin: 6px 0;
 }
-/* floating, the chat is narrow: its name stays whole, the recipe and New task make room */
-.chat:not(.docked) .ctitle {
-  flex: 1 0 auto;
-}
-.chat:not(.docked) .recipe-pick {
-  max-width: 110px;
-}
-.chat:not(.docked):not(.min) .chat-new-btn span {
-  display: none;
-}
 /* Kitchen's few tools, at the bottom left of the design, clear of the floating chat on the right */
 .kitchen-canvas-stage {
   position: relative;
@@ -9100,12 +9090,6 @@ input.chathome-name.rename {
   color: var(--muted);
   font-size: 11px;
 }
-.chat:not(.docked) .chead {
-  gap: 4px;
-}
-.chat:not(.docked) .recipe-pick {
-  max-width: 96px;
-}
 /* Kitchen's board pick, quiet inside the toolbar */
 .kitchen-board-pick {
   height: 30px;
@@ -9122,16 +9106,121 @@ input.chathome-name.rename {
 .kitchen-board-pick:hover {
   background: var(--panel-2);
 }
-.chat-more-list {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 4px;
-}
-.chat-more-list .recipe-pick {
-  max-width: none;
-}
-/* Kitchen's timeline sits under the design and keeps its own height */
-.kitchen-preview > .time {
+/* Kitchen's review timeline: play, a long line of time, and the comments on it as markers */
+.review-bar {
   flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+}
+.review-play {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: var(--text);
+  color: var(--panel);
+  font-size: 11px;
+  cursor: pointer;
+}
+.review-time {
+  flex: none;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.review-time i {
+  font-style: normal;
+  color: var(--muted);
+}
+.review-lane {
+  position: relative;
+  flex: 1;
+  height: 28px;
+  cursor: pointer;
+}
+.review-lane::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 12px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--panel-2);
+}
+.review-fill {
+  position: absolute;
+  left: 0;
+  top: 12px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.review-head {
+  position: absolute;
+  top: 4px;
+  width: 2px;
+  height: 20px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--text);
+  pointer-events: none;
+}
+.review-mark {
+  position: absolute;
+  top: -4px;
+  width: 18px;
+  height: 18px;
+  margin-left: -9px;
+  border: none;
+  border-radius: 50% 50% 50% 3px;
+  background: var(--text);
+  color: var(--panel);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  z-index: 2;
+}
+.review-mark.ai {
+  background: var(--accent);
+  color: #fff;
+}
+.review-comment {
+  flex: none;
+  border: 1px solid var(--line);
+}
+.kitchen-tool.with-icon {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* the chat's top: its name and who is working, then a row of its tools under it; folded, only the name shows */
+.chat .chead {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+.chat .chead > .ctitle {
+  flex: 1 0 100%;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.chat .chead > .members-cluster {
+  margin-left: auto;
+}
+.chat.min .chead > :not(.ctitle) {
+  display: none;
+}
+.chat-status {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }

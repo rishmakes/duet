@@ -2430,7 +2430,9 @@ function CommentDraft({ at, left, top, onDone }: { at: { x: number; y: number; o
         <CommentText
           start=""
           onDone={(text) => {
-            if (text) dispatch("add_comment", { x: at.x, y: at.y, text, on: at.on, ...(at.mark ? { mark: at.mark } : {}) });
+            // on a frame that plays, the comment is about this moment, and becomes a marker on the timeline
+            const clk = getState().clock;
+            if (text) dispatch("add_comment", { x: at.x, y: at.y, text, on: at.on, ...(at.mark ? { mark: at.mark } : {}), ...(clk.scene ? { scene: clk.scene, t: clk.t } : {}) });
             onDone();
           }}
         />

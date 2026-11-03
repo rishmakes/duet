@@ -56,10 +56,8 @@ function rowsOf(doc: Doc, frame: El): TrackRow[] {
   return rowsMade.out;
 }
 
-/** `always`: Kitchen shows the timeline whenever the design plays, whatever kind of work Studio was last in. */
-export default function TimeStrip({ always = false }: { always?: boolean }) {
-  const kindOfWork = useLayout((d) => d.mode);
-  const mode = always ? "motion" : kindOfWork;
+export default function TimeStrip() {
+  const mode = useLayout((d) => d.mode);
   const colorOpen = useLayout(isColorOpen);
   const look = useLayout((d) => d.timeLook ?? "layers");
   const keysOpen = useLayout((d) => d.keysOpen);

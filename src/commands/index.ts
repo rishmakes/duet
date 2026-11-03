@@ -1735,6 +1735,9 @@ export interface AddCommentArgs {
   on?: string | null;
   /** An optional area or pointer drawn on the canvas with this comment. In page pixels. */
   mark?: CommentMark;
+  /** A frame that plays, and the second in it the comment is about. */
+  scene?: string | null;
+  t?: number;
 }
 
 const addComment: CommandDef<AddCommentArgs> = {
@@ -1746,6 +1749,11 @@ const addComment: CommandDef<AddCommentArgs> = {
     const c: Comment = { id: a.id ?? newId("comment"), x: round(a.x), y: round(a.y), text, by: a.by ?? "you" };
     if (a.on && doc.elements[a.on]) c.on = a.on;
     if (doc.boards?.length) c.board = openBoard(doc);
+    const scene = a.scene ? doc.elements[a.scene] : undefined;
+    if (scene && scene.duration > 0 && Number.isFinite(a.t)) {
+      c.scene = scene.id;
+      c.t = Math.round(Math.max(0, Math.min(scene.duration, a.t!)) * 100) / 100;
+    }
     if (a.mark && ["box", "arrow", "free"].includes(a.mark.kind) && Array.isArray(a.mark.points) && a.mark.points.length >= 2) {
       c.mark = {
         kind: a.mark.kind,

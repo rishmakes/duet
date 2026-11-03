@@ -24,9 +24,9 @@ import {
   useCooking,
   useRecipes,
 } from "../ai/recipes";
-import { dispatch, setTool, useStore } from "../state/store";
+import { dispatch, getState, setTool, useStore } from "../state/store";
 import { getLayout, setLayout, useLayout } from "./layout";
-import TimeStrip from "./TimeStrip";
+import { openScene, pause, seek, togglePlay } from "../video/play";
 import { boardsOf, openBoard } from "../document/boards";
 import ChatPanel from "./ChatPanel";
 import { ask, message, open, save } from "./dialog";
@@ -140,8 +140,8 @@ export default function Kitchen() {
           </main>
           <KitchenTools tool={tool} />
         </div>
-        {/* many people never leave Kitchen: when the design plays, the whole timeline is here too */}
-        {plays && <TimeStrip always />}
+        {/* many people never leave Kitchen: a long review timeline, where every comment is a marker */}
+        {plays && <ReviewBar />}
       </section>
 
       {recipe && (
@@ -255,8 +255,8 @@ function KitchenTools({ tool }: { tool: string }) {
     <div className="kitchen-tools">
       {toolBtn("move", "move", "Pick and move (V)")}
       {toolBtn("hand", "hand", "Look around: drag the view (H, or hold Space)")}
-      <button className={`kitchen-tool wide ${tool === "comment" ? "on" : ""}`} data-name="kitchen-comment" title="Click anywhere on the design to leave a note, for the AI or for people (C)" onClick={() => setTool(tool === "comment" ? "move" : "comment")}>
-        Comment
+      <button className={`kitchen-tool wide with-icon ${tool === "comment" ? "on" : ""}`} data-name="kitchen-comment" title="Click anywhere on the design to leave a note, for the AI or for people. On a video it marks the moment too (C)" onClick={() => setTool(tool === "comment" ? "move" : "comment")}>
+        <Icon name="marker" size={15} /> Comment
       </button>
       {boards.length > 1 && (
         <>
@@ -277,6 +277,75 @@ function KitchenTools({ tool }: { tool: string }) {
       </button>
       <button className="kitchen-tool wide" data-name="open-in-studio" title="Every tool, to work on the design yourself" onClick={() => setLayout({ space: "edit" })}>
         Open in Studio
+      </button>
+    </div>
+  );
+}
+
+/**
+ * The review timeline, like the ones on feedback sites: play, a long line of time to click or drag through,
+ * and every comment made at a moment standing on it as a marker. It is for looking and marking, not for editing.
+ */
+function ReviewBar() {
+  const doc = useStore((s) => s.timeline[s.cursor].doc);
+  const clock = useStore((s) => s.clock);
+  const openOne = clock.scene ? doc.elements[clock.scene] : undefined;
+  const scene = openOne && openOne.duration > 0 ? openOne : doc.rootIds.map((id) => doc.elements[id]).find((e) => e?.type === "frame" && e.duration > 0);
+  const lane = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (scene && getState().clock.scene !== scene.id) openScene(scene.id);
+  }, [scene?.id]);
+  if (!scene) return null;
+  const length = scene.duration;
+  const t = clock.scene === scene.id ? clock.t : 0;
+  const comments = (doc.comments ?? []).map((c, i) => ({ c, n: i + 1 })).filter(({ c }) => c.scene === scene.id && typeof c.t === "number" && !c.resolved);
+  const fmt = (x: number) => `${Math.floor(x / 60)}:${(x % 60).toFixed(1).padStart(4, "0")}`;
+  const at = (x: number) => {
+    const r = lane.current!.getBoundingClientRect();
+    return Math.max(0, Math.min(length, ((x - r.left) / r.width) * length));
+  };
+  const scrub = (e: React.PointerEvent) => {
+    e.preventDefault();
+    pause();
+    seek(at(e.clientX));
+    const move = (m: PointerEvent) => seek(at(m.clientX));
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+  return (
+    <div className="review-bar" data-name="review-bar">
+      <button className="review-play" title={clock.playing ? "Pause (Space)" : "Play (Space)"} onClick={togglePlay}>
+        {clock.playing ? "❚❚" : "▶"}
+      </button>
+      <span className="review-time">
+        {fmt(t)} <i>/ {fmt(length)}</i>
+      </span>
+      <div className="review-lane" ref={lane} onPointerDown={scrub} title="Click or drag to any moment">
+        <div className="review-fill" style={{ width: `${(t / length) * 100}%` }} />
+        {comments.map(({ c, n }) => (
+          <button
+            key={c.id}
+            className={`review-mark ${c.by === "ai" ? "ai" : ""}`}
+            style={{ left: `${(c.t! / length) * 100}%` }}
+            title={`${fmt(c.t!)} · ${c.text}`}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => (pause(), seek(c.t!))}
+          >
+            {n}
+          </button>
+        ))}
+        <div className="review-head" style={{ left: `${(t / length) * 100}%` }} />
+      </div>
+      <button
+        className="kitchen-tool wide with-icon review-comment"
+        title="Pause here and click on the picture to leave a note about this moment"
+        onClick={() => (pause(), setTool("comment"))}
+      >
+        <Icon name="marker" size={14} /> Comment at {fmt(t)}
       </button>
     </div>
   );
