@@ -79,7 +79,7 @@ export default function Kitchen() {
 
   // each design file remembers the recipe it was last used with; a new file starts with none
   const projectPath = useStore((s) => s.project.path);
-  const choiceFor = useRef<{ path: string | null; id: string | null; opening: number } | null>(null);
+  const choiceFor = useRef<{ path: string | null; id: string | null | undefined; opening: number } | null>(null);
   useEffect(() => {
     const was = choiceFor.current;
     choiceFor.current = null;
@@ -97,6 +97,11 @@ export default function Kitchen() {
     let gone = false;
     void loadRecipeChoice(projectPath).then((id) => {
       if (gone) return;
+      // a project that has never said keeps the recipe on show, and from now on remembers it
+      if (id === undefined) {
+        choiceFor.current = { path: projectPath, id: undefined, opening: openingNumber() };
+        return;
+      }
       const c = getCooking();
       // a cook that is still going keeps its own recipe on show
       if (!c || c.status === "stopped" || c.status === "done") setLayout({ recipeOn: id });

@@ -23,14 +23,15 @@ export async function saveThread(dir: string, text: string): Promise<void> {
 /** Which recipe a project was last used with, kept in its file so it comes back with it. */
 const RECIPE_FILE = "memory/recipe.json";
 
-export async function loadRecipeChoice(dir: string): Promise<string | null> {
+/** The recipe a project was used with: an id, null when it was put away, undefined when the project has never said. */
+export async function loadRecipeChoice(dir: string): Promise<string | null | undefined> {
   try {
     const path = inside(dir, RECIPE_FILE);
-    if ((await invoke<boolean>("path_exists", { path })) !== true) return null;
+    if ((await invoke<boolean>("path_exists", { path })) !== true) return undefined;
     const data = JSON.parse(await invoke<string>("read_text_file", { path }));
     return typeof data?.recipe === "string" ? data.recipe : null;
   } catch {
-    return null;
+    return undefined;
   }
 }
 
