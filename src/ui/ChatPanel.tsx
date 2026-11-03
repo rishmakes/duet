@@ -666,7 +666,7 @@ export default function ChatPanel({ docked = false, extra }: { docked?: boolean;
           )}
         </div>
         {/* the chat stands in a column on the left, or floats over the canvas: the designer picks, in each space */}
-        <button
+        {docked && <button
           type="button"
           className="chat-dock-btn"
           data-name={docked ? "chat-float" : "chat-dock"}
@@ -679,8 +679,8 @@ export default function ChatPanel({ docked = false, extra }: { docked?: boolean;
           }}
         >
           <Icon name="panel-left" size={14} />
-        </button>
-        {extra && (
+        </button>}
+        {extra && docked && (
           <div className="chat-extra" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
             {extra}
           </div>
@@ -735,9 +735,9 @@ export default function ChatPanel({ docked = false, extra }: { docked?: boolean;
             );
           })}
           {/* bring another AI into the chat */}
-          <button type="button" className="member-badge member-add" data-name="add-ai" title="Add an AI to this chat" onClick={openPicker}>
+          {docked && <button type="button" className="member-badge member-add" data-name="add-ai" title="Add an AI to this chat" onClick={openPicker}>
             <Icon name="plus" size={12} />
-          </button>
+          </button>}
           {/* the same tool opened in its own window is another AI, so it gets its own badge and its own name */}
           {outsideAgents.map((by) => (
             <div
@@ -753,7 +753,7 @@ export default function ChatPanel({ docked = false, extra }: { docked?: boolean;
 
         </div>
 
-        <button
+        {docked && <button
           type="button"
           className={`chat-settings-btn ${findOpen ? "on" : ""}`}
           data-name="chat-find"
@@ -769,7 +769,7 @@ export default function ChatPanel({ docked = false, extra }: { docked?: boolean;
           }}
         >
           <Icon name="search" size={14} />
-        </button>
+        </button>}
         <button
           type="button"
           className="chat-settings-btn"
@@ -793,6 +793,36 @@ export default function ChatPanel({ docked = false, extra }: { docked?: boolean;
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
+            {/* floating, the chat keeps its top row short: the rest waits here */}
+            {!docked && (
+              <div className="chat-settings-section chat-more-list">
+                {extra}
+                <button type="button" className="mini" onClick={(e) => openPicker(e)}>
+                  Add an AI
+                </button>
+                <button
+                  type="button"
+                  className="mini"
+                  onClick={() => {
+                    setSettingsOpen(false);
+                    setFindOpen(true);
+                    setQuery("");
+                  }}
+                >
+                  Find in the chat
+                </button>
+                <button
+                  type="button"
+                  className="mini"
+                  onClick={() => {
+                    setSettingsOpen(false);
+                    setLayout({ chatDocked: { ...chatDocked, [space]: true } });
+                  }}
+                >
+                  Put the chat in a column
+                </button>
+              </div>
+            )}
             {/* a side task: one AI works by itself beside this chat; kept out of the top row */}
             {members.length > 0 && (
               <div className="chat-settings-section">

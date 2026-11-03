@@ -9106,3 +9106,38 @@ input.chathome-name.rename {
 .chat:not(.docked) .recipe-pick {
   max-width: 96px;
 }
+/* Kitchen's line of time and board pick, quiet inside the toolbar */
+.kitchen-scrub {
+  width: 140px;
+  accent-color: var(--accent);
+}
+.kitchen-time {
+  padding: 0 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.kitchen-board-pick {
+  height: 30px;
+  max-width: 140px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.kitchen-board-pick:hover {
+  background: var(--panel-2);
+}
+.chat-more-list {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+.chat-more-list .recipe-pick {
+  max-width: none;
+}

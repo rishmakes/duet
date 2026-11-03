@@ -24,9 +24,10 @@ import {
   useCooking,
   useRecipes,
 } from "../ai/recipes";
-import { getState, setTool, useStore } from "../state/store";
+import { dispatch, getState, setTool, useStore } from "../state/store";
 import { getLayout, setLayout, useLayout } from "./layout";
-import { openScene, togglePlay } from "../video/play";
+import { openScene, seek, togglePlay } from "../video/play";
+import { boardsOf, openBoard } from "../document/boards";
 import ChatPanel from "./ChatPanel";
 import { ask, message, open, save } from "./dialog";
 import Icon from "./Icons";
@@ -246,12 +247,19 @@ function KitchenTools({ tool }: { tool: string }) {
     if (s.clock.scene && els[s.clock.scene]?.duration) return s.clock.scene;
     return Object.values(els).find((e) => e.type === "frame" && e.duration)?.id ?? null;
   });
+  const t = useStore((s) => s.clock.t);
+  const clockScene = useStore((s) => s.clock.scene);
+  const length = useStore((s) => (scene ? (s.timeline[s.cursor].doc.elements[scene]?.duration ?? 0) : 0));
+  const doc = useStore((s) => s.timeline[s.cursor].doc);
+  const boards = boardsOf(doc);
+  const boardOpen = openBoard(doc);
+  const fmt = (x: number) => `${Math.floor(x / 60)}:${String(Math.floor(x % 60)).padStart(2, "0")}`;
   const play = () => {
     if (scene && getState().clock.scene !== scene) openScene(scene);
     togglePlay();
   };
-  const toolBtn = (t: "move" | "hand" | "comment", icon: "move" | "hand" | "marker", title: string) => (
-    <button className={`kitchen-tool ${tool === t ? "on" : ""}`} data-name={`kitchen-${t}`} title={title} onClick={() => setTool(t)}>
+  const toolBtn = (k: "move" | "hand", icon: "move" | "hand", title: string) => (
+    <button className={`kitchen-tool ${tool === k ? "on" : ""}`} data-name={`kitchen-${k}`} title={title} onClick={() => setTool(k)}>
       <Icon name={icon} size={15} />
     </button>
   );
@@ -259,13 +267,43 @@ function KitchenTools({ tool }: { tool: string }) {
     <div className="kitchen-tools">
       {toolBtn("move", "move", "Pick and move (V)")}
       {toolBtn("hand", "hand", "Look around: drag the view (H, or hold Space)")}
-      {toolBtn("comment", "marker", "Mark a spot and leave a note, for the AI or for people (C)")}
+      <button className={`kitchen-tool wide ${tool === "comment" ? "on" : ""}`} data-name="kitchen-comment" title="Click anywhere on the design to leave a note, for the AI or for people (C)" onClick={() => setTool(tool === "comment" ? "move" : "comment")}>
+        Comment
+      </button>
+      {boards.length > 1 && (
+        <>
+          <span className="kitchen-tools-sep" />
+          {/* a file with boards: pick which one you and the AI look at */}
+          <select className="kitchen-board-pick" title="Which board is open" value={boardOpen} onChange={(e) => dispatch("open_board", { id: e.target.value })}>
+            {boards.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </>
+      )}
       {scene && (
         <>
           <span className="kitchen-tools-sep" />
           <button className="kitchen-tool wide" data-name="kitchen-play" title={playing ? "Pause (Space)" : "Play the video (Space)"} onClick={play}>
             {playing ? "Pause" : "▶ Play"}
           </button>
+          {/* a thin line of time: drag to any moment; the full timeline is in Studio */}
+          <input
+            className="kitchen-scrub"
+            type="range"
+            min={0}
+            max={length}
+            step={0.01}
+            value={clockScene === scene ? t : 0}
+            title="Drag to any moment"
+            onChange={(e) => {
+              if (getState().clock.scene !== scene) openScene(scene);
+              seek(Number(e.target.value));
+            }}
+          />
+          <span className="kitchen-time">{fmt(clockScene === scene ? t : 0)} / {fmt(length)}</span>
         </>
       )}
       <span className="kitchen-tools-sep" />
