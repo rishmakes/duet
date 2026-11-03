@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Duet two modes</title>
+<style>
+:root{--bg:#e3e3e6;--panel:#fff;--panel-2:#f2f2f4;--line:#e6e6ea;--text:#1b1b1f;--muted:#76767f;--accent:#6b4ef6;--accent-2:#efebff;--you:#1b1b1f;--ai:#e8743b;--r:10px}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;font:13px/1.4 -apple-system,BlinkMacSystemFont,"Inter",system-ui,sans-serif;color:var(--text);background:var(--panel)}
+button{font:inherit;color:inherit;cursor:pointer}
+.app{display:grid;height:100vh;grid-template-columns:52px minmax(0,1fr);grid-template-rows:46px minmax(0,1fr) 44px;grid-template-areas:"top top" "rail main" "hist hist"}
+/* top */
+.top{grid-area:top;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 14px;border-bottom:1px solid var(--line)}
+.top .side{display:flex;gap:10px;align-items:center}.top .end{justify-content:flex-end}
+.logo{font-weight:700}.logo b{color:var(--accent)}
+.saved{color:var(--muted);font-size:12px}.saved:before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:#4cc38a;margin-right:6px;vertical-align:1px}
+.modes{display:flex;background:var(--panel-2);border-radius:999px;padding:3px}
+.modes button{border:0;background:none;padding:5px 18px;border-radius:999px;color:var(--muted);font-weight:500}
+.modes button.on{background:var(--accent);color:#fff}
+.pill{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:5px 12px}
+.pill.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.icon-btn{width:30px;height:30px;display:grid;place-items:center;border:1px solid var(--line);border-radius:999px;background:var(--panel)}
+/* projects rail (locked) */
+.rail{grid-area:rail;background:var(--panel-2);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 0}
+.rail .i{width:32px;height:32px;display:grid;place-items:center;border-radius:8px;color:var(--muted)}
+.rail .thumb{width:32px;height:24px;border-radius:5px;background:linear-gradient(110deg,#1d3557 25%,#e76f51 50%,#2a9d8f 70%,#f4a261);outline:2px solid var(--accent);outline-offset:2px;margin-top:8px}
+.rail .thumb.b{background:#2d3a2e;outline:0}
+.rail .grow{flex:1}
+/* history (locked) */
+.hist{grid-area:hist;display:flex;align-items:center;gap:14px;padding:0 14px;border-top:1px solid var(--line)}
+.hist .who{font-size:11px;color:var(--muted)}.hist .who i{display:inline-block;width:6px;height:6px;border-radius:50%;margin:0 4px 1px 0}
+.dots{display:flex;align-items:center;gap:16px}
+.dots span{width:10px;height:10px;border-radius:50%;border:2px solid var(--ai)}.dots span.y{border-color:var(--you)}.dots span.now{background:var(--accent);border-color:var(--accent)}
+.hist .grow{flex:1}
+/* main */
+.main{grid-area:main;display:flex;min-width:0;min-height:0}
+.col{display:flex;flex-direction:column;min-height:0;background:var(--panel)}
+.label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+/* chat column, the same in both modes */
+.chat{width:360px;border-right:1px solid var(--line);flex:none}
+.chat-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.chat-head .grow{flex:1}
+.av{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;color:#fff;background:#3fb8a8}
+.av.m{background:#e8743b}
+.thread{flex:1;overflow:auto;padding:16px 14px;display:flex;flex-direction:column;gap:12px}
+.msg{max-width:88%;padding:9px 12px;border-radius:12px;background:var(--panel-2)}
+.msg.me{align-self:flex-end;background:var(--accent-2)}
+.msg small{display:block;color:var(--muted);font-size:11px;margin-bottom:2px}
+.change{font-size:12px;color:var(--muted);border:1px dashed var(--line);border-radius:8px;padding:6px 10px;align-self:flex-start}
+.change b{color:var(--text);font-weight:500}
+.composer{margin:10px 12px 12px;border:1px solid var(--line);border-radius:14px;padding:10px 12px;background:var(--panel-2)}
+.composer .ph{color:var(--muted);height:38px}
+.composer .row{display:flex;align-items:center;gap:6px}
+.composer .row .grow{flex:1}
+.chip{border:1px solid var(--line);border-radius:999px;padding:3px 10px;background:var(--panel);font-size:12px}
+.chip.on{border-color:var(--accent);color:var(--accent);font-weight:500;background:var(--accent-2)}
+.send{width:28px;height:28px;border-radius:50%;border:0;background:var(--accent);color:#fff}
+/* recipe pick */
+.menu{position:absolute;z-index:20;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.12);padding:6px;width:280px}
+.menu .it{padding:8px 10px;border-radius:8px;cursor:pointer}.menu .it:hover{background:var(--panel-2)}
+.menu .it small{display:block;color:var(--muted)}
+.menu hr{border:0;border-top:1px solid var(--line);margin:6px 0}
+/* steps column */
+.steps{width:290px;border-left:1px solid var(--line);flex:none}
+.steps-head{padding:12px 14px;border-bottom:1px solid var(--line)}
+.steps-head h3{margin:4px 0 2px;font-size:14px}
+.steps-head .row{display:flex;gap:8px;align-items:center;margin-top:10px}
+.steplist{flex:1;overflow:auto;padding:12px 14px}
+.step{display:flex;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;background:var(--panel)}
+.step .n{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:11px;background:var(--panel-2);color:var(--muted);flex:none}
+.step.done .n{background:#e7f6ee;color:#2f9a64}
+.step.now{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-2)}
+.step.now .n{background:var(--accent);color:#fff}
+.step small{display:block;color:var(--muted);font-size:11px}
+.step .who{margin-left:auto;font-size:11px;color:var(--muted)}
+/* canvas */
+.canvas{flex:1;min-width:0;position:relative;background:var(--bg);background-image:radial-gradient(#c9c9cf 1px,transparent 1px);background-size:20px 20px;display:flex;flex-direction:column}
+.stage{flex:1;display:grid;place-items:center;position:relative;min-height:0}
+.frame-wrap{position:relative}
+.frame-name{font-size:12px;color:var(--muted);margin-bottom:6px}
+.film{position:relative;width:min(56vw,640px);aspect-ratio:16/9;overflow:hidden;background:linear-gradient(110deg,#1d3557 22%,#e76f51 48%,#2a9d8f 68%,#f4a261 92%);box-shadow:0 2px 12px rgba(0,0,0,.08)}
+.studio .film{width:min(40vw,560px)}
+.film .swirl{position:absolute;right:6%;top:9%;width:31%;aspect-ratio:16/9;background:radial-gradient(circle at 55% 50%,#3c8c2b 0 14%,#d33 15% 18%,#9be15d 19% 24%,#f6a6f0 25%);}
+.film .card{position:absolute;left:6%;bottom:12%;width:47%;padding:3.2% 3%;background:rgba(17,17,20,.82);border-radius:10px;color:#fff}
+.film .card b{display:block;font-size:clamp(14px,2.4vw,28px)}
+.film .card span{font-size:clamp(8px,.9vw,12px);color:#f4a261}
+.film .sun{position:absolute;right:7%;bottom:9%;width:8%;aspect-ratio:1;border-radius:50%;background:#f4a261;opacity:.8}
+.film.sel .card{outline:2px solid var(--accent);outline-offset:2px}
+.film.graded{filter:saturate(1.35) contrast(1.08) sepia(.12)}
+.pin{position:absolute;width:26px;height:26px;border-radius:50% 50% 50% 4px;background:var(--you);color:#fff;font-size:11px;display:grid;place-items:center;font-weight:600;box-shadow:0 2px 6px rgba(0,0,0,.25)}
+.pin.ai{background:var(--ai)}
+.note{position:absolute;background:var(--panel);border-radius:10px;padding:8px 10px;width:200px;box-shadow:0 6px 20px rgba(0,0,0,.14);font-size:12px}
+.float{position:absolute;left:50%;transform:translateX(-50%);display:flex;gap:6px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:5px;box-shadow:0 6px 20px rgba(0,0,0,.08)}
+.float.bottom{bottom:16px}
+.float .tool{border:0;background:none;border-radius:999px;padding:5px 12px}
+.float .tool.on{background:var(--text);color:#fff}
+.ask{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);width:min(520px,80%);display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 6px 6px 14px;box-shadow:0 8px 28px rgba(0,0,0,.12)}
+.ask .ph{flex:1;color:var(--muted)}
+.ask .unread{width:7px;height:7px;border-radius:50%;background:var(--ai)}
+.split{display:flex;gap:24px;align-items:flex-start}.split .frame-name{font-weight:500}
+/* studio */
+.toolbar{display:flex;gap:2px;align-items:center;padding:6px 10px;border-bottom:1px solid var(--line);background:var(--panel)}
+.toolbar .t{width:30px;height:30px;border:0;border-radius:7px;background:none;color:#444;display:grid;place-items:center}
+.toolbar .t.on{background:var(--accent);color:#fff}
+.toolbar .sep{width:1px;height:18px;background:var(--line);margin:0 6px}
+.layers{width:240px;border-right:1px solid var(--line);flex:none}
+.tabs{display:flex;border-bottom:1px solid var(--line)}
+.tabs div{flex:1;text-align:center;padding:11px 0;color:var(--muted)}.tabs div.on{color:var(--text);box-shadow:inset 0 -2px var(--accent)}
+.tree{padding:8px}
+.tree .r{display:flex;gap:8px;align-items:center;padding:6px 8px;border-radius:7px;color:#333}
+.tree .r.in{padding-left:28px}.tree .r.on{background:var(--accent-2)}
+.tree .r .k{width:14px;color:var(--muted);text-align:center;font-size:11px}
+.tree .r .tag{margin-left:auto;font-size:11px;color:var(--ai)}
+.right{width:290px;border-left:1px solid var(--line);flex:none;overflow:auto}
+.kindbox{padding:10px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.kind{display:flex;background:var(--panel-2);border-radius:8px;padding:2px}
+.kind button{flex:1;border:0;background:none;padding:5px 0;border-radius:6px;color:var(--muted)}
+.kind button.on{background:var(--panel);color:var(--text);font-weight:500;box-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 1px var(--line)}
+.extra{align-self:flex-start}
+.sec{padding:12px 14px;border-bottom:1px solid var(--line)}
+.sec h4{margin:0 0 8px;font-size:12px;font-weight:600}
+.f2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.fld{background:var(--panel-2);border-radius:7px;padding:6px 9px;display:flex;gap:8px;align-items:center}
+.fld i{color:var(--muted);font-style:normal;font-size:11px}
+.fld .dia{margin-left:auto;color:var(--accent)}
+.sw{width:14px;height:14px;border-radius:4px;background:#111114;border:1px solid var(--line)}
+.slider{display:grid;grid-template-columns:78px 1fr 34px;gap:8px;align-items:center;margin:7px 0;font-size:12px}
+.track{height:4px;border-radius:2px;background:linear-gradient(90deg,#ddd,#bbb);position:relative}
+.track b{position:absolute;top:-4px;width:12px;height:12px;border-radius:50%;background:var(--text)}
+.track.sat{background:linear-gradient(90deg,#888,#e44,#f4a261)}.track.warm{background:linear-gradient(90deg,#5b8def,#ccc,#f2a03d)}
+.slider span{text-align:right;color:var(--muted)}
+.swatches{display:flex;gap:7px}.swatches span{width:20px;height:20px;border-radius:50%}
+.link{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:8px}
+/* timeline */
+.timeline{height:230px;border-top:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;flex:none}
+.tl-bar{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid var(--line)}
+.tl-bar .grow{flex:1}
+.tl-body{flex:1;display:grid;grid-template-columns:130px 1fr;overflow:hidden}
+.tl-names div{height:32px;display:flex;align-items:center;padding-left:12px;color:#444;font-size:12px}
+.tl-lanes{position:relative;border-left:1px solid var(--line)}
+.lane{height:32px;position:relative}
+.bar{position:absolute;top:6px;height:20px;border-radius:5px;font-size:11px;padding:2px 8px;color:#333;white-space:nowrap;overflow:hidden}
+.bar.g{background:#e3f4ea;border:1px solid #9fd6b4}.bar.p{background:#ece8ff;border:1px solid #b9acf7}
+.bar.v{background:repeating-linear-gradient(90deg,#1d3557 0 30px,#e76f51 30px 60px,#2a9d8f 60px 90px,#f4a261 90px 120px);color:#fff;border:1px solid #e8743b}
+.bar.v2{background:repeating-linear-gradient(90deg,#f6a6f0 0 20px,#9be15d 20px 40px);color:#222;border:1px solid #e8743b}
+.kf{position:absolute;top:12px;width:8px;height:8px;background:var(--accent);transform:rotate(45deg)}
+.head{position:absolute;top:0;bottom:0;left:22%;width:2px;background:var(--text)}
+/* the guide */
+.guide{position:fixed;right:16px;bottom:58px;width:300px;background:#1b1b1f;color:#eee;border-radius:12px;padding:12px 14px;font-size:12px;z-index:50;box-shadow:0 10px 30px rgba(0,0,0,.3)}
+.guide b{color:#fff}.guide p{margin:6px 0 0;color:#bbb}
+.guide .x{float:right;background:none;border:0;color:#999}
+.guide .go{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.guide .go button{background:#2c2c33;border:0;color:#ddd;border-radius:6px;padding:3px 8px;font-size:11px}
+.guide .go button.on{background:var(--accent);color:#fff}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<div class="guide" id="guide"></div>
+<script>
+const S = { mode:"kitchen", kind:"design", extra:false, recipe:null, chatOpen:true, studioChat:false, menu:false, guide:true };
+const RECIPES = [
+  {name:"Launch film from a brief", sub:"Brief, script, scenes, your comments, colour, export", steps:[["Brief","You"],["Script","AI"],["Scenes","AI"],["Your comments","You"],["Titles and motion","AI"],["Colour","AI"],["Your review","You"],["Export","AI"]]},
+  {name:"Instagram post", sub:"Idea, three directions, pick one, polish", steps:[["Idea","You"],["Three directions","AI"],["Pick one","You"],["Polish","AI"]]},
+];
+const ic = {
+  pen:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 13l1-4 7-7 3 3-7 7z"/></svg>',
+  find:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>',
+  home:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.5 7.5 8 3l5.5 4.5V13h-11z"/></svg>',
+  spark:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 2v4M8 10v4M2 8h4M10 8h4"/></svg>',
+  trash:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 4.5h10M6 4.5V3h4v1.5M4.5 4.5l.7 8.5h5.6l.7-8.5"/></svg>',
+  gear:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></svg>',
+  fold:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M10 3 5 8l5 5"/></svg>',
+  chat:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>',
+  move:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 2l9 5-4 1-1 4z"/></svg>',
+};
+const set = (p) => { Object.assign(S,p); render(); };
+
+function topBar(){
+  return `<header class="top">
+    <div class="side"><span class="logo">Du<b>et</b></span><span class="saved">Saved</span></div>
+    <div class="modes"><button class="${S.mode==="kitchen"?"on":""}" onclick="set({mode:'kitchen',menu:false})">Kitchen</button><button class="${S.mode==="studio"?"on":""}" onclick="set({mode:'studio',menu:false})">Studio</button></div>
+    <div class="side end"><button class="icon-btn">☾</button><button class="pill primary">Export</button></div>
+  </header>`;
+}
+function rail(){
+  return `<nav class="rail"><div class="i">»</div><div class="i">${ic.pen}</div><div class="i">${ic.find}</div><div class="i">${ic.home}</div><div class="i">${ic.spark}</div><div class="i">${ic.trash}</div><div class="thumb" title="Golden Hour demo"></div><div class="thumb b"></div><div class="grow"></div><div class="i">${ic.gear}</div></nav>`;
+}
+function hist(){
+  return `<footer class="hist"><span class="who"><i style="background:var(--you)"></i>You <i style="background:var(--ai);margin-left:8px"></i>Juniper</span>
+    <div class="dots"><span class="y"></span><span></span><span></span><span class="y"></span><span></span><span></span><span class="y"></span><span class="now"></span></div>
+    <div class="grow"></div><button class="pill">Undo</button><button class="pill" style="opacity:.5">Redo</button><button class="pill">Versions</button></footer>`;
+}
+function chatCol(){
+  const r = S.recipe!==null ? RECIPES[S.recipe] : null;
+  return `<section class="col chat">
+    <div class="chat-head"><button class="icon-btn" title="Fold the chat away" onclick="set(S.mode==='kitchen'?{chatOpen:false}:{studioChat:false})">${ic.fold}</button>
+      <b>Chat</b><div class="grow"></div><span class="av m">M</span><span class="av">J</span>
+      <span style="position:relative"><button class="chip ${r?"on":""}" onclick="set({menu:!S.menu})">${r?"Recipe: "+r.name.split(" ")[0]+"…":"Use a recipe"} ▾</button>${S.menu?recipeMenu():""}</span>
+    </div>
+    <div class="thread">
+      <div class="msg me"><small>You</small>Make the title feel warmer, like late sun. Keep the swirl clip small.</div>
+      <div class="msg"><small>Juniper</small>Done. I moved the subtitle to amber and slowed the title slide to 0.8 s. The sun badge now rises in over two seconds.</div>
+      <div class="change"><b>3 changes</b> · title colour, slide speed, sun rise</div>
+      <div class="msg me"><small>You · on pin 1</small>This card is too big at the start.</div>
+      <div class="msg"><small>Juniper</small>Fair. Shall I scale it from 90% to 100% as it slides in?</div>
+    </div>
+    <div class="composer"><div class="ph">Ask Juniper, or drop a pin on the canvas…</div>
+      <div class="row"><span class="chip">+</span><span class="chip">Juniper ▾</span><span class="chip" style="color:var(--ai)">Auto ▾</span><div class="grow"></div><button class="send">↑</button></div></div>
+  </section>`;
+}
+function recipeMenu(){
+  return `<div class="menu" style="right:0;top:30px">
+    ${RECIPES.map((r,i)=>`<div class="it" onclick="set({recipe:${i},menu:false})"><b>${r.name}</b><small>${r.sub}</small></div>`).join("")}
+    <hr><div class="it" onclick="set({recipe:null,menu:false})">${S.recipe!==null?"Stop using the recipe":"No recipe, just chat and pins"}</div>
+    <div class="it" style="color:var(--muted)">Open a recipe file…</div></div>`;
+}
+function stepsCol(){
+  const r = RECIPES[S.recipe];
+  return `<section class="col steps"><div class="steps-head"><span class="label">Recipe</span><h3>${r.name}</h3><small style="color:var(--muted)">Step 4 of ${r.steps.length}. Cook stops when it needs you.</small>
+    <div class="row"><button class="pill primary">▶ Cook</button><button class="pill">Edit steps</button><div style="flex:1"></div><button class="icon-btn" title="Stop using the recipe" onclick="set({recipe:null})">✕</button></div></div>
+    <div class="steplist">${r.steps.map(([n,w],i)=>`<div class="step ${i<3?"done":i===3?"now":""}"><span class="n">${i<3?"✓":i+1}</span><div>${n}${i===3?"<small>Waiting on your pins</small>":""}</div><span class="who">${w}</span></div>`).join("")}</div></section>`;
+}
+function film(opts={}){
+  return `<div class="film ${opts.sel?"sel":""} ${opts.graded?"graded":""}"><div class="swirl"></div><div class="card"><b>Golden Hour</b><span>A short film in three colours</span></div><div class="sun"></div></div>`;
+}
+function kitchen(){
+  const pins = `<div class="pin" style="left:8%;top:62%">1</div><div class="pin ai" style="right:4%;top:2%">2</div>
+    <div class="note" style="left:16%;top:46%"><b>You</b> · This card is too big at the start.</div>`;
+  return `${S.chatOpen?chatCol():""}
+    <section class="canvas"><div class="stage"><div class="frame-wrap"><div class="frame-name">▶ Launch film 0:08</div><div style="position:relative">${film()}${pins}</div></div></div>
+      ${S.chatOpen?`<div class="float bottom"><button class="tool on">${ic.move}</button><button class="tool">Pin a comment</button><button class="tool">Fit</button><button class="tool" onclick="set({mode:'studio'})">Open in Studio</button></div>`:askBar(()=>"set({chatOpen:true})")}
+    </section>
+    ${S.recipe!==null?stepsCol():""}`;
+}
+function askBar(open){
+  return `<div class="ask" onclick="${open()}" style="cursor:pointer"><span>${ic.chat}</span><span class="ph">Ask Juniper…</span><span class="unread" title="Juniper replied"></span><span class="chip">Pin</span><button class="send">↑</button></div>`;
+}
+function studio(){
+  const video = S.kind==="video", photo = S.kind==="photo", colour = (video||photo)&&S.extra, proto = S.kind==="design"&&S.extra;
+  const tools = ["▲","#","□","○","✎","T","✋"].concat(photo?["🖌","⌫"]:[]).concat(video?["|","⇥","⚑"]:[]);
+  const stage = colour
+    ? `<div class="split"><div><div class="frame-name">Before</div>${film()}</div><div><div class="frame-name">After</div>${film({graded:true,sel:true})}</div></div>`
+    : `<div class="frame-wrap"><div class="frame-name">▶ Launch film 0:08</div><div style="position:relative">${film({sel:!colour})}${proto?`<div class="pin" style="right:-34px;top:70%;background:var(--accent)">→</div>`:""}</div></div>`;
+  return `${S.studioChat?chatCol():""}
+    <section class="col layers"><div class="tabs"><div class="on">Layers</div><div>Assets</div></div>
+      <div class="tree"><div class="r"><span class="k">#</span>Launch film <span class="tag">▶ 0:08</span></div>
+      <div class="r in"><span class="k">○</span>Sun badge</div><div class="r in"><span class="k">T</span>Subtitle</div><div class="r in"><span class="k">T</span>Title</div><div class="r in on"><span class="k">□</span>Title card</div><div class="r in"><span class="k">▶</span>Swirl clip</div><div class="r in"><span class="k">▶</span>Sunset clip</div></div></section>
+    <section class="canvas studio"><div class="toolbar">${tools.map((t,i)=>t==="|"?`<span class="sep"></span>`:`<button class="t ${i===0?"on":""}">${t}</button>`).join("")}</div>
+      <div class="stage">${stage}${S.studioChat?"":askBar(()=>"set({studioChat:true})")}</div>
+      ${video?timeline():""}</section>
+    <aside class="right">${kindBox()}${panel()}</aside>`;
+}
+function kindBox(){
+  const ex = S.kind==="design"?"Prototype":"Colour";
+  return `<div class="kindbox"><div class="kind">${["design","video","photo"].map(k=>`<button class="${S.kind===k?"on":""}" onclick="set({kind:'${k}',extra:${k==="photo"}})">${k[0].toUpperCase()+k.slice(1)}</button>`).join("")}</div>
+    <button class="chip extra ${S.extra?"on":""}" onclick="set({extra:!S.extra})">${ex}</button></div>`;
+}
+function panel(){
+  if ((S.kind!=="design") && S.extra) return colourPanel();
+  if (S.kind==="design" && S.extra) return `<div class="sec"><h4>Title card</h4><div style="color:var(--muted);font-size:12px">What happens on a click</div></div>
+    <div class="sec"><h4>On click</h4><div class="link">→ Opens <b>Scene 2</b><span style="margin-left:auto;color:var(--muted)">Slide</span></div></div>
+    <div class="sec"><h4>Starts here</h4><span class="chip on">First screen</span></div>`;
+  const dia = S.kind==="video"?`<span class="dia">◆</span>`:"";
+  return `<div class="sec"><h4>Title card</h4><div class="f2"><div class="fld"><i>X</i>120</div><div class="fld"><i>Y</i>700${dia}</div><div class="fld"><i>W</i>900</div><div class="fld"><i>H</i>240${dia}</div></div></div>
+    ${S.kind==="video"?`<div class="sec"><h4>Arrives</h4><div class="f2"><div class="fld">Slide up</div><div class="fld"><i>s</i>0.8</div></div></div>`:""}
+    ${S.kind==="photo"?`<div class="sec"><h4>Brush</h4><div class="slider">Size<div class="track"><b style="left:30%"></b></div><span>24</span></div><div class="slider">Softness<div class="track"><b style="left:60%"></b></div><span>60</span></div></div><div class="sec"><h4>Layer</h4><div class="f2"><div class="fld">Normal</div><div class="fld"><i>%</i>80</div></div><div style="margin-top:8px"><span class="chip">Add a mask</span></div></div>`:""}
+    <div class="sec"><h4>Fill</h4><div class="fld"><span class="sw"></span>#111114<span style="margin-left:auto;color:var(--muted)">80%</span>${dia}</div></div>
+    <div class="sec"><h4>Corners</h4><div class="fld"><i>R</i>24</div></div>`;
+}
+function colourPanel(){
+  const sl = (n,cls,pos,v)=>`<div class="slider">${n}<div class="track ${cls}"><b style="left:${pos}%"></b></div><span>${v}</span></div>`;
+  return `<div class="sec"><h4>Sunset clip</h4>${sl("Brightness","",52,"0.05")}${sl("Contrast","",60,"8")}${sl("Saturation","sat",68,"35")}${sl("Warmth","warm",64,"12")}${sl("Vignette","",50,"0")}</div>
+    <div class="sec"><h4>One colour</h4><div class="swatches">${["#d33","#e8743b","#e2c23a","#5bd15b","#4fd6c0","#4a7fe0","#7b3fe0","#d33fb8"].map(c=>`<span style="background:${c}"></span>`).join("")}</div></div>
+    <div class="sec"><h4>Look</h4><div class="link">Load a look (.cube)</div></div>
+    ${S.kind==="video"?`<div class="sec"><span class="chip">Every clip in this scene</span></div>`:""}`;
+}
+function timeline(){
+  return `<div class="timeline"><div class="tl-bar"><button class="pill">▶ Play</button><span>0:01.8 / 0:08.0</span><div class="modes" style="transform:scale(.9)"><button class="on" style="padding:3px 12px">Motion</button><button style="padding:3px 12px">Edit</button></div><div class="grow"></div><button class="pill primary">Export video</button></div>
+    <div class="tl-body"><div class="tl-names"><div>Sun badge</div><div>Title</div><div>Title card</div><div>Swirl clip</div><div>Sunset clip</div></div>
+      <div class="tl-lanes"><div class="lane"><div class="bar p" style="left:0;right:0">Sun badge</div><span class="kf" style="left:0"></span><span class="kf" style="left:25%"></span><span class="kf" style="left:62%"></span></div>
+      <div class="lane"><div class="bar g" style="left:0;right:0">Title</div><span class="kf" style="left:10%"></span></div>
+      <div class="lane"><div class="bar p" style="left:0;right:0">Title card</div><span class="kf" style="left:10%"></span></div>
+      <div class="lane"><div class="bar v2" style="left:25%;right:0">Swirl clip</div></div>
+      <div class="lane"><div class="bar v" style="left:0;right:0">Sunset clip</div></div><div class="head"></div></div></div></div>`;
+}
+const VIEWS = [
+  ["Kitchen, just chat", {mode:"kitchen",recipe:null,chatOpen:true}, "Chat on the left, your design big in the middle. No recipe. You talk, drop pins, drag."],
+  ["Kitchen, with a recipe", {mode:"kitchen",recipe:0,chatOpen:true}, "Pick “Use a recipe” in the chat. The steps open on the right. ✕ stops it, back to just chat."],
+  ["Kitchen, chat folded", {mode:"kitchen",recipe:null,chatOpen:false}, "Working with an AI outside Duet? Fold the chat. A small ask bar stays on the canvas."],
+  ["Studio · Design", {mode:"studio",kind:"design",extra:false,studioChat:false}, "Full space for tools. The chat waits as the same ask bar. Click it to open the chat column."],
+  ["Studio · Prototype", {mode:"studio",kind:"design",extra:true,studioChat:false}, "Prototype is the one extra under Design."],
+  ["Studio · Video", {mode:"studio",kind:"video",extra:false,studioChat:false}, "Timeline under the canvas, diamonds beside what can move."],
+  ["Studio · Video colour", {mode:"studio",kind:"video",extra:true,studioChat:false}, "Colour on: before and after, sliders on the right."],
+  ["Studio · Photo", {mode:"studio",kind:"photo",extra:false,studioChat:false}, "Brush and eraser join the tools; brush, layer and mask on the right."],
+  ["Studio · Photo colour", {mode:"studio",kind:"photo",extra:true,studioChat:false}, "Photo opens on Colour, like now."],
+  ["Studio with chat open", {mode:"studio",kind:"design",extra:false,studioChat:true}, "Chat opened in Studio: the same column, same place as Kitchen."],
+];
+let view = 0;
+function go(i){ view=i; Object.assign(S,VIEWS[i][1],{menu:false}); render(); }
+function guide(){
+  const g = document.getElementById("guide");
+  if(!S.guide){ g.innerHTML=`<button class="x" style="float:none;color:#ccc" onclick="set({guide:true})">Show the guide</button>`; return; }
+  g.innerHTML = `<button class="x" onclick="set({guide:false})">✕</button><b>${view+1}/${VIEWS.length} · ${VIEWS[view][0]}</b><p>${VIEWS[view][2]}</p>
+    <div class="go">${VIEWS.map((v,i)=>`<button class="${i===view?"on":""}" onclick="go(${i})">${i+1}</button>`).join("")}</div>
+    <p style="font-size:11px">Arrow keys move between screens. Everything else is clickable too.</p>`;
+}
+function render(){
+  document.getElementById("app").innerHTML = topBar()+rail()+`<main class="main ${S.mode}">${S.mode==="kitchen"?kitchen():studio()}</main>`+hist();
+  guide();
+}
+document.addEventListener("keydown",e=>{ if(e.key==="ArrowRight") go(Math.min(view+1,VIEWS.length-1)); if(e.key==="ArrowLeft") go(Math.max(view-1,0)); });
+go(0);
+</script>
+</body>
+</html>

@@ -57,6 +57,10 @@ export interface Dock {
   prototyping: boolean;
   /** A mouse wheel zooms, like in Adobe apps. A trackpad still slides the canvas. */
   wheelZooms: boolean;
+  /** In each space, whether the chat stands in its own column on the left, or floats over the canvas. */
+  chatDocked: Record<Space, boolean>;
+  /** The recipe Kitchen is using, by its id. None: Kitchen is the chat and the design, nothing more. */
+  recipeOn: string | null;
   /** The chat is open when Studio comes up. Off, it waits folded away until clicked. */
   editChatOpen: boolean;
   /** In Video, whether the right panel shows Properties, Colour or the chat. */
@@ -104,6 +108,8 @@ export const defaults = (): Dock => ({
   prototyping: false,
   wheelZooms: true,
   editChatOpen: false,
+  chatDocked: { kitchen: true, edit: false },
+  recipeOn: null,
   videoTab: "properties",
   photoTab: "color",
   trackH: { ...DEFAULT_TRACK_H },
@@ -135,7 +141,10 @@ export function parseLayout(raw: unknown): Dock {
       for (const [id, h] of Object.entries(rawRowH)) if (typeof h === "number" && Number.isFinite(h)) rowH[id] = Math.max(TRACK_MIN_H, Math.min(TRACK_MAX_H, Math.round(h)));
     const open = (r.projectsOpen ?? {}) as Partial<Record<Space, unknown>>;
     const projectsOpen = { kitchen: open.kitchen === true, edit: open.edit === true };
-    return { ...defaults(), ...r, projectsOpen, prototyping: false, mode, space, timeLook, timeMax: false, videoTab, photoTab, historyLine, trackH, rowH };
+    const docked = (r.chatDocked ?? {}) as Partial<Record<Space, unknown>>;
+    const chatDocked = { kitchen: docked.kitchen !== false, edit: docked.edit === true };
+    const recipeOn = typeof r.recipeOn === "string" ? r.recipeOn : null;
+    return { ...defaults(), ...r, projectsOpen, chatDocked, recipeOn, prototyping: false, mode, space, timeLook, timeMax: false, videoTab, photoTab, historyLine, trackH, rowH };
   }
   return defaults();
 }

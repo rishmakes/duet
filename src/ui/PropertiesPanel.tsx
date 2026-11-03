@@ -18,6 +18,7 @@ import type { Entrance } from "../document/time";
 import SpeedGraph from "./SpeedGraph";
 import CommentsList from "./CommentsList";
 import ColorPanel from "./ColorPanel";
+import KindSwitch from "./KindSwitch";
 import { rootOf } from "./BeforeAfter";
 import { gradablesIn } from "../document/grade";
 import FontPicker from "./FontPicker";
@@ -1042,44 +1043,19 @@ export default function PropertiesPanel() {
     else if (mode === "motion") setLayout({ videoTab: next });
   };
 
-  // in Design, the right panel has a Prototype tab, so prototypes stay out of the way while designing
-  const designSwitch = mode === "design" ? (
-    <div className="panel-switch-wrap">
-      <div className="pill time-look panel-switch">
-        <button type="button" className={prototyping ? "" : "active"} data-name="switch-design" onClick={() => setLayout({ prototyping: false })}>
-          Design
-        </button>
-        <button type="button" className={prototyping ? "active" : ""} data-name="switch-prototype" title="Connect screens so they can be clicked through" onClick={() => setLayout({ prototyping: true })}>
-          Prototype
-        </button>
-      </div>
+  // the top of the right panel: the kind of work, and under it the one extra each kind has.
+  // Design can turn to Prototype; Video and Photo can turn to Colour. Off is the plain panel.
+  const extra = mode === "design"
+    ? { name: "Prototype", on: prototyping, title: "Connect screens so they can be clicked through", flip: () => setLayout({ prototyping: !prototyping }) }
+    : { name: "Colour", on: tab === "color", title: "Colour: grade the pictures and clips", flip: () => setTab(tab === "color" ? "properties" : "color") };
+  const switchElement = (
+    <div className="panel-kind">
+      <KindSwitch />
+      <button type="button" className={`panel-extra ${extra.on ? "on" : ""}`} aria-pressed={extra.on} data-name={`extra-${extra.name.toLowerCase()}`} title={extra.title} onClick={extra.flip}>
+        {extra.name}
+      </button>
     </div>
-  ) : null;
-  const showSwitch = mode === "motion" || mode === "photo";
-  const switchElement = designSwitch ?? (showSwitch ? (
-    <div className="panel-switch-wrap">
-      <div className="pill time-look panel-switch">
-        <button
-          type="button"
-          className={tab === "properties" ? "active" : ""}
-          data-name="switch-properties"
-          title="Properties"
-          onClick={() => setTab("properties")}
-        >
-          Properties
-        </button>
-        <button
-          type="button"
-          className={tab === "color" ? "active" : ""}
-          data-name="switch-color"
-          title="Colour"
-          onClick={() => setTab("color")}
-        >
-          Colour
-        </button>
-      </div>
-    </div>
-  ) : null);
+  );
 
   // in Video the chat sits here as a tab, so it never covers the picture while working by hand
   if (tab === "chat" && mode === "motion") {

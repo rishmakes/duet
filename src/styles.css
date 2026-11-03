@@ -8795,30 +8795,6 @@ input.chathome-name.rename {
   font-weight: 500;
   box-shadow: 0 1px 2px var(--shadow), 0 0 0 1px var(--line);
 }
-/* Kitchen: the design and the chat on the left, the steps in the middle, the recipes on the far right */
-.kitchen,
-.kitchen.recipes-folded {
-  grid-template-areas: "preview steps recipes";
-}
-.kitchen {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) 232px;
-}
-.kitchen.recipes-folded {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) 44px;
-}
-.kitchen > .kitchen-preview {
-  grid-area: preview;
-  border-right: 1px solid var(--line);
-}
-.kitchen > .kitchen-middle {
-  grid-area: steps;
-  border-right: none;
-}
-.kitchen > .kitchen-recipes {
-  grid-area: recipes;
-  border-right: none;
-  border-left: 1px solid var(--line);
-}
 /* Studio: the chat has its own column, right after your projects */
 .studio-chat {
   grid-area: chat;
@@ -8834,4 +8810,159 @@ input.chathome-name.rename {
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+/* the top of the right panel: the kind of work across the width, and the one extra it has under it */
+.panel-kind {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.panel-kind .kind-quiet button {
+  flex: 1;
+}
+.panel-extra {
+  align-self: flex-start;
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.panel-extra:hover {
+  color: var(--text);
+}
+.panel-extra.on {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 500;
+}
+/* Kitchen: the chat, your design, and a recipe's steps only while one is in use */
+.kitchen,
+.kitchen.chat-docked {
+  grid-template-columns: 360px minmax(0, 1fr);
+}
+.kitchen:not(.chat-docked) {
+  grid-template-columns: minmax(0, 1fr);
+}
+.kitchen.chat-docked.with-recipe {
+  grid-template-columns: 360px minmax(0, 1fr) minmax(560px, 40%);
+}
+.kitchen:not(.chat-docked).with-recipe {
+  grid-template-columns: minmax(0, 1fr) minmax(560px, 40%);
+}
+.kitchen > .kitchen-middle {
+  border-right: 0;
+  border-left: 1px solid var(--line);
+}
+.kitchen > .kitchen-middle .kitchen-steps-scroll {
+  width: 230px;
+}
+.kitchen > .kitchen-middle .kitchen-board {
+  gap: 20px;
+  padding: 20px 16px;
+}
+.kitchen-chat-col {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  border-right: 1px solid var(--line);
+  background: var(--panel);
+}
+.kitchen-canvas-stage {
+  flex: 1;
+}
+/* the chat's own buttons: put it in a column or float it, and the recipe it works from */
+.chat-dock-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.chat-dock-btn:hover {
+  background: var(--panel-2);
+  color: var(--text);
+}
+.chat-extra {
+  flex: none;
+  min-width: 0;
+}
+.recipe-pick {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 150px;
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.recipe-pick span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.recipe-pick:hover {
+  color: var(--text);
+}
+.recipe-pick.on {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 500;
+}
+.recipe-pick-menu {
+  position: fixed;
+  z-index: 200;
+  width: 290px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--panel);
+  box-shadow: 0 12px 32px var(--shadow);
+}
+.recipe-pick-menu div {
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.recipe-pick-menu div:hover,
+.recipe-pick-menu div.on {
+  background: var(--panel-2);
+}
+.recipe-pick-menu small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+}
+.recipe-pick-menu hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 6px 0;
+}
+/* floating, the chat is narrow: its name stays whole, the recipe and New task make room */
+.chat:not(.docked) .ctitle {
+  flex: 1 0 auto;
+}
+.chat:not(.docked) .recipe-pick {
+  max-width: 110px;
+}
+.chat:not(.docked):not(.min) .chat-new-btn span {
+  display: none;
 }

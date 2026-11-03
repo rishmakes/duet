@@ -121,6 +121,7 @@ export default function App() {
   // in Studio the chat waits folded away, unless the designer chose to keep it open there
   useEffect(() => {
     if (dock.space === "edit") setMinimized(!dock.editChatOpen);
+    else setMinimized(false);
   }, [dock.space]);
   useEffect(() => {
     const stop = startAutosave();
@@ -237,11 +238,13 @@ export default function App() {
   // Kitchen, like Chat, is a whole page of its own: no tools or panels around it, only your projects on the left
   const cooking = dock.space === "kitchen";
   const hist = dock.historyLine ? "48px" : "0";
+  // the chat has a column of its own on the left, or floats over the canvas
+  const chatCol = dock.chatDocked.edit ? 340 : 0;
   const timeMax = dock.timeMax && !cooking && dock.mode === "motion";
   const appStyle = cooking
     ? { gridTemplateColumns: "auto minmax(0, 1fr)", gridTemplateRows: `44px minmax(0, 1fr) ${hist}`, gridTemplateAreas: '"top top" "projects kitchen" "hist hist"' }
     : {
-    gridTemplateColumns: dock.swapped ? `auto 340px ${rw}px 1fr ${lw}px` : `auto 340px ${lw}px 1fr ${rw}px`,
+    gridTemplateColumns: dock.swapped ? `auto ${chatCol}px ${rw}px 1fr ${lw}px` : `auto ${chatCol}px ${lw}px 1fr ${rw}px`,
     gridTemplateRows: `44px 40px minmax(0, 1fr) auto ${hist}`,
     gridTemplateAreas: timeMax
       ? '"top top top top top" "projects chat bar bar bar" "projects chat time time time" "projects chat time time time" "hist hist hist hist hist"'
@@ -264,17 +267,16 @@ export default function App() {
           <span data-tauri-drag-region className={`status ${project.status}`} title={project.error ?? undefined}>
             {project.path ? STATUS[project.status] : "Not saved yet"}
           </span>
-          <div className="pill mode-switch space-switch">
-            <button className={cooking ? "active" : ""} data-name="space-kitchen" onClick={() => setLayout({ space: "kitchen" })} title="Make work from recipes, step by step">
-              Kitchen
-            </button>
-            <button className={cooking ? "" : "active"} data-name="space-edit" onClick={() => setLayout({ space: "edit" })} title="Every tool, to work on the design yourself">
-              Studio
-            </button>
-          </div>
         </div>
-        {/* the kind of work sits in the middle, so it stays put whatever the sides hold */}
-        <div />
+        {/* Kitchen or Studio, the two ways to work, in the middle so it stays put whatever the sides hold */}
+        <div className="pill mode-switch space-switch">
+          <button className={cooking ? "active" : ""} data-name="space-kitchen" onClick={() => setLayout({ space: "kitchen" })} title="Make work from recipes, step by step">
+            Kitchen
+          </button>
+          <button className={cooking ? "" : "active"} data-name="space-edit" onClick={() => setLayout({ space: "edit" })} title="Every tool, to work on the design yourself">
+            Studio
+          </button>
+        </div>
         <div className="top-side end" data-tauri-drag-region>
           <button
             className="pill icon theme-toggle"
@@ -328,15 +330,17 @@ export default function App() {
         <Kitchen />
       ) : (
         <>
-          {/* Studio's own bar, under the top bar: the tools on the left, the kind of work on the right */}
+          {/* Studio's own bar, under the top bar: the tools; the kind of work lives at the top of the right panel, and waits here while that panel is hidden */}
           <div className="studio-bar">
             <Toolbar row />
-            <KindSwitch />
+            {dock.rightHidden && <KindSwitch />}
           </div>
-          {/* the chat's own column, always in the same place */}
-          <section className="studio-chat">
-            <ChatPanel docked />
-          </section>
+          {/* the chat's own column, always in the same place, unless it floats over the canvas */}
+          {dock.chatDocked.edit && (
+            <section className="studio-chat">
+              <ChatPanel docked />
+            </section>
+          )}
           {!dock.leftHidden && <LayersPanel />}
           <main className="canvas">
             <CanvasView />
@@ -344,6 +348,7 @@ export default function App() {
             <Grip side="r" />
             {isColorOpen(dock) && <BeforeAfter />}
             <PageStrip />
+            {!dock.chatDocked.edit && <ChatPanel />}
           </main>
           {!dock.rightHidden && <PropertiesPanel />}
           <TimeStrip />

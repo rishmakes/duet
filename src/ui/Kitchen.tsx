@@ -25,7 +25,7 @@ import {
   useRecipes,
 } from "../ai/recipes";
 import { setTool, useStore } from "../state/store";
-import { setLayout } from "./layout";
+import { setLayout, useLayout } from "./layout";
 import ChatPanel from "./ChatPanel";
 import { ask, message, open, save } from "./dialog";
 import Icon from "./Icons";
@@ -37,58 +37,42 @@ export const NODE_W = 224;
 export const NODE_H = 80;
 
 /**
- * Kitchen: where work is cooked from recipes.
- * - Recipes on the left (folds to a thin strip with an unfold arrow, and remembers state).
- * - Middle board: straight column of steps top to bottom, joined by a thin line with centered plus buttons.
- * - Step editor sits to the right of the column, beside the picked step.
- * - Right: open design preview with Studio canvas surface, and chat panel docked below it.
+ * Kitchen: you and the AI on one design.
+ * - The chat on the left, in its own column, or floating over the canvas.
+ * - Your design in the middle, with Comment and Fit.
+ * - A recipe only when you pick one from the chat: its steps open on the right, and the cross puts them away.
  */
 export default function Kitchen() {
   const recipes = useRecipes();
   const cooking = useCooking();
   const tool = useStore((s) => s.tool);
   const project = useStore((s) => s.project);
-  const [pickedId, setPickedId] = useState<string>(recipes[0]?.id ?? "");
+  const docked = useLayout((d) => d.chatDocked.kitchen);
+  const recipeOn = useLayout((d) => d.recipeOn);
   const [stepId, setStepId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
-  const [recipesFolded, setRecipesFolded] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem("duet:kitchen-recipes-folded") === "1";
-    } catch {
-      return false;
-    }
-  });
 
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useDismiss(menuOpen, () => setMenuOpen(false), ".kitchen-menu, .kitchen-menu-btn");
 
-  const toggleFold = () => {
-    setRecipesFolded((f) => {
-      const next = !f;
-      try {
-        localStorage.setItem("duet:kitchen-recipes-folded", next ? "1" : "0");
-      } catch {
-        // ignore
-      }
-      return next;
-    });
-  };
-
   useEffect(() => {
     void loadRecipes();
     void loadCooking();
   }, []);
 
+  // a cook that is still going keeps its recipe on show
   useEffect(() => {
-    if (cooking && cooking.status !== "stopped" && cooking.status !== "done") {
-      setPickedId(cooking.recipe.id);
-    }
+    if (cooking && cooking.status !== "stopped" && cooking.status !== "done") setLayout({ recipeOn: cooking.recipe.id });
   }, [cooking?.recipe.id]);
 
-  const recipe = recipes.find((r) => r.id === pickedId) ?? (cooking && cooking.recipe.id === pickedId ? cooking.recipe : recipes[0]);
+  const use = (id: string | null) => {
+    setLayout({ recipeOn: id });
+    setStepId(null);
+  };
+  const recipe = recipeOn ? (recipes.find((r) => r.id === recipeOn) ?? (cooking && cooking.recipe.id === recipeOn ? cooking.recipe : undefined)) : undefined;
   const live = cooking && recipe && cooking.recipe.id === recipe.id && cooking.status !== "stopped" ? cooking : null;
 
   const change = (r: Recipe) => keepRecipe(r);
@@ -96,7 +80,7 @@ export default function Kitchen() {
   const newRecipe = () => {
     const r = blankRecipe();
     keepRecipe(r);
-    setPickedId(r.id);
+    use(r.id);
     setStepId(r.steps[0]?.id ?? null);
   };
 
@@ -107,7 +91,7 @@ export default function Kitchen() {
     if (!r) return void message("That file is not a recipe.");
     const fresh = recipes.some((x) => x.id === r.id) ? { ...r, id: Math.random().toString(36).slice(2, 9) } : r;
     keepRecipe(fresh);
-    setPickedId(fresh.id);
+    use(fresh.id);
   };
 
   const saveFile = async () => {
@@ -127,168 +111,20 @@ export default function Kitchen() {
     setMenuOpen(!menuOpen);
   };
 
-  return (
-    <div className={`kitchen ${recipesFolded ? "recipes-folded" : ""}`}>
-      {recipesFolded ? (
-        <aside className="kitchen-recipes folded" onClick={toggleFold} title="Unfold recipes">
-          <div className="kitchen-folded-head">
-            <button
-              className="pill icon kitchen-fold-btn"
-              title="Unfold recipes"
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleFold();
-              }}
-            >
-              <Icon name="arrow" size={14} className="kitchen-fold-arrow-back" />
-            </button>
-          </div>
-          <div className="kitchen-folded-icon" aria-hidden="true">
-            <StepIcon name="brief" />
-          </div>
-          <span className="kitchen-folded-label">RECIPES</span>
-        </aside>
-      ) : (
-        <aside className="kitchen-recipes">
-          <div className="kitchen-head">
-            <span className="kitchen-section-label">Recipes</span>
-            <div className="kitchen-head-actions">
-              <button className="pill icon" title="New recipe" onClick={newRecipe}>
-                <Icon name="plus" size={15} />
-              </button>
-              <button className="pill icon kitchen-fold-btn" title="Fold recipes" onClick={toggleFold}>
-                <Icon name="arrow" size={14} />
-              </button>
-            </div>
-          </div>
-          <div className="kitchen-list">
-            {recipes.map((r) => (
-              <button
-                key={r.id}
-                className={`kitchen-recipe ${r.id === recipe?.id ? "on" : ""}`}
-                onClick={() => {
-                  setPickedId(r.id);
-                  setStepId(null);
-                }}
-              >
-                <span className="kitchen-recipe-name">
-                  {r.name}
-                  {cooking?.recipe.id === r.id && cooking.status !== "stopped" && cooking.status !== "done" && <i className="kitchen-dot" />}
-                </span>
-                <span className="kitchen-recipe-about">{r.about || `${r.steps.length} steps`}</span>
-              </button>
-            ))}
-          </div>
-          <div className="kitchen-files">
-            <button className="pill" onClick={() => void openFile()}>
-              Open a recipe file
-            </button>
-          </div>
-        </aside>
-      )}
+  // the recipe is picked from the chat, so working with or without one starts in the same place
+  const pick = <RecipePick recipes={recipes} on={recipe ?? null} cooking={!!live && live.status !== "done"} onUse={use} onNew={newRecipe} onOpenFile={() => void openFile()} />;
 
-      <section className="kitchen-middle">
-        {recipe ? (
-          <>
-            <div className="kitchen-bar">
-              <div className="kitchen-section-label">STEPS</div>
-              <div className="kitchen-bar-body">
-                <div className="kitchen-bar-info">
-                  <input
-                    key={recipe.id}
-                    className="kitchen-name"
-                    defaultValue={recipe.name}
-                    onBlur={(e) => e.target.value.trim() && e.target.value !== recipe.name && change({ ...recipe, name: e.target.value.trim() })}
-                    onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-                  />
-                  <div className="kitchen-cook-hint">Cook runs these steps on the design on the left, and stops when it needs you.</div>
-                </div>
-                <div className="kitchen-bar-actions">
-                  {live && live.status !== "done" ? (
-                    <button className="pill kitchen-cook-btn stop" onClick={stopCooking}>
-                      Stop
-                    </button>
-                  ) : (
-                    <button
-                      className="pill primary kitchen-cook-btn"
-                      disabled={!recipe.steps.length}
-                      onClick={() => (setStepId(null), startCooking(recipe))}
-                      title="Cook this recipe on the open design, step by step"
-                    >
-                      <span className="kitchen-play" aria-hidden="true">▶</span> Cook
-                    </button>
-                  )}
-                  <button
-                    ref={menuBtnRef}
-                    className={`pill icon kitchen-menu-btn ${menuOpen ? "on" : ""}`}
-                    title="Recipe options"
-                    onClick={toggleMenu}
-                  >
-                    <Icon name="dots" size={15} />
-                  </button>
-                </div>
-              </div>
-              {menuOpen && (
-                <div className="kitchen-menu" ref={menuRef} style={menuPos} onPointerDown={(e) => e.stopPropagation()}>
-                  <div
-                    onClick={() => {
-                      setMenuOpen(false);
-                      void saveFile();
-                    }}
-                  >
-                    <Icon name="copy" size={14} /> Share recipe file
-                  </div>
-                  {recipe.builtIn ? (
-                    <div
-                      onClick={async () => {
-                        setMenuOpen(false);
-                        const original = BUILT_IN.find((b) => b.id === recipe.id);
-                        const changed = !original || JSON.stringify(original) !== JSON.stringify(recipe);
-                        if (changed) {
-                          const ok = await ask("Put this recipe back to the steps it came with? Your changes will be lost.", {
-                            title: "Back to original",
-                            kind: "warning",
-                            okLabel: "Put back",
-                            cancelLabel: "Keep my changes",
-                          });
-                          if (!ok) return;
-                        }
-                        dropRecipe(recipe.id);
-                      }}
-                    >
-                      <Icon name="restore" size={14} /> Back to original
-                    </div>
-                  ) : (
-                    <div
-                      onClick={() => {
-                        setMenuOpen(false);
-                        dropRecipe(recipe.id);
-                        setPickedId(recipes[0]?.id ?? "");
-                      }}
-                    >
-                      <Icon name="trash" size={14} /> Delete recipe
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            <StraightBoard
-              recipe={recipe}
-              pickedId={stepId}
-              onPick={setStepId}
-              onChange={change}
-              live={live}
-            />
-          </>
-        ) : (
-          <div className="kitchen-empty">No recipes yet.</div>
-        )}
-      </section>
+  return (
+    <div className={`kitchen ${docked ? "chat-docked" : ""} ${recipe ? "with-recipe" : ""}`}>
+      {docked && (
+        <section className="kitchen-chat-col">
+          <ChatPanel docked extra={pick} />
+        </section>
+      )}
 
       <section className="kitchen-preview">
         <div className="kitchen-design-bar">
           <div className="kitchen-design-info">
-            <span className="kitchen-section-label">YOUR DESIGN</span>
             <span className="kitchen-design-name" title={project.file ?? project.path ?? "No file saved yet"}>
               {project.name || "Untitled"}
             </span>
@@ -303,6 +139,7 @@ export default function Kitchen() {
             <div className="chathome-stage">
               <CanvasView />
             </div>
+            {!docked && <ChatPanel extra={pick} />}
           </main>
           <div className="kitchen-canvas-tools">
             <button
@@ -321,21 +158,157 @@ export default function Kitchen() {
             </button>
           </div>
         </div>
-        <div className="kitchen-chat">
-          <div className="kitchen-chat-head">
-            <span className="kitchen-section-label">CHAT</span>
-            {cooking && cooking.status !== "stopped" && cooking.status !== "done" && (
-              <span className="kitchen-chat-status">
-                {cooking.status === "working" ? "cooking…" : cooking.status === "waiting" ? "waiting for you" : "done"}
-              </span>
+      </section>
+
+      {recipe && (
+        <section className="kitchen-middle">
+          <div className="kitchen-bar">
+            <div className="kitchen-section-label">Recipe</div>
+            <div className="kitchen-bar-body">
+              <div className="kitchen-bar-info">
+                <input
+                  key={recipe.id}
+                  className="kitchen-name"
+                  defaultValue={recipe.name}
+                  onBlur={(e) => e.target.value.trim() && e.target.value !== recipe.name && change({ ...recipe, name: e.target.value.trim() })}
+                  onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+                />
+                <div className="kitchen-cook-hint">Cook runs these steps on your design, and stops when it needs you.</div>
+              </div>
+              <div className="kitchen-bar-actions">
+                {live && live.status !== "done" ? (
+                  <button className="pill kitchen-cook-btn stop" onClick={stopCooking}>
+                    Stop
+                  </button>
+                ) : (
+                  <button
+                    className="pill primary kitchen-cook-btn"
+                    disabled={!recipe.steps.length}
+                    onClick={() => (setStepId(null), startCooking(recipe))}
+                    title="Cook this recipe on the open design, step by step"
+                  >
+                    <span className="kitchen-play" aria-hidden="true">▶</span> Cook
+                  </button>
+                )}
+                <button
+                  ref={menuBtnRef}
+                  className={`pill icon kitchen-menu-btn ${menuOpen ? "on" : ""}`}
+                  title="Recipe options"
+                  onClick={toggleMenu}
+                >
+                  <Icon name="dots" size={15} />
+                </button>
+                {!(live && live.status !== "done") && (
+                  <button className="pill icon" data-name="recipe-off" title="Stop using this recipe: back to the chat and your design" onClick={() => use(null)}>
+                    <Icon name="close" size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+            {menuOpen && (
+              <div className="kitchen-menu" ref={menuRef} style={menuPos} onPointerDown={(e) => e.stopPropagation()}>
+                <div
+                  onClick={() => {
+                    setMenuOpen(false);
+                    void saveFile();
+                  }}
+                >
+                  <Icon name="copy" size={14} /> Share recipe file
+                </div>
+                {recipe.builtIn ? (
+                  <div
+                    onClick={async () => {
+                      setMenuOpen(false);
+                      const original = BUILT_IN.find((b) => b.id === recipe.id);
+                      const changed = !original || JSON.stringify(original) !== JSON.stringify(recipe);
+                      if (changed) {
+                        const ok = await ask("Put this recipe back to the steps it came with? Your changes will be lost.", {
+                          title: "Back to original",
+                          kind: "warning",
+                          okLabel: "Put back",
+                          cancelLabel: "Keep my changes",
+                        });
+                        if (!ok) return;
+                      }
+                      dropRecipe(recipe.id);
+                    }}
+                  >
+                    <Icon name="restore" size={14} /> Back to original
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => {
+                      setMenuOpen(false);
+                      dropRecipe(recipe.id);
+                      use(null);
+                    }}
+                  >
+                    <Icon name="trash" size={14} /> Delete recipe
+                  </div>
+                )}
+              </div>
             )}
           </div>
-          <div className="kitchen-chat-body">
-            <ChatPanel docked />
-          </div>
-        </div>
-      </section>
+          <StraightBoard recipe={recipe} pickedId={stepId} onPick={setStepId} onChange={change} live={live} />
+        </section>
+      )}
     </div>
+  );
+}
+
+/** In the chat's top row: work with a recipe, or with none. */
+function RecipePick({
+  recipes,
+  on,
+  cooking,
+  onUse,
+  onNew,
+  onOpenFile,
+}: {
+  recipes: Recipe[];
+  on: Recipe | null;
+  cooking: boolean;
+  onUse: (id: string | null) => void;
+  onNew: () => void;
+  onOpenFile: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const btn = useRef<HTMLButtonElement>(null);
+  useDismiss(open, () => setOpen(false), ".recipe-pick-menu, .recipe-pick");
+  const choose = (f: () => void) => () => (setOpen(false), f());
+  return (
+    <>
+      <button
+        ref={btn}
+        type="button"
+        className={`recipe-pick ${on ? "on" : ""}`}
+        data-name="use-recipe"
+        title={on ? `Using the recipe ${on.name}` : "Work step by step from a recipe"}
+        onClick={() => {
+          const b = btn.current?.getBoundingClientRect();
+          if (b) setPos({ top: b.bottom + 4, left: Math.min(b.left, window.innerWidth - 300) });
+          setOpen(!open);
+        }}
+      >
+        <span>{on ? on.name : "Use a recipe"}</span>
+        <svg width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M1.5 2.5 4 5.5l2.5-3" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      </button>
+      {open && (
+        <div className="recipe-pick-menu" style={pos}>
+          {recipes.map((r) => (
+            <div key={r.id} className={r.id === on?.id ? "on" : ""} onClick={choose(() => onUse(r.id))}>
+              <b>{r.name}</b>
+              <small>{r.about || `${r.steps.length} steps`}</small>
+            </div>
+          ))}
+          <hr />
+          <div onClick={choose(onNew)}>New recipe</div>
+          <div onClick={choose(onOpenFile)}>Open a recipe file</div>
+          {on && !cooking && <div onClick={choose(() => onUse(null))}>No recipe, just the chat</div>}
+        </div>
+      )}
+    </>
   );
 }
 

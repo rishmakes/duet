@@ -1,5 +1,5 @@
 import { OUTSIDE, isOutside, toolLabel } from "../ai/who";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { detectAgent, sendToAgent, sendToTask, stopAgent } from "../ai/agent";
 import { invoke } from "@tauri-apps/api/core";
 import { inTauri } from "../project/project";
@@ -87,7 +87,9 @@ function agyModelList(): Promise<ModelChoice[]> {
 }
 
 /** `docked` fills the space it is given, as the middle of Chat; otherwise it floats on the canvas. */
-export default function ChatPanel({ docked = false }: { docked?: boolean }) {
+export default function ChatPanel({ docked = false, extra }: { docked?: boolean; extra?: React.ReactNode }) {
+  const space = useLayout((d) => d.space);
+  const chatDocked = useLayout((d) => d.chatDocked);
   // the main chat, or the task on show
   const task = useChat((s) => (s.thread ? s.tasks.find((t) => t.key === s.thread) : undefined));
   const mainMessages = useChat((s) => s.messages);
@@ -663,6 +665,26 @@ export default function ChatPanel({ docked = false }: { docked?: boolean }) {
             <b>Chat</b>
           )}
         </div>
+        {/* the chat stands in a column on the left, or floats over the canvas: the designer picks, in each space */}
+        <button
+          type="button"
+          className="chat-dock-btn"
+          data-name={docked ? "chat-float" : "chat-dock"}
+          title={docked ? "Float the chat over the canvas, for more room" : "Put the chat in a column on the left"}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!docked) setMinimized(false);
+            setLayout({ chatDocked: { ...chatDocked, [space]: !docked } });
+          }}
+        >
+          <Icon name="panel-left" size={14} />
+        </button>
+        {extra && (
+          <div className="chat-extra" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+            {extra}
+          </div>
+        )}
         <button
           type="button"
           className="chat-new-btn"
