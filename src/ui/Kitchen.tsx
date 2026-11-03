@@ -1321,14 +1321,14 @@ function StepEditor({
       <div className="kitchen-who-row">
         <span className="kitchen-editor-prompt-label">Who does it</span>
         <div className="kind-quiet kitchen-who" role="tablist">
-          <button role="tab" className={step.kind === "ai" ? "on" : ""} onClick={() => set({ kind: "ai" })}>
+          <button role="tab" className={step.kind === "ai" ? "on" : ""} onClick={() => set({ kind: "ai" })} title="The AI works on the design">
             AI does it
           </button>
-          <button role="tab" className={step.kind === "ask" ? "on" : ""} onClick={() => set({ kind: "ask" })}>
-            AI asks you
+          <button role="tab" className={step.kind === "ask" ? "on" : ""} onClick={() => set({ kind: "ask" })} title="The cook stops and asks you a question; you type the answer">
+            You answer
           </button>
-          <button role="tab" className={step.kind === "review" ? "on" : ""} onClick={() => set({ kind: "review" })}>
-            You review
+          <button role="tab" className={step.kind === "review" ? "on" : ""} onClick={() => set({ kind: "review" })} title="The cook stops while you pin comments on the design">
+            You comment
           </button>
         </div>
       </div>

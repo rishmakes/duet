@@ -6187,8 +6187,8 @@ input.chathome-name.rename {
   flex-wrap: wrap;
   justify-content: center;
   gap: 6px;
-  padding: 8px 10px 0;
-  margin: 0;
+  padding: 0 10px;
+  margin: 0 0 14px;
   max-height: 90px;
   opacity: 1;
   overflow: hidden;
@@ -6197,7 +6197,7 @@ input.chathome-name.rename {
 .chat.docked:not(.is-empty) .chat-start-chips {
   max-height: 0;
   opacity: 0;
-  padding-top: 0;
+  margin-bottom: 0;
   pointer-events: none;
 }
 

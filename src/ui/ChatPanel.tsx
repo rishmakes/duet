@@ -1052,6 +1052,16 @@ export default function ChatPanel({ docked = false, extra, onFold }: { docked?: 
               {task ? `What should ${chatName} do?` : "What shall we make?"}
             </div>
           )}
+          {/* ideas to start with sit above the box, under the question, where the eye already is */}
+          {docked && found !== false && (
+            <div className="chips chat-start-chips" aria-hidden={!isEmpty}>
+              {IDEAS.map((i) => (
+                <span key={i.label} className="chip" onClick={() => send(i.ask)}>
+                  {i.label}
+                </span>
+              ))}
+            </div>
+          )}
 
           {(waiting.length > 0 || pictureNote) && (
             <div className="waiting">
@@ -1319,15 +1329,6 @@ export default function ChatPanel({ docked = false, extra, onFold }: { docked?: 
               </button>
             )}
           </div>
-          {docked && found !== false && (
-            <div className="chips chat-start-chips" aria-hidden={!isEmpty}>
-              {IDEAS.map((i) => (
-                <span key={i.label} className="chip" onClick={() => send(i.ask)}>
-                  {i.label}
-                </span>
-              ))}
-            </div>
-          )}
           {docked && <div className="chat-start-spacer" />}
         </>
       )}
