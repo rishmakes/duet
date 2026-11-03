@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useSyncExternalStore } from "react";
-import { getChat, messagesOf, subscribeChat } from "./chat";
+import { openingNumber } from "../state/store";
+import { liveKey } from "../project/project";
+import { getChat, messagesOf, subscribeChat, updateMsg } from "./chat";
 import { sendToAgent } from "./agent";
 
 /**
@@ -65,14 +67,14 @@ export const LANDING_PAGE: Recipe = {
       id: "wireframe",
       title: "Wireframe",
       kind: "ai",
-      does: "Make a wireframe of the whole page in one desktop frame 1440 wide: grey boxes and real words only, no colour, no pictures, no icons. Sections from top to bottom with real headings and real button words. Use auto layout and one spacing scale. Every card has its words in it.",
+      does: "Make a wireframe of the whole page in one desktop frame 1440 wide: grey boxes and real words only, no colour, no pictures, no icons. Sections from top to bottom with real headings and real button words. Use auto layout and one spacing scale. Every card has its words in it. Writing must never invent facts (prices, addresses, names, numbers, quotes): use clear placeholders instead.",
     },
     { id: "wireframe-comments", title: "Your comments", kind: "review", does: "Pin comments on the wireframe where you want changes. Continue when you are done." },
     {
       id: "design",
       title: "Design",
       kind: "ai",
-      does: "Make the real design from the wireframe, in a new frame beside it, keeping its sections and words. Use the brand kit if there is one: its colours, fonts and logo only. One type scale, one spacing scale, one corner radius. Use real pictures where the wireframe had picture boxes.",
+      does: "Make the real design from the wireframe, in a new frame beside it, keeping its sections and words. Use the brand kit if there is one: its colours, fonts and logo only. One type scale, one spacing scale, one corner radius. Use real pictures where the wireframe had picture boxes. Writing must never invent facts (prices, addresses, names, numbers, quotes): use clear placeholders instead.",
     },
     {
       id: "icons",
@@ -84,14 +86,14 @@ export const LANDING_PAGE: Recipe = {
       id: "check",
       title: "Check",
       kind: "ai",
-      does: "Look at the design and fix the basic slips: gaps under text, labels off their icons, corners that do not match, mixed buttons, uneven edges, empty cards, text that runs out of its box. Say what you fixed.",
+      does: "Look at the design and fix the basic slips: gaps under text, labels off their icons, corners that do not match, mixed buttons, uneven edges, empty cards, text that runs out of its box. Check that writing never invents facts (prices, addresses, names, numbers, quotes) and uses clear placeholders instead. Say what you fixed.",
     },
     { id: "design-comments", title: "Your comments", kind: "review", does: "Pin comments on the design where you want changes. Continue when you are done." },
     {
       id: "polish",
       title: "Polish",
       kind: "ai",
-      does: "Do what each open comment asks, then resolve it. Then a last pass: spacing, alignment and contrast. Change nothing else.",
+      does: "Do what each open comment asks, then resolve it. Then a last pass: spacing, alignment and contrast. Writing must never invent facts (prices, addresses, names, numbers, quotes): use clear placeholders instead. Change nothing else.",
     },
   ]),
 };
@@ -173,7 +175,9 @@ export function stepPrompt(r: Recipe, at: number, said: Said[]): string {
   if (heard.length) lines.push("", "What the designer has said so far:", ...heard.map((s) => `- ${r.steps.find((x) => x.id === s.step)?.title ?? "Answer"}: ${s.text.trim()}`));
   // a comment step just before this one means the designer has left notes on the design
   if (r.steps[at - 1]?.kind === "review") lines.push("", "The designer has left comments on the design. Read the open comments with get_context, do what each asks, and resolve each one when it is done.");
-  lines.push("", "Do only this step. Then stop and say in one or two lines what you did.");
+  // the AI cannot tell from its own numbers that words are cut off or a box sits empty
+  lines.push("", "If you changed the design, look at it once with look_at_design and fix anything cut off, overlapping or left empty.");
+  lines.push("Do only this step. Then stop and say in one or two lines what you did.");
   return lines.join("\n");
 }
 
@@ -247,13 +251,142 @@ export interface Cooking {
   /** Steps already cooked. */
   done: string[];
   error?: string;
+  /** The design this recipe started cooking on. */
+  project: DesignMark;
+  /** Whether the cook was loaded from disk and is paused waiting for the user to carry on. */
+  paused?: boolean;
+  /** Whether the step was in progress (status was "working") when Duet was closed. */
+  working?: boolean;
+}
+
+export const COOK_DESIGN_CHANGED_ERROR = "The design this recipe was cooking is no longer open. Open it again, then try this step again.";
+export const COOK_NO_DESIGN_ERROR = "The design this recipe was cooking is gone. Stop this cook, or start it again.";
+
+/** Which design is on screen: how it came to be open, and its file or tab if it has one. */
+export interface DesignMark {
+  opening: number;
+  key: string | null;
+}
+export const openDesign = (): DesignMark => ({ opening: openingNumber(), key: liveKey() });
+
+/** The same design if it has stayed open, even if it just got its first file, or if it has been opened again. */
+export const sameDesign = (was: DesignMark, now: DesignMark) => was.opening === now.opening || (!!was.key && was.key === now.key);
+
+export interface SavedCook {
+  recipe: Recipe;
+  step: number;
+  at?: number;
+  answers: Said[];
+  said?: Said[];
+  replies: Record<string, string>;
+  done: string[];
+  doneSteps?: string[];
+  key: string | null;
+  working?: boolean;
+  status?: string;
+}
+
+/** Pure representation of a cook to save to cooking.json. */
+export function cookToSave(c: Cooking): SavedCook {
+  return {
+    recipe: c.recipe,
+    step: c.at,
+    at: c.at,
+    answers: c.said,
+    said: c.said,
+    replies: c.replies,
+    done: c.done,
+    doneSteps: c.done,
+    key: c.project.key,
+    working: c.status === "working" || !!c.working,
+    status: c.status,
+  };
+}
+export const saveCook = cookToSave;
+
+/** Read a saved cook from cooking.json text, or null if broken or empty. */
+export function readCook(text: string): Cooking | null {
+  try {
+    if (!text || !text.trim()) return null;
+    const data = JSON.parse(text);
+    if (!data || typeof data !== "object") return null;
+    const recipe = readRecipe(JSON.stringify(data.recipe)) ?? (data.recipe && typeof data.recipe.name === "string" && Array.isArray(data.recipe.steps) ? data.recipe : null);
+    if (!recipe) return null;
+    const at = typeof data.step === "number" ? data.step : typeof data.at === "number" ? data.at : 0;
+    if (at < 0 || at >= recipe.steps.length) return null;
+    const said: Said[] = Array.isArray(data.answers)
+      ? data.answers
+      : Array.isArray(data.said)
+        ? data.said
+        : [];
+    const replies: Record<string, string> =
+      data.replies && typeof data.replies === "object" ? data.replies : {};
+    const done: string[] = Array.isArray(data.done)
+      ? data.done
+      : Array.isArray(data.doneSteps)
+        ? data.doneSteps
+        : [];
+    const key = typeof data.key === "string" ? data.key : null;
+    const wasWorking = data.working === true || data.status === "working";
+
+    return {
+      recipe,
+      at,
+      status: "waiting",
+      paused: true,
+      working: wasWorking,
+      said,
+      replies,
+      done,
+      project: { opening: -1, key },
+    };
+  } catch {
+    return null;
+  }
+}
+export const readCooking = readCook;
+
+async function cookingFile(): Promise<string> {
+  const home = await invoke<string>("duet_home");
+  return `${home.replace(/[\\/]$/, "")}/cooking.json`;
+}
+
+async function keepCooking(c: Cooking | null) {
+  try {
+    const path = await cookingFile();
+    if (!c || c.status === "stopped" || c.status === "done") {
+      await invoke("write_text_file", { path, contents: "" });
+    } else {
+      const data = cookToSave(c);
+      await invoke("write_text_file", { path, contents: JSON.stringify(data, null, 2) });
+    }
+  } catch {
+    // ignore when filesystem or tauri invoke is not available
+  }
+}
+
+export async function loadCooking() {
+  // Kitchen opens many times; a cook already in hand is never replaced by the saved copy
+  if (cooking) return;
+  try {
+    const text = await invoke<string>("read_text_file", { path: await cookingFile() });
+    const cook = readCook(text);
+    if (cook && !cooking) {
+      setCooking(cook, false);
+    }
+  } catch {
+    // no cooking file or broken
+  }
 }
 
 let cooking: Cooking | null = null;
 const cookListeners = new Set<() => void>();
-const setCooking = (c: Cooking | null) => {
+const setCooking = (c: Cooking | null, persist = true) => {
   cooking = c;
   cookListeners.forEach((l) => l());
+  if (persist) {
+    void keepCooking(c);
+  }
 };
 export const getCooking = () => cooking;
 export function useCooking(): Cooking | null {
@@ -265,18 +398,45 @@ export function useCooking(): Cooking | null {
 
 /** Start cooking a recipe on the open design, from its first step. */
 export function startCooking(r: Recipe) {
-  setCooking({ recipe: r, at: 0, status: "waiting", said: [], replies: {}, done: [] });
+  setCooking({ recipe: r, at: 0, status: "waiting", said: [], replies: {}, done: [], project: openDesign() });
   void go();
 }
 
 export function stopCooking() {
-  if (cooking) setCooking({ ...cooking, status: "stopped" });
+  if (cooking) setCooking({ ...cooking, status: "stopped", paused: false });
+}
+
+/** Carry on a paused cook after reload or restart. */
+export function carryOn() {
+  const c = cooking;
+  if (!c) return;
+  if (!c.project.key) {
+    setCooking({ ...c, error: COOK_NO_DESIGN_ERROR });
+    return;
+  }
+  const open = openDesign();
+  if (!sameDesign(c.project, open)) {
+    setCooking({ ...c, error: COOK_DESIGN_CHANGED_ERROR });
+    return;
+  }
+  const wasWorking = !!c.working;
+  setCooking({
+    ...c,
+    project: open,
+    paused: false,
+    working: undefined,
+    status: wasWorking ? "working" : "waiting",
+    error: undefined,
+  });
+  if (wasWorking) {
+    void go();
+  }
 }
 
 /** The designer has answered, or finished their comments: on to the next step. */
 export function answer(text: string) {
   const c = cooking;
-  if (!c || c.status !== "waiting") return;
+  if (!c || c.status !== "waiting" || c.paused) return;
   const step = c.recipe.steps[c.at];
   setCooking({ ...c, said: step.kind === "ask" ? [...c.said, { step: step.id, text }] : c.said, done: [...c.done, step.id], at: c.at + 1, status: "working" });
   void go();
@@ -285,6 +445,10 @@ export function answer(text: string) {
 /** Do the step at hand again, after it went wrong or the designer wants another try. */
 export function again() {
   if (!cooking) return;
+  if (cooking.paused) {
+    carryOn();
+    return;
+  }
   setCooking({ ...cooking, status: "working", error: undefined });
   void go();
 }
@@ -304,18 +468,31 @@ function finished(): Promise<void> {
 
 async function go() {
   const c = cooking;
-  if (!c || c.status === "stopped") return;
+  if (!c || c.status === "stopped" || c.paused) return;
   if (c.at >= c.recipe.steps.length) return setCooking({ ...c, status: "done" });
   const step = c.recipe.steps[c.at];
   if (step.kind !== "ai") return setCooking({ ...c, status: "waiting" });
   if (getChat().running) return setCooking({ ...c, status: "waiting", error: "The AI is busy with something else. Try this step again once it is done." });
-  setCooking({ ...c, status: "working", error: undefined });
+
+  const open = openDesign();
+  if (!sameDesign(c.project, open)) return setCooking({ ...c, status: "waiting", error: COOK_DESIGN_CHANGED_ERROR });
+
+  setCooking({ ...c, project: open, status: "working", error: undefined });
   const before = messagesOf().reduce((n, m) => Math.max(n, m.id), 0);
-  await sendToAgent(stepPrompt(c.recipe, c.at, c.said));
+  const prompt = stepPrompt(c.recipe, c.at, c.said);
+  const aiSteps = c.recipe.steps.filter((s) => s.kind === "ai");
+  const stepNum = aiSteps.indexOf(step) + 1;
+  const shortLine = `Recipe "${c.recipe.name}", step ${stepNum} of ${aiSteps.length}: ${step.title}.`;
+  await sendToAgent(prompt);
+  const userMsg = messagesOf().find((m) => m.id > before && m.role === "you");
+  if (userMsg) updateMsg(userMsg.id, { text: shortLine });
   await finished();
   const now = cooking;
   // stopped, or another recipe started, while the AI worked
   if (!now || now !== cooking || now.recipe.id !== c.recipe.id || now.at !== c.at || now.status === "stopped") return;
+
+  if (!sameDesign(now.project, openDesign())) return setCooking({ ...now, status: "waiting", error: COOK_DESIGN_CHANGED_ERROR });
+
   const after = messagesOf().filter((m) => m.id > before);
   const reply = after.filter((m) => m.role === "duet").map((m) => m.text).join("\n").trim();
   const failed = after.find((m) => m.role === "error");

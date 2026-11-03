@@ -3,15 +3,39 @@ import { useEffect, useRef, useState } from "react";
 import CanvasView from "../canvas/CanvasView";
 import { useChat } from "../ai/chat";
 import type { Recipe, Step, StepKind } from "../ai/recipes";
-import { addStep, again, answer, blankRecipe, changeStep, dropRecipe, keepRecipe, KIND_NAMES, loadRecipes, moveStep, readRecipe, removeStep, startCooking, stopCooking, useCooking, useRecipes } from "../ai/recipes";
+import {
+  addStep,
+  again,
+  answer,
+  blankRecipe,
+  BUILT_IN,
+  carryOn,
+  changeStep,
+  COOK_NO_DESIGN_ERROR,
+  dropRecipe,
+  keepRecipe,
+  KIND_NAMES,
+  loadCooking,
+  loadRecipes,
+  moveStep,
+  readRecipe,
+  removeStep,
+  startCooking,
+  stopCooking,
+  useCooking,
+  useRecipes,
+} from "../ai/recipes";
 import { setTool, useStore } from "../state/store";
+import { setLayout } from "./layout";
 import ChatPanel from "./ChatPanel";
-import { message, open, save } from "./dialog";
+import { ask, message, open, save } from "./dialog";
 import Icon from "./Icons";
 import Rich from "./rich";
+import StepIcon, { stepIconFor } from "./StepIcons";
+import { useDismiss } from "./useDismiss";
 
-const NODE_W = 200;
-const NODE_H = 76;
+const NODE_W = 224;
+const NODE_H = 80;
 
 /**
  * Kitchen: where work is cooked from recipes. The recipes on the left, the steps of one as boxes
@@ -21,10 +45,28 @@ const NODE_H = 76;
 export default function Kitchen() {
   const recipes = useRecipes();
   const cooking = useCooking();
+  const messages = useChat((s) => s.messages);
+  const tool = useStore((s) => s.tool);
+  const project = useStore((s) => s.project);
   const [pickedId, setPickedId] = useState<string>(recipes[0]?.id ?? "");
   const [stepId, setStepId] = useState<string | null>(null);
-  useEffect(() => void loadRecipes(), []);
-  const recipe = recipes.find((r) => r.id === pickedId) ?? recipes[0];
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
+  const menuBtnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useDismiss(menuOpen, () => setMenuOpen(false), ".kitchen-menu, .kitchen-menu-btn");
+
+  useEffect(() => {
+    void loadRecipes();
+    void loadCooking();
+  }, []);
+  useEffect(() => {
+    if (cooking && cooking.status !== "stopped" && cooking.status !== "done") {
+      setPickedId(cooking.recipe.id);
+    }
+  }, [cooking?.recipe.id]);
+  const recipe = recipes.find((r) => r.id === pickedId) ?? (cooking && cooking.recipe.id === pickedId ? cooking.recipe : recipes[0]);
   // while one cooks, its board follows the step at hand
   const live = cooking && recipe && cooking.recipe.id === recipe.id && cooking.status !== "stopped" ? cooking : null;
   const step = recipe?.steps.find((s) => s.id === stepId) ?? null;
@@ -57,11 +99,20 @@ export default function Kitchen() {
     await invoke("write_text_file", { path, contents: JSON.stringify(plain, null, 2) }).catch((e) => message(`Could not save the recipe: ${e}`));
   };
 
+  const toggleMenu = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!menuOpen && menuBtnRef.current) {
+      const b = menuBtnRef.current.getBoundingClientRect();
+      setMenuPos({ top: b.bottom + 4, right: window.innerWidth - b.right });
+    }
+    setMenuOpen(!menuOpen);
+  };
+
   return (
     <div className="kitchen">
       <aside className="kitchen-recipes">
         <div className="kitchen-head">
-          <b>Recipes</b>
+          <span className="kitchen-section-label">Recipes</span>
           <button className="pill icon" title="New recipe" onClick={newRecipe}>
             <Icon name="plus" size={15} />
           </button>
@@ -88,34 +139,85 @@ export default function Kitchen() {
         {recipe ? (
           <>
             <div className="kitchen-bar">
-              <input
-                key={recipe.id}
-                className="kitchen-name"
-                defaultValue={recipe.name}
-                onBlur={(e) => e.target.value.trim() && e.target.value !== recipe.name && change({ ...recipe, name: e.target.value.trim() })}
-                onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-              />
-              <span className="kitchen-gap" />
-              {live && live.status !== "done" ? (
-                <button className="pill" onClick={stopCooking}>
-                  Stop
-                </button>
-              ) : (
-                <button className="pill primary" disabled={!recipe.steps.length} onClick={() => (setStepId(null), startCooking(recipe))} title="Cook this recipe on the open design, step by step">
-                  Cook
-                </button>
-              )}
-              <button className="pill" onClick={() => void saveFile()} title="Save as a file to share">
-                Share
-              </button>
-              {recipe.builtIn ? (
-                <button className="pill" onClick={() => dropRecipe(recipe.id)} title="Put back the steps it came with">
-                  Reset
-                </button>
-              ) : (
-                <button className="pill icon" title="Delete this recipe" onClick={() => (dropRecipe(recipe.id), setPickedId(recipes[0]?.id ?? ""))}>
-                  <Icon name="trash" size={15} />
-                </button>
+              <div className="kitchen-section-label">STEPS</div>
+              <div className="kitchen-bar-body">
+                <div className="kitchen-bar-info">
+                  <input
+                    key={recipe.id}
+                    className="kitchen-name"
+                    defaultValue={recipe.name}
+                    onBlur={(e) => e.target.value.trim() && e.target.value !== recipe.name && change({ ...recipe, name: e.target.value.trim() })}
+                    onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+                  />
+                  <div className="kitchen-cook-hint">Cook runs these steps on the design on the right, and stops when it needs you.</div>
+                </div>
+                <div className="kitchen-bar-actions">
+                  {live && live.status !== "done" ? (
+                    <button className="pill kitchen-cook-btn stop" onClick={stopCooking}>
+                      Stop
+                    </button>
+                  ) : (
+                    <button
+                      className="pill primary kitchen-cook-btn"
+                      disabled={!recipe.steps.length}
+                      onClick={() => (setStepId(null), startCooking(recipe))}
+                      title="Cook this recipe on the open design, step by step"
+                    >
+                      <span className="kitchen-play" aria-hidden="true">▶</span> Cook
+                    </button>
+                  )}
+                  <button
+                    ref={menuBtnRef}
+                    className={`pill icon kitchen-menu-btn ${menuOpen ? "on" : ""}`}
+                    title="Recipe options"
+                    onClick={toggleMenu}
+                  >
+                    <Icon name="dots" size={15} />
+                  </button>
+                </div>
+              </div>
+              {menuOpen && (
+                <div className="kitchen-menu" ref={menuRef} style={menuPos} onPointerDown={(e) => e.stopPropagation()}>
+                  <div
+                    onClick={() => {
+                      setMenuOpen(false);
+                      void saveFile();
+                    }}
+                  >
+                    <Icon name="copy" size={14} /> Share recipe file
+                  </div>
+                  {recipe.builtIn ? (
+                    <div
+                      onClick={async () => {
+                        setMenuOpen(false);
+                        const original = BUILT_IN.find((b) => b.id === recipe.id);
+                        const changed = !original || JSON.stringify(original) !== JSON.stringify(recipe);
+                        if (changed) {
+                          const ok = await ask("Put this recipe back to the steps it came with? Your changes will be lost.", {
+                            title: "Back to original",
+                            kind: "warning",
+                            okLabel: "Put back",
+                            cancelLabel: "Keep my changes",
+                          });
+                          if (!ok) return;
+                        }
+                        dropRecipe(recipe.id);
+                      }}
+                    >
+                      <Icon name="restore" size={14} /> Back to original
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => {
+                        setMenuOpen(false);
+                        dropRecipe(recipe.id);
+                        setPickedId(recipes[0]?.id ?? "");
+                      }}
+                    >
+                      <Icon name="trash" size={14} /> Delete recipe
+                    </div>
+                  )}
+                </div>
               )}
             </div>
             <Board recipe={recipe} picked={stepId} onPick={setStepId} onChange={change} live={live} />
@@ -127,34 +229,58 @@ export default function Kitchen() {
       </section>
 
       <section className="kitchen-preview">
-        <main className="canvas chathome-canvas">
-          <div className="chathome-stage">
-            <CanvasView />
-            <PreviewTools />
+        <div className="kitchen-design-bar">
+          <div className="kitchen-design-info">
+            <span className="kitchen-section-label">YOUR DESIGN</span>
+            <span className="kitchen-design-name" title={project.file ?? project.path ?? "No file saved yet"}>
+              {project.name || "Untitled"}
+            </span>
+            {!project.file && !project.path ? <span className="kitchen-preview-saved">No file saved yet</span> : null}
           </div>
-        </main>
+          <button className="pill" onClick={() => setLayout({ space: "edit" })} title="Open this design in Studio">
+            Open in Studio
+          </button>
+        </div>
+        <div className="kitchen-canvas-stage">
+          <main className="canvas chathome-canvas">
+            <div className="chathome-stage">
+              <CanvasView />
+            </div>
+          </main>
+          <div className="kitchen-canvas-tools">
+            <button
+              className={`pill ${tool === "comment" ? "on" : ""}`}
+              onClick={() => setTool(tool === "comment" ? "move" : "comment")}
+              title="Leave comments on the design"
+            >
+              Comment
+            </button>
+            <button
+              className="pill"
+              onClick={() => window.dispatchEvent(new Event("duet:fit"))}
+              title="Fit the whole design in view (Shift 1)"
+            >
+              Fit
+            </button>
+          </div>
+        </div>
         <div className="kitchen-chat">
-          <ChatPanel docked />
+          <div className="kitchen-chat-head">
+            <span className="kitchen-section-label">CHAT</span>
+            {cooking && cooking.status !== "stopped" && cooking.status !== "done" && (
+              <span className="kitchen-chat-status">
+                {cooking.status === "working" ? "cooking…" : cooking.status === "waiting" ? "waiting for you" : "done"}
+              </span>
+            )}
+          </div>
+          <div className="kitchen-chat-body">
+            {messages.length === 0 && !live && (
+              <div className="kitchen-chat-note">You can talk to the AI here about this design, or cook a recipe above.</div>
+            )}
+            <ChatPanel docked />
+          </div>
         </div>
       </section>
-    </div>
-  );
-}
-
-/** Two tools over the preview: look around, or pin a comment for the AI. */
-function PreviewTools() {
-  const tool = useStore((s) => s.tool);
-  return (
-    <div className="kitchen-tools">
-      <button className={`pill icon ${tool !== "comment" ? "on" : ""}`} title="Move and look (V)" onClick={() => setTool("move")}>
-        <Icon name="move" size={15} />
-      </button>
-      <button className={`pill icon ${tool === "comment" ? "on" : ""}`} title="Comment (C)" onClick={() => setTool("comment")}>
-        <Icon name="marker" size={15} />
-      </button>
-      <button className="pill" title="Fit the design (Shift 1)" onClick={() => window.dispatchEvent(new Event("duet:fit"))}>
-        Fit
-      </button>
     </div>
   );
 }
@@ -183,8 +309,8 @@ function Board({ recipe, picked, onPick, onChange, live }: { recipe: Recipe; pic
     if (!el || !recipe.steps.length) return;
     const minX = Math.min(...recipe.steps.map((s) => s.x)) - 40;
     const maxX = Math.max(...recipe.steps.map((s) => s.x)) + NODE_W + 40;
-    const minY = Math.min(...recipe.steps.map((s) => s.y)) - 60;
-    const maxY = Math.max(...recipe.steps.map((s) => s.y)) + NODE_H + 60;
+    const minY = Math.min(...recipe.steps.map((s) => s.y)) - 40;
+    const maxY = Math.max(...recipe.steps.map((s) => s.y)) + NODE_H + 90;
     const z = Math.min(1, el.clientWidth / (maxX - minX), el.clientHeight / (maxY - minY));
     setView({ x: (el.clientWidth - (maxX - minX) * z) / 2 - minX * z, y: (el.clientHeight - (maxY - minY) * z) / 2 - minY * z, z });
   }, [recipe.id]);
@@ -210,7 +336,35 @@ function Board({ recipe, picked, onPick, onChange, live }: { recipe: Recipe; pic
   }, []);
 
   const at = (s: Step) => (drag?.id === s.id ? { x: drag.x, y: drag.y } : { x: s.x, y: s.y });
-  const stateOf = (s: Step, i: number) => (!live ? "" : live.done.includes(s.id) ? "done" : i === live.at && live.status !== "done" ? (live.status === "working" ? "working" : "turn") : "");
+  const stateOf = (s: Step, i: number) =>
+    !live
+      ? ""
+      : live.done.includes(s.id)
+        ? "done"
+        : i === live.at && live.status !== "done"
+          ? live.paused
+            ? "paused"
+            : live.status === "working"
+              ? "working"
+              : "turn"
+          : "";
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+      if (!picked) return;
+      const stepIndex = recipe.steps.findIndex((s) => s.id === picked);
+      if (stepIndex < 0) return;
+      if (live && live.status === "working" && live.at === stepIndex) return;
+      e.preventDefault();
+      onChange(removeStep(recipe, picked));
+      onPick(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [recipe, picked, live, onChange, onPick]);
 
   const down = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
@@ -250,26 +404,17 @@ function Board({ recipe, picked, onPick, onChange, live }: { recipe: Recipe; pic
             const cooked = live?.done.includes(steps[i].id);
             return <path key={s.id} className={cooked ? "cooked" : ""} d={link(at(steps[i]), at(s))} />;
           })}
+          {steps.length > 0 && (
+            <path
+              className="kitchen-stem-path"
+              d={`M${at(steps[steps.length - 1]).x + NODE_W / 2},${at(steps[steps.length - 1]).y + NODE_H} L${at(steps[steps.length - 1]).x + NODE_W / 2},${at(steps[steps.length - 1]).y + NODE_H + 24}`}
+            />
+          )}
         </svg>
-        {steps.slice(1).map((s, i) => {
-          const a = at(steps[i]);
-          const b = at(s);
-          return (
-            <button
-              key={`add-${s.id}`}
-              className="kitchen-add between"
-              style={{ left: (a.x + b.x + NODE_W) / 2 - 11, top: (a.y + b.y + NODE_H) / 2 - 11 }}
-              title="Add a step here"
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => insert(steps[i].id)}
-            >
-              <Icon name="plus" size={12} />
-            </button>
-          );
-        })}
         {steps.map((s, i) => {
           const p = at(s);
           const st = stateOf(s, i);
+          const isStepCooking = live && live.status === "working" && live.at === i;
           return (
             <div
               key={s.id}
@@ -283,30 +428,87 @@ function Board({ recipe, picked, onPick, onChange, live }: { recipe: Recipe; pic
                 onPick(s.id);
               }}
             >
-              <span className="kitchen-node-kind">
-                {i + 1} · {KIND_NAMES[s.kind]}
-              </span>
-              <span className="kitchen-node-title">{s.title}</span>
-              {st === "done" && <span className="kitchen-node-state">Done</span>}
-              {st === "working" && <span className="kitchen-node-state">Cooking…</span>}
-              {st === "turn" && <span className="kitchen-node-state">{s.kind === "ai" ? "Stuck" : "Your turn"}</span>}
+              <div className="kitchen-node-main">
+                <div className={`kitchen-node-tile ${s.kind}`}>
+                  <StepIcon name={stepIconFor(s)} />
+                </div>
+                <div className="kitchen-node-info">
+                  <span className="kitchen-node-kind">
+                    {i + 1} · {KIND_NAMES[s.kind]}
+                  </span>
+                  <span className="kitchen-node-title">{s.title}</span>
+                </div>
+              </div>
+              {!isStepCooking && (
+                <button
+                  className="kitchen-node-remove"
+                  title="Remove step"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onChange(removeStep(recipe, s.id));
+                    if (picked === s.id) onPick(null);
+                  }}
+                >
+                  <Icon name="close" size={10} />
+                </button>
+              )}
+              {st === "done" && <span className="kitchen-node-state done">Done</span>}
+              {st === "working" && <span className="kitchen-node-state working">Cooking…</span>}
+              {st === "turn" && <span className="kitchen-node-state turn">{s.kind === "ai" ? "Stuck" : "Your turn"}</span>}
+              {st === "paused" && <span className="kitchen-node-state paused">Paused</span>}
             </div>
+          );
+        })}
+        {steps.slice(1).map((s, i) => {
+          const a = at(steps[i]);
+          const b = at(s);
+          const dy = b.y - a.y;
+          const dx = b.x - a.x;
+          let midX: number;
+          let midY: number;
+
+          if (dy >= NODE_H * 0.7) {
+            midX = (a.x + b.x + NODE_W) / 2;
+            midY = (a.y + NODE_H + b.y) / 2;
+          } else if (dy <= -NODE_H * 0.7) {
+            midX = (a.x + b.x + NODE_W) / 2;
+            midY = (a.y + b.y + NODE_H) / 2;
+          } else if (dx >= 0) {
+            midX = (a.x + NODE_W + b.x) / 2;
+            midY = a.y + NODE_H / 2;
+          } else {
+            midX = (a.x + b.x + NODE_W) / 2;
+            midY = a.y + NODE_H / 2;
+          }
+
+          return (
+            <button
+              key={`add-${s.id}`}
+              className="kitchen-add between"
+              style={{ left: Math.round(midX) - 12, top: Math.round(midY) - 12 }}
+              title="Add a step here"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => insert(steps[i].id)}
+            >
+              <Icon name="plus" size={13} />
+            </button>
           );
         })}
         {steps.length > 0 && (
           <button
             className="kitchen-add end"
-            style={{ left: at(steps[steps.length - 1]).x + NODE_W / 2 - 11, top: at(steps[steps.length - 1]).y + NODE_H + 20 }}
+            style={{ left: Math.round(at(steps[steps.length - 1]).x + NODE_W / 2) - 12, top: Math.round(at(steps[steps.length - 1]).y + NODE_H + 24) }}
             title="Add a step at the end"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => insert(steps[steps.length - 1].id)}
           >
-            <Icon name="plus" size={12} />
+            <Icon name="plus" size={13} />
           </button>
         )}
         {steps.length === 0 && (
           <button className="kitchen-add end" style={{ left: 60, top: 140 }} title="Add the first step" onPointerDown={(e) => e.stopPropagation()} onClick={() => insert(null, "ask")}>
-            <Icon name="plus" size={12} />
+            <Icon name="plus" size={13} />
           </button>
         )}
       </div>
@@ -314,25 +516,50 @@ function Board({ recipe, picked, onPick, onChange, live }: { recipe: Recipe; pic
   );
 }
 
-/** The line from one box to the next: out of the side facing it, or out of the bottom when the next sits below. */
-function link(a: { x: number; y: number }, b: { x: number; y: number }): string {
-  const dx = b.x - a.x;
+/** The line from one box to the next: out of the bottom when the next sits below, or out of the facing side. */
+export function link(a: { x: number; y: number }, b: { x: number; y: number }): string {
   const dy = b.y - a.y;
-  if (Math.abs(dy) > Math.abs(dx) && dy > 0) {
+  const dx = b.x - a.x;
+
+  // Next box is on a row below
+  if (dy >= NODE_H * 0.7) {
     const x1 = a.x + NODE_W / 2;
     const y1 = a.y + NODE_H;
     const x2 = b.x + NODE_W / 2;
     const y2 = b.y;
-    const bend = Math.max(30, (y2 - y1) / 2);
+    const bend = Math.max(20, (y2 - y1) / 2);
     return `M${x1},${y1} C${x1},${y1 + bend} ${x2},${y2 - bend} ${x2},${y2}`;
   }
-  const right = dx >= 0;
-  const x1 = right ? a.x + NODE_W : a.x;
-  const x2 = right ? b.x : b.x + NODE_W;
+
+  // Next box is on a row above
+  if (dy <= -NODE_H * 0.7) {
+    const x1 = a.x + NODE_W / 2;
+    const y1 = a.y;
+    const x2 = b.x + NODE_W / 2;
+    const y2 = b.y + NODE_H;
+    const bend = Math.max(20, (y1 - y2) / 2);
+    return `M${x1},${y1} C${x1},${y1 - bend} ${x2},${y2 + bend} ${x2},${y2}`;
+  }
+
+  // Same row: going right (forward)
+  if (dx >= 0) {
+    const x1 = a.x + NODE_W;
+    const y1 = a.y + NODE_H / 2;
+    const x2 = b.x;
+    const y2 = b.y + NODE_H / 2;
+    const gap = Math.max(0, x2 - x1);
+    const bend = Math.min(60, Math.max(16, gap / 2));
+    return `M${x1},${y1} C${x1 + bend},${y1} ${x2 - bend},${y2} ${x2},${y2}`;
+  }
+
+  // Same row: going left (snake backward)
+  const x1 = a.x;
   const y1 = a.y + NODE_H / 2;
+  const x2 = b.x + NODE_W;
   const y2 = b.y + NODE_H / 2;
-  const bend = Math.max(40, Math.abs(x2 - x1) / 2) * (right ? 1 : -1);
-  return `M${x1},${y1} C${x1 + bend},${y1} ${x2 - bend},${y2} ${x2},${y2}`;
+  const gap = Math.max(0, x1 - x2);
+  const bend = Math.min(60, Math.max(16, gap / 2));
+  return `M${x1},${y1} C${x1 - bend},${y1} ${x2 + bend},${y2} ${x2},${y2}`;
 }
 
 /** Under the board: while cooking, the step at hand; otherwise the picked step, to change it. */
@@ -351,6 +578,28 @@ function StepPanel({ recipe, step, onChange, onPick, live }: { recipe: Recipe; s
     if (!current) return null;
     const before = live.recipe.steps[live.at - 1];
     const reply = before ? live.replies[before.id] : "";
+    if (live.paused)
+      return (
+        <div className="kitchen-step paused">
+          <div className="kitchen-step-kind">Step {live.at + 1} of {live.recipe.steps.length} · Paused</div>
+          <b>{current.title}</b>
+          <p className="kitchen-step-note">{`This recipe was paused at step ${live.at + 1}. Carry on?`}</p>
+          {live.error && <p className="kitchen-step-error">{live.error}</p>}
+          <div className="kitchen-step-actions">
+            <button className="pill" onClick={stopCooking}>
+              Stop
+            </button>
+            <button className="pill primary" onClick={carryOn}>
+              Carry on
+            </button>
+            {live.error === COOK_NO_DESIGN_ERROR && (
+              <button className="pill primary" onClick={() => startCooking(live.recipe)}>
+                Start again
+              </button>
+            )}
+          </div>
+        </div>
+      );
     if (live.status === "working")
       return (
         <div className="kitchen-step">
@@ -452,7 +701,12 @@ function StepPanel({ recipe, step, onChange, onPick, live }: { recipe: Recipe; s
           Later
         </button>
         <span className="kitchen-gap" />
-        <button className="pill" onClick={() => (onChange(removeStep(recipe, step.id)), onPick(null))}>
+        <button
+          className="pill"
+          disabled={!!(live && live.status === "working" && live.at === i)}
+          onClick={() => (onChange(removeStep(recipe, step.id)), onPick(null))}
+          title={live && live.status === "working" && live.at === i ? "Cannot remove a step that is cooking" : "Remove this step"}
+        >
           Remove step
         </button>
       </div>

@@ -832,6 +832,130 @@ describe("auto layout", () => {
     expect(d.elements.box.width).toBe(20 + 120 + 20);
   });
 
+  it("a hugging frame that its parent stretches keeps the parent's width and hugs only its height", () => {
+    let d = stack({ dir: "column", align: "stretch", padX: 10, padY: 0, gap: 0 });
+    d = runCommand(d, "create_element", { id: "sec", type: "frame", x: 0, y: 0, width: 50, height: 500, parentId: "box" });
+    d = runCommand(d, "create_element", { id: "t", type: "rect", x: 0, y: 0, width: 40, height: 70, parentId: "sec" });
+    d = runCommand(d, "set_props", { ids: ["sec"], props: { layout: { ...defaultLayout(), padX: 0, padY: 0, gap: 0, hug: true } } });
+    expect(d.elements.sec.width).toBe(280);
+    expect(d.elements.sec.height).toBe(70);
+  });
+
+  it("wraps long text in a column frame", () => {
+    let d = frame("box");
+    d = runCommand(d, "create_element", {
+      id: "txt",
+      type: "text",
+      parentId: "box",
+      x: 0,
+      y: 0,
+      width: 500,
+      height: 20,
+      props: {
+        text: "This is a very long heading that definitely cannot fit in a narrow frame and must wrap across several lines",
+        fontSize: 16,
+      },
+    });
+    d = runCommand(d, "set_props", { ids: ["box"], props: { layout: { ...defaultLayout(), dir: "column", padX: 16, padY: 16 } } });
+    expect(d.elements.txt.width).toBe(268);
+    expect(d.elements.txt.textFixed).toBe(true);
+    expect(d.elements.txt.height).toBeGreaterThan(20);
+  });
+
+  it("wraps long text in a row frame taking other children and gaps into account", () => {
+    let d = frame("box");
+    d = runCommand(d, "create_element", { id: "icon", type: "rect", parentId: "box", x: 0, y: 0, width: 60, height: 60 });
+    d = runCommand(d, "create_element", {
+      id: "txt",
+      type: "text",
+      parentId: "box",
+      x: 0,
+      y: 0,
+      width: 400,
+      height: 20,
+      props: {
+        text: "Long line of text in a row that needs to wrap neatly into the leftover room",
+        fontSize: 16,
+      },
+    });
+    d = runCommand(d, "set_props", { ids: ["box"], props: { layout: { ...defaultLayout(), dir: "row", padX: 10, padY: 10, gap: 10 } } });
+    expect(d.elements.txt.width).toBe(210);
+    expect(d.elements.txt.textFixed).toBe(true);
+    expect(d.elements.txt.height).toBeGreaterThan(20);
+  });
+
+  it("leaves short text untouched", () => {
+    let d = frame("box");
+    d = runCommand(d, "create_element", {
+      id: "txt",
+      type: "text",
+      parentId: "box",
+      x: 0,
+      y: 0,
+      width: 80,
+      height: 20,
+      props: {
+        text: "Short text",
+        fontSize: 16,
+      },
+    });
+    const beforeWidth = d.elements.txt.width;
+    const beforeHeight = d.elements.txt.height;
+    d = runCommand(d, "set_props", { ids: ["box"], props: { layout: { ...defaultLayout(), dir: "column", padX: 16, padY: 16 } } });
+    expect(d.elements.txt.width).toBe(beforeWidth);
+    expect(d.elements.txt.textFixed).toBe(false);
+    expect(d.elements.txt.height).toBe(beforeHeight);
+  });
+
+  it("leaves text in an unowned hugging frame untouched so the frame grows around it", () => {
+    let d = emptyDoc();
+    d = runCommand(d, "create_element", { id: "f", type: "frame", x: 0, y: 0, width: 100, height: 100 });
+    d = runCommand(d, "create_element", {
+      id: "txt",
+      type: "text",
+      parentId: "f",
+      x: 0,
+      y: 0,
+      width: 500,
+      height: 20,
+      props: {
+        text: "A very long single line that makes the hugging frame expand around it",
+        fontSize: 16,
+      },
+    });
+    const beforeWidth = d.elements.txt.width;
+    d = runCommand(d, "set_props", { ids: ["f"], props: { layout: { ...defaultLayout(), dir: "column", padX: 16, padY: 16, hug: true } } });
+    expect(d.elements.txt.width).toBe(beforeWidth);
+    expect(d.elements.txt.textFixed).toBeFalsy();
+    expect(d.elements.f.width).toBe(beforeWidth + 32);
+  });
+
+  it("is stable on a second relayout", () => {
+    let d = frame("box");
+    d = runCommand(d, "create_element", {
+      id: "txt",
+      type: "text",
+      parentId: "box",
+      x: 0,
+      y: 0,
+      width: 500,
+      height: 20,
+      props: {
+        text: "Some long text wrapping in auto layout",
+        fontSize: 16,
+      },
+    });
+    d = runCommand(d, "set_props", { ids: ["box"], props: { layout: { ...defaultLayout(), dir: "column", padX: 16, padY: 16 } } });
+    const first = relayout(d);
+    const second = relayout(first);
+    expect(second.elements.txt.width).toBe(first.elements.txt.width);
+    expect(second.elements.txt.height).toBe(first.elements.txt.height);
+    expect(second.elements.txt.x).toBe(first.elements.txt.x);
+    expect(second.elements.txt.y).toBe(first.elements.txt.y);
+    expect(second.elements.box.width).toBe(first.elements.box.width);
+    expect(second.elements.box.height).toBe(first.elements.box.height);
+  });
+
   it("stretches children across the frame", () => {
     const d = stack({ dir: "column", align: "stretch", padX: 10, padY: 0, gap: 0 });
     expect(d.elements.a.width).toBe(280);

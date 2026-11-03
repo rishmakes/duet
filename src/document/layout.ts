@@ -1,5 +1,6 @@
 import { canMask, turnOf, turnedBox } from "./geometry";
 import type { Doc, El, Layout } from "./types";
+import { fitText } from "../canvas/text";
 
 /**
  * Auto layout. A frame can line its children up in a row or a column, with a gap, padding,
@@ -60,6 +61,35 @@ function layoutFrame(doc: Doc, frame: El, sizeChildren: boolean) {
   let innerMain = (row ? frame.width : frame.height) - padMain * 2;
   let innerCross = (row ? frame.height : frame.width) - padCross * 2;
 
+  // a side its parent stretches or grows belongs to the parent; hug only the other one
+  const parent = frame.parentId ? doc.elements[frame.parentId] : undefined;
+  const pl = parent?.layout;
+  const owned = (horizontal: boolean) =>
+    !!pl && !pl.hug && ((pl.align === "stretch" && (pl.dir === "row") !== horizontal) || (frame.grow > 0 && (pl.dir === "row") === horizontal));
+  const fixedWidth = !layout.hug || owned(true);
+
+  if (fixedWidth) {
+    const innerWidth = frame.width - layout.padX * 2;
+    for (const c of kids) {
+      if (c.type === "text") {
+        let room: number;
+        if (row) {
+          const otherWidth = kids.filter((k) => k.id !== c.id).reduce((s, k) => s + k.width, 0);
+          const gaps = layout.gap * (kids.length - 1);
+          room = Math.max(1, round(innerWidth - otherWidth - gaps));
+        } else {
+          room = Math.max(1, round(innerWidth));
+        }
+        if (c.width > room) {
+          c.textFixed = true;
+          c.width = room;
+          const m = fitText(c);
+          c.height = m.height;
+        }
+      }
+    }
+  }
+
   if (sizeChildren) {
     if (layout.align === "stretch" && !layout.hug) for (const c of kids) if (c.type !== "text") setCross(c, innerCross);
     if (!layout.hug) {
@@ -77,15 +107,12 @@ function layoutFrame(doc: Doc, frame: El, sizeChildren: boolean) {
   if (layout.hug) {
     const main = total + gaps + padMain * 2;
     const cross = Math.max(...kids.map(crossOf)) + padCross * 2;
-    if (row) {
-      frame.width = Math.max(1, round(main));
-      frame.height = Math.max(1, round(cross));
-    } else {
-      frame.height = Math.max(1, round(main));
-      frame.width = Math.max(1, round(cross));
-    }
-    innerMain = main - padMain * 2;
-    innerCross = cross - padCross * 2;
+    const w = row ? main : cross;
+    const h = row ? cross : main;
+    if (!owned(true)) frame.width = Math.max(1, round(w));
+    if (!owned(false)) frame.height = Math.max(1, round(h));
+    innerMain = (row ? frame.width : frame.height) - padMain * 2;
+    innerCross = (row ? frame.height : frame.width) - padCross * 2;
     if (layout.align === "stretch") for (const c of kids) if (c.type !== "text") setCross(c, innerCross);
   }
 

@@ -24,7 +24,7 @@ import { addPicture, mimeFor, pictureOf, preloadPictures } from "../project/asse
 import { renderPng } from "../project/exporter";
 import { clipPicture, clipPictureOf, fileLength, letGoOfOriginals, seekClips } from "../video/clips";
 import { QUALITIES, defaultChoice, exportScene } from "../video/scene";
-import { saveNow, tabName } from "../project/project";
+import { saveNow, saveVersion, tabName } from "../project/project";
 import { setLayout } from "../ui/layout";
 import { tracePicture } from "../project/trace";
 import { getState, goTo, keepAiWorkWhile, liveRoom, parkedFiles, roomFor } from "../state/store";
@@ -59,7 +59,7 @@ const ids = { type: "array", items: str, description: "Element ids, from get_doc
 const props = {
   type: "object",
   description:
-    "Any of: name, x, y, width, height (numbers, in pixels), fill (hex colour like #1b1b1f), stroke (hex colour, or null for none), strokeWidth, radius (corner radius), opacity (0 to 1), blend (normal, multiply, screen, overlay, soft-light, darken, lighten or add; screen makes black clear, for a black and white mist or light clip over a scene), component (true to make this something that can be reused: place copies of it with create_instance, and changing it changes every copy), rotation (degrees, clockwise, around its own middle; on a group it turns everything inside together; frames and copies of components cannot be turned), d (a path only: redraw its outline, as SVG path text measured from the corner of its parent frame), text, fontSize, fontFamily (any installed font name, or empty for the system font), fontWeight (300 to 900, 400 is regular, 700 is bold), textAlign (left, center or right), lineHeight (a multiple of the size, like 1.4), letterSpacing (pixels), textFixed (true to keep the width and wrap words), shadow ({x, y, blur, color} or null), gradient ({from, to, angle in degrees, 90 runs top to bottom} or null, replaces the fill), link (id of a frame to open when this is clicked in Present mode, or null), linkKind (empty to go to that screen, overlay to open it on top, back to go back), trigger (empty for on click, hover for while the pointer is over it, like a menu that drops down), transition (empty, dissolve, push-left, push-right, push-up or push-down), transitionMs (milliseconds, 300 if 0), scroll (on a screen: true so that what is below its bottom edge can be scrolled in Present mode), layout (frames only: auto layout that lines up the children, as {dir is row or column, gap, padX, padY, align is start, center, end or stretch, justify is start, center, end or between, hug true or false}, or null to turn it off; children are placed in their layer order), locked (true to stop it being picked on the canvas), hidden (true to hide it: not drawn, picked or exported; false to show it again), grow (inside an auto layout frame: 1 to fill the free space along the direction, 0 to keep its size).",
+    "Any of: name, x, y, width, height (numbers, in pixels), fill (hex colour like #1b1b1f), stroke (hex colour, or null for none), strokeWidth, radius (corner radius), opacity (0 to 1), blend (normal, multiply, screen, overlay, soft-light, darken, lighten or add; screen makes black clear, for a black and white mist or light clip over a scene), component (true to make this something that can be reused: place copies of it with create_instance, and changing it changes every copy), rotation (degrees, clockwise, around its own middle; on a group it turns everything inside together; frames and copies of components cannot be turned), d (a path only: redraw its outline, as SVG path text measured from the corner of its parent frame), text, fontSize, fontFamily (any installed font name, or empty for the system font), fontWeight (300 to 900, 400 is regular, 700 is bold), textAlign (left, center or right), lineHeight (a multiple of the size, like 1.4), letterSpacing (pixels), textFixed (true to keep the width and wrap words), shadow ({x, y, blur, color} or null), gradient ({from, to, angle in degrees, 90 runs top to bottom} or null, replaces the fill), link (id of a frame to open when this is clicked in Present mode, or null), linkKind (empty to go to that screen, overlay to open it on top, back to go back), trigger (empty for on click, hover for while the pointer is over it, like a menu that drops down), transition (empty, dissolve, push-left, push-right, push-up or push-down), transitionMs (milliseconds, 300 if 0), scroll (on a screen: true so that what is below its bottom edge can be scrolled in Present mode), layout (frames only: auto layout that lines up the children, as {dir is row or column, gap, padX, padY, align is start, center, end or stretch, justify is start, center, end or between, hug true or false; a frame made with no width or height hugs unless hug is false}, or null to turn it off; children are placed in their layer order), locked (true to stop it being picked on the canvas), hidden (true to hide it: not drawn, picked or exported; false to show it again), grow (inside an auto layout frame: 1 to fill the free space along the direction, 0 to keep its size).",
 };
 
 export const TOOLS: ToolDef[] = [
@@ -249,6 +249,23 @@ export const TOOLS: ToolDef[] = [
       properties: { ids, dx: num, dy: num, parentId: { type: "string", description: "A frame to put the copies in. Leave out to keep them where the original is." } },
       required: ["ids"],
     },
+  },
+  {
+    name: "save_version",
+    description:
+      "Give the design as it is now a name the designer can come back to, from Versions. Do this before a big change, like a redesign or rebuilding a section, so nothing is lost. Works in the project on screen.",
+    inputSchema: { type: "object", properties: { name: { type: "string", description: "A short name, like Before the new collection section." } }, required: ["name"] },
+  },
+  {
+    name: "list_versions",
+    description: "The named versions of this project, newest first.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "go_back_to_version",
+    description:
+      "Bring back a named version as a new step. Nothing is lost: what is there now stays in the history and can be brought back too. Only when the designer asks for it.",
+    inputSchema: { type: "object", properties: { name: { type: "string" } }, required: ["name"] },
   },
   {
     name: "move_elements",
@@ -607,11 +624,16 @@ export function summarise(tool: string, a: Args): string {
 
 /** Check the arguments and fill in anything that can be worked out. Returns an error message if it cannot be done. */
 /** An AI often sends a layout with only some of the fields. Fill the rest in, so no number is left empty. */
-export function fixLayouts(v: unknown): unknown {
-  if (Array.isArray(v)) return v.map(fixLayouts);
+/** A thing made with auto layout and no size given shrinks around its content, unless hug is set. */
+export function fixLayouts(v: unknown, unsized = false): unknown {
+  if (Array.isArray(v)) return v.map((x) => fixLayouts(x));
   if (!v || typeof v !== "object") return v;
+  const me = v as Record<string, unknown>;
+  // only something being made has a type; an update never starts hugging by itself
+  const made = typeof me.type === "string";
+  const noSize = made ? typeof me.width !== "number" || typeof me.height !== "number" : unsized;
   const out: Record<string, unknown> = {};
-  for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+  for (const [k, val] of Object.entries(me)) {
     if (k === "layout" && val && typeof val === "object" && !Array.isArray(val)) {
       const l = val as Record<string, unknown>;
       const d = defaultLayout();
@@ -623,9 +645,9 @@ export function fixLayouts(v: unknown): unknown {
         padY: num(l.padY, 0),
         align: ["start", "center", "end", "stretch"].includes(String(l.align)) ? l.align : d.align,
         justify: ["start", "center", "end", "between"].includes(String(l.justify)) ? l.justify : d.justify,
-        hug: l.hug === true,
+        hug: l.hug === true || (l.hug === undefined && noSize),
       };
-    } else out[k] = fixLayouts(val);
+    } else out[k] = fixLayouts(val, k === "props" && noSize);
   }
   return out;
 }
@@ -1565,6 +1587,26 @@ async function answerTool(name: string, raw: unknown, by?: string): Promise<Tool
     const saved = await keepTaughtSkill(a.name, summary, a.rules);
     if ("error" in saved) return fail(saved.error);
     return { text: saved.updated ? `Updated the skill "${a.name.trim()}". It is on, and every later conversation follows it.` : `Saved the skill "${a.name.trim()}". It is on, and every later conversation follows it. The designer can see it in Skills.` };
+  }
+  if (name === "save_version") {
+    if (typeof a.name !== "string" || !a.name.trim()) return fail("Give the version a name.");
+    if (!R.live) return fail("Versions can be saved only in the project on screen. Ask the designer to open it, or carry on with care.");
+    const why = await saveVersion(a.name);
+    return why ? fail(why) : { text: `Saved the version "${a.name.trim()}". The designer can go back to it from Versions.` };
+  }
+  if (name === "list_versions" || name === "go_back_to_version") {
+    const versions = R.getState().timeline.filter((e) => e.version).reverse();
+    if (name === "list_versions") return { text: versions.length ? versions.map((e) => `${e.version} (${new Date(e.time).toLocaleString()})`).join("\n") : "No versions yet." };
+    const v = typeof a.name === "string" ? versions.find((e) => e.version === a.name) : undefined;
+    if (!v) return fail(`No version called ${String(a.name)}. Use list_versions.`);
+    const summary = `Go back to the version "${v.version}"`;
+    if (mode === "suggest") return fail("You may only suggest changes now. Tell the designer which version to go back to; they can do it from Versions.");
+    if (mode === "ask") {
+      void invoke("bring_back").catch(() => undefined);
+      if (!(await askDesigner(summary))) return fail("The designer said no. Nothing was changed.");
+    }
+    R.restoreDoc(v.doc, `Went back to version "${v.version}"`, "ai", by);
+    return { text: `Done: the design is back to "${v.version}". What was there before is still in the history.` };
   }
   if (name === "picture_of_duet") {
     // only saves a new picture file and never changes the design, so the designer is not asked

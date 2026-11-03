@@ -165,6 +165,7 @@ export function unpark(file: string): boolean {
   const back = parked.get(file);
   if (!back) return false;
   parked.delete(file);
+  openings++;
   state = { ...back, tool: state.tool };
   listeners.forEach((l) => l());
   return true;
@@ -234,6 +235,10 @@ function runAtNow<N extends CommandName>(real: Doc, name: N, args: Parameters<ty
 }
 
 /** Test helper: reset everything. */
+/** Goes up each time another design comes on screen. Saving a design for the first time does not count. */
+let openings = 0;
+export const openingNumber = () => openings;
+
 export function resetStore() {
   parked.clear();
   resetStoreKeepingParked();
@@ -241,6 +246,7 @@ export function resetStore() {
 
 /** Test helper: start a fresh project on screen, leaving the ones waiting in tabs alone. */
 export function resetStoreKeepingParked() {
+  openings++;
   state = initial();
   lastNudge = null;
   listeners.forEach((l) => l());
@@ -339,6 +345,7 @@ export const setProject = (patch: Partial<Project>) => set({ project: { ...state
 
 /** Replace everything with a freshly opened document. History starts over. */
 export function loadDoc(doc: Doc, label = "Opened") {
+  openings++;
   set({
     timeline: [{ doc, label, actor: "you", time: Date.now() }],
     cursor: 0,
@@ -354,6 +361,7 @@ export function loadDoc(doc: Doc, label = "Opened") {
 
 /** Replace everything with a history that was saved earlier. Lands on the newest step. */
 export function loadTimeline(entries: HistoryEntry[]) {
+  openings++;
   set({
     timeline: entries,
     cursor: entries.length - 1,
