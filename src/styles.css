@@ -8865,31 +8865,73 @@ input.chathome-name.rename {
 .panel-kind {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 8px 10px;
+  padding: 0;
+  margin: 0;
+  background: var(--panel);
   border-bottom: 1px solid var(--line);
+}
+.panel-kind .kind-quiet {
+  display: flex;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  border-radius: 0;
+  background: var(--panel-2);
+  box-sizing: border-box;
 }
 .panel-kind .kind-quiet button {
   flex: 1;
+  padding: 10px 4px;
+  border: none;
+  border-radius: 0;
+  background: var(--panel-2);
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  position: relative;
+  border-bottom: 1px solid var(--line);
+  box-shadow: none;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+.panel-kind .kind-quiet button:not(:last-child) {
+  border-right: 1px solid var(--line);
+}
+.panel-kind .kind-quiet button:hover:not(.on) {
+  color: var(--text);
+  background: var(--tint);
+}
+.panel-kind .kind-quiet button.on {
+  background: var(--panel);
+  color: var(--text);
+  font-weight: 600;
+  border-bottom: 1px solid transparent;
+  box-shadow: none;
 }
 .panel-extra {
   align-self: flex-start;
-  padding: 3px 10px;
+  margin: 8px 14px 10px;
+  padding: 4px 11px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: none;
+  background: var(--panel-2);
   color: var(--muted);
   font: inherit;
   font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
+  transition: all 0.12s ease;
 }
 .panel-extra:hover {
   color: var(--text);
+  border-color: var(--muted);
 }
 .panel-extra.on {
-  border-color: var(--accent);
-  color: var(--accent);
-  font-weight: 500;
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--panel);
+  font-weight: 600;
 }
 /* Kitchen: the chat, your design, and a recipe's steps only while one is in use */
 .kitchen,
