@@ -8050,7 +8050,7 @@ input.chathome-name.rename {
   touch-action: pan-y;
 }
 .kitchen-steps-scroll {
-  width: 290px;
+  width: 360px;
   flex-shrink: 0;
   overflow-y: auto;
   overflow-x: hidden;
@@ -8066,10 +8066,9 @@ input.chathome-name.rename {
 }
 .kitchen-card {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-items: stretch;
   width: 100%;
-  padding: 6px 10px 6px 6px;
+  min-height: 64px;
   border-radius: var(--r-md);
   background: var(--panel);
   border: 1px solid var(--line);
@@ -8077,21 +8076,27 @@ input.chathome-name.rename {
   cursor: grab;
   user-select: none;
   box-sizing: border-box;
-  transition: border-color 0.12s, box-shadow 0.12s, background 0.12s;
   position: relative;
   flex-shrink: 0;
+  overflow: hidden;
+  transition: border-color 0.12s, box-shadow 0.12s, background 0.12s, transform 0.2s cubic-bezier(0.2, 0, 0, 1);
 }
-/* a step is one line: its picture, its number and name, and who does it */
-.kitchen-card-row {
+/* the left half: the step's picture, its number and name, and who does it under the name */
+.kitchen-card-main {
+  flex: 0 0 46%;
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
+  padding: 8px;
 }
-.kitchen-card {
-  transition: border-color 0.12s, box-shadow 0.12s, background 0.12s, transform 0.2s cubic-bezier(0.2, 0, 0, 1);
+.kitchen-card-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
 }
-/* the dragged step rides on the pointer, lifted */
 .kitchen-card.dragging {
   cursor: grabbing;
   box-shadow: 0 8px 24px var(--shadow);
@@ -8099,30 +8104,35 @@ input.chathome-name.rename {
 .kitchen-stem.still .kitchen-add {
   visibility: hidden;
 }
-/* a few lines under a step's name: what it asks or does; once cooked, what came of it */
+/* the right half, in its own shade: what the step asks or does; once cooked, what came of it */
 .kitchen-card-preview {
-  margin: 0 0 2px 34px;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  padding: 6px 10px;
+  background: var(--panel-2);
+  border-left: 1px solid var(--line);
+}
+.kitchen-card-preview p {
+  margin: 0;
   font-size: 11px;
-  line-height: 1.4;
+  line-height: 1.35;
   color: var(--muted);
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.kitchen-card-picture {
-  display: block;
-  margin: 0 0 2px 34px;
-  max-width: calc(100% - 34px);
-  max-height: 72px;
-  border-radius: 4px;
-  border: 1px solid var(--line);
-  object-fit: contain;
-  object-position: left;
-  align-self: flex-start;
-}
-.kitchen-card-preview.made {
+.kitchen-card-preview.made p {
   color: var(--text);
+}
+.kitchen-card-preview img {
+  display: block;
+  max-width: 100%;
+  max-height: 52px;
+  border-radius: 4px;
+  object-fit: contain;
 }
 .kitchen-card-num {
   margin-right: 6px;
@@ -8284,7 +8294,6 @@ input.chathome-name.rename {
   position: relative;
   display: flex;
   align-items: flex-start;
-  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .kitchen-editor-connector {
   position: absolute;
@@ -9542,4 +9551,28 @@ input.chathome-name.rename {
 }
 .step-remove:disabled {
   opacity: 0.4;
+}
+
+/* the string from the picked step to its editor; it bends to follow the step out of sight */
+.kitchen-string {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 3;
+  overflow: visible;
+}
+.kitchen-string path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+.kitchen-string circle,
+.kitchen-string polygon {
+  fill: var(--accent);
+}
+.kitchen-card-info .kitchen-card-title {
+  flex: none;
+  max-width: 100%;
 }

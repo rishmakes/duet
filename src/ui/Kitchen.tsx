@@ -795,19 +795,31 @@ function StraightBoard({
 
   // the editor sits beside the picked step, but never runs off the bottom: then it rises and its pointer still finds the step
   const editorRef = useRef<HTMLDivElement>(null);
-  const [pointerAt, setPointerAt] = useState(15);
+  // the string from the picked step to its editor; it bends to follow the step even when the step is scrolled out of sight
+  const [string, setString] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const place = () => {
     if (!effectiveId) return;
     const cardEl = cardRefs.current[effectiveId];
     const scrollEl = scrollRef.current;
-    if (!cardEl || !scrollEl) return;
+    const boardEl = boardRef.current;
+    const paneEl = editorRef.current?.parentElement;
+    if (!cardEl || !scrollEl || !boardEl || !paneEl) return;
     const cardRect = cardEl.getBoundingClientRect();
     const scrollRect = scrollEl.getBoundingClientRect();
-    const offset = Math.max(0, cardRect.top - scrollRect.top);
+    const board = boardEl.getBoundingClientRect();
+    const pane = paneEl.getBoundingClientRect();
+    const offset = cardRect.top - scrollRect.top;
     const tall = editorRef.current?.offsetHeight ?? 0;
     const top = Math.max(0, Math.min(offset, scrollRect.height - tall));
     setEditorTop(top);
-    setPointerAt(Math.max(10, Math.min(offset - top + cardRect.height / 2 - 6, tall - 20)));
+    const mid = cardRect.top + cardRect.height / 2;
+    const editorTopY = pane.top + top;
+    setString({
+      x1: cardRect.right - board.left,
+      y1: mid - board.top,
+      x2: pane.left - board.left,
+      y2: Math.max(editorTopY + 18, Math.min(mid, editorTopY + tall - 18)) - board.top,
+    });
   };
   useLayoutEffect(place, [effectiveId, steps]);
   useEffect(() => {
@@ -926,19 +938,21 @@ function StraightBoard({
                   onClick={() => !dragged.current && onPick(s.id)}
                   title="Drag to move this step"
                 >
-                  <div className="kitchen-card-row">
+                  <div className="kitchen-card-main">
                     <div className="kitchen-card-tile">
                       <StepIcon name={stepIconFor(s)} />
                     </div>
-                    <span className="kitchen-card-title">
-                      <span className="kitchen-card-num">{i + 1}</span>
-                      {s.title}
-                    </span>
-                    {st === "done" && <span className="kitchen-card-badge done">Done</span>}
-                    {st === "working" && <span className="kitchen-card-badge working">Cooking…</span>}
-                    {st === "turn" && <span className="kitchen-card-badge turn">{s.kind === "ai" ? "Stuck" : "Your turn"}</span>}
-                    {st === "paused" && <span className="kitchen-card-badge paused">Paused</span>}
-                    {!st && <span className="kitchen-card-kind">{isBlankStep(s) ? "Not chosen" : s.kind === "ai" ? "AI" : "You"}</span>}
+                    <div className="kitchen-card-info">
+                      <span className="kitchen-card-title">
+                        <span className="kitchen-card-num">{i + 1}</span>
+                        {s.title}
+                      </span>
+                      {st === "done" && <span className="kitchen-card-badge done">Done</span>}
+                      {st === "working" && <span className="kitchen-card-badge working">Cooking…</span>}
+                      {st === "turn" && <span className="kitchen-card-badge turn">{s.kind === "ai" ? "Stuck" : "Your turn"}</span>}
+                      {st === "paused" && <span className="kitchen-card-badge paused">Paused</span>}
+                      {!st && <span className="kitchen-card-kind">{isBlankStep(s) ? "Not chosen yet" : s.kind === "ai" ? "AI" : "You"}</span>}
+                    </div>
                   </div>
                   <StepPreview step={s} live={live} />
                 </div>
@@ -972,13 +986,18 @@ function StraightBoard({
         </div>
       </div>
 
+      {pickedStep && string && (
+        <svg className="kitchen-string" aria-hidden="true">
+          <path
+            d={`M${string.x1},${string.y1} C${string.x1 + (string.x2 - string.x1) * 0.6},${string.y1} ${string.x2 - (string.x2 - string.x1) * 0.6},${string.y2} ${string.x2 - 7},${string.y2}`}
+          />
+          <circle cx={string.x1} cy={string.y1} r={3} />
+          <polygon points={`${string.x2 - 8},${string.y2 - 5} ${string.x2},${string.y2} ${string.x2 - 8},${string.y2 + 5}`} />
+        </svg>
+      )}
       <div className="kitchen-editor-pane">
         {pickedStep ? (
           <div className="kitchen-editor-anchor" ref={editorRef} style={{ transform: `translateY(${editorTop}px)` }}>
-            <div className="kitchen-editor-connector" style={{ top: pointerAt }}>
-              <div className="kitchen-connector-pointer" />
-              <div className="kitchen-connector-line" />
-            </div>
             <StepEditor
               recipe={recipe}
               step={pickedStep}
@@ -999,16 +1018,24 @@ function StraightBoard({
   );
 }
 
-/** A few lines under a step's name: what it asks or does, and once cooked, what came of it (your answers, what the AI said, or a picture of the design). */
+/** The right half of a step: what it asks or does, and once cooked, what came of it (your answers, what the AI said, or a picture of the design). */
 function StepPreview({ step, live }: { step: Step; live: Live }) {
   const clean = (t: string | undefined) => (t ?? "").replace(/[#*_`>]/g, "").replace(/\s+/g, " ").trim();
   const cooked = !!live && live.done.includes(step.id);
   const picture = cooked ? live?.pictures?.[step.id] : undefined;
-  if (picture) return <img className="kitchen-card-picture" src={picture} alt="" />;
+  if (picture)
+    return (
+      <div className="kitchen-card-preview made">
+        <img src={picture} alt="" />
+      </div>
+    );
   const made = cooked && live ? clean(step.kind === "ai" ? live.replies[step.id] : live.said.filter((x) => x.step === step.id).map((x) => x.text).join(" ")) : "";
   const line = made || clean(step.does);
-  if (!line) return null;
-  return <p className={`kitchen-card-preview ${made ? "made" : ""}`}>{line}</p>;
+  return (
+    <div className={`kitchen-card-preview ${made ? "made" : ""}`}>
+      <p>{line || "Nothing written yet"}</p>
+    </div>
+  );
 }
 
 /**
