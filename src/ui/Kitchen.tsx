@@ -341,6 +341,9 @@ export default function Kitchen() {
 
 type Live = ReturnType<typeof useCooking>;
 
+/** A step just added with a plus: no instructions and its default name. Who does it is not chosen yet. */
+const isBlankStep = (s: Step) => !s.does.trim() && (s.title === "New step" || s.title === "Blank step");
+
 /**
  * Straight line of steps:
  * - Straight column from top to bottom, numbered, full-width cards with icon, "AI" or "You", and name.
@@ -471,7 +474,7 @@ function StraightBoard({
                   </div>
                   <div className="kitchen-card-info">
                     <span className="kitchen-card-kind">
-                      {i + 1} · {s.kind === "ai" ? "AI" : "You"}
+                      {i + 1} · {isBlankStep(s) ? "Not chosen yet" : s.kind === "ai" ? "AI" : "You"}
                     </span>
                     <span className="kitchen-card-title">{s.title}</span>
                   </div>
@@ -560,8 +563,7 @@ function StepEditor({
   const [typed, setTyped] = useState("");
   const isCurrentLive = live && live.status !== "done" && live.recipe.steps[live.at]?.id === step.id;
 
-  // A blank step is one without instructions and default name
-  const isBlank = !step.does.trim() && (step.title === "New step" || step.title === "Blank step");
+  const isBlank = isBlankStep(step);
   const [subChoice, setSubChoice] = useState<"none" | "you">("none");
 
   const i = recipe.steps.findIndex((s) => s.id === step.id);
