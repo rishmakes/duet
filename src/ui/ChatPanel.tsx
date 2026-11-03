@@ -87,7 +87,7 @@ function agyModelList(): Promise<ModelChoice[]> {
 }
 
 /** `docked` fills the space it is given, as the middle of Chat; otherwise it floats on the canvas. */
-export default function ChatPanel({ docked = false, extra }: { docked?: boolean; extra?: React.ReactNode }) {
+export default function ChatPanel({ docked = false, extra, onFold }: { docked?: boolean; extra?: React.ReactNode; onFold?: () => void }) {
   const space = useLayout((d) => d.space);
   const chatDocked = useLayout((d) => d.chatDocked);
   // the main chat, or the task on show
@@ -665,6 +665,11 @@ export default function ChatPanel({ docked = false, extra }: { docked?: boolean;
             <b>Chat</b>
           )}
           {running && <span className="chat-status">{nm(members.find((m) => m.id === agent)?.name ?? "The AI")} is working…</span>}
+        {onFold && (
+            <button type="button" className="chat-dock-btn chat-fold-btn" data-name="chat-fold" title="Fold the chat down to its bar" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => (e.stopPropagation(), onFold())}>
+              <Icon name="arrow" size={13} className="fold-open" />
+            </button>
+          )}
         </div>
         {/* the chat stands in a column on the left, or floats over the canvas: the designer picks, in each space */}
         <button

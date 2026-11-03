@@ -57,6 +57,8 @@ export default function Kitchen() {
   const commentsOpen = useLayout((d) => d.kitchenComments);
   const recipeFull = useLayout((d) => d.recipeFull);
   const chatH = useLayout((d) => d.kitchenChatH);
+  const recipeFolded = useLayout((d) => d.recipeFolded);
+  const chatFolded = useLayout((d) => d.kitchenChatFolded);
   const recipeOn = useLayout((d) => d.recipeOn);
   const [stepId, setStepId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -125,8 +127,9 @@ export default function Kitchen() {
 
   // the right side: the recipe on top when one is in use, the chat under it; full screen, only the recipe
   const full = recipeFull && !!recipe;
-  const side = !!recipe || docked;
-  const sideW = full ? "minmax(0, 1fr)" : `${recipe ? recipeW : chatW}px`;
+  const side = true;
+  const recipeOpen = !!recipe && !recipeFolded;
+  const sideW = full ? "minmax(0, 1fr)" : `${recipeOpen ? recipeW : chatW}px`;
   return (
     <div
       className={`kitchen ${docked ? "chat-docked" : ""} ${recipe ? "with-recipe" : ""} ${full ? "recipe-full" : ""}`}
@@ -152,9 +155,23 @@ export default function Kitchen() {
 
       {side && (
       <div className="kitchen-side">
-      {!full && <PullEdge side="left" k={recipe ? "recipeW" : "kitchenChatW"} min={recipe ? 420 : 280} max={900} reset={recipe ? 560 : 360} />}
+      {!full && <PullEdge side="left" k={recipeOpen ? "recipeW" : "kitchenChatW"} min={recipeOpen ? 420 : 280} max={900} reset={recipeOpen ? 560 : 360} />}
+      {/* with no recipe in use, its bar stays, so recipes are always one click away */}
+      {!recipe && (
+        <section className="kitchen-middle folded">
+          <div className="kitchen-bar">
+            <div className="kitchen-bar-body">
+              <div className="kitchen-bar-info">
+                <div className="kitchen-section-label">Recipe</div>
+                <div className="kitchen-cook-hint">None. Work with the chat, or follow a recipe step by step.</div>
+              </div>
+              <div className="kitchen-bar-actions">{pick}</div>
+            </div>
+          </div>
+        </section>
+      )}
       {recipe && (
-        <section className="kitchen-middle">
+        <section className={`kitchen-middle ${recipeFolded && !full ? "folded" : ""}`}>
           <div className="kitchen-bar">
             <div className="kitchen-section-label">Recipe</div>
             <div className="kitchen-bar-body">
@@ -194,9 +211,9 @@ export default function Kitchen() {
                 <button className={`pill icon ${recipeFull ? "on" : ""}`} data-name="recipe-full" title={recipeFull ? "Back to your design and the chat" : "Full screen: build and plan the recipe"} onClick={() => setLayout({ recipeFull: !recipeFull })}>
                   <Icon name={recipeFull ? "panel-right" : "grid"} size={14} />
                 </button>
-                {!(live && live.status !== "done") && (
-                  <button className="pill icon" data-name="recipe-off" title="Stop using this recipe: back to the chat and your design" onClick={() => use(null)}>
-                    <Icon name="close" size={14} />
+                {!full && (
+                  <button className="pill icon kitchen-fold-toggle" data-name="recipe-fold" title={recipeFolded ? "Open the recipe" : "Fold the recipe down to its bar"} onClick={() => setLayout({ recipeFolded: !recipeFolded })}>
+                    <Icon name="arrow" size={13} className={recipeFolded ? "fold-closed" : "fold-open"} />
                   </button>
                 )}
               </div>
@@ -211,6 +228,16 @@ export default function Kitchen() {
                 >
                   <Icon name="copy" size={14} /> Share recipe file
                 </div>
+                {!(live && live.status !== "done") && (
+                  <div
+                    onClick={() => {
+                      setMenuOpen(false);
+                      use(null);
+                    }}
+                  >
+                    <Icon name="close" size={14} /> Stop using this recipe
+                  </div>
+                )}
                 {recipe.builtIn ? (
                   <div
                     onClick={async () => {
@@ -245,13 +272,20 @@ export default function Kitchen() {
               </div>
             )}
           </div>
-          <StraightBoard recipe={recipe} pickedId={stepId} onPick={setStepId} onChange={change} live={live} />
+          {(!recipeFolded || full) && <StraightBoard recipe={recipe} pickedId={stepId} onPick={setStepId} onChange={change} live={live} />}
         </section>
       )}
       {docked && !full && (
-        <section className={`kitchen-chat ${recipe ? "under-recipe" : ""}`} style={recipe ? { height: chatH } : undefined}>
-          {recipe && <PullHeight />}
-          <ChatPanel docked extra={pick} />
+        <section className={`kitchen-chat ${recipeOpen && !chatFolded ? "under-recipe" : ""} ${chatFolded ? "folded" : ""}`} style={recipeOpen && !chatFolded ? { height: chatH } : undefined}>
+          {recipeOpen && !chatFolded && <PullHeight />}
+          {chatFolded ? (
+            <button className="kitchen-chat-bar" data-name="chat-unfold" title="Open the chat" onClick={() => setLayout({ kitchenChatFolded: false })}>
+              <b>Chat</b>
+              <Icon name="arrow" size={13} className="fold-closed" />
+            </button>
+          ) : (
+            <ChatPanel docked onFold={() => setLayout({ kitchenChatFolded: true })} />
+          )}
         </section>
       )}
       </div>

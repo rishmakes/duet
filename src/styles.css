@@ -9386,3 +9386,36 @@ input.chathome-name.rename {
 .kitchen.recipe-full .kitchen-side {
   border-left: 0;
 }
+/* Kitchen's recipe and chat fold down to their bars, and never vanish */
+.kitchen-side > .kitchen-middle.folded,
+.kitchen-side > .kitchen-chat.folded {
+  flex: none;
+}
+.kitchen-side > .kitchen-middle.folded .kitchen-cook-hint {
+  display: none;
+}
+.kitchen-side > .kitchen-middle.folded:only-of-type .kitchen-cook-hint,
+.kitchen-side > .kitchen-middle.folded:not(:has(.kitchen-name)) .kitchen-cook-hint {
+  display: block;
+}
+.kitchen-side .fold-open {
+  transform: rotate(90deg);
+}
+.kitchen-side .fold-closed {
+  transform: rotate(-90deg);
+}
+.kitchen-chat-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 12px 14px;
+  border: none;
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.chat-fold-btn {
+  margin-left: auto;
+}

@@ -64,6 +64,9 @@ export interface Dock {
   recipeW: number;
   /** The recipe takes all of Kitchen, to build and plan it. Never kept between runs. */
   recipeFull: boolean;
+  /** Kitchen's recipe, or its chat, folded down to its bar. */
+  recipeFolded: boolean;
+  kitchenChatFolded: boolean;
   /** How tall the chat is under the recipe in Kitchen. */
   kitchenChatH: number;
   /** Kitchen's comments column is open, to read and resolve them. */
@@ -122,6 +125,8 @@ export const defaults = (): Dock => ({
   kitchenComments: false,
   recipeFull: false,
   kitchenChatH: 380,
+  recipeFolded: false,
+  kitchenChatFolded: false,
   kitchenChatW: 360,
   recipeW: 560,
   videoTab: "properties",
