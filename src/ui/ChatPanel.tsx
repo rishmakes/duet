@@ -614,7 +614,7 @@ export default function ChatPanel({ docked = false, extra, onFold }: { docked?: 
   return (
     <div
       ref={box}
-      className={`chat ${docked ? "docked" : ""} ${isEmpty ? "is-empty" : ""} ${minimized ? "min" : ""} ${moving ? "moving free" : sizing?.x !== undefined ? "free" : "corner" in place ? `c-${place.corner}` : "free"}`}
+      className={`chat ${docked ? "docked" : ""} ${onFold ? "no-title" : ""} ${isEmpty ? "is-empty" : ""} ${minimized ? "min" : ""} ${moving ? "moving free" : sizing?.x !== undefined ? "free" : "corner" in place ? `c-${place.corner}` : "free"}`}
       style={{
         ...(moving
           ? { left: moving.x, top: moving.y }
@@ -665,11 +665,6 @@ export default function ChatPanel({ docked = false, extra, onFold }: { docked?: 
             <b>Chat</b>
           )}
           {running && <span className="chat-status">{nm(members.find((m) => m.id === agent)?.name ?? "The AI")} is working…</span>}
-        {onFold && (
-            <button type="button" className="chat-dock-btn chat-fold-btn" data-name="chat-fold" title="Fold the chat down to its bar" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => (e.stopPropagation(), onFold())}>
-              <Icon name="arrow" size={13} className="fold-open" />
-            </button>
-          )}
         </div>
         {/* the chat stands in a column on the left, or floats over the canvas: the designer picks, in each space */}
         <button
@@ -791,6 +786,12 @@ export default function ChatPanel({ docked = false, extra, onFold }: { docked?: 
         >
           <Icon name="dots" size={14} />
         </button>
+        {/* in Kitchen the chat can be made small, down to a bar; a minus, like a window */}
+        {onFold && (
+          <button type="button" className="chat-settings-btn" data-name="chat-fold" title="Make the chat small" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => (e.stopPropagation(), onFold())}>
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 7h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+          </button>
+        )}
 
 
         {settingsOpen && (

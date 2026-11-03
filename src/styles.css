@@ -7805,7 +7805,6 @@ input.chathome-name.rename {
   grid-template-columns: 232px minmax(0, 1.25fr) minmax(0, 1fr);
   min-height: 0;
   min-width: 0;
-  transition: grid-template-columns 0.16s ease;
 }
 .kitchen.recipes-folded {
   grid-template-columns: 44px minmax(0, 1.25fr) minmax(0, 1fr);
@@ -8954,8 +8953,9 @@ input.chathome-name.rename {
 }
 .kitchen-tools {
   position: absolute;
-  left: 14px;
+  left: 50%;
   top: 14px;
+  transform: translateX(-50%);
   z-index: 10;
   display: flex;
   align-items: center;
@@ -9418,4 +9418,23 @@ input.chathome-name.rename {
 }
 .chat-fold-btn {
   margin-left: auto;
+}
+/* in Kitchen's side the chat's tools are its bar: no title row above them */
+.chat.no-title .chead > .ctitle:not(:has(.chat-status)):not(:has(.task-title)) {
+  display: none;
+}
+/* a narrow recipe: its buttons stay whole, its line of help gives way, and who does a step wraps */
+.kitchen-side .kitchen-bar-actions {
+  flex: none;
+}
+.kitchen-side .kitchen-cook-hint {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.kitchen-who {
+  flex-wrap: wrap;
+}
+.kitchen-who button {
+  padding: 4px 8px;
 }

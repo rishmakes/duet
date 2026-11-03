@@ -208,14 +208,15 @@ export default function Kitchen() {
                 >
                   <Icon name="dots" size={15} />
                 </button>
-                <button className={`pill icon ${recipeFull ? "on" : ""}`} data-name="recipe-full" title={recipeFull ? "Back to your design and the chat" : "Full screen: build and plan the recipe"} onClick={() => setLayout({ recipeFull: !recipeFull })}>
-                  <Icon name={recipeFull ? "panel-right" : "grid"} size={14} />
-                </button>
                 {!full && (
-                  <button className="pill icon kitchen-fold-toggle" data-name="recipe-fold" title={recipeFolded ? "Open the recipe" : "Fold the recipe down to its bar"} onClick={() => setLayout({ recipeFolded: !recipeFolded })}>
-                    <Icon name="arrow" size={13} className={recipeFolded ? "fold-closed" : "fold-open"} />
+                  <button className="pill icon" data-name="recipe-fold" title={recipeFolded ? "Make the recipe big again" : "Make the recipe small, down to its bar"} onClick={() => setLayout({ recipeFolded: !recipeFolded })}>
+                    {recipeFolded ? <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 7h8M7 3v8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg> : <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 7h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>}
                   </button>
                 )}
+                {/* full screen, to build and plan; a cross brings back your design and the chat */}
+                <button className="pill icon" data-name="recipe-full" title={recipeFull ? "Back to your design and the chat" : "Full screen, to build and plan the recipe"} onClick={() => setLayout({ recipeFull: !recipeFull, recipeFolded: false })}>
+                  {recipeFull ? <Icon name="close" size={14} /> : <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M8.5 2.5h3v3M5.5 11.5h-3v-3M11.5 2.5 8 6M2.5 11.5 6 8" /></svg>}
+                </button>
               </div>
             </div>
             {menuOpen && (
@@ -279,9 +280,9 @@ export default function Kitchen() {
         <section className={`kitchen-chat ${recipeOpen && !chatFolded ? "under-recipe" : ""} ${chatFolded ? "folded" : ""}`} style={recipeOpen && !chatFolded ? { height: chatH } : undefined}>
           {recipeOpen && !chatFolded && <PullHeight />}
           {chatFolded ? (
-            <button className="kitchen-chat-bar" data-name="chat-unfold" title="Open the chat" onClick={() => setLayout({ kitchenChatFolded: false })}>
+            <button className="kitchen-chat-bar" data-name="chat-unfold" title="Make the chat big again" onClick={() => setLayout({ kitchenChatFolded: false })}>
               <b>Chat</b>
-              <Icon name="arrow" size={13} className="fold-closed" />
+              <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 7h8M7 3v8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
             </button>
           ) : (
             <ChatPanel docked onFold={() => setLayout({ kitchenChatFolded: true })} />
