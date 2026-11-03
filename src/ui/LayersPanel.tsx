@@ -2,6 +2,7 @@ import { lengthText } from "../canvas/render";
 import AssetsPanel from "./AssetsPanel";
 import Icon from "./Icons";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ancestors, descendants, topLevelOnly } from "../document/geometry";
 import type { Doc, El } from "../document/types";
 import { currentDoc, dispatch, getState, select, useStore } from "../state/store";
@@ -13,7 +14,7 @@ import { useDismiss } from "./useDismiss";
 
 /**
  * The boards in this file, at the top of the layers: separate canvases, like New design, Old website and Ideas.
- * Click one to open it, double click to rename, right click for more. Drop layers on a board to move them there.
+ * Click one to open it, double click to rename, drag to reorder, right click for more. Drop layers on a board to move them there.
  */
 function Boards({ doc, dragging, onDropped }: { doc: Doc; dragging: React.MutableRefObject<string[]>; onDropped: () => void }) {
   const boards = boardsOf(doc);
@@ -21,6 +22,9 @@ function Boards({ doc, dragging, onDropped }: { doc: Doc; dragging: React.Mutabl
   const [renaming, setRenaming] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  // a board being dragged to a new place in the list, and where it would land
+  const moving = useRef<string | null>(null);
+  const [gap, setGap] = useState<{ id: string; after: boolean } | null>(null);
   useDismiss(!!menu, () => setMenu(null), ".ctx");
 
   const rename = (id: string, value: string) => {
@@ -51,7 +55,13 @@ function Boards({ doc, dragging, onDropped }: { doc: Doc; dragging: React.Mutabl
       {boards.map((b) => (
         <div
           key={b.id}
-          className={`row board-row ${b.id === open ? "sel" : ""} ${over === b.id ? "drop-inside" : ""}`}
+          className={`row board-row ${b.id === open ? "sel" : ""} ${over === b.id ? "drop-inside" : ""} ${gap?.id === b.id ? (gap.after ? "drop-after" : "drop-before") : ""}`}
+          draggable={!!doc.boards?.length && renaming !== b.id}
+          onDragStart={(e) => {
+            moving.current = b.id;
+            e.dataTransfer.effectAllowed = "move";
+          }}
+          onDragEnd={() => ((moving.current = null), setGap(null))}
           title={b.id === open ? undefined : "Open this board. Drop layers here to move them to it."}
           onClick={() => b.id !== open && dispatch("open_board", { id: b.id })}
           onDoubleClick={() => doc.boards?.length && setRenaming(b.id)}
@@ -60,14 +70,29 @@ function Boards({ doc, dragging, onDropped }: { doc: Doc; dragging: React.Mutabl
             if (doc.boards?.length) setMenu({ id: b.id, x: e.clientX, y: e.clientY });
           }}
           onDragOver={(e) => {
+            if (moving.current) {
+              e.preventDefault();
+              const r = e.currentTarget.getBoundingClientRect();
+              setGap({ id: b.id, after: e.clientY > r.top + r.height / 2 });
+              return;
+            }
             if (b.id === open || !dragging.current.length) return;
             e.preventDefault();
             setOver(b.id);
           }}
-          onDragLeave={() => setOver(null)}
+          onDragLeave={() => (setOver(null), setGap(null))}
           onDrop={(e) => {
             e.preventDefault();
             setOver(null);
+            if (moving.current) {
+              const from = boards.findIndex((x) => x.id === moving.current);
+              const at = boards.findIndex((x) => x.id === b.id) + (gap?.id === b.id && gap.after ? 1 : 0);
+              const id = moving.current;
+              moving.current = null;
+              setGap(null);
+              dispatch("move_board", { id, toIndex: at > from ? at - 1 : at });
+              return;
+            }
             if (b.id === open || !dragging.current.length) return;
             dispatch("move_to_board", { ids: dragging.current, board: b.id });
             select([]);
@@ -94,8 +119,10 @@ function Boards({ doc, dragging, onDropped }: { doc: Doc; dragging: React.Mutabl
           <span className="board-count">{b.rootIds.length || ""}</span>
         </div>
       ))}
-      {menu && (
-        <div className="ctx" style={{ left: Math.min(menu.x, window.innerWidth - 230), top: menu.y }}>
+      {/* on the page itself, so the panel's edges never cut the menu off */}
+      {menu &&
+        createPortal(
+        <div className="ctx" style={{ left: Math.min(menu.x, window.innerWidth - 230), top: Math.min(menu.y, window.innerHeight - 200) }}>
           <div className="ctx-item" onClick={() => (setMenu(null), setRenaming(menu.id))}>
             <span>Rename</span>
           </div>
@@ -113,8 +140,9 @@ function Boards({ doc, dragging, onDropped }: { doc: Doc; dragging: React.Mutabl
           <div className="ctx-item danger" onClick={() => (setMenu(null), void remove(menu.id))}>
             <span>Delete board</span>
           </div>
-        </div>
-      )}
+        </div>,
+          document.body,
+        )}
     </div>
   );
 }
