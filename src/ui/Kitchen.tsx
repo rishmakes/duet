@@ -16,7 +16,6 @@ import {
   keepRecipe,
   loadCooking,
   loadRecipes,
-  moveStep,
   moveStepTo,
   readRecipe,
   removeStep,
@@ -794,34 +793,36 @@ function StraightBoard({
     return () => window.removeEventListener("keydown", onKey);
   }, [recipe, effectiveId, live, onChange, onPick, steps]);
 
-  // Compute vertical offset of step editor so it sits directly beside the picked step
-  useLayoutEffect(() => {
+  // the editor sits beside the picked step, but never runs off the bottom: then it rises and its pointer still finds the step
+  const editorRef = useRef<HTMLDivElement>(null);
+  const [pointerAt, setPointerAt] = useState(15);
+  const place = () => {
     if (!effectiveId) return;
     const cardEl = cardRefs.current[effectiveId];
     const scrollEl = scrollRef.current;
     if (!cardEl || !scrollEl) return;
-
     const cardRect = cardEl.getBoundingClientRect();
     const scrollRect = scrollEl.getBoundingClientRect();
-    const offset = cardRect.top - scrollRect.top;
-    setEditorTop(Math.max(0, offset + 12));
-  }, [effectiveId, steps]);
-
+    const offset = Math.max(0, cardRect.top - scrollRect.top);
+    const tall = editorRef.current?.offsetHeight ?? 0;
+    const top = Math.max(0, Math.min(offset, scrollRect.height - tall));
+    setEditorTop(top);
+    setPointerAt(Math.max(10, Math.min(offset - top + cardRect.height / 2 - 6, tall - 20)));
+  };
+  useLayoutEffect(place, [effectiveId, steps]);
   useEffect(() => {
     const scrollEl = scrollRef.current;
     if (!scrollEl) return;
-    const update = () => {
-      if (!effectiveId) return;
-      const cardEl = cardRefs.current[effectiveId];
-      if (!cardEl) return;
-      const cardRect = cardEl.getBoundingClientRect();
-      const scrollRect = scrollEl.getBoundingClientRect();
-      const offset = cardRect.top - scrollRect.top;
-      setEditorTop(Math.max(0, offset + 12));
+    scrollEl.addEventListener("scroll", place, { passive: true });
+    // the editor changes height as its step changes kind, and the side changes height when pulled
+    const watch = new ResizeObserver(() => place());
+    watch.observe(scrollEl);
+    if (editorRef.current) watch.observe(editorRef.current);
+    return () => {
+      scrollEl.removeEventListener("scroll", place);
+      watch.disconnect();
     };
-    scrollEl.addEventListener("scroll", update, { passive: true });
-    return () => scrollEl.removeEventListener("scroll", update);
-  }, [effectiveId]);
+  });
 
   const stateOf = (s: Step, i: number) =>
     !live
@@ -836,32 +837,34 @@ function StraightBoard({
               : "turn"
           : "";
 
-  // a step is moved by dragging its card; where it would land shows as a line above or below a card
-  const [drag, setDrag] = useState<{ id: string; to: number; moved: boolean } | null>(null);
+  // a step is moved by dragging its card: it follows the pointer and the others slide aside to make room
+  const [drag, setDrag] = useState<{ id: string; from: number; to: number; dy: number; room: number } | null>(null);
   const dragged = useRef(false);
   const grab = (e: React.PointerEvent, id: string) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || (e.target as HTMLElement).closest("button")) return;
     const from = steps.findIndex((x) => x.id === id);
     const startY = e.clientY;
+    const el = cardRefs.current[id];
+    const next = cardRefs.current[steps[from + 1]?.id] ?? cardRefs.current[steps[from - 1]?.id];
+    // how far each card moves to make room: the dragged card's height and the gap to its neighbour
+    const room = el && next ? Math.abs(next.getBoundingClientRect().top - el.getBoundingClientRect().top) : (el?.offsetHeight ?? 0);
+    const mids = steps.map((x) => {
+      const r = cardRefs.current[x.id]?.getBoundingClientRect();
+      return r ? r.top + r.height / 2 : 0;
+    });
     dragged.current = false;
     let to = from;
     let moved = false;
     const move = (m: PointerEvent) => {
-      if (!moved && Math.abs(m.clientY - startY) < 5) return;
+      const dy = m.clientY - startY;
+      if (!moved && Math.abs(dy) < 5) return;
       moved = true;
       dragged.current = true;
-      // the step lands where the pointer is, between the middles of the cards
-      to = steps.length - 1;
-      for (let k = 0; k < steps.length; k++) {
-        const el = cardRefs.current[steps[k].id];
-        if (!el) continue;
-        const r = el.getBoundingClientRect();
-        if (m.clientY < r.top + r.height / 2) {
-          to = k > from ? k - 1 : k;
-          break;
-        }
-      }
-      setDrag({ id, to, moved: true });
+      const y = mids[from] + dy;
+      to = from;
+      while (to < steps.length - 1 && y > mids[to + 1]) to++;
+      while (to > 0 && y < mids[to - 1]) to--;
+      setDrag({ id, from, to, dy, room });
     };
     const up = () => {
       window.removeEventListener("pointermove", move);
@@ -874,8 +877,14 @@ function StraightBoard({
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   };
-  const from = drag ? steps.findIndex((x) => x.id === drag.id) : -1;
-  const dropAt = (i: number) => (!drag || drag.to === from || i !== drag.to ? "" : drag.to > from ? "drop-below" : "drop-above");
+  /** Where a card is drawn while a step is dragged: the dragged one under the pointer, the ones it passed shifted by one place. */
+  const shift = (i: number): React.CSSProperties | undefined => {
+    if (!drag) return undefined;
+    if (i === drag.from) return { transform: `translateY(${drag.dy}px)`, transition: "none", zIndex: 5 };
+    if (drag.to > drag.from && i > drag.from && i <= drag.to) return { transform: `translateY(${-drag.room}px)` };
+    if (drag.to < drag.from && i < drag.from && i >= drag.to) return { transform: `translateY(${drag.room}px)` };
+    return { transform: "translateY(0)" };
+  };
 
   const insert = (after: string | null) => {
     const { recipe: r, id } = addStep(recipe, after);
@@ -893,7 +902,7 @@ function StraightBoard({
             return (
               <React.Fragment key={s.id}>
                 {i > 0 && (
-                  <div className="kitchen-stem">
+                  <div className={`kitchen-stem ${drag ? "still" : ""}`}>
                     <div className="kitchen-stem-line" />
                     <button
                       className="kitchen-add between"
@@ -911,7 +920,8 @@ function StraightBoard({
                   ref={(el) => {
                     cardRefs.current[s.id] = el;
                   }}
-                  className={`kitchen-card ${isPicked ? "picked" : ""} ${st} ${drag?.id === s.id && drag.moved ? "dragging" : ""} ${dropAt(i)}`}
+                  className={`kitchen-card ${isPicked ? "picked" : ""} ${st} ${drag?.id === s.id ? "dragging" : ""}`}
+                  style={shift(i)}
                   onPointerDown={(e) => grab(e, s.id)}
                   onClick={() => !dragged.current && onPick(s.id)}
                   title="Drag to move this step"
@@ -964,8 +974,8 @@ function StraightBoard({
 
       <div className="kitchen-editor-pane">
         {pickedStep ? (
-          <div className="kitchen-editor-anchor" style={{ transform: `translateY(${editorTop}px)` }}>
-            <div className="kitchen-editor-connector">
+          <div className="kitchen-editor-anchor" ref={editorRef} style={{ transform: `translateY(${editorTop}px)` }}>
+            <div className="kitchen-editor-connector" style={{ top: pointerAt }}>
               <div className="kitchen-connector-pointer" />
               <div className="kitchen-connector-line" />
             </div>
@@ -989,15 +999,16 @@ function StraightBoard({
   );
 }
 
-/** What a cooked step made, small under its name: a picture of the design, or the first lines of what was said. Nothing before it is cooked. */
+/** A few lines under a step's name: what it asks or does, and once cooked, what came of it (your answers, what the AI said, or a picture of the design). */
 function StepPreview({ step, live }: { step: Step; live: Live }) {
-  if (!live || !live.done.includes(step.id)) return null;
-  const picture = live.pictures?.[step.id];
+  const clean = (t: string | undefined) => (t ?? "").replace(/[#*_`>]/g, "").replace(/\s+/g, " ").trim();
+  const cooked = !!live && live.done.includes(step.id);
+  const picture = cooked ? live?.pictures?.[step.id] : undefined;
   if (picture) return <img className="kitchen-card-picture" src={picture} alt="" />;
-  const text = step.kind === "ai" ? live.replies[step.id] : live.said.filter((x) => x.step === step.id).map((x) => x.text).join(" ");
-  const line = (text ?? "").replace(/[#*_`>]/g, "").replace(/\s+/g, " ").trim();
+  const made = cooked && live ? clean(step.kind === "ai" ? live.replies[step.id] : live.said.filter((x) => x.step === step.id).map((x) => x.text).join(" ")) : "";
+  const line = made || clean(step.does);
   if (!line) return null;
-  return <p className="kitchen-card-preview">{line}</p>;
+  return <p className={`kitchen-card-preview ${made ? "made" : ""}`}>{line}</p>;
 }
 
 /**
@@ -1028,8 +1039,6 @@ function StepEditor({
 
   const i = recipe.steps.findIndex((s) => s.id === step.id);
   const set = (patch: Partial<Step>) => onChange(changeStep(recipe, step.id, patch));
-  const [stepMenu, setStepMenu] = useState<{ top: number; right: number } | null>(null);
-  useDismiss(!!stepMenu, () => setStepMenu(null), ".step-menu, .step-menu-btn");
   const cookingHere = !!(live && live.status === "working" && live.at === i);
 
   // When live cook is on this step, show the live execution panel
@@ -1189,13 +1198,14 @@ function StepEditor({
           </div>
           <div className="kitchen-step-actions">
             <button
-              className="pill danger-text"
+              className="pill icon step-remove"
+              title="Remove this step"
               onClick={() => {
                 onChange(removeStep(recipe, step.id));
                 onPick(null);
               }}
             >
-              Remove step
+              <Icon name="trash" size={15} />
             </button>
           </div>
         </div>
@@ -1238,13 +1248,14 @@ function StepEditor({
         </div>
         <div className="kitchen-step-actions">
           <button
-            className="pill danger-text"
+            className="pill icon step-remove"
+            title="Remove this step"
             onClick={() => {
               onChange(removeStep(recipe, step.id));
               onPick(null);
             }}
           >
-            Remove step
+            <Icon name="trash" size={15} />
           </button>
         </div>
       </div>
@@ -1261,47 +1272,17 @@ function StepEditor({
           placeholder="Step title"
           onBlur={(e) => e.target.value.trim() && e.target.value !== step.title && set({ title: e.target.value.trim() })}
         />
-        {/* moving and removing the step: one quiet menu, so the editor never needs a row of buttons */}
         <button
-          className={`pill icon step-menu-btn ${stepMenu ? "on" : ""}`}
-          title="Move or remove this step"
-          onClick={(e) => {
-            const b = e.currentTarget.getBoundingClientRect();
-            setStepMenu(stepMenu ? null : { top: b.bottom + 4, right: window.innerWidth - b.right });
+          className="pill icon step-remove"
+          disabled={cookingHere}
+          title={cookingHere ? "This step is cooking. Stop it first." : "Remove this step"}
+          onClick={() => {
+            onChange(removeStep(recipe, step.id));
+            onPick(null);
           }}
         >
-          <Icon name="dots" size={15} />
+          <Icon name="trash" size={15} />
         </button>
-        {stepMenu && (
-          <div className="kitchen-menu step-menu" style={stepMenu} onPointerDown={(e) => e.stopPropagation()}>
-            {i > 0 && (
-              <div onClick={() => (setStepMenu(null), onChange(moveStep(recipe, step.id, -1)))}>
-                <Icon name="arrow" size={14} className="step-menu-up" /> Move up
-              </div>
-            )}
-            {i < recipe.steps.length - 1 && (
-              <div onClick={() => (setStepMenu(null), onChange(moveStep(recipe, step.id, 1)))}>
-                <Icon name="arrow" size={14} className="step-menu-down" /> Move down
-              </div>
-            )}
-            {cookingHere ? (
-              <div className="disabled" title="This step is cooking. Stop it first.">
-                <Icon name="trash" size={14} /> Remove step
-              </div>
-            ) : (
-              <div
-                className="danger-text"
-                onClick={() => {
-                  setStepMenu(null);
-                  onChange(removeStep(recipe, step.id));
-                  onPick(null);
-                }}
-              >
-                <Icon name="trash" size={14} /> Remove step
-              </div>
-            )}
-          </div>
-        )}
       </div>
       {/* who does the step, in the same quiet switch as Design, Video, Photo */}
       <div className="kitchen-who-row">

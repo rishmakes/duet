@@ -8088,28 +8088,18 @@ input.chathome-name.rename {
   gap: 8px;
   min-width: 0;
 }
+.kitchen-card {
+  transition: border-color 0.12s, box-shadow 0.12s, background 0.12s, transform 0.2s cubic-bezier(0.2, 0, 0, 1);
+}
+/* the dragged step rides on the pointer, lifted */
 .kitchen-card.dragging {
-  opacity: 0.5;
   cursor: grabbing;
+  box-shadow: 0 8px 24px var(--shadow);
 }
-/* where a dragged step would land */
-.kitchen-card.drop-above::before,
-.kitchen-card.drop-below::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 2px;
-  border-radius: 1px;
-  background: var(--accent);
+.kitchen-stem.still .kitchen-add {
+  visibility: hidden;
 }
-.kitchen-card.drop-above::before {
-  top: -9px;
-}
-.kitchen-card.drop-below::after {
-  bottom: -9px;
-}
-/* what a cooked step made, small under its name */
+/* a few lines under a step's name: what it asks or does; once cooked, what came of it */
 .kitchen-card-preview {
   margin: 0 0 2px 34px;
   font-size: 11px;
@@ -8130,6 +8120,9 @@ input.chathome-name.rename {
   object-fit: contain;
   object-position: left;
   align-self: flex-start;
+}
+.kitchen-card-preview.made {
+  color: var(--text);
 }
 .kitchen-card-num {
   margin-right: 6px;
@@ -9538,21 +9531,15 @@ input.chathome-name.rename {
   padding: 3px 8px;
 }
 
-/* the step editor's menu: move it, or remove it */
-.step-menu-btn {
+/* removing a step: a red bin beside its name */
+.pill.icon.step-remove {
   flex: none;
-}
-.step-menu-up {
-  transform: rotate(-90deg);
-}
-.step-menu-down {
-  transform: rotate(90deg);
-}
-.kitchen-menu div.danger-text,
-.kitchen-menu div.danger-text svg {
   color: var(--error);
 }
-.kitchen-menu div.disabled {
-  opacity: 0.45;
-  cursor: default;
+.pill.icon.step-remove:hover:not(:disabled) {
+  border-color: var(--error);
+  color: var(--error);
+}
+.step-remove:disabled {
+  opacity: 0.4;
 }
