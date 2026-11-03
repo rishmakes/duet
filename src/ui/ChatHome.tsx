@@ -1,22 +1,17 @@
 import { invoke } from "@tauri-apps/api/core";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { Fragment, useEffect, useRef, useState } from "react";
-import CanvasView from "../canvas/CanvasView";
 import type { Recent } from "../project/project";
 import { ask, message } from "./dialog";
 import type { Trashed } from "../project/project";
-import { checkListed, closeProject, closeTab, copyProject, getTabs, listedProjects, moveProjectTo, renameProject, inTauri, newProject, openProjectAt, removeRecent, TRASH_DAYS, trashDelete, trashList, trashProject, trashRestore } from "../project/project";
-import { getState, isParked, setViewport, useStore } from "../state/store";
+import { checkListed, closeProject, closeTab, closeUntitled, copyProject, getTabs, getUntitled, liveKey, newDesignTab, tabTitle, listedProjects, moveProjectTo, renameProject, inTauri, openProjectAt, removeRecent, TRASH_DAYS, trashDelete, trashList, trashProject, trashRestore } from "../project/project";
+import { currentDoc, getState, isParked, useStore } from "../state/store";
 import { closeTask, readyToLeave } from "../ai/agent";
 import { AGENTS, showThread, useChat } from "../ai/chat";
 import { agentColour } from "../ai/colours";
-import ChatPanel from "./ChatPanel";
-import ChatToolbar from "./ChatToolbar";
-import TimeStrip from "./TimeStrip";
 import Icon from "./Icons";
-import { setLayout, useLayout } from "./layout";
-import SkillsPanel from "./SkillsPanel";
-import { takeFindProject } from "./findProject";
+import { getLayout, setLayout, useLayout } from "./layout";
+import { askToFindProject, takeFindProject } from "./findProject";
 import { askFeedback } from "./Feedback";
 
 /** How long ago, in plain words. */
@@ -99,7 +94,7 @@ function CloseCross({ on, onClose }: { on: boolean; onClose: () => void }) {
 }
 
 /** One project in the list: its picture, its name and when it was last opened. A dot says it is open. */
-function ProjectRow({ r, on, open, onOpen, onClose, onMenu, renaming, onRenamed }: { r: Recent; on: boolean; open: boolean; onOpen: () => void; onClose: () => void; onMenu: (x: number, y: number) => void; renaming: boolean; onRenamed: () => void }) {
+function ProjectRow({ r, on, open, compact, onOpen, onClose, onMenu, renaming, onRenamed }: { r: Recent; on: boolean; open: boolean; compact?: boolean; onOpen: () => void; onClose: () => void; onMenu: (x: number, y: number) => void; renaming: boolean; onRenamed: () => void }) {
   const own = usePreview(r.thumb ? "" : r.path);
   const src = r.thumb ?? own;
   const [name, setName] = useState(r.name);
@@ -117,7 +112,7 @@ function ProjectRow({ r, on, open, onOpen, onClose, onMenu, renaming, onRenamed 
   };
   return (
     <div
-      className={`chathome-row ${on ? "on" : ""} ${on || open ? "" : "shut"} ${r.missing ? "missing" : ""}`}
+      className={`chathome-row ${compact ? "compact" : ""} ${on ? "on" : ""} ${on || open ? "" : "shut"} ${r.missing ? "missing" : ""}`}
       onClick={renaming ? undefined : onOpen}
       onContextMenu={(e) => {
         e.preventDefault();
@@ -125,7 +120,7 @@ function ProjectRow({ r, on, open, onOpen, onClose, onMenu, renaming, onRenamed 
       }}
       title={r.path}
     >
-      <div className="chathome-thumb">{src ? <img src={src} alt="" /> : null}</div>
+      {!compact && <div className="chathome-thumb">{src ? <img src={src} alt="" /> : null}</div>}
       <div className="chathome-meta">
         {renaming ? (
           <input
@@ -144,36 +139,13 @@ function ProjectRow({ r, on, open, onOpen, onClose, onMenu, renaming, onRenamed 
         ) : (
           <div className="chathome-name">{r.name}</div>
         )}
-        <div className="chathome-when">{r.missing ? "Cannot be found" : on ? "Open now" : open ? "Open" : ago(r.opened)}</div>
+        {(!compact || r.missing) && <div className="chathome-when">{r.missing ? "Cannot be found" : on ? "Open now" : open ? "Open" : ago(r.opened)}</div>}
       </div>
       {(on || open) && <CloseCross on={on} onClose={onClose} />}
     </div>
   );
 }
 
-/** The chat's right edge: drag it to give the chat or the canvas more room. Double-click puts it back. */
-function ChatWidthGrip() {
-  const down = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const chat = e.currentTarget.parentElement?.getBoundingClientRect();
-    if (!chat) return;
-    const startX = e.clientX;
-    const move = (m: PointerEvent) => {
-      // the canvas always keeps some room, and the chat never gets too narrow to read
-      const most = window.innerWidth - chat.left - 240;
-      setLayout({ homeChatW: Math.round(Math.max(320, Math.min(most, chat.width + m.clientX - startX))) });
-    };
-    const up = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-  };
-  return <div className="grip grip-r" data-name="chat-width" onPointerDown={down} onDoubleClick={() => setLayout({ homeChatW: 0 })} title="Drag to make the chat wider or narrower. Double-click to put it back." />;
-}
-
-/** One project in the trash: its picture, its name, the folder it came from, and how long it stays. */
 function TrashRow({ t, card, picked, onPick, onTick, onSweep, onDone }: { t: Trashed; card?: boolean; picked: boolean; onPick: (e: React.MouseEvent) => void; onTick: () => void; onSweep: () => void; onDone: () => void }) {
   const src = usePreview(t.file);
   const left = Math.max(1, Math.ceil(TRASH_DAYS - (Date.now() - t.trashed) / 86400000));
@@ -509,7 +481,68 @@ export function ProjectMenu({ at, onDone, onRename }: { at: { x: number; y: numb
   );
 }
 
-export default function ChatHome() {
+
+/** Close a new design with no file yet ("" is unsaved work on the plain start). Its work is lost, so ask first if there is any. */
+async function closeDraft(key: string) {
+  const live = liveKey();
+  const others = [...getTabs(), ...getUntitled()].filter((p) => p !== key);
+  const work = key === (live ?? "") ? currentDoc(getState()).rootIds.length > 0 : true;
+  // opening another project asks about unsaved work on the plain start by itself
+  const asks = !(key === "" && others.length);
+  if (asks && work && inTauri() && !(await ask("This design has not been saved. Close it anyway?", { title: "Duet", kind: "warning", okLabel: "Close", cancelLabel: "Keep working" }))) return;
+  if (key) closeUntitled(key);
+  if (key !== (live ?? "")) return;
+  const next = others[others.length - 1];
+  if (next && (await openProjectAt(next, true))) return;
+  if (!(await readyToLeave(true))) return;
+  await closeProject();
+}
+
+/** A new design with no file yet, in the Projects list. */
+function DraftRow({ k, on }: { k: string; on: boolean }) {
+  const live = useStore((s) => s.project.name);
+  const name = k ? tabTitle(k) : live;
+  return (
+    <div className={`chathome-row ${on ? "on" : ""}`} onClick={() => void (!on && openProjectAt(k))} title="Not saved yet">
+      <div className="chathome-thumb" />
+      <div className="chathome-meta">
+        <div className="chathome-name">{name}</div>
+        <div className="chathome-when">{on ? "Open now, not saved yet" : "Open, not saved yet"}</div>
+      </div>
+      <CloseCross on={on} onClose={() => void closeDraft(k)} />
+    </div>
+  );
+}
+
+/** An open project in the folded sidebar: its small picture, or its first letter. */
+function FoldedProject({ k, on }: { k: string; on: boolean }) {
+  const live = useStore((s) => s.project.name);
+  const file = /\.duet$/i.test(k);
+  const src = usePreview(file ? k : "");
+  const name = k ? tabTitle(k) : live;
+  return (
+    <button className={`projects-strip-item ${on ? "on" : ""}`} title={name} aria-label={name} onClick={() => void (!on && openProjectAt(k))}>
+      {src ? <img src={src} alt="" /> : <span>{name.slice(0, 1).toUpperCase()}</span>}
+    </button>
+  );
+}
+
+/**
+ * Your projects, down the left of every space: the ones open at the top, then the rest.
+ * It takes the place of tabs. Folded, it is a thin strip of the open ones and a +.
+ */
+export function ProjectsSidebar() {
+  const space = useLayout((d) => d.space);
+  const folded = useLayout((d) => !d.projectsOpen[d.space]);
+  const fold = (open: boolean) => setLayout({ projectsOpen: { ...getLayout().projectsOpen, [space]: open } });
+  // Home is a page of Studio's
+  const goHome = () => {
+    if (space !== "edit") setLayout({ space: "edit" });
+    window.dispatchEvent(new Event("duet:home"));
+  };
+  // the skills are a page of their own, over whichever space you are in
+  const openSkills = () => window.dispatchEvent(new Event("duet:skills-page"));
+  const empty = useStore((s) => currentDoc(s).rootIds.length === 0);
   const current = useStore((s) => s.project);
   const [typed, setTyped] = useState("");
   // read again whenever the list or the open projects change: opening, closing, removing or trashing one
@@ -529,10 +562,7 @@ export default function ChatHome() {
     };
   }, []);
   const recents = listedProjects();
-  const homeChatW = useLayout((d) => d.homeChatW);
-  const mode = useLayout((d) => d.mode);
   const tabs = getTabs();
-  const [skills, setSkills] = useState(false);
   const [trash, setTrash] = useState(false);
   const findBox = useRef<HTMLInputElement>(null);
   // the menu's Find a project puts the cursor here, whether this list was already showing or has just come up
@@ -544,15 +574,6 @@ export default function ChatHome() {
   }, []);
   const [menu, setMenu] = useState<{ x: number; y: number; r: Recent } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
-  // the canvas shows the whole design here, and the view goes back to where it was when you return to Edit
-  useEffect(() => {
-    const before = getState().viewport;
-    const fit = setTimeout(() => window.dispatchEvent(new Event("duet:fit")), 120);
-    return () => {
-      clearTimeout(fit);
-      setViewport(before);
-    };
-  }, [current.file]);
   const wordsOf = useWords(recents.map((r) => r.path), typed.trim() !== "");
   // open projects stay together at the top in the order of the Studio tabs, so opening or closing one never shuffles the rest
   const rank = (path: string) => {
@@ -567,111 +588,142 @@ export default function ChatHome() {
   const isOpen = isProjectOpen;
   const leave = leaveProject;
 
+  const live = liveKey();
+  // new designs with no file yet sit at the top, and so does unsaved work on the plain start once something is made
+  const drafts = [...getUntitled(), ...(!live && !empty ? [""] : [])];
+  const opened = shown.filter((r) => isOpen(r.path));
+  const openNow = opened;
+  const rest = shown.filter((r) => !isOpen(r.path));
+  const row = (r: Recent, compact = false) => (
+    <Fragment key={r.path}>
+      <ProjectRow
+        r={r}
+        compact={compact}
+        on={r.path === current.file}
+        open={isOpen(r.path)}
+        onOpen={() => {
+          if (r.path !== current.file) void openProjectAt(r.path);
+        }}
+        onClose={() => void leave(r.path)}
+        onMenu={(x, y) => setMenu({ x, y, r })}
+        renaming={renaming === r.path}
+        onRenamed={() => setRenaming(null)}
+      />
+      {r.path === current.file && <TaskList project={r.path} />}
+    </Fragment>
+  );
+
   return (
-    <div className="chathome" style={homeChatW ? { gridTemplateColumns: `276px ${homeChatW}px minmax(0, 1fr)` } : undefined}>
-      <aside className="chathome-projects">
-        <nav className="chathome-rail">
-          <button className="rail-btn" title="Home" onClick={() => window.dispatchEvent(new Event("duet:home"))}>
-            <Icon name="home" size={18} />
-          </button>
-          <button className="rail-btn" title="New project" onClick={() => void newProject()} disabled={!inTauri()}>
-            <Icon name="new-chat" size={18} />
-          </button>
-          <span className="rail-gap" />
-          <button
-            className={`rail-btn ${skills ? "on" : ""}`}
-            title="Skills"
-            onClick={() => setSkills(!skills)}
-          >
-            <Icon name="skills" size={18} />
-          </button>
-          <button
-            className={`rail-btn ${trash ? "on" : ""}`}
-            title="Trash"
-            onClick={() => setTrash(!trash)}
-          >
-            <Icon name="trash" size={18} />
-          </button>
-          <button
-            className="rail-btn"
-            title="Tell the creator what went wrong or what you want. Cmd or Ctrl, Shift, F"
-            onClick={askFeedback}
-          >
-            <Icon name="feedback" size={18} />
-          </button>
-          <button className="rail-btn" title="Settings" onClick={() => window.dispatchEvent(new Event("duet:settings"))}>
-            <Icon name="settings" size={18} />
-          </button>
-        </nav>
-        {trash ? (
-          <TrashView onBack={() => setTrash(false)} />
-        ) : (
-        <div className="chathome-body">
-          <label className="chathome-search">
-            <Icon name="search" size={15} />
-            <input
-              ref={findBox}
-              placeholder="Find a project…"
-              value={typed}
-              onChange={(e) => setTyped(e.target.value)}
-              onKeyDown={(e) => {
-                e.stopPropagation();
-                if (e.key === "Escape") {
-                  setTyped("");
-                  e.currentTarget.blur();
-                }
-              }}
-            />
-          </label>
-          <div className="chathome-label">Projects</div>
-          <div className="chathome-list">
-            {shown.map((r) => (
-              <Fragment key={r.path}>
-                <ProjectRow
-                  r={r}
-                  on={r.path === current.file}
-                  open={isOpen(r.path)}
-                  onOpen={() => {
-                    if (r.path !== current.file) void openProjectAt(r.path);
-                  }}
-                  onClose={() => void leave(r.path)}
-                  onMenu={(x, y) => setMenu({ x, y, r })}
-                  renaming={renaming === r.path}
-                  onRenamed={() => setRenaming(null)}
-                />
-                {r.path === current.file && <TaskList project={r.path} />}
-              </Fragment>
-            ))}
-            {shown.length === 0 && <div className="chathome-none">{recents.length ? "No project has that in it." : "Your projects will be listed here."}</div>}
-          </div>
-        </div>
-        )}
-      </aside>
-      {menu && <ProjectMenu at={menu} onDone={() => setMenu(null)} onRename={(path) => (setTyped(""), setRenaming(path))} />}
-      <section className="chathome-chat">
-        <ChatWidthGrip />
-        {skills ? (
-          <div className="chathome-skills">
-            <div className="chathome-skills-head">
-              <b>Skills</b>
-              <button className="pill" onClick={() => setSkills(false)}>
-                Back to chat
-              </button>
+    <>
+      {folded ? (
+        <aside className="projects-side folded">
+          <nav className="chathome-rail">
+            <button className="rail-btn" title="Show your projects" aria-label="Show your projects" onClick={() => fold(true)}>
+              <Icon name="fold" size={18} className="fold-open" />
+            </button>
+            {/* the same things in the same order as the open panel, as icons */}
+            <button className="rail-btn" title="New design" onClick={() => void newDesignTab()}>
+              <Icon name="new-chat" size={18} />
+            </button>
+            <button className="rail-btn" title="Find a project" onClick={() => (fold(true), askToFindProject())}>
+              <Icon name="search" size={18} />
+            </button>
+            <button className="rail-btn" title="Home" onClick={goHome}>
+              <Icon name="home" size={18} />
+            </button>
+            <button className="rail-btn" title="Skills" onClick={openSkills}>
+              <Icon name="skills" size={18} />
+            </button>
+            <button className="rail-btn" title="Trash" onClick={() => (fold(true), setTrash(true))}>
+              <Icon name="trash" size={18} />
+            </button>
+            {/* the open projects stand in for the list: one small picture each */}
+            <div className="rail-projects">
+              {drafts.map((key) => (
+                <FoldedProject key={key || "start"} k={key} on={key === (live ?? "")} />
+              ))}
+              {opened.map((r) => (
+                <FoldedProject key={r.path} k={r.path} on={r.path === current.file} />
+              ))}
             </div>
-            <SkillsPanel />
+            <button className="rail-btn" title="Tell the creator what went wrong or what you want. Cmd or Ctrl, Shift, F" onClick={askFeedback}>
+              <Icon name="feedback" size={18} />
+            </button>
+            <button className="rail-btn" title="Settings" onClick={() => window.dispatchEvent(new Event("duet:settings"))}>
+              <Icon name="settings" size={18} />
+            </button>
+          </nav>
+        </aside>
+      ) : (
+        <aside className="projects-side open">
+          <div className="side-head">
+            <span>Projects</span>
+            <button className="rail-btn" title="Fold away" aria-label="Fold away" onClick={() => fold(false)}>
+              <Icon name="fold" size={16} />
+            </button>
           </div>
-        ) : (
-          <ChatPanel docked />
-        )}
-      </section>
-      <main className="canvas chathome-canvas">
-        <div className="chathome-stage">
-          <CanvasView />
-          <ChatToolbar />
-        </div>
-        {/* in Video, the timeline sits under the design, so the basics are here while talking to the AI */}
-        {mode === "motion" && <TimeStrip />}
-      </main>
-    </div>
+          <div className="side-items">
+            <button className="chathome-item" onClick={() => void newDesignTab()}>
+              <Icon name="new-chat" size={16} />
+              New design
+            </button>
+            <label className="chathome-item side-find">
+              <Icon name="search" size={16} />
+              <input
+                ref={findBox}
+                placeholder="Find a project"
+                value={typed}
+                onChange={(e) => (setTrash(false), setTyped(e.target.value))}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.key === "Escape") {
+                    setTyped("");
+                    e.currentTarget.blur();
+                  }
+                }}
+              />
+            </label>
+            <button className="chathome-item" onClick={goHome}>
+              <Icon name="home" size={16} />
+              Home
+            </button>
+            <button className="chathome-item" onClick={openSkills}>
+              <Icon name="skills" size={16} />
+              Skills
+            </button>
+            <button className={`chathome-item ${trash ? "on" : ""}`} onClick={() => setTrash(!trash)}>
+              <Icon name="trash" size={16} />
+              Trash
+            </button>
+          </div>
+          {trash ? (
+            <TrashView onBack={() => setTrash(false)} />
+          ) : (
+            <div className="chathome-body">
+              <div className="chathome-list">
+                {(drafts.length > 0 || openNow.length > 0) && <div className="chathome-label">Open</div>}
+                {drafts.map((key) => (
+                  <DraftRow key={key || "start"} k={key} on={key === (live ?? "")} />
+                ))}
+                {openNow.map((r) => row(r))}
+                {rest.length > 0 && <div className="chathome-label">Recent</div>}
+                {rest.map((r) => row(r, true))}
+                {shown.length === 0 && <div className="chathome-none">{recents.length ? "No project has that in it." : "Your projects will be listed here."}</div>}
+              </div>
+            </div>
+          )}
+          <div className="side-foot">
+            <button className="chathome-item" onClick={() => window.dispatchEvent(new Event("duet:settings"))}>
+              <Icon name="settings" size={16} />
+              Settings
+            </button>
+            <button className="rail-btn" title="Tell the creator what went wrong or what you want. Cmd or Ctrl, Shift, F" onClick={askFeedback}>
+              <Icon name="feedback" size={16} />
+            </button>
+          </div>
+        </aside>
+      )}
+      {menu && <ProjectMenu at={menu} onDone={() => setMenu(null)} onRename={(path) => (setTyped(""), setRenaming(path))} />}
+    </>
   );
 }

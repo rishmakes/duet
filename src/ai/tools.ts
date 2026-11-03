@@ -1263,7 +1263,7 @@ async function pictureOfDuet(args: Args): Promise<ToolResult> {
   if (path.startsWith("~")) path = (await invoke<string>("duet_home")).replace(/[\\/]\.duet[^\\/]*[\\/]?$/, "") + path.slice(1);
   if ((await invoke<boolean>("path_exists", { path })) === true) return fail(`${String(args.path)} already exists. Choose a new file name; nothing was saved.`);
   const space = args.space as string | undefined;
-  if (space === "chat") setLayout({ space: "chat" });
+  if (space === "chat") setLayout({ space: "edit" });
   else if (space) setLayout({ space: "edit", mode: space === "video" ? "motion" : (space as "design" | "photo") });
   if (args.panel) {
     const tab = args.panel === "colour" ? "color" : "properties";

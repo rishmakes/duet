@@ -129,7 +129,7 @@ export default function Home({ onClose }: HomeProps) {
     if (!q) return;
     setAskText("");
     onClose();
-    setLayout({ space: "chat" });
+    setLayout({ space: "edit", editChatOpen: true });
     const chat = getChat();
     const agent = chat.agent;
     const key = newTask(agent);

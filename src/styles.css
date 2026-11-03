@@ -2063,7 +2063,7 @@ option {
 .home {
   position: fixed;
   inset: 0;
-  top: var(--tabbar-h); /* the open projects stay in view, like a new tab in a browser */
+  top: 44px; /* the top bar stays in view */
   z-index: 80;
   display: grid;
   grid-template-columns: 240px 1fr;
@@ -5800,7 +5800,7 @@ button.agent-perm {
 .chathome {
   grid-area: chathome;
   display: grid;
-  grid-template-columns: 276px minmax(320px, 1fr) minmax(0, 1.4fr);
+  grid-template-columns: minmax(320px, 1fr) minmax(0, 1.4fr);
   min-height: 0;
   min-width: 0;
 }
@@ -8575,4 +8575,263 @@ input.chathome-name.rename {
 .kitchen-empty {
   margin: auto;
   color: var(--muted);
+}
+
+/* your projects, down the left of every space, in place of tabs: one bar of icons, and the list beside it */
+.projects-side {
+  grid-area: projects;
+  width: 276px;
+  background: var(--bg);
+  border-right: 1px solid var(--line);
+}
+.projects-side.folded {
+  width: 44px;
+  grid-template-columns: 44px !important;
+}
+.projects-side.folded .chathome-rail {
+  border-right: none;
+}
+/* folded, the open projects fill the middle of the bar and scroll when there are many */
+.rail-projects {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.projects-strip-item {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.projects-strip-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.projects-strip-item.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.projects-side .chathome-rail {
+  min-height: 0;
+}
+/* open, the bar becomes one panel: everything named, nothing hidden behind a hover */
+.projects-side.open {
+  display: flex !important;
+  flex-direction: column;
+  width: 260px;
+  min-height: 0;
+}
+.projects-side.folded {
+  display: flex !important;
+}
+.side-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 8px 4px 18px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.side-items {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0 8px;
+}
+
+.projects-side.open .chathome-body {
+  flex: 1;
+  padding-top: 10px;
+}
+.projects-side.open .chathome-list {
+  min-height: 0;
+  overflow-y: auto;
+}
+.fold-open {
+  transform: rotate(180deg);
+}
+/* folded, the bar is one centred column */
+.projects-side.folded .chathome-rail {
+  flex: 1;
+  min-width: 0;
+}
+.rail-projects::-webkit-scrollbar {
+  display: none;
+}
+/* the list scrolls under a thin bar that shows only while you are over it, with no gutter beside the rows */
+.projects-side.open .chathome-list {
+  margin-right: -4px;
+  padding-right: 4px;
+}
+.projects-side.open .chathome-list::-webkit-scrollbar {
+  width: 4px;
+}
+.projects-side.open .chathome-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.projects-side.open .chathome-list::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 2px;
+}
+.projects-side.open .chathome-list:hover::-webkit-scrollbar-thumb {
+  background: var(--line);
+}
+.side-foot {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px;
+}
+.side-foot .chathome-item {
+  flex: 1;
+}
+.side-find input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+}
+.side-find input::placeholder {
+  color: var(--text);
+}
+.side-find:focus-within input::placeholder {
+  color: var(--muted);
+}
+/* Recent: one plain line each, like a list of chats */
+.chathome-row.compact {
+  padding: 6px 10px;
+}
+.chathome-row.compact .chathome-name {
+  font-size: 13px;
+}
+/* Studio's bar, like the options bar in big editing apps: the tools on the left, the kind of work on the right, room for more later */
+.studio-bar {
+  grid-area: bar;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 0 10px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+.studio-bar .toolbar.row {
+  justify-content: flex-start;
+}
+.studio-bar .kind-switch {
+  flex: none;
+  position: static;
+  transform: none;
+}
+/* the skills: a page of their own beside your projects, like in AI apps */
+.skills-page {
+  grid-column: 2 / -1;
+  grid-row: 2 / -2;
+  z-index: 40;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 32px max(24px, calc((100% - 720px) / 2));
+  background: var(--bg);
+}
+.skills-page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.skills-page-head h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+/* the kind of work: grey words, the one you are in a white button standing up a little */
+.kind-quiet {
+  flex: none;
+  display: flex;
+  padding: 2px;
+  border-radius: var(--r-md);
+  background: var(--panel-2);
+}
+.kind-quiet button {
+  padding: 4px 12px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.kind-quiet button:hover {
+  color: var(--text);
+}
+.kind-quiet button.on {
+  background: var(--panel);
+  color: var(--text);
+  font-weight: 500;
+  box-shadow: 0 1px 2px var(--shadow), 0 0 0 1px var(--line);
+}
+/* Kitchen: the design and the chat on the left, the steps in the middle, the recipes on the far right */
+.kitchen,
+.kitchen.recipes-folded {
+  grid-template-areas: "preview steps recipes";
+}
+.kitchen {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) 232px;
+}
+.kitchen.recipes-folded {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) 44px;
+}
+.kitchen > .kitchen-preview {
+  grid-area: preview;
+  border-right: 1px solid var(--line);
+}
+.kitchen > .kitchen-middle {
+  grid-area: steps;
+  border-right: none;
+}
+.kitchen > .kitchen-recipes {
+  grid-area: recipes;
+  border-right: none;
+  border-left: 1px solid var(--line);
+}
+/* Studio: the chat has its own column, right after your projects */
+.studio-chat {
+  grid-area: chat;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+}
+.studio-chat > .chat.docked {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }

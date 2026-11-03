@@ -140,7 +140,7 @@ export default function Kitchen() {
                 toggleFold();
               }}
             >
-              <Icon name="arrow" size={14} />
+              <Icon name="arrow" size={14} className="kitchen-fold-arrow-back" />
             </button>
           </div>
           <div className="kitchen-folded-icon" aria-hidden="true">
@@ -157,7 +157,7 @@ export default function Kitchen() {
                 <Icon name="plus" size={15} />
               </button>
               <button className="pill icon kitchen-fold-btn" title="Fold recipes" onClick={toggleFold}>
-                <Icon name="arrow" size={14} className="kitchen-fold-arrow-back" />
+                <Icon name="arrow" size={14} />
               </button>
             </div>
           </div>
@@ -201,7 +201,7 @@ export default function Kitchen() {
                     onBlur={(e) => e.target.value.trim() && e.target.value !== recipe.name && change({ ...recipe, name: e.target.value.trim() })}
                     onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
                   />
-                  <div className="kitchen-cook-hint">Cook runs these steps on the design on the right, and stops when it needs you.</div>
+                  <div className="kitchen-cook-hint">Cook runs these steps on the design on the left, and stops when it needs you.</div>
                 </div>
                 <div className="kitchen-bar-actions">
                   {live && live.status !== "done" ? (
@@ -659,7 +659,7 @@ function StepEditor({
             onKeyDown={(e) => e.key === "Enter" && (e.metaKey || e.ctrlKey) && typed.trim() && send()}
           />
         ) : (
-          <p className="kitchen-step-note">Use the comment tool over the design on the right, then continue.</p>
+          <p className="kitchen-step-note">Use the comment tool over the design on the left, then continue.</p>
         )}
         <div className="kitchen-step-actions">
           {step.kind === "review" && (

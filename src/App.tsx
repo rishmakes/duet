@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useDismiss } from "./ui/useDismiss";
-import Tabs from "./ui/Tabs";
 import { detectAgent, startAgentListeners, stopAll, workingNow } from "./ai/agent";
 import { ask } from "./ui/dialog";
 import { startMcp } from "./ai/mcp";
@@ -16,7 +15,9 @@ import { setMinimized } from "./ai/chat";
 import { clampW, getLayout, isColorOpen, keepMode, modeOf, setLayout, useLayout } from "./ui/layout";
 import { toggleTheme, useTheme } from "./ui/theme";
 import Icon from "./ui/Icons";
-import ChatHome from "./ui/ChatHome";
+import { ProjectsSidebar } from "./ui/ChatHome";
+import SkillsPanel from "./ui/SkillsPanel";
+import KindSwitch from "./ui/KindSwitch";
 import VideoCut from "./ui/VideoCut";
 import TimeStrip from "./ui/TimeStrip";
 import { wireClips } from "./video/play";
@@ -93,6 +94,13 @@ export default function App() {
   const [presenting, setPresenting] = useState(false);
   // Home shows from the first moment, so the studio never flashes up empty while the last design loads behind it
   const [homeOpen, setHomeOpen] = useState(true);
+  // the skills open as a page of their own, beside your projects, in any space
+  const [skillsOpen, setSkillsOpen] = useState(false);
+  useEffect(() => {
+    const open = () => setSkillsOpen(true);
+    window.addEventListener("duet:skills-page", open);
+    return () => window.removeEventListener("duet:skills-page", open);
+  }, []);
   // in full screen there are no window buttons, so the name moves to the very left
   const [full, setFull] = useState(false);
   useEffect(() => {
@@ -114,16 +122,6 @@ export default function App() {
   useEffect(() => {
     if (dock.space === "edit") setMinimized(!dock.editChatOpen);
   }, [dock.space]);
-  // the AI asks something or suggests a change: in Video the right panel turns to the chat so it is seen
-  useEffect(() => {
-    const show = () => {
-      const d = getLayout();
-      if (d.space === "edit" && d.mode === "motion" && !d.rightHidden && d.videoTab !== "chat") setLayout({ videoTab: "chat" });
-    };
-    window.addEventListener("duet:show-chat", show);
-    return () => window.removeEventListener("duet:show-chat", show);
-  }, []);
-
   useEffect(() => {
     const stop = startAutosave();
     // every launch starts at your projects; the last one is a click away ("Back to ...")
@@ -232,23 +230,24 @@ export default function App() {
   }, []);
 
   // The grid follows the panels: their widths, which side they are on, and whether they are shown.
+  // changing space leaves the page
+  useEffect(() => setSkillsOpen(false), [dock.space]);
   const lw = dock.leftHidden ? 0 : dock.leftW;
   const rw = dock.rightHidden ? 0 : dock.rightW;
-  const chatting = dock.space === "chat";
-  // Kitchen, like Chat, is a whole page of its own: no tools, panels or tabs around it
+  // Kitchen, like Chat, is a whole page of its own: no tools or panels around it, only your projects on the left
   const cooking = dock.space === "kitchen";
-  const timeMax = dock.timeMax && !chatting && !cooking && dock.mode === "motion";
-  const appStyle = chatting
-    ? { gridTemplateColumns: "minmax(0, 1fr)", gridTemplateRows: `44px minmax(0, 1fr) ${dock.historyLine ? "48px" : "0"}`, gridTemplateAreas: '"top" "chathome" "hist"' }
-    : cooking
-    ? { gridTemplateColumns: "minmax(0, 1fr)", gridTemplateRows: `44px var(--tabbar-h) minmax(0, 1fr) ${dock.historyLine ? "48px" : "0"}`, gridTemplateAreas: '"top" "tabs" "kitchen" "hist"' }
+  const hist = dock.historyLine ? "48px" : "0";
+  const timeMax = dock.timeMax && !cooking && dock.mode === "motion";
+  const appStyle = cooking
+    ? { gridTemplateColumns: "auto minmax(0, 1fr)", gridTemplateRows: `44px minmax(0, 1fr) ${hist}`, gridTemplateAreas: '"top top" "projects kitchen" "hist hist"' }
     : {
-    gridTemplateColumns: dock.swapped ? `auto ${rw}px 1fr ${lw}px` : `auto ${lw}px 1fr ${rw}px`,
+    gridTemplateColumns: dock.swapped ? `auto 340px ${rw}px 1fr ${lw}px` : `auto 340px ${lw}px 1fr ${rw}px`,
+    gridTemplateRows: `44px 40px minmax(0, 1fr) auto ${hist}`,
     gridTemplateAreas: timeMax
-      ? '"top top top top" "tools time time time" "tools time time time" "tools time time time" "hist hist hist hist"'
+      ? '"top top top top top" "projects chat bar bar bar" "projects chat time time time" "projects chat time time time" "hist hist hist hist hist"'
       : dock.swapped
-      ? '"top top top top" "tools right tabs left" "tools right canvas left" "tools time time time" "hist hist hist hist"'
-      : '"top top top top" "tools left tabs right" "tools left canvas right" "tools time time time" "hist hist hist hist"',
+      ? '"top top top top top" "projects chat right bar left" "projects chat right canvas left" "projects chat time time time" "hist hist hist hist hist"'
+      : '"top top top top top" "projects chat left bar right" "projects chat left canvas right" "projects chat time time time" "hist hist hist hist hist"',
 
   };
 
@@ -266,46 +265,16 @@ export default function App() {
             {project.path ? STATUS[project.status] : "Not saved yet"}
           </span>
           <div className="pill mode-switch space-switch">
-            <button className={chatting ? "active" : ""} data-name="space-chat" onClick={() => setLayout({ space: "chat" })} title="Your projects and the AI">
-              Chat
-            </button>
             <button className={cooking ? "active" : ""} data-name="space-kitchen" onClick={() => setLayout({ space: "kitchen" })} title="Make work from recipes, step by step">
               Kitchen
             </button>
-            <button className={chatting || cooking ? "" : "active"} data-name="space-edit" onClick={() => setLayout({ space: "edit" })} title="Every tool, to work on the design yourself">
+            <button className={cooking ? "" : "active"} data-name="space-edit" onClick={() => setLayout({ space: "edit" })} title="Every tool, to work on the design yourself">
               Studio
             </button>
           </div>
         </div>
         {/* the kind of work sits in the middle, so it stays put whatever the sides hold */}
-        {chatting || cooking ? <div /> : (
-          <div className="pill mode-switch kind-switch">
-          <button
-            className={dock.mode === "design" ? "active" : ""}
-            data-name="mode-design"
-            title="Design (Cmd or Ctrl 1)"
-            onClick={() => setLayout({ mode: "design" })}
-          >
-            Design
-          </button>
-          <button
-            className={dock.mode === "motion" ? "active" : ""}
-            data-name="mode-motion"
-            title="Video: edit, animate and tell the story over time (Cmd or Ctrl 2)"
-            onClick={() => setLayout({ mode: "motion" })}
-          >
-            Video
-          </button>
-          <button
-            className={dock.mode === "photo" ? "active" : ""}
-            data-name="mode-photo"
-            title="Photo (Cmd or Ctrl 3)"
-            onClick={() => setLayout({ mode: "photo" })}
-          >
-            Photo
-          </button>
-        </div>
-        )}
+        <div />
         <div className="top-side end" data-tauri-drag-region>
           <button
             className="pill icon theme-toggle"
@@ -315,12 +284,12 @@ export default function App() {
           >
             <Icon name={theme === "light" ? "moon" : "sun"} size={15} />
           </button>
-          {!chatting && !cooking && dock.mode === "design" && (
+          {!cooking && dock.mode === "design" && (
             <button className="pill" disabled={!hasFrames} onClick={() => setPresenting(true)} title="Click through your screens (Cmd or Ctrl Enter)">
               Present
             </button>
           )}
-          {!chatting && !cooking && (
+          {!cooking && (
           <>
           <button className={`pill icon ${dock.leftHidden ? "" : "on"}`} title="Show or hide the layers panel" onClick={() => setLayout({ leftHidden: !dock.leftHidden })}>
             <Icon name="panel-left" size={15} />
@@ -353,32 +322,43 @@ export default function App() {
           </div>
         </div>
       </header>
-      {/* in Studio and Kitchen, under it: the open projects like tabs in a browser */}
-      {!chatting && (
-        <div className="tabbar">
-          <Tabs home={!cooking && homeOpen} setHome={setHomeOpen} />
-        </div>
-      )}
-      {chatting ? (
-        <ChatHome />
-      ) : cooking ? (
+      {/* in every space, down the left: your projects, open ones first; they take the place of tabs */}
+      <ProjectsSidebar />
+      {cooking ? (
         <Kitchen />
       ) : (
         <>
-          <Toolbar />
+          {/* Studio's own bar, under the top bar: the tools on the left, the kind of work on the right */}
+          <div className="studio-bar">
+            <Toolbar row />
+            <KindSwitch />
+          </div>
+          {/* the chat's own column, always in the same place */}
+          <section className="studio-chat">
+            <ChatPanel docked />
+          </section>
           {!dock.leftHidden && <LayersPanel />}
           <main className="canvas">
             <CanvasView />
             <Grip side="l" />
             <Grip side="r" />
             {isColorOpen(dock) && <BeforeAfter />}
-            {/* in Video the chat is a tab on the right panel instead of floating over the picture */}
-            {(dock.mode !== "motion" || dock.rightHidden) && <ChatPanel />}
             <PageStrip />
           </main>
           {!dock.rightHidden && <PropertiesPanel />}
           <TimeStrip />
         </>
+      )}
+      {skillsOpen && (
+        <section className="skills-page">
+          <div className="skills-page-head">
+            <h2>Skills</h2>
+            <button className="pill" onClick={() => setSkillsOpen(false)}>
+              Close
+            </button>
+          </div>
+          <SkillsPanel />
+        </section>
       )}
       {dock.historyLine && <HistoryStrip />}
       <Versions />
@@ -389,7 +369,7 @@ export default function App() {
       <Update />
       <Feedback />
       {settings && <Settings check={check} onClose={() => setSettings(false)} />}
-      {homeOpen && !cooking && !chatting && <Home onClose={() => setHomeOpen(false)} />}
+      {homeOpen && !cooking && <Home onClose={() => setHomeOpen(false)} />}
     </div>
   );
 }

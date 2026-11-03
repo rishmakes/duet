@@ -6,7 +6,6 @@ import { createPortal } from "react-dom";
 import { ancestors, descendants, topLevelOnly } from "../document/geometry";
 import type { Doc, El } from "../document/types";
 import { currentDoc, dispatch, getState, select, useStore } from "../state/store";
-import SkillsPanel from "./SkillsPanel";
 import { boardsOf, openBoard } from "../document/boards";
 import { newId } from "../commands";
 import { ask } from "./dialog";
@@ -396,7 +395,7 @@ export default function LayersPanel() {
   const selection = useStore((s) => s.selection);
   const doc = currentDoc();
   const [drop, setDrop] = useState<Drop | null>(null);
-  const [tab, setTab] = useState<"layers" | "assets" | "skills">("layers");
+  const [tab, setTab] = useState<"layers" | "assets">("layers");
   const [folded, setFolded] = useState<Set<string>>(() => new Set());
   const dragging = useRef<string[]>([]);
 
@@ -488,14 +487,10 @@ export default function LayersPanel() {
         <div className={`tab ${tab === "assets" ? "on" : ""}`} onClick={() => setTab("assets")}>
           Assets
         </div>
-        <div className={`tab ${tab === "skills" ? "on" : ""}`} onClick={() => setTab("skills")}>
-          Skills
-        </div>
       </div>
       {tab === "layers" && <Boards doc={doc} dragging={dragging} onDropped={end} />}
       {tab === "layers" && <div className="tip-line">Click a layer to find it. Cmd or Ctrl click to zoom to it.</div>}
       </div>
-      {tab === "skills" && <SkillsPanel />}
       {tab === "assets" && <AssetsPanel />}
       <div
         className="layers"

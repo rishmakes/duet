@@ -1077,17 +1077,6 @@ export default function PropertiesPanel() {
         >
           Colour
         </button>
-        {mode === "motion" && (
-          <button
-            type="button"
-            className={tab === "chat" ? "active" : ""}
-            data-name="switch-chat"
-            title="Chat with the AI here, out of the way of the picture"
-            onClick={() => setTab("chat")}
-          >
-            Chat
-          </button>
-        )}
       </div>
     </div>
   ) : null);

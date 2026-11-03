@@ -5,7 +5,7 @@ import { useSyncExternalStore } from "react";
 export type Corner = "tl" | "tr" | "bl" | "br";
 export type Mode = "design" | "motion" | "photo";
 /** Agent (called chat inside): talk to the AI beside your projects and watch the canvas. Studio (called edit inside): every tool. */
-export type Space = "chat" | "kitchen" | "edit";
+export type Space = "kitchen" | "edit";
 export type TimeLook = "layers" | "cut";
 /** What the right panel shows. Chat is a tab only in Video. */
 export type RightTab = "properties" | "color" | "chat";
@@ -41,8 +41,8 @@ export interface Dock {
   historyLine: boolean;
   /** Set once the designer turns the history line on or off themselves. Until then it is on. */
   historyLineChosen?: boolean;
-  /** How wide the chat is in the Chat space, or 0 to share the room with the canvas as it comes. */
-  homeChatW: number;
+  /** In each space, whether the Projects sidebar is open or folded to a thin strip. */
+  projectsOpen: Record<Space, boolean>;
   /** In Colour, a change goes to every picture and clip in the scene, not only the picked ones. */
   gradeEvery: boolean;
   /** Rulers along the top and the left of the canvas, with the guides pulled out of them. */
@@ -95,7 +95,7 @@ export const defaults = (): Dock => ({
   keysOpen: false,
   timeH: 170,
   historyLine: true,
-  homeChatW: 0,
+  projectsOpen: { kitchen: false, edit: false },
   gradeEvery: false,
   rulers: false,
   timeMax: false,
@@ -117,8 +117,9 @@ export function parseLayout(raw: unknown): Dock {
     const mode: Mode = rawMode === "motion" ? "motion" : rawMode === "photo" || rawMode === "color" ? "photo" : "design";
     const r = raw as Partial<Dock>;
     const timeLook: TimeLook = r.timeLook === "cut" ? "cut" : "layers";
-    const space: Space = r.space === "chat" || r.space === "kitchen" ? r.space : "edit";
-    const videoTab: RightTab = r.videoTab === "color" || r.videoTab === "chat" ? r.videoTab : "properties";
+    // Chat was a space of its own until 3 Nov 2026; it opens as Studio now
+    const space: Space = r.space === "kitchen" ? "kitchen" : "edit";
+    const videoTab: RightTab = r.videoTab === "color" ? "color" : "properties";
     const photoTab: RightTab = r.photoTab === "properties" ? "properties" : "color";
     // the history line was hidden by default before 0.12.1; it shows unless the designer hid it themselves
     const historyLine = r.historyLineChosen ? r.historyLine !== false : true;
@@ -132,7 +133,9 @@ export function parseLayout(raw: unknown): Dock {
     const rawRowH = (r as Record<string, unknown>).rowH;
     if (rawRowH && typeof rawRowH === "object")
       for (const [id, h] of Object.entries(rawRowH)) if (typeof h === "number" && Number.isFinite(h)) rowH[id] = Math.max(TRACK_MIN_H, Math.min(TRACK_MAX_H, Math.round(h)));
-    return { ...defaults(), ...r, prototyping: false, mode, space, timeLook, timeMax: false, videoTab, photoTab, historyLine, trackH, rowH };
+    const open = (r.projectsOpen ?? {}) as Partial<Record<Space, unknown>>;
+    const projectsOpen = { kitchen: open.kitchen === true, edit: open.edit === true };
+    return { ...defaults(), ...r, projectsOpen, prototyping: false, mode, space, timeLook, timeMax: false, videoTab, photoTab, historyLine, trackH, rowH };
   }
   return defaults();
 }
