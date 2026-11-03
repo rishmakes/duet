@@ -238,8 +238,10 @@ export default function App() {
   // Kitchen, like Chat, is a whole page of its own: no tools, panels or tabs around it
   const cooking = dock.space === "kitchen";
   const timeMax = dock.timeMax && !chatting && !cooking && dock.mode === "motion";
-  const appStyle = chatting || cooking
-    ? { gridTemplateColumns: "minmax(0, 1fr)", gridTemplateRows: `44px minmax(0, 1fr) ${dock.historyLine ? "48px" : "0"}`, gridTemplateAreas: cooking ? '"top" "kitchen" "hist"' : '"top" "chathome" "hist"' }
+  const appStyle = chatting
+    ? { gridTemplateColumns: "minmax(0, 1fr)", gridTemplateRows: `44px minmax(0, 1fr) ${dock.historyLine ? "48px" : "0"}`, gridTemplateAreas: '"top" "chathome" "hist"' }
+    : cooking
+    ? { gridTemplateColumns: "minmax(0, 1fr)", gridTemplateRows: `44px var(--tabbar-h) minmax(0, 1fr) ${dock.historyLine ? "48px" : "0"}`, gridTemplateAreas: '"top" "tabs" "kitchen" "hist"' }
     : {
     gridTemplateColumns: dock.swapped ? `auto ${rw}px 1fr ${lw}px` : `auto ${lw}px 1fr ${rw}px`,
     gridTemplateAreas: timeMax
@@ -351,10 +353,10 @@ export default function App() {
           </div>
         </div>
       </header>
-      {/* in Edit, under it: the open projects like tabs in a browser, and the kind of work */}
-      {!chatting && !cooking && (
+      {/* in Studio and Kitchen, under it: the open projects like tabs in a browser */}
+      {!chatting && (
         <div className="tabbar">
-          <Tabs home={homeOpen} setHome={setHomeOpen} />
+          <Tabs home={!cooking && homeOpen} setHome={setHomeOpen} />
         </div>
       )}
       {chatting ? (
@@ -387,7 +389,7 @@ export default function App() {
       <Update />
       <Feedback />
       {settings && <Settings check={check} onClose={() => setSettings(false)} />}
-      {homeOpen && <Home onClose={() => setHomeOpen(false)} />}
+      {homeOpen && !cooking && !chatting && <Home onClose={() => setHomeOpen(false)} />}
     </div>
   );
 }

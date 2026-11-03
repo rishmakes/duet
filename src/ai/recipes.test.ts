@@ -30,6 +30,14 @@ describe("recipes", () => {
     expect(end.recipe.steps[end.recipe.steps.length - 1].id).toBe(end.id);
   });
 
+  it("adds a blank step between steps and preserves sequence", () => {
+    const { recipe, id } = addStep(r, "questions");
+    const idx = recipe.steps.findIndex((s) => s.id === id);
+    expect(idx).toBe(r.steps.findIndex((s) => s.id === "questions") + 1);
+    expect(recipe.steps[idx].does).toBe("");
+    expect(recipe.steps.length).toBe(r.steps.length + 1);
+  });
+
   it("changes, moves and removes steps without touching the one it was given", () => {
     const changed = changeStep(r, "brief", { title: "What it is for" });
     expect(changed.steps[0].title).toBe("What it is for");
