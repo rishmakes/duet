@@ -10,6 +10,7 @@ import {
   getCooking,
   LANDING_PAGE,
   moveStep,
+  moveStepTo,
   readCook,
   readRecipe,
   removeStep,
@@ -46,6 +47,17 @@ describe("recipes", () => {
     expect(moved.steps[0].id).toBe("questions");
     expect(moveStep(r, "brief", -1)).toBe(r);
     expect(removeStep(r, "icons").steps.some((s) => s.id === "icons")).toBe(false);
+  });
+
+  it("moves a dragged step to where it was let go", () => {
+    const last = r.steps.length - 1;
+    const down = moveStepTo(r, "brief", 2);
+    expect(down.steps[2].id).toBe("brief");
+    expect(down.steps.length).toBe(r.steps.length);
+    expect(moveStepTo(r, "brief", 99).steps[last].id).toBe("brief");
+    expect(moveStepTo(r, r.steps[last].id, 0).steps[0].id).toBe(r.steps[last].id);
+    expect(moveStepTo(r, "brief", 0)).toBe(r);
+    expect(r.steps[0].id).toBe("brief");
   });
 
   it("tells the AI only its step, with what the designer said", () => {

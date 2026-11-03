@@ -17,14 +17,18 @@ import {
   loadCooking,
   loadRecipes,
   moveStep,
+  moveStepTo,
   readRecipe,
   removeStep,
   startCooking,
   stopCooking,
   useCooking,
+  getCooking,
   useRecipes,
 } from "../ai/recipes";
-import { dispatch, getState, setTool, useStore, workDoc } from "../state/store";
+import { dispatch, getState, openingNumber, setTool, useStore, workDoc } from "../state/store";
+import { loadRecipeChoice, saveRecipeChoice } from "../memory/files";
+import { schedulePack } from "../project/project";
 import { getLayout, setLayout, useLayout } from "./layout";
 import { openScene, pause, seek, togglePlay } from "../video/play";
 import { boardsOf, openBoard, pinnedOn } from "../document/boards";
@@ -73,6 +77,40 @@ export default function Kitchen() {
     void loadRecipes();
     void loadCooking();
   }, []);
+
+  // each design file remembers the recipe it was last used with; a new file starts with none
+  const projectPath = useStore((s) => s.project.path);
+  const choiceFor = useRef<{ path: string | null; id: string | null; opening: number } | null>(null);
+  useEffect(() => {
+    const was = choiceFor.current;
+    choiceFor.current = null;
+    // work that was not saved anywhere keeps its recipe when it gets its first file
+    if (projectPath && was && was.path === null && was.opening === openingNumber()) {
+      choiceFor.current = { path: projectPath, id: null, opening: was.opening };
+      return;
+    }
+    if (!projectPath) {
+      const c = getCooking();
+      if (!c || c.status === "stopped" || c.status === "done") setLayout({ recipeOn: null });
+      choiceFor.current = { path: null, id: null, opening: openingNumber() };
+      return;
+    }
+    let gone = false;
+    void loadRecipeChoice(projectPath).then((id) => {
+      if (gone) return;
+      const c = getCooking();
+      // a cook that is still going keeps its own recipe on show
+      if (!c || c.status === "stopped" || c.status === "done") setLayout({ recipeOn: id });
+      choiceFor.current = { path: projectPath, id, opening: openingNumber() };
+    });
+    return () => void (gone = true);
+  }, [projectPath]);
+  useEffect(() => {
+    const at = choiceFor.current;
+    if (!at || !at.path || at.path !== projectPath || at.id === recipeOn) return;
+    at.id = recipeOn;
+    void saveRecipeChoice(at.path, recipeOn).then(schedulePack, () => undefined);
+  }, [recipeOn, projectPath]);
 
   // a cook that is still going keeps its recipe on show
   useEffect(() => {
@@ -798,6 +836,47 @@ function StraightBoard({
               : "turn"
           : "";
 
+  // a step is moved by dragging its card; where it would land shows as a line above or below a card
+  const [drag, setDrag] = useState<{ id: string; to: number; moved: boolean } | null>(null);
+  const dragged = useRef(false);
+  const grab = (e: React.PointerEvent, id: string) => {
+    if (e.button !== 0) return;
+    const from = steps.findIndex((x) => x.id === id);
+    const startY = e.clientY;
+    dragged.current = false;
+    let to = from;
+    let moved = false;
+    const move = (m: PointerEvent) => {
+      if (!moved && Math.abs(m.clientY - startY) < 5) return;
+      moved = true;
+      dragged.current = true;
+      // the step lands where the pointer is, between the middles of the cards
+      to = steps.length - 1;
+      for (let k = 0; k < steps.length; k++) {
+        const el = cardRefs.current[steps[k].id];
+        if (!el) continue;
+        const r = el.getBoundingClientRect();
+        if (m.clientY < r.top + r.height / 2) {
+          to = k > from ? k - 1 : k;
+          break;
+        }
+      }
+      setDrag({ id, to, moved: true });
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      setDrag(null);
+      if (moved && to !== from) onChange(moveStepTo(recipe, id, to));
+      // the click that ends a drag does not pick the step
+      setTimeout(() => (dragged.current = false), 0);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+  const from = drag ? steps.findIndex((x) => x.id === drag.id) : -1;
+  const dropAt = (i: number) => (!drag || drag.to === from || i !== drag.to ? "" : drag.to > from ? "drop-below" : "drop-above");
+
   const insert = (after: string | null) => {
     const { recipe: r, id } = addStep(recipe, after);
     onChange(r);
@@ -832,22 +911,26 @@ function StraightBoard({
                   ref={(el) => {
                     cardRefs.current[s.id] = el;
                   }}
-                  className={`kitchen-card ${isPicked ? "picked" : ""} ${st}`}
-                  onClick={() => onPick(s.id)}
+                  className={`kitchen-card ${isPicked ? "picked" : ""} ${st} ${drag?.id === s.id && drag.moved ? "dragging" : ""} ${dropAt(i)}`}
+                  onPointerDown={(e) => grab(e, s.id)}
+                  onClick={() => !dragged.current && onPick(s.id)}
+                  title="Drag to move this step"
                 >
-                  <div className="kitchen-card-tile">
-                    <StepIcon name={stepIconFor(s)} />
-                  </div>
-                  <div className="kitchen-card-info">
-                    <span className="kitchen-card-kind">
-                      {i + 1} · {isBlankStep(s) ? "Not chosen yet" : s.kind === "ai" ? "AI" : "You"}
+                  <div className="kitchen-card-row">
+                    <div className="kitchen-card-tile">
+                      <StepIcon name={stepIconFor(s)} />
+                    </div>
+                    <span className="kitchen-card-title">
+                      <span className="kitchen-card-num">{i + 1}</span>
+                      {s.title}
                     </span>
-                    <span className="kitchen-card-title">{s.title}</span>
+                    {st === "done" && <span className="kitchen-card-badge done">Done</span>}
+                    {st === "working" && <span className="kitchen-card-badge working">Cooking…</span>}
+                    {st === "turn" && <span className="kitchen-card-badge turn">{s.kind === "ai" ? "Stuck" : "Your turn"}</span>}
+                    {st === "paused" && <span className="kitchen-card-badge paused">Paused</span>}
+                    {!st && <span className="kitchen-card-kind">{isBlankStep(s) ? "Not chosen" : s.kind === "ai" ? "AI" : "You"}</span>}
                   </div>
-                  {st === "done" && <span className="kitchen-card-badge done">Done</span>}
-                  {st === "working" && <span className="kitchen-card-badge working">Cooking…</span>}
-                  {st === "turn" && <span className="kitchen-card-badge turn">{s.kind === "ai" ? "Stuck" : "Your turn"}</span>}
-                  {st === "paused" && <span className="kitchen-card-badge paused">Paused</span>}
+                  <StepPreview step={s} live={live} />
                 </div>
               </React.Fragment>
             );
@@ -906,6 +989,17 @@ function StraightBoard({
   );
 }
 
+/** What a cooked step made, small under its name: a picture of the design, or the first lines of what was said. Nothing before it is cooked. */
+function StepPreview({ step, live }: { step: Step; live: Live }) {
+  if (!live || !live.done.includes(step.id)) return null;
+  const picture = live.pictures?.[step.id];
+  if (picture) return <img className="kitchen-card-picture" src={picture} alt="" />;
+  const text = step.kind === "ai" ? live.replies[step.id] : live.said.filter((x) => x.step === step.id).map((x) => x.text).join(" ");
+  const line = (text ?? "").replace(/[#*_`>]/g, "").replace(/\s+/g, " ").trim();
+  if (!line) return null;
+  return <p className="kitchen-card-preview">{line}</p>;
+}
+
 /**
  * Step editor beside the picked step.
  * - Blank step first asks what it is: "AI does it" or "You do it" (then your comments, or your answers).
@@ -934,6 +1028,9 @@ function StepEditor({
 
   const i = recipe.steps.findIndex((s) => s.id === step.id);
   const set = (patch: Partial<Step>) => onChange(changeStep(recipe, step.id, patch));
+  const [stepMenu, setStepMenu] = useState<{ top: number; right: number } | null>(null);
+  useDismiss(!!stepMenu, () => setStepMenu(null), ".step-menu, .step-menu-btn");
+  const cookingHere = !!(live && live.status === "working" && live.at === i);
 
   // When live cook is on this step, show the live execution panel
   if (isCurrentLive && live) {
@@ -1164,6 +1261,47 @@ function StepEditor({
           placeholder="Step title"
           onBlur={(e) => e.target.value.trim() && e.target.value !== step.title && set({ title: e.target.value.trim() })}
         />
+        {/* moving and removing the step: one quiet menu, so the editor never needs a row of buttons */}
+        <button
+          className={`pill icon step-menu-btn ${stepMenu ? "on" : ""}`}
+          title="Move or remove this step"
+          onClick={(e) => {
+            const b = e.currentTarget.getBoundingClientRect();
+            setStepMenu(stepMenu ? null : { top: b.bottom + 4, right: window.innerWidth - b.right });
+          }}
+        >
+          <Icon name="dots" size={15} />
+        </button>
+        {stepMenu && (
+          <div className="kitchen-menu step-menu" style={stepMenu} onPointerDown={(e) => e.stopPropagation()}>
+            {i > 0 && (
+              <div onClick={() => (setStepMenu(null), onChange(moveStep(recipe, step.id, -1)))}>
+                <Icon name="arrow" size={14} className="step-menu-up" /> Move up
+              </div>
+            )}
+            {i < recipe.steps.length - 1 && (
+              <div onClick={() => (setStepMenu(null), onChange(moveStep(recipe, step.id, 1)))}>
+                <Icon name="arrow" size={14} className="step-menu-down" /> Move down
+              </div>
+            )}
+            {cookingHere ? (
+              <div className="disabled" title="This step is cooking. Stop it first.">
+                <Icon name="trash" size={14} /> Remove step
+              </div>
+            ) : (
+              <div
+                className="danger-text"
+                onClick={() => {
+                  setStepMenu(null);
+                  onChange(removeStep(recipe, step.id));
+                  onPick(null);
+                }}
+              >
+                <Icon name="trash" size={14} /> Remove step
+              </div>
+            )}
+          </div>
+        )}
       </div>
       {/* who does the step, in the same quiet switch as Design, Video, Photo */}
       <div className="kitchen-who-row">
@@ -1191,27 +1329,6 @@ function StepEditor({
           placeholder={step.kind === "ai" ? "What the AI does in this step" : step.kind === "ask" ? "The question you are asked" : "What to look at before you comment"}
           onBlur={(e) => e.target.value !== step.does && set({ does: e.target.value })}
         />
-      </div>
-
-      <div className="kitchen-step-actions">
-        <button className="pill" disabled={i <= 0} onClick={() => onChange(moveStep(recipe, step.id, -1))}>
-          Earlier
-        </button>
-        <button className="pill" disabled={i >= recipe.steps.length - 1} onClick={() => onChange(moveStep(recipe, step.id, 1))}>
-          Later
-        </button>
-        <span className="kitchen-gap" />
-        <button
-          className="pill danger-text"
-          disabled={!!(live && live.status === "working" && live.at === i)}
-          onClick={() => {
-            onChange(removeStep(recipe, step.id));
-            onPick(null);
-          }}
-          title={live && live.status === "working" && live.at === i ? "Cannot remove a step that is cooking" : "Remove this step"}
-        >
-          Remove step
-        </button>
       </div>
     </div>
   );

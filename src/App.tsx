@@ -15,7 +15,9 @@ import { setMinimized } from "./ai/chat";
 import { clampW, getLayout, isColorOpen, keepMode, modeOf, setLayout, useLayout } from "./ui/layout";
 import { toggleTheme, useTheme } from "./ui/theme";
 import Icon from "./ui/Icons";
-import { ProjectsSidebar } from "./ui/ChatHome";
+import { ProjectsSidebar, ProjectMenu } from "./ui/ChatHome";
+import { renameProject } from "./project/project";
+import { message } from "./ui/dialog";
 import SkillsPanel from "./ui/SkillsPanel";
 import KindSwitch from "./ui/KindSwitch";
 import VideoCut from "./ui/VideoCut";
@@ -47,6 +49,58 @@ const STATUS: Record<string, string> = {
   saved: "Saved",
   error: "Could not save",
 };
+
+/** The open project's name and the folder it is in. A click offers what can be done with the file; Rename edits the name right here. */
+function FileName() {
+  const project = useStore((s) => s.project);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const [renaming, setRenaming] = useState(false);
+  const [name, setName] = useState(project.name);
+  useEffect(() => setName(project.name), [project.name, renaming]);
+  const file = project.file;
+  const folder = file ? file.replace(/[\\/][^\\/]*$/, "").split(/[\\/]/).pop() : null;
+  const done = async (keep: boolean) => {
+    if (!renaming) return;
+    setRenaming(false);
+    if (!keep || !file || !name.trim() || name.trim() === project.name) return;
+    const why = await renameProject(file, name);
+    if (why) await message(why, { title: "Rename", kind: "warning" });
+  };
+  if (renaming)
+    return (
+      <input
+        className="top-file-rename"
+        autoFocus
+        value={name}
+        onFocus={(e) => e.target.select()}
+        onChange={(e) => setName(e.target.value)}
+        onBlur={() => void done(true)}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          if (e.key === "Escape") void done(false);
+        }}
+      />
+    );
+  return (
+    <>
+      <button
+        className="top-file"
+        data-name="top-file"
+        title={file ?? "Not saved yet"}
+        disabled={!file}
+        onClick={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          setMenu({ x: r.left, y: r.bottom + 4 });
+        }}
+      >
+        <span className="top-file-name">{project.name}</span>
+        {folder && <span className="top-file-folder">in {folder}</span>}
+      </button>
+      {menu && file && <ProjectMenu at={{ ...menu, r: { path: file, name: project.name, opened: 0 } }} onDone={() => setMenu(null)} onRename={() => setRenaming(true)} />}
+    </>
+  );
+}
 
 /** A thin handle on the edge of the canvas: drag it to make the panel next to it wider or narrower. */
 function Grip({ side }: { side: "l" | "r" }) {
@@ -272,6 +326,7 @@ export default function App() {
             {check && <i className="checkmark" title="Duet dev, used only to build and check Duet itself. It never opens your projects by itself.">dev</i>}
             <i className="early-tag" title="Duet is in early access. Some things are unfinished and you may meet bugs. Save versions of work that matters.">Early access</i>
           </span>
+          <FileName />
           <span data-tauri-drag-region className={`status ${project.status}`} title={project.error ?? undefined}>
             {project.path ? STATUS[project.status] : "Not saved yet"}
           </span>

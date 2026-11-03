@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useSyncExternalStore } from "react";
-import { openingNumber } from "../state/store";
-import { liveKey } from "../project/project";
+import { getState, openingNumber } from "../state/store";
+import { liveKey, previewPng } from "../project/project";
 import { getChat, messagesOf, subscribeChat, updateMsg } from "./chat";
 import { sendToAgent } from "./agent";
 
@@ -133,6 +133,17 @@ export function moveStep(r: Recipe, id: string, by: -1 | 1): Recipe {
   return { ...r, steps };
 }
 
+/** Move a step to a new place in the list, as when it is dragged there. */
+export function moveStepTo(r: Recipe, id: string, to: number): Recipe {
+  const i = r.steps.findIndex((s) => s.id === id);
+  const j = Math.max(0, Math.min(r.steps.length - 1, to));
+  if (i < 0 || i === j) return r;
+  const steps = [...r.steps];
+  const [s] = steps.splice(i, 1);
+  steps.splice(j, 0, s);
+  return { ...r, steps };
+}
+
 export function blankRecipe(name = "New recipe"): Recipe {
   return { id: newId(), name, about: "", steps: place([{ id: newId(), title: "Brief", kind: "ask", does: "What is this for?" }]) };
 }
@@ -250,6 +261,8 @@ export interface Cooking {
   replies: Record<string, string>;
   /** Steps already cooked. */
   done: string[];
+  /** A small picture of the design after each AI step that changed it. */
+  pictures?: Record<string, string>;
   error?: string;
   /** The design this recipe started cooking on. */
   project: DesignMark;
@@ -281,6 +294,7 @@ export interface SavedCook {
   replies: Record<string, string>;
   done: string[];
   doneSteps?: string[];
+  pictures?: Record<string, string>;
   key: string | null;
   working?: boolean;
   status?: string;
@@ -296,6 +310,7 @@ export function cookToSave(c: Cooking): SavedCook {
     said: c.said,
     replies: c.replies,
     done: c.done,
+    pictures: c.pictures,
     doneSteps: c.done,
     key: c.project.key,
     working: c.status === "working" || !!c.working,
@@ -338,6 +353,7 @@ export function readCook(text: string): Cooking | null {
       said,
       replies,
       done,
+      pictures: data.pictures && typeof data.pictures === "object" ? data.pictures : undefined,
       project: { opening: -1, key },
     };
   } catch {
@@ -376,6 +392,21 @@ export async function loadCooking() {
     }
   } catch {
     // no cooking file or broken
+  }
+}
+
+const nowDoc = () => {
+  const s = getState();
+  return s.timeline[s.cursor].doc;
+};
+
+/** A small picture of the design as it is now, to show on the step that made it. */
+async function stepPicture(): Promise<string | null> {
+  try {
+    const b64 = await previewPng(nowDoc(), 160);
+    return b64 ? `data:image/png;base64,${b64}` : null;
+  } catch {
+    return null;
   }
 }
 
@@ -478,6 +509,7 @@ async function go() {
   if (!sameDesign(c.project, open)) return setCooking({ ...c, status: "waiting", error: COOK_DESIGN_CHANGED_ERROR });
 
   setCooking({ ...c, project: open, status: "working", error: undefined });
+  const docBefore = nowDoc();
   const before = messagesOf().reduce((n, m) => Math.max(n, m.id), 0);
   const prompt = stepPrompt(c.recipe, c.at, c.said);
   const aiSteps = c.recipe.steps.filter((s) => s.kind === "ai");
@@ -497,6 +529,10 @@ async function go() {
   const reply = after.filter((m) => m.role === "duet").map((m) => m.text).join("\n").trim();
   const failed = after.find((m) => m.role === "error");
   if (!reply && failed) return setCooking({ ...now, status: "waiting", error: failed.text || "The AI could not do this step." });
-  setCooking({ ...now, replies: { ...now.replies, [step.id]: reply }, done: [...now.done, step.id], at: now.at + 1 });
+  const picture = nowDoc() !== docBefore ? await stepPicture() : null;
+  const later = cooking;
+  if (!later || later !== now) return;
+  const pictures = picture ? { ...now.pictures, [step.id]: picture } : now.pictures;
+  setCooking({ ...now, replies: { ...now.replies, [step.id]: reply }, done: [...now.done, step.id], pictures, at: now.at + 1 });
   void go();
 }

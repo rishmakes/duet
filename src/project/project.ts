@@ -383,12 +383,12 @@ export function previewRoot(doc: Doc): string | undefined {
 }
 
 /** A small picture of the first screen with something on it, as PNG data. Null when there is nothing to show. */
-async function previewPng(doc: Doc): Promise<string | null> {
+export async function previewPng(doc: Doc, size = 360): Promise<string | null> {
   const id = previewRoot(doc);
   if (!id) return null;
   const el = doc.elements[id];
   await preloadPictures(doc);
-  return renderPng(doc, id, Math.min(1, 360 / Math.max(el.width, el.height, 1)));
+  return renderPng(doc, id, Math.min(1, size / Math.max(el.width, el.height, 1)));
 }
 
 let previewTimer: ReturnType<typeof setTimeout> | undefined;
@@ -579,7 +579,8 @@ async function settleLive(from: string, to: string, make: boolean) {
   await packNow();
 }
 
-function schedulePack() {
+/** Pack the working folder into the project file a moment from now. */
+export function schedulePack() {
   if (!getState().project.file) return;
   clearTimeout(packTimer);
   packTimer = setTimeout(() => void packNow().catch((e) => setProject({ status: "error", error: String(e) })), 1200);

@@ -19,3 +19,21 @@ export async function loadThread(dir: string): Promise<string | null> {
 export async function saveThread(dir: string, text: string): Promise<void> {
   await invoke("write_text_file", { path: inside(dir, THREAD_FILE), contents: text });
 }
+
+/** Which recipe a project was last used with, kept in its file so it comes back with it. */
+const RECIPE_FILE = "memory/recipe.json";
+
+export async function loadRecipeChoice(dir: string): Promise<string | null> {
+  try {
+    const path = inside(dir, RECIPE_FILE);
+    if ((await invoke<boolean>("path_exists", { path })) !== true) return null;
+    const data = JSON.parse(await invoke<string>("read_text_file", { path }));
+    return typeof data?.recipe === "string" ? data.recipe : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveRecipeChoice(dir: string, id: string | null): Promise<void> {
+  await invoke("write_text_file", { path: inside(dir, RECIPE_FILE), contents: JSON.stringify({ recipe: id }) });
+}
