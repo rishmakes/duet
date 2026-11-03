@@ -243,25 +243,27 @@ export default function App() {
   const rw = dock.rightHidden ? 0 : dock.rightW;
   // Kitchen, like Chat, is a whole page of its own: no tools or panels around it, only your projects on the left
   const cooking = dock.space === "kitchen";
-  const hist = dock.historyLine ? "48px" : "0";
+  // building a recipe full screen leaves only your projects and the top bar around it
+  const recipeFull = cooking && dock.recipeFull && !!dock.recipeOn;
+  const hist = dock.historyLine && !recipeFull ? "48px" : "0";
   // the chat has a column of its own on the left, or floats over the canvas
   const chatCol = dock.chatDocked.edit ? 340 : 0;
   const timeMax = dock.timeMax && !cooking && dock.mode === "motion";
   const appStyle = cooking
-    ? { gridTemplateColumns: "auto minmax(0, 1fr)", gridTemplateRows: `44px minmax(0, 1fr) ${hist}`, gridTemplateAreas: '"top top" "projects kitchen" "hist hist"' }
+    ? { gridTemplateColumns: "auto minmax(0, 1fr)", gridTemplateRows: `44px minmax(0, 1fr) ${hist}`, gridTemplateAreas: '"top top" "projects kitchen" "projects hist"' }
     : {
     gridTemplateColumns: dock.swapped ? `auto ${chatCol}px ${rw}px 1fr ${lw}px` : `auto ${chatCol}px ${lw}px 1fr ${rw}px`,
     gridTemplateRows: `44px 40px minmax(0, 1fr) auto ${hist}`,
     gridTemplateAreas: timeMax
-      ? '"top top top top top" "projects chat bar bar bar" "projects chat time time time" "projects chat time time time" "hist hist hist hist hist"'
+      ? '"top top top top top" "projects chat bar bar bar" "projects chat time time time" "projects chat time time time" "projects hist hist hist hist"'
       : dock.swapped
-      ? '"top top top top top" "projects chat right bar left" "projects chat right canvas left" "projects chat time time time" "hist hist hist hist hist"'
-      : '"top top top top top" "projects chat left bar right" "projects chat left canvas right" "projects chat time time time" "hist hist hist hist hist"',
+      ? '"top top top top top" "projects chat right bar left" "projects chat right canvas left" "projects chat time time time" "projects hist hist hist hist"'
+      : '"top top top top top" "projects chat left bar right" "projects chat left canvas right" "projects chat time time time" "projects hist hist hist hist"',
 
   };
 
   return (
-    <div className={`app ${timeMax ? "time-max" : ""} ${dock.swapped ? "swapped" : ""} ${check ? "check" : ""} ${MAC ? "mac" : ""} ${full ? "fs" : ""} ${dock.historyLine ? "" : "no-hist"}`} style={appStyle}>
+    <div className={`app ${timeMax ? "time-max" : ""} ${dock.swapped ? "swapped" : ""} ${check ? "check" : ""} ${MAC ? "mac" : ""} ${full ? "fs" : ""} ${dock.historyLine && !recipeFull ? "" : "no-hist"}`} style={appStyle}>
       {/* the top row: the name, how it is saved, the kind of work, and Export; on a Mac it shares the row with the window buttons */}
       <header className="top" data-tauri-drag-region>
         <div className="top-side" data-tauri-drag-region>
@@ -372,7 +374,7 @@ export default function App() {
         </section>
       )}
       {recipesOpen && <RecipesPage onClose={() => setRecipesOpen(false)} />}
-      {dock.historyLine && <HistoryStrip />}
+      {dock.historyLine && !recipeFull && <HistoryStrip />}
       <Versions />
       {presenting && <PresentView onClose={() => setPresenting(false)} />}
       <ContextMenu />

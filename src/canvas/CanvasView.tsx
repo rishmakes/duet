@@ -30,7 +30,7 @@ import {
 } from "../document/geometry";
 import { canBeComponent } from "../document/components";
 import { docAt } from "../document/time";
-import type { CommentMark, Doc, El, ElementType, Rect } from "../document/types";
+import type { Comment as Note, CommentMark, Doc, El, ElementType, Rect } from "../document/types";
 import {
   clearOverlay,
   workDoc,
@@ -2374,7 +2374,11 @@ function Comments({
   const open = useOpenComment();
   const [editing, setEditing] = useState<string | null>(null);
   const setOpen = (id: string | null) => (setEditing(null), setOpenComment(id));
-  const shown = hidden ? [] : (list ?? []).filter((c) => !c.resolved);
+  // a comment about a moment of a video shows only around that moment, or while it is open; numbers stay as on the timeline
+  const clockScene = useStore((s) => s.clock.scene);
+  const clockT = useStore((s) => Math.round(s.clock.t * 4) / 4);
+  const now = (c: Note) => typeof c.t !== "number" || (c.scene === clockScene && Math.abs(clockT - c.t) <= 1.5) || open === c.id;
+  const shown = hidden ? [] : (list ?? []).filter((c) => !c.resolved).map((c, i) => ({ ...c, n: i + 1 })).filter(now);
   const stop = (e: React.PointerEvent | React.MouseEvent) => e.stopPropagation();
   return (
     <>
@@ -2385,10 +2389,10 @@ function Comments({
           {drawingMark && <CommentMarkSvg key="drawing" mark={drawingMark} by="you" zoom={zoom} vx={vx} vy={vy} />}
         </svg>
       )}
-      {shown.map((c, i) => (
+      {shown.map((c) => (
         <div key={c.id} className="comment" style={{ left: c.x * zoom + vx, top: c.y * zoom + vy }} onPointerDown={stop} onDoubleClick={stop}>
           <button className={`comment-pin${c.by === "ai" ? " ai" : ""}${open === c.id ? " open" : ""}`} title={c.text} onClick={() => setOpen(open === c.id ? null : c.id)}>
-            {i + 1}
+            {c.n}
           </button>
           {open === c.id && (
             <div className="comment-card">

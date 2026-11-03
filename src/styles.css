@@ -5221,14 +5221,6 @@ button.agent-perm {
   transform: none;
   flex: none;
 }
-/* in Chat the title row only says what the page already says; the people and the settings stay */
-.chat.docked .ctitle {
-  visibility: hidden;
-}
-/* except in a task, where it says which task this is and leads back */
-.chat.docked .ctitle:has(.task-title) {
-  visibility: visible;
-}
 .project-tabs {
   display: flex;
   align-items: flex-end;
@@ -9232,21 +9224,8 @@ input.chathome-name.rename {
 }
 .review-zoom {
   flex: none;
-  display: flex;
-  gap: 2px;
-}
-.review-zoom button {
-  width: 26px;
-  height: 26px;
-  border: 1px solid var(--line);
-  border-radius: 50%;
-  background: none;
-  color: var(--text);
-  cursor: pointer;
-}
-.review-zoom button:disabled {
-  opacity: 0.4;
-  cursor: default;
+  width: 110px;
+  accent-color: var(--muted);
 }
 .review-write-wrap {
   position: relative;
@@ -9361,4 +9340,49 @@ input.chathome-name.rename {
 }
 .review-bar > .review-zoom {
   margin-left: auto;
+}
+/* Kitchen's right side: the recipe on top, the chat under it, each with a clear head; full screen, only the recipe */
+.kitchen-side {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-left: 1px solid var(--line);
+  background: var(--panel);
+}
+.kitchen-side > .kitchen-middle {
+  flex: 1;
+  min-height: 0;
+  border-left: 0;
+}
+.kitchen-side > .kitchen-chat {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.kitchen-side > .kitchen-chat.under-recipe {
+  flex: none;
+  border-top: 1px solid var(--line);
+  box-shadow: 0 -6px 16px var(--shadow);
+}
+.kitchen-chat .chat.docked .chead {
+  background: var(--panel-2);
+}
+.kitchen-pull-h {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -4px;
+  height: 8px;
+  z-index: 20;
+  cursor: row-resize;
+}
+.kitchen-pull-h:hover {
+  background: linear-gradient(transparent 3px, var(--accent) 3px 5px, transparent 5px);
+}
+.kitchen.recipe-full .kitchen-side {
+  border-left: 0;
 }

@@ -55,6 +55,8 @@ export default function Kitchen() {
   const plays = useStore((s) => Object.values(s.timeline[s.cursor].doc.elements).some((e) => e.type === "frame" && e.duration > 0));
   const recipeW = useLayout((d) => d.recipeW);
   const commentsOpen = useLayout((d) => d.kitchenComments);
+  const recipeFull = useLayout((d) => d.recipeFull);
+  const chatH = useLayout((d) => d.kitchenChatH);
   const recipeOn = useLayout((d) => d.recipeOn);
   const [stepId, setStepId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -121,37 +123,38 @@ export default function Kitchen() {
   // the recipe is picked from the chat, so working with or without one starts in the same place
   const pick = <RecipePick recipes={recipes} on={recipe ?? null} cooking={!!live && live.status !== "done"} onUse={use} onNew={newRecipe} onOpenFile={() => void openFile()} />;
 
+  // the right side: the recipe on top when one is in use, the chat under it; full screen, only the recipe
+  const full = recipeFull && !!recipe;
+  const side = !!recipe || docked;
+  const sideW = full ? "minmax(0, 1fr)" : `${recipe ? recipeW : chatW}px`;
   return (
     <div
-      className={`kitchen ${docked ? "chat-docked" : ""} ${recipe ? "with-recipe" : ""}`}
-      style={{ gridTemplateColumns: [docked ? `${chatW}px` : "", "minmax(0, 1fr)", commentsOpen ? "300px" : "", recipe ? `${recipeW}px` : ""].filter(Boolean).join(" ") }}
+      className={`kitchen ${docked ? "chat-docked" : ""} ${recipe ? "with-recipe" : ""} ${full ? "recipe-full" : ""}`}
+      style={{ gridTemplateColumns: [full ? "" : "minmax(0, 1fr)", commentsOpen && !full ? "300px" : "", side ? sideW : ""].filter(Boolean).join(" ") }}
     >
-      {docked && (
-        <section className="kitchen-chat-col">
-          <ChatPanel docked extra={pick} />
-          <PullEdge side="right" k="kitchenChatW" min={280} max={560} reset={360} />
+      {!full && (
+        <section className="kitchen-preview">
+          <div className="kitchen-canvas-stage">
+            <main className="canvas chathome-canvas">
+              <div className="chathome-stage">
+                <CanvasView />
+              </div>
+              {!docked && <ChatPanel extra={pick} />}
+            </main>
+            <KitchenTools tool={tool} />
+          </div>
+          {/* many people never leave Kitchen: a long review timeline, where every comment is a marker */}
+          {plays && <ReviewBar />}
         </section>
       )}
 
-      <section className="kitchen-preview">
-        <div className="kitchen-canvas-stage">
-          <main className="canvas chathome-canvas">
-            <div className="chathome-stage">
-              <CanvasView />
-            </div>
-            {!docked && <ChatPanel extra={pick} />}
-          </main>
-          <KitchenTools tool={tool} />
-        </div>
-        {/* many people never leave Kitchen: a long review timeline, where every comment is a marker */}
-        {plays && <ReviewBar />}
-      </section>
+      {commentsOpen && !full && <KitchenComments />}
 
-      {commentsOpen && <KitchenComments />}
-
+      {side && (
+      <div className="kitchen-side">
+      {!full && <PullEdge side="left" k={recipe ? "recipeW" : "kitchenChatW"} min={recipe ? 420 : 280} max={900} reset={recipe ? 560 : 360} />}
       {recipe && (
         <section className="kitchen-middle">
-          <PullEdge side="left" k="recipeW" min={420} max={900} reset={560} />
           <div className="kitchen-bar">
             <div className="kitchen-section-label">Recipe</div>
             <div className="kitchen-bar-body">
@@ -187,6 +190,9 @@ export default function Kitchen() {
                   onClick={toggleMenu}
                 >
                   <Icon name="dots" size={15} />
+                </button>
+                <button className={`pill icon ${recipeFull ? "on" : ""}`} data-name="recipe-full" title={recipeFull ? "Back to your design and the chat" : "Full screen: build and plan the recipe"} onClick={() => setLayout({ recipeFull: !recipeFull })}>
+                  <Icon name={recipeFull ? "panel-right" : "grid"} size={14} />
                 </button>
                 {!(live && live.status !== "done") && (
                   <button className="pill icon" data-name="recipe-off" title="Stop using this recipe: back to the chat and your design" onClick={() => use(null)}>
@@ -241,6 +247,14 @@ export default function Kitchen() {
           </div>
           <StraightBoard recipe={recipe} pickedId={stepId} onPick={setStepId} onChange={change} live={live} />
         </section>
+      )}
+      {docked && !full && (
+        <section className={`kitchen-chat ${recipe ? "under-recipe" : ""}`} style={recipe ? { height: chatH } : undefined}>
+          {recipe && <PullHeight />}
+          <ChatPanel docked extra={pick} />
+        </section>
+      )}
+      </div>
       )}
     </div>
   );
@@ -314,6 +328,25 @@ function ReviewBar() {
   useEffect(() => {
     if (scene && getState().clock.scene !== scene.id) openScene(scene.id);
   }, [scene?.id]);
+  // pinch on a trackpad, or scroll a mouse wheel, over the line of time zooms it around the pointer; sliding sideways moves along it
+  useEffect(() => {
+    const sc = scroller.current;
+    if (!sc) return;
+    const wheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      e.preventDefault();
+      const r = sc.getBoundingClientRect();
+      const px = e.clientX - r.left;
+      setZoom((z) => {
+        const next = Math.max(1, Math.min(16, z * Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.002))));
+        const at = (sc.scrollLeft + px) / z;
+        requestAnimationFrame(() => (sc.scrollLeft = at * next - px));
+        return next;
+      });
+    };
+    sc.addEventListener("wheel", wheel, { passive: false });
+    return () => sc.removeEventListener("wheel", wheel);
+  }, [!!scene]);
   // zoomed in, the view follows the playhead
   useEffect(() => {
     const sc = scroller.current;
@@ -367,7 +400,7 @@ function ReviewBar() {
               style={{ left: `${(c.t! / length) * 100}%` }}
               title={`${clockTime(c.t!)} · ${c.text}`}
               onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => (pause(), seek(c.t!), showComment(c.id), setLayout({ kitchenComments: true }))}
+              onClick={() => (pause(), seek(c.t!), showComment(c.id))}
             >
               {n}
             </button>
@@ -375,14 +408,17 @@ function ReviewBar() {
           <div className="review-head" style={{ left: `${(t / length) * 100}%` }} />
         </div>
       </div>
-      <div className="review-zoom">
-        <button title="See more of the video" disabled={zoom <= 1} onClick={() => setZoom(Math.max(1, zoom / 2))}>
-          −
-        </button>
-        <button title="Look closer, for comments close together" disabled={zoom >= 16} onClick={() => setZoom(Math.min(16, zoom * 2))}>
-          +
-        </button>
-      </div>
+      {/* zoom, as in video apps: a slider, or pinch and scroll over the line of time */}
+      <input
+        className="review-zoom"
+        type="range"
+        min={0}
+        max={4}
+        step={0.01}
+        value={Math.log2(zoom)}
+        title="Zoom the timeline. Or pinch, or scroll, over it"
+        onChange={(e) => setZoom(2 ** Number(e.target.value))}
+      />
       <div className="review-write-wrap">
         {writing !== null && (
           <div className="review-write">
@@ -479,6 +515,23 @@ function KitchenComments() {
       </div>
     </section>
   );
+}
+
+/** The line between the recipe and the chat: drag it up or down, double-click to put it back. */
+function PullHeight() {
+  const down = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const y0 = e.clientY;
+    const h0 = getLayout().kitchenChatH;
+    const move = (m: PointerEvent) => setLayout({ kitchenChatH: Math.max(160, Math.min(window.innerHeight - 220, Math.round(h0 + y0 - m.clientY))) });
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+  return <div className="kitchen-pull-h" onPointerDown={down} onDoubleClick={() => setLayout({ kitchenChatH: 380 })} title="Drag to give the chat or the recipe more room. Double-click to put it back." />;
 }
 
 /** The edge of a Kitchen column: drag it to make the column wider or narrower, double-click to put it back. */

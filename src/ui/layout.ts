@@ -62,6 +62,10 @@ export interface Dock {
   /** How wide Kitchen's chat column and recipe column are, pulled by their edges. */
   kitchenChatW: number;
   recipeW: number;
+  /** The recipe takes all of Kitchen, to build and plan it. Never kept between runs. */
+  recipeFull: boolean;
+  /** How tall the chat is under the recipe in Kitchen. */
+  kitchenChatH: number;
   /** Kitchen's comments column is open, to read and resolve them. */
   kitchenComments: boolean;
   /** The recipe Kitchen is using, by its id. None: Kitchen is the chat and the design, nothing more. */
@@ -116,6 +120,8 @@ export const defaults = (): Dock => ({
   chatDocked: { kitchen: true, edit: false },
   recipeOn: null,
   kitchenComments: false,
+  recipeFull: false,
+  kitchenChatH: 380,
   kitchenChatW: 360,
   recipeW: 560,
   videoTab: "properties",
@@ -152,7 +158,7 @@ export function parseLayout(raw: unknown): Dock {
     const docked = (r.chatDocked ?? {}) as Partial<Record<Space, unknown>>;
     const chatDocked = { kitchen: docked.kitchen !== false, edit: docked.edit === true };
     const recipeOn = typeof r.recipeOn === "string" ? r.recipeOn : null;
-    return { ...defaults(), ...r, projectsOpen, chatDocked, recipeOn, prototyping: false, mode, space, timeLook, timeMax: false, videoTab, photoTab, historyLine, trackH, rowH };
+    return { ...defaults(), ...r, recipeFull: false, projectsOpen, chatDocked, recipeOn, prototyping: false, mode, space, timeLook, timeMax: false, videoTab, photoTab, historyLine, trackH, rowH };
   }
   return defaults();
 }
