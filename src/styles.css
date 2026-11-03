@@ -6201,8 +6201,9 @@ input.chathome-name.rename {
   pointer-events: none;
 }
 
+/* the box stays at the bottom, empty or not; nothing waits under it */
 .chat.docked .chat-start-spacer {
-  flex-grow: 1;
+  flex-grow: 0;
   flex-shrink: 1;
   flex-basis: 0px;
   min-height: 0;
