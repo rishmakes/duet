@@ -9106,17 +9106,7 @@ input.chathome-name.rename {
 .chat:not(.docked) .recipe-pick {
   max-width: 96px;
 }
-/* Kitchen's line of time and board pick, quiet inside the toolbar */
-.kitchen-scrub {
-  width: 140px;
-  accent-color: var(--accent);
-}
-.kitchen-time {
-  padding: 0 6px;
-  color: var(--muted);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
+/* Kitchen's board pick, quiet inside the toolbar */
 .kitchen-board-pick {
   height: 30px;
   max-width: 140px;
@@ -9140,4 +9130,8 @@ input.chathome-name.rename {
 }
 .chat-more-list .recipe-pick {
   max-width: none;
+}
+/* Kitchen's timeline sits under the design and keeps its own height */
+.kitchen-preview > .time {
+  flex: none;
 }

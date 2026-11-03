@@ -24,9 +24,9 @@ import {
   useCooking,
   useRecipes,
 } from "../ai/recipes";
-import { dispatch, getState, setTool, useStore } from "../state/store";
+import { dispatch, setTool, useStore } from "../state/store";
 import { getLayout, setLayout, useLayout } from "./layout";
-import { openScene, seek, togglePlay } from "../video/play";
+import TimeStrip from "./TimeStrip";
 import { boardsOf, openBoard } from "../document/boards";
 import ChatPanel from "./ChatPanel";
 import { ask, message, open, save } from "./dialog";
@@ -50,6 +50,7 @@ export default function Kitchen() {
   const tool = useStore((s) => s.tool);
   const docked = useLayout((d) => d.chatDocked.kitchen);
   const chatW = useLayout((d) => d.kitchenChatW);
+  const plays = useStore((s) => Object.values(s.timeline[s.cursor].doc.elements).some((e) => e.type === "frame" && e.duration > 0));
   const recipeW = useLayout((d) => d.recipeW);
   const recipeOn = useLayout((d) => d.recipeOn);
   const [stepId, setStepId] = useState<string | null>(null);
@@ -139,6 +140,8 @@ export default function Kitchen() {
           </main>
           <KitchenTools tool={tool} />
         </div>
+        {/* many people never leave Kitchen: when the design plays, the whole timeline is here too */}
+        {plays && <TimeStrip always />}
       </section>
 
       {recipe && (
@@ -240,24 +243,9 @@ export default function Kitchen() {
 
 /** A few tools under the design: pick and move, look around, comment, play a video, and the way to Studio. */
 function KitchenTools({ tool }: { tool: string }) {
-  const playing = useStore((s) => s.clock.playing);
-  // the frame that plays: the open one, or else the first on the page
-  const scene = useStore((s) => {
-    const els = s.timeline[s.cursor].doc.elements;
-    if (s.clock.scene && els[s.clock.scene]?.duration) return s.clock.scene;
-    return Object.values(els).find((e) => e.type === "frame" && e.duration)?.id ?? null;
-  });
-  const t = useStore((s) => s.clock.t);
-  const clockScene = useStore((s) => s.clock.scene);
-  const length = useStore((s) => (scene ? (s.timeline[s.cursor].doc.elements[scene]?.duration ?? 0) : 0));
   const doc = useStore((s) => s.timeline[s.cursor].doc);
   const boards = boardsOf(doc);
   const boardOpen = openBoard(doc);
-  const fmt = (x: number) => `${Math.floor(x / 60)}:${String(Math.floor(x % 60)).padStart(2, "0")}`;
-  const play = () => {
-    if (scene && getState().clock.scene !== scene) openScene(scene);
-    togglePlay();
-  };
   const toolBtn = (k: "move" | "hand", icon: "move" | "hand", title: string) => (
     <button className={`kitchen-tool ${tool === k ? "on" : ""}`} data-name={`kitchen-${k}`} title={title} onClick={() => setTool(k)}>
       <Icon name={icon} size={15} />
@@ -281,29 +269,6 @@ function KitchenTools({ tool }: { tool: string }) {
               </option>
             ))}
           </select>
-        </>
-      )}
-      {scene && (
-        <>
-          <span className="kitchen-tools-sep" />
-          <button className="kitchen-tool wide" data-name="kitchen-play" title={playing ? "Pause (Space)" : "Play the video (Space)"} onClick={play}>
-            {playing ? "Pause" : "▶ Play"}
-          </button>
-          {/* a thin line of time: drag to any moment; the full timeline is in Studio */}
-          <input
-            className="kitchen-scrub"
-            type="range"
-            min={0}
-            max={length}
-            step={0.01}
-            value={clockScene === scene ? t : 0}
-            title="Drag to any moment"
-            onChange={(e) => {
-              if (getState().clock.scene !== scene) openScene(scene);
-              seek(Number(e.target.value));
-            }}
-          />
-          <span className="kitchen-time">{fmt(clockScene === scene ? t : 0)} / {fmt(length)}</span>
         </>
       )}
       <span className="kitchen-tools-sep" />
