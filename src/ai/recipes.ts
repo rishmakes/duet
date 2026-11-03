@@ -4,6 +4,7 @@ import { getState, openingNumber } from "../state/store";
 import { liveKey, previewPng } from "../project/project";
 import { getChat, messagesOf, subscribeChat, updateMsg } from "./chat";
 import { sendToAgent } from "./agent";
+import { useStepSkills } from "./rules";
 
 /**
  * A recipe is the way a piece of work is made, step by step, like the storyboards and frozen
@@ -20,6 +21,8 @@ export interface Step {
   kind: StepKind;
   /** For the AI, what to do. For the designer, the question or what to look at. */
   does: string;
+  /** For an AI step, the skills it uses. Left out, it uses the skills turned on for the whole app. */
+  skills?: string[];
   /** Where the box sits on the Kitchen board. */
   x: number;
   y: number;
@@ -160,6 +163,7 @@ export function readRecipe(text: string): Recipe | null {
         title: typeof s.title === "string" ? s.title : `Step ${i + 1}`,
         kind: s.kind === "ask" || s.kind === "review" ? s.kind : "ai",
         does: typeof s.does === "string" ? s.does : "",
+        ...(Array.isArray(s.skills) ? { skills: s.skills.filter((k): k is string => typeof k === "string") } : {}),
         x: typeof s.x === "number" ? s.x : 60 + (i % PER_ROW) * GAP,
         y: typeof s.y === "number" ? s.y : 80 + Math.floor(i / PER_ROW) * ROW,
       }));
@@ -515,7 +519,12 @@ async function go() {
   const aiSteps = c.recipe.steps.filter((s) => s.kind === "ai");
   const stepNum = aiSteps.indexOf(step) + 1;
   const shortLine = `Recipe "${c.recipe.name}", step ${stepNum} of ${aiSteps.length}: ${step.title}.`;
-  await sendToAgent(prompt);
+  useStepSkills(step.skills);
+  try {
+    await sendToAgent(prompt);
+  } finally {
+    useStepSkills(null);
+  }
   const userMsg = messagesOf().find((m) => m.id > before && m.role === "you");
   if (userMsg) updateMsg(userMsg.id, { text: shortLine });
   await finished();

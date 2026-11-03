@@ -81,6 +81,13 @@ describe("recipes", () => {
     expect(readRecipe(JSON.stringify({ name: "x" }))).toBeNull();
   });
 
+  it("keeps the skills a step picked when the recipe is read back", () => {
+    const withSkills = { ...r, steps: r.steps.map((s, i) => (i === 0 ? { ...s, skills: ["spacing"] } : s)) };
+    const back = readRecipe(JSON.stringify(withSkills));
+    expect(back?.steps[0].skills).toEqual(["spacing"]);
+    expect(back?.steps[1].skills).toBeUndefined();
+  });
+
   describe("a cook stays on its design", () => {
     it("stays the same design when it gets its first file", () => {
       expect(sameDesign({ opening: 1, key: null }, { opening: 1, key: "/a.duet" })).toBe(true);

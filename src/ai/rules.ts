@@ -23,10 +23,17 @@ const TALK = `- Plain, warm, short. You are talking to a designer, not a program
 - Never mention tools, ids, JSON, commands or technical words. Say "I made the button rounder", not "I called set_props".
 - After you finish, say in one or two sentences what you did and, if useful, what you would try next.`;
 
-/** The skills the designer has turned on, in full. */
+// a recipe step can pick its own skills; while it cooks only those go to the AI
+let stepSkills: string[] | null = null;
+export function useStepSkills(ids: string[] | null | undefined) {
+  stepSkills = ids ?? null;
+}
+
+/** The skills the designer has turned on, in full, or only the ones the recipe step being cooked picked. */
 export function skillsText(): string {
+  const picked = stepSkills;
   const skills = getSkills()
-    .filter((s) => s.enabled)
+    .filter((s) => (picked ? picked.includes(s.id) : s.enabled))
     .map((s) => `<skill name="${s.name}">\n${s.body.trim()}\n</skill>`)
     .join("\n\n");
   return `The designer has loaded these skills. Follow them when they apply:\n\n${skills || "(no skills loaded)"}`;

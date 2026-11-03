@@ -13,7 +13,7 @@ vi.mock("@tauri-apps/api/core", () => ({
 import { answerApproval, getChat } from "./chat";
 import { getSkills, loadSkills } from "./skills";
 import { callTool } from "./tools";
-import { skillsText } from "./rules";
+import { skillsText, useStepSkills } from "./rules";
 
 const waiting = async () => {
   await Promise.resolve();
@@ -55,5 +55,28 @@ describe("the AI saving what the designer taught it as a skill", () => {
     answerApproval((await waiting()).id, false);
     expect((await saving).isError).toBe(true);
     expect(files.size).toBe(0);
+  });
+});
+
+describe("a recipe step that picks its own skills", () => {
+  beforeEach(async () => {
+    files.clear();
+    files.set("calm", "# Calm\n- Soft colours only.\n");
+    files.set("loud", "# Loud\n- Everything red.\n");
+    await loadSkills();
+  });
+
+  it("sends only the skills the step picked, and all the turned-on ones again after", () => {
+    useStepSkills(["mine-calm"]);
+    expect(skillsText()).toContain("Soft colours only.");
+    expect(skillsText()).not.toContain("Everything red.");
+    useStepSkills(null);
+    expect(skillsText()).toContain("Everything red.");
+  });
+
+  it("sends no skills for a step that picked none", () => {
+    useStepSkills([]);
+    expect(skillsText()).toContain("(no skills loaded)");
+    useStepSkills(null);
   });
 });
