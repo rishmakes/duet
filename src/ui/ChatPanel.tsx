@@ -685,24 +685,6 @@ export default function ChatPanel({ docked = false, extra }: { docked?: boolean;
             {extra}
           </div>
         )}
-        <button
-          type="button"
-          className="chat-new-btn"
-          data-name="new-task"
-          disabled={members.length === 0}
-          title="Start a side task with one AI. It works by itself, beside this chat."
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (minimized) setMinimized(false);
-            setTaskPick(taskPick === null ? (members.find((m) => m.id === mainAgent)?.id ?? members[0]?.id ?? null) : null);
-            setPopOpen(false);
-            setSettingsOpen(false);
-          }}
-        >
-          <Icon name="new-chat" size={13} />
-          <span>New task</span>
-        </button>
         {taskPick !== null && (
           <div className="agent-pop task-pop" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
             <div className="agent-pop-label">Who works on it?</div>
@@ -752,6 +734,10 @@ export default function ChatPanel({ docked = false, extra }: { docked?: boolean;
               </div>
             );
           })}
+          {/* bring another AI into the chat */}
+          <button type="button" className="member-badge member-add" data-name="add-ai" title="Add an AI to this chat" onClick={openPicker}>
+            <Icon name="plus" size={12} />
+          </button>
           {/* the same tool opened in its own window is another AI, so it gets its own badge and its own name */}
           {outsideAgents.map((by) => (
             <div
@@ -807,6 +793,22 @@ export default function ChatPanel({ docked = false, extra }: { docked?: boolean;
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
+            {/* a side task: one AI works by itself beside this chat; kept out of the top row */}
+            {members.length > 0 && (
+              <div className="chat-settings-section">
+                <button
+                  type="button"
+                  className="mini"
+                  data-name="new-task"
+                  onClick={() => {
+                    setSettingsOpen(false);
+                    setTaskPick(members.find((m) => m.id === mainAgent)?.id ?? members[0]?.id ?? null);
+                  }}
+                >
+                  Side task with one AI
+                </button>
+              </div>
+            )}
             <div className="chat-settings-section">
               <div className="agent-pop-label">How much agents may do</div>
               <div className="mode">

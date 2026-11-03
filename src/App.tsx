@@ -33,7 +33,7 @@ import Update from "./ui/Update";
 import Feedback from "./ui/Feedback";
 import Settings from "./ui/Settings";
 import Home from "./ui/Home";
-import Kitchen from "./ui/Kitchen";
+import Kitchen, { RecipesPage } from "./ui/Kitchen";
 import LayersPanel from "./ui/LayersPanel";
 import PropertiesPanel from "./ui/PropertiesPanel";
 import Toolbar from "./ui/Toolbar";
@@ -96,10 +96,16 @@ export default function App() {
   const [homeOpen, setHomeOpen] = useState(true);
   // the skills open as a page of their own, beside your projects, in any space
   const [skillsOpen, setSkillsOpen] = useState(false);
+  const [recipesOpen, setRecipesOpen] = useState(false);
   useEffect(() => {
     const open = () => setSkillsOpen(true);
+    const openRecipes = () => setRecipesOpen(true);
     window.addEventListener("duet:skills-page", open);
-    return () => window.removeEventListener("duet:skills-page", open);
+    window.addEventListener("duet:recipes-page", openRecipes);
+    return () => {
+      window.removeEventListener("duet:skills-page", open);
+      window.removeEventListener("duet:recipes-page", openRecipes);
+    };
   }, []);
   // in full screen there are no window buttons, so the name moves to the very left
   const [full, setFull] = useState(false);
@@ -270,7 +276,7 @@ export default function App() {
         </div>
         {/* Kitchen or Studio, the two ways to work, in the middle so it stays put whatever the sides hold */}
         <div className="pill mode-switch space-switch">
-          <button className={cooking ? "active" : ""} data-name="space-kitchen" onClick={() => setLayout({ space: "kitchen" })} title="Make work from recipes, step by step">
+          <button className={cooking ? "active" : ""} data-name="space-kitchen" onClick={() => setLayout({ space: "kitchen" })} title="Work with AI agents: chat, mark what to change, or follow a recipe step by step">
             Kitchen
           </button>
           <button className={cooking ? "" : "active"} data-name="space-edit" onClick={() => setLayout({ space: "edit" })} title="Every tool, to work on the design yourself">
@@ -365,6 +371,7 @@ export default function App() {
           <SkillsPanel />
         </section>
       )}
+      {recipesOpen && <RecipesPage onClose={() => setRecipesOpen(false)} />}
       {dock.historyLine && <HistoryStrip />}
       <Versions />
       {presenting && <PresentView onClose={() => setPresenting(false)} />}

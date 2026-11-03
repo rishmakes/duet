@@ -9037,3 +9037,72 @@ input.chathome-name.rename {
 .kitchen-pull:hover {
   background: linear-gradient(90deg, transparent 3px, var(--accent) 3px 5px, transparent 5px);
 }
+/* bring another AI in: a small plus beside the AIs already here */
+.members-cluster .member-badge.member-add {
+  margin-left: 4px;
+  border: 1px dashed var(--muted);
+  background: none;
+  color: var(--muted);
+  padding: 0;
+}
+.members-cluster .member-badge.member-add:hover {
+  border-color: var(--text);
+  color: var(--text);
+}
+/* a recipe step: its name, then who does it */
+.kitchen-who-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.kitchen-who button {
+  flex: 1;
+  white-space: nowrap;
+}
+/* Recipes: a page of their own beside your projects, like Skills */
+.recipes-page-actions {
+  display: flex;
+  gap: 8px;
+}
+.recipes-page-about {
+  margin: 0 0 16px;
+  color: var(--muted);
+}
+.recipes-page-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.recipes-page-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--panel);
+}
+.recipes-page-card.on {
+  border-color: var(--accent);
+}
+.recipes-page-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.recipes-page-text span {
+  color: var(--muted);
+}
+.recipes-page-text small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.chat:not(.docked) .chead {
+  gap: 4px;
+}
+.chat:not(.docked) .recipe-pick {
+  max-width: 96px;
+}

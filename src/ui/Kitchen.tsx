@@ -259,7 +259,7 @@ function KitchenTools({ tool }: { tool: string }) {
     <div className="kitchen-tools">
       {toolBtn("move", "move", "Pick and move (V)")}
       {toolBtn("hand", "hand", "Look around: drag the view (H, or hold Space)")}
-      {toolBtn("comment", "marker", "Leave a comment on the design (C)")}
+      {toolBtn("comment", "marker", "Mark a spot and leave a note, for the AI or for people (C)")}
       {scene && (
         <>
           <span className="kitchen-tools-sep" />
@@ -297,6 +297,66 @@ function PullEdge({ side, k, min, max, reset }: { side: "left" | "right"; k: "ki
     window.addEventListener("pointerup", up);
   };
   return <div className={`kitchen-pull ${side}`} onPointerDown={down} onDoubleClick={() => setLayout({ [k]: reset })} title="Drag to make wider or narrower. Double-click to put it back." />;
+}
+
+/** Every recipe on a page of its own, from the projects bar, like Skills: pick one to cook with in Kitchen. */
+export function RecipesPage({ onClose }: { onClose: () => void }) {
+  const recipes = useRecipes();
+  const on = useLayout((d) => d.recipeOn);
+  useEffect(() => void loadRecipes(), []);
+  const use = (id: string) => {
+    setLayout({ space: "kitchen", recipeOn: id });
+    onClose();
+  };
+  const openFile = async () => {
+    const path = await open({ title: "Open a recipe", filters: [{ name: "Recipe", extensions: ["json"] }] });
+    if (typeof path !== "string") return;
+    const r = readRecipe(await invoke<string>("read_text_file", { path }).catch(() => ""));
+    if (!r) return void message("That file is not a recipe.");
+    const fresh = recipes.some((x) => x.id === r.id) ? { ...r, id: Math.random().toString(36).slice(2, 9) } : r;
+    keepRecipe(fresh);
+    use(fresh.id);
+  };
+  return (
+    <section className="skills-page recipes-page">
+      <div className="skills-page-head">
+        <h2>Recipes</h2>
+        <div className="recipes-page-actions">
+          <button className="pill" onClick={() => void openFile()}>
+            Open a recipe file
+          </button>
+          <button
+            className="pill"
+            onClick={() => {
+              const r = blankRecipe();
+              keepRecipe(r);
+              use(r.id);
+            }}
+          >
+            New recipe
+          </button>
+          <button className="pill" onClick={onClose}>
+            Close
+          </button>
+        </div>
+      </div>
+      <p className="recipes-page-about">A recipe is a way of working, step by step: what the AI does, and where it stops to ask you. Pick one, and Kitchen follows it on your design.</p>
+      <div className="recipes-page-list">
+        {recipes.map((r) => (
+          <div key={r.id} className={`recipes-page-card ${r.id === on ? "on" : ""}`}>
+            <div className="recipes-page-text">
+              <b>{r.name}</b>
+              <span>{r.about || `${r.steps.length} steps`}</span>
+              <small>{r.steps.map((x) => x.title).join(" · ")}</small>
+            </div>
+            <button className={`pill ${r.id === on ? "" : "primary"}`} onClick={() => use(r.id)}>
+              {r.id === on ? "In use" : "Use"}
+            </button>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 /** In the chat's top row: work with a recipe, or with none. */
@@ -814,15 +874,19 @@ function StepEditor({
           placeholder="Step title"
           onBlur={(e) => e.target.value.trim() && e.target.value !== step.title && set({ title: e.target.value.trim() })}
         />
-        <div className="pill mode-switch kitchen-kind-switch">
-          <button className={step.kind === "ai" ? "active" : ""} onClick={() => set({ kind: "ai" })}>
-            AI
+      </div>
+      {/* who does the step, in the same quiet switch as Design, Video, Photo */}
+      <div className="kitchen-who-row">
+        <span className="kitchen-editor-prompt-label">Who does it</span>
+        <div className="kind-quiet kitchen-who" role="tablist">
+          <button role="tab" className={step.kind === "ai" ? "on" : ""} onClick={() => set({ kind: "ai" })}>
+            AI does it
           </button>
-          <button className={step.kind === "ask" ? "active" : ""} onClick={() => set({ kind: "ask" })}>
-            Ask you
+          <button role="tab" className={step.kind === "ask" ? "on" : ""} onClick={() => set({ kind: "ask" })}>
+            AI asks you
           </button>
-          <button className={step.kind === "review" ? "active" : ""} onClick={() => set({ kind: "review" })}>
-            Your review
+          <button role="tab" className={step.kind === "review" ? "on" : ""} onClick={() => set({ kind: "review" })}>
+            You review
           </button>
         </div>
       </div>

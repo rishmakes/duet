@@ -542,6 +542,7 @@ export function ProjectsSidebar() {
   };
   // the skills are a page of their own, over whichever space you are in
   const openSkills = () => window.dispatchEvent(new Event("duet:skills-page"));
+  const openRecipes = () => window.dispatchEvent(new Event("duet:recipes-page"));
   const empty = useStore((s) => currentDoc(s).rootIds.length === 0);
   const current = useStore((s) => s.project);
   const [typed, setTyped] = useState("");
@@ -634,6 +635,9 @@ export function ProjectsSidebar() {
             <button className="rail-btn" title="Skills" onClick={openSkills}>
               <Icon name="skills" size={18} />
             </button>
+            <button className="rail-btn" title="Recipes" onClick={openRecipes}>
+              <Icon name="list" size={18} />
+            </button>
             <button className="rail-btn" title="Trash" onClick={() => (fold(true), setTrash(true))}>
               <Icon name="trash" size={18} />
             </button>
@@ -690,6 +694,10 @@ export function ProjectsSidebar() {
             <button className="chathome-item" onClick={openSkills}>
               <Icon name="skills" size={16} />
               Skills
+            </button>
+            <button className="chathome-item" onClick={openRecipes}>
+              <Icon name="list" size={16} />
+              Recipes
             </button>
             <button className={`chathome-item ${trash ? "on" : ""}`} onClick={() => setTrash(!trash)}>
               <Icon name="trash" size={16} />
