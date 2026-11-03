@@ -62,6 +62,8 @@ export interface Dock {
   /** How wide Kitchen's chat column and recipe column are, pulled by their edges. */
   kitchenChatW: number;
   recipeW: number;
+  /** Kitchen's comments column is open, to read and resolve them. */
+  kitchenComments: boolean;
   /** The recipe Kitchen is using, by its id. None: Kitchen is the chat and the design, nothing more. */
   recipeOn: string | null;
   /** The chat is open when Studio comes up. Off, it waits folded away until clicked. */
@@ -113,6 +115,7 @@ export const defaults = (): Dock => ({
   editChatOpen: false,
   chatDocked: { kitchen: true, edit: false },
   recipeOn: null,
+  kitchenComments: false,
   kitchenChatW: 360,
   recipeW: 560,
   videoTab: "properties",

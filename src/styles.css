@@ -8956,14 +8956,14 @@ input.chathome-name.rename {
   border-top: 1px solid var(--line);
   margin: 6px 0;
 }
-/* Kitchen's few tools, at the bottom left of the design, clear of the floating chat on the right */
+/* Kitchen's few tools, at the top left of the design, apart from the timeline's own Comment below */
 .kitchen-canvas-stage {
   position: relative;
 }
 .kitchen-tools {
   position: absolute;
   left: 14px;
-  bottom: 14px;
+  top: 14px;
   z-index: 10;
   display: flex;
   align-items: center;
@@ -9136,9 +9136,15 @@ input.chathome-name.rename {
   font-style: normal;
   color: var(--muted);
 }
+.review-scroll {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 6px 10px 0;
+}
 .review-lane {
   position: relative;
-  flex: 1;
   height: 28px;
   cursor: pointer;
 }
@@ -9223,4 +9229,136 @@ input.chathome-name.rename {
   font-weight: 400;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+.review-zoom {
+  flex: none;
+  display: flex;
+  gap: 2px;
+}
+.review-zoom button {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+.review-zoom button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.review-write-wrap {
+  position: relative;
+  flex: none;
+}
+.review-write {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  z-index: 30;
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--panel);
+  box-shadow: 0 12px 32px var(--shadow);
+}
+.review-write span {
+  color: var(--muted);
+  font-size: 11px;
+}
+.review-write textarea {
+  height: 64px;
+  resize: none;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+}
+.review-write-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+/* Kitchen's comments: read them, jump to their moment, resolve them */
+.kitchen-comments {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  border-left: 1px solid var(--line);
+  background: var(--panel);
+}
+.kitchen-comments-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.kitchen-comments-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.kitchen-comment {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  cursor: pointer;
+}
+.kitchen-comment:hover,
+.kitchen-comment.sel {
+  border-color: var(--accent);
+}
+.kitchen-comment.done {
+  opacity: 0.6;
+  cursor: default;
+}
+.kitchen-comment-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  font-size: 12px;
+}
+.kitchen-comment-who {
+  font-weight: 600;
+}
+.kitchen-comment-time {
+  margin-left: auto;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.kitchen-comment-text {
+  white-space: pre-wrap;
+}
+.kitchen-comments-done {
+  align-self: flex-start;
+}
+/* the line of time takes the whole width on its own row, the buttons sit under it */
+.review-bar {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+.review-bar > .review-scroll {
+  order: -1;
+  flex: 1 0 100%;
+  padding: 4px 9px 0;
+}
+.review-bar > .review-zoom {
+  margin-left: auto;
 }

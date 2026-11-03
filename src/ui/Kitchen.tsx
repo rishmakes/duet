@@ -24,10 +24,12 @@ import {
   useCooking,
   useRecipes,
 } from "../ai/recipes";
-import { dispatch, getState, setTool, useStore } from "../state/store";
+import { dispatch, getState, setTool, useStore, workDoc } from "../state/store";
 import { getLayout, setLayout, useLayout } from "./layout";
 import { openScene, pause, seek, togglePlay } from "../video/play";
-import { boardsOf, openBoard } from "../document/boards";
+import { boardsOf, openBoard, pinnedOn } from "../document/boards";
+import { showComment, useOpenComment } from "./commentFocus";
+import type { Comment } from "../document/types";
 import ChatPanel from "./ChatPanel";
 import { ask, message, open, save } from "./dialog";
 import Icon from "./Icons";
@@ -52,6 +54,7 @@ export default function Kitchen() {
   const chatW = useLayout((d) => d.kitchenChatW);
   const plays = useStore((s) => Object.values(s.timeline[s.cursor].doc.elements).some((e) => e.type === "frame" && e.duration > 0));
   const recipeW = useLayout((d) => d.recipeW);
+  const commentsOpen = useLayout((d) => d.kitchenComments);
   const recipeOn = useLayout((d) => d.recipeOn);
   const [stepId, setStepId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -121,7 +124,7 @@ export default function Kitchen() {
   return (
     <div
       className={`kitchen ${docked ? "chat-docked" : ""} ${recipe ? "with-recipe" : ""}`}
-      style={{ gridTemplateColumns: [docked ? `${chatW}px` : "", "minmax(0, 1fr)", recipe ? `${recipeW}px` : ""].filter(Boolean).join(" ") }}
+      style={{ gridTemplateColumns: [docked ? `${chatW}px` : "", "minmax(0, 1fr)", commentsOpen ? "300px" : "", recipe ? `${recipeW}px` : ""].filter(Boolean).join(" ") }}
     >
       {docked && (
         <section className="kitchen-chat-col">
@@ -143,6 +146,8 @@ export default function Kitchen() {
         {/* many people never leave Kitchen: a long review timeline, where every comment is a marker */}
         {plays && <ReviewBar />}
       </section>
+
+      {commentsOpen && <KitchenComments />}
 
       {recipe && (
         <section className="kitchen-middle">
@@ -282,6 +287,14 @@ function KitchenTools({ tool }: { tool: string }) {
   );
 }
 
+/** Comments still open on the board, numbered as on their pins. */
+function useLiveComments() {
+  const all = useStore((s) => workDoc(s).comments);
+  const board = useStore((s) => openBoard(workDoc(s)));
+  return (all ?? []).filter((c) => pinnedOn(c, board) && !c.resolved);
+}
+const clockTime = (x: number) => `${Math.floor(x / 60)}:${(x % 60).toFixed(1).padStart(4, "0")}`;
+
 /**
  * The review timeline, like the ones on feedback sites: play, a long line of time to click or drag through,
  * and every comment made at a moment standing on it as a marker. It is for looking and marking, not for editing.
@@ -289,17 +302,30 @@ function KitchenTools({ tool }: { tool: string }) {
 function ReviewBar() {
   const doc = useStore((s) => s.timeline[s.cursor].doc);
   const clock = useStore((s) => s.clock);
+  const live = useLiveComments();
+  const commentsOpen = useLayout((d) => d.kitchenComments);
+  const [zoom, setZoom] = useState(1);
+  const [writing, setWriting] = useState<number | null>(null);
+  const [words, setWords] = useState("");
   const openOne = clock.scene ? doc.elements[clock.scene] : undefined;
   const scene = openOne && openOne.duration > 0 ? openOne : doc.rootIds.map((id) => doc.elements[id]).find((e) => e?.type === "frame" && e.duration > 0);
   const lane = useRef<HTMLDivElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (scene && getState().clock.scene !== scene.id) openScene(scene.id);
   }, [scene?.id]);
+  // zoomed in, the view follows the playhead
+  useEffect(() => {
+    const sc = scroller.current;
+    const ln = lane.current;
+    if (!sc || !ln || zoom === 1 || !scene) return;
+    const x = (t / scene.duration) * ln.clientWidth;
+    if (x < sc.scrollLeft || x > sc.scrollLeft + sc.clientWidth - 20) sc.scrollLeft = x - sc.clientWidth / 3;
+  });
   if (!scene) return null;
   const length = scene.duration;
   const t = clock.scene === scene.id ? clock.t : 0;
-  const comments = (doc.comments ?? []).map((c, i) => ({ c, n: i + 1 })).filter(({ c }) => c.scene === scene.id && typeof c.t === "number" && !c.resolved);
-  const fmt = (x: number) => `${Math.floor(x / 60)}:${(x % 60).toFixed(1).padStart(4, "0")}`;
+  const marks = live.map((c, i) => ({ c, n: i + 1 })).filter(({ c }) => c.scene === scene.id && typeof c.t === "number");
   const at = (x: number) => {
     const r = lane.current!.getBoundingClientRect();
     return Math.max(0, Math.min(length, ((x - r.left) / r.width) * length));
@@ -316,38 +342,142 @@ function ReviewBar() {
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   };
+  // a comment written here belongs to the moment, and points at the middle of the picture
+  const send = () => {
+    const text = words.trim();
+    if (text && writing !== null) dispatch("add_comment", { x: scene.x + scene.width / 2, y: scene.y + scene.height / 2, text, on: scene.id, scene: scene.id, t: writing });
+    setWriting(null);
+    setWords("");
+  };
   return (
     <div className="review-bar" data-name="review-bar">
       <button className="review-play" title={clock.playing ? "Pause (Space)" : "Play (Space)"} onClick={togglePlay}>
         {clock.playing ? "❚❚" : "▶"}
       </button>
       <span className="review-time">
-        {fmt(t)} <i>/ {fmt(length)}</i>
+        {clockTime(t)} <i>/ {clockTime(length)}</i>
       </span>
-      <div className="review-lane" ref={lane} onPointerDown={scrub} title="Click or drag to any moment">
-        <div className="review-fill" style={{ width: `${(t / length) * 100}%` }} />
-        {comments.map(({ c, n }) => (
-          <button
-            key={c.id}
-            className={`review-mark ${c.by === "ai" ? "ai" : ""}`}
-            style={{ left: `${(c.t! / length) * 100}%` }}
-            title={`${fmt(c.t!)} · ${c.text}`}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => (pause(), seek(c.t!))}
-          >
-            {n}
-          </button>
-        ))}
-        <div className="review-head" style={{ left: `${(t / length) * 100}%` }} />
+      <div className="review-scroll" ref={scroller}>
+        <div className="review-lane" ref={lane} style={{ width: `${zoom * 100}%` }} onPointerDown={scrub} title="Click or drag to any moment">
+          <div className="review-fill" style={{ width: `${(t / length) * 100}%` }} />
+          {marks.map(({ c, n }) => (
+            <button
+              key={c.id}
+              className={`review-mark ${c.by === "ai" ? "ai" : ""}`}
+              style={{ left: `${(c.t! / length) * 100}%` }}
+              title={`${clockTime(c.t!)} · ${c.text}`}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => (pause(), seek(c.t!), showComment(c.id), setLayout({ kitchenComments: true }))}
+            >
+              {n}
+            </button>
+          ))}
+          <div className="review-head" style={{ left: `${(t / length) * 100}%` }} />
+        </div>
       </div>
-      <button
-        className="kitchen-tool wide with-icon review-comment"
-        title="Pause here and click on the picture to leave a note about this moment"
-        onClick={() => (pause(), setTool("comment"))}
-      >
-        <Icon name="marker" size={14} /> Comment at {fmt(t)}
+      <div className="review-zoom">
+        <button title="See more of the video" disabled={zoom <= 1} onClick={() => setZoom(Math.max(1, zoom / 2))}>
+          −
+        </button>
+        <button title="Look closer, for comments close together" disabled={zoom >= 16} onClick={() => setZoom(Math.min(16, zoom * 2))}>
+          +
+        </button>
+      </div>
+      <div className="review-write-wrap">
+        {writing !== null && (
+          <div className="review-write">
+            <span>At {clockTime(writing)}</span>
+            <textarea
+              autoFocus
+              value={words}
+              placeholder="What should change here?"
+              onChange={(e) => setWords(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) (e.preventDefault(), send());
+                if (e.key === "Escape") setWriting(null);
+              }}
+            />
+            <div className="review-write-row">
+              <button className="mini" onClick={() => setWriting(null)}>
+                Cancel
+              </button>
+              <button className="mini primary" disabled={!words.trim()} onClick={send}>
+                Comment
+              </button>
+            </div>
+          </div>
+        )}
+        <button className="kitchen-tool wide with-icon review-comment" data-name="comment-at-moment" title="Write a comment about this moment" onClick={() => (pause(), setWriting(t))}>
+          <Icon name="marker" size={14} /> Comment at {clockTime(t)}
+        </button>
+      </div>
+      <button className={`kitchen-tool wide ${commentsOpen ? "on" : ""}`} data-name="kitchen-comments" title="Read and resolve the comments" onClick={() => setLayout({ kitchenComments: !commentsOpen })}>
+        Comments {live.length || ""}
       </button>
     </div>
+  );
+}
+
+/** Every comment, to read and resolve: open ones by number as on their pins, with their moment on a video. */
+function KitchenComments() {
+  const all = useStore((s) => workDoc(s).comments);
+  const board = useStore((s) => openBoard(workDoc(s)));
+  const openId = useOpenComment();
+  const [showDone, setShowDone] = useState(false);
+  const list = (all ?? []).filter((c) => pinnedOn(c, board));
+  const live = list.filter((c) => !c.resolved);
+  const done = list.filter((c) => c.resolved);
+  const go = (c: Comment) => {
+    if (c.scene && typeof c.t === "number") {
+      pause();
+      if (getState().clock.scene !== c.scene) openScene(c.scene);
+      seek(c.t);
+    }
+    showComment(c.id);
+  };
+  return (
+    <section className="kitchen-comments" data-name="kitchen-comments-column">
+      <div className="kitchen-comments-head">
+        <b>Comments {live.length || ""}</b>
+        <button className="pill icon" title="Close" onClick={() => setLayout({ kitchenComments: false })}>
+          <Icon name="close" size={14} />
+        </button>
+      </div>
+      <div className="kitchen-comments-list">
+        {live.map((c, i) => (
+          <div key={c.id} className={`kitchen-comment ${openId === c.id ? "sel" : ""}`} onClick={() => go(c)}>
+            <div className="kitchen-comment-top">
+              <span className={`comment-dot${c.by === "ai" ? " ai" : ""}`}>{i + 1}</span>
+              <span className="kitchen-comment-who">{c.by === "ai" ? "AI" : "You"}</span>
+              {typeof c.t === "number" && <span className="kitchen-comment-time">{clockTime(c.t)}</span>}
+            </div>
+            <div className="kitchen-comment-text">{c.text}</div>
+            <button
+              className="mini"
+              onClick={(e) => {
+                e.stopPropagation();
+                dispatch("resolve_comment", { id: c.id });
+              }}
+            >
+              Resolve
+            </button>
+          </div>
+        ))}
+        {!live.length && <div className="empty">No comments open. Pick Comment, then click on the design, or comment at a moment on the timeline.</div>}
+        {done.length > 0 && (
+          <button className="mini kitchen-comments-done" onClick={() => setShowDone(!showDone)}>
+            {showDone ? "Fold resolved" : `Resolved ${done.length}`}
+          </button>
+        )}
+        {showDone &&
+          done.map((c) => (
+            <div key={c.id} className="kitchen-comment done">
+              <div className="kitchen-comment-text">{c.text}</div>
+              {c.reply && <small>{c.reply}</small>}
+            </div>
+          ))}
+      </div>
+    </section>
   );
 }
 
