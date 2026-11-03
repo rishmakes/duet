@@ -59,6 +59,9 @@ export interface Dock {
   wheelZooms: boolean;
   /** In each space, whether the chat stands in its own column on the left, or floats over the canvas. */
   chatDocked: Record<Space, boolean>;
+  /** How wide Kitchen's chat column and recipe column are, pulled by their edges. */
+  kitchenChatW: number;
+  recipeW: number;
   /** The recipe Kitchen is using, by its id. None: Kitchen is the chat and the design, nothing more. */
   recipeOn: string | null;
   /** The chat is open when Studio comes up. Off, it waits folded away until clicked. */
@@ -110,6 +113,8 @@ export const defaults = (): Dock => ({
   editChatOpen: false,
   chatDocked: { kitchen: true, edit: false },
   recipeOn: null,
+  kitchenChatW: 360,
+  recipeW: 560,
   videoTab: "properties",
   photoTab: "color",
   trackH: { ...DEFAULT_TRACK_H },

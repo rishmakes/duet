@@ -8966,3 +8966,74 @@ input.chathome-name.rename {
 .chat:not(.docked):not(.min) .chat-new-btn span {
   display: none;
 }
+/* Kitchen's few tools, at the bottom left of the design, clear of the floating chat on the right */
+.kitchen-canvas-stage {
+  position: relative;
+}
+.kitchen-tools {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  box-shadow: 0 6px 20px var(--shadow);
+}
+.kitchen-tool {
+  display: grid;
+  place-items: center;
+  height: 30px;
+  min-width: 30px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.kitchen-tool:hover {
+  background: var(--panel-2);
+}
+.kitchen-tool.on {
+  background: var(--text);
+  color: var(--panel);
+}
+.kitchen-tool.wide {
+  padding: 0 12px;
+}
+.kitchen-tools-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--line);
+}
+/* the edges of Kitchen's columns, to pull wider or narrower */
+.kitchen-chat-col,
+.kitchen > .kitchen-middle {
+  position: relative;
+}
+.kitchen-pull {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  z-index: 20;
+  cursor: col-resize;
+}
+.kitchen-pull.right {
+  right: -4px;
+}
+.kitchen-pull.left {
+  left: -4px;
+}
+.kitchen-pull:hover {
+  background: linear-gradient(90deg, transparent 3px, var(--accent) 3px 5px, transparent 5px);
+}

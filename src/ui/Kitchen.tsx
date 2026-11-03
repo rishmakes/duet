@@ -24,8 +24,9 @@ import {
   useCooking,
   useRecipes,
 } from "../ai/recipes";
-import { setTool, useStore } from "../state/store";
-import { setLayout, useLayout } from "./layout";
+import { getState, setTool, useStore } from "../state/store";
+import { getLayout, setLayout, useLayout } from "./layout";
+import { openScene, togglePlay } from "../video/play";
 import ChatPanel from "./ChatPanel";
 import { ask, message, open, save } from "./dialog";
 import Icon from "./Icons";
@@ -46,8 +47,9 @@ export default function Kitchen() {
   const recipes = useRecipes();
   const cooking = useCooking();
   const tool = useStore((s) => s.tool);
-  const project = useStore((s) => s.project);
   const docked = useLayout((d) => d.chatDocked.kitchen);
+  const chatW = useLayout((d) => d.kitchenChatW);
+  const recipeW = useLayout((d) => d.recipeW);
   const recipeOn = useLayout((d) => d.recipeOn);
   const [stepId, setStepId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -115,25 +117,18 @@ export default function Kitchen() {
   const pick = <RecipePick recipes={recipes} on={recipe ?? null} cooking={!!live && live.status !== "done"} onUse={use} onNew={newRecipe} onOpenFile={() => void openFile()} />;
 
   return (
-    <div className={`kitchen ${docked ? "chat-docked" : ""} ${recipe ? "with-recipe" : ""}`}>
+    <div
+      className={`kitchen ${docked ? "chat-docked" : ""} ${recipe ? "with-recipe" : ""}`}
+      style={{ gridTemplateColumns: [docked ? `${chatW}px` : "", "minmax(0, 1fr)", recipe ? `${recipeW}px` : ""].filter(Boolean).join(" ") }}
+    >
       {docked && (
         <section className="kitchen-chat-col">
           <ChatPanel docked extra={pick} />
+          <PullEdge side="right" k="kitchenChatW" min={280} max={560} reset={360} />
         </section>
       )}
 
       <section className="kitchen-preview">
-        <div className="kitchen-design-bar">
-          <div className="kitchen-design-info">
-            <span className="kitchen-design-name" title={project.file ?? project.path ?? "No file saved yet"}>
-              {project.name || "Untitled"}
-            </span>
-            {!project.file && !project.path ? <span className="kitchen-preview-saved">No file saved yet</span> : null}
-          </div>
-          <button className="pill" onClick={() => setLayout({ space: "edit" })} title="Open this design in Studio">
-            Open in Studio
-          </button>
-        </div>
         <div className="kitchen-canvas-stage">
           <main className="canvas chathome-canvas">
             <div className="chathome-stage">
@@ -141,27 +136,13 @@ export default function Kitchen() {
             </div>
             {!docked && <ChatPanel extra={pick} />}
           </main>
-          <div className="kitchen-canvas-tools">
-            <button
-              className={`pill ${tool === "comment" ? "on" : ""}`}
-              onClick={() => setTool(tool === "comment" ? "move" : "comment")}
-              title="Leave comments on the design"
-            >
-              Comment
-            </button>
-            <button
-              className="pill"
-              onClick={() => window.dispatchEvent(new Event("duet:fit"))}
-              title="Fit the whole design in view (Shift 1)"
-            >
-              Fit
-            </button>
-          </div>
+          <KitchenTools tool={tool} />
         </div>
       </section>
 
       {recipe && (
         <section className="kitchen-middle">
+          <PullEdge side="left" k="recipeW" min={420} max={900} reset={560} />
           <div className="kitchen-bar">
             <div className="kitchen-section-label">Recipe</div>
             <div className="kitchen-bar-body">
@@ -254,6 +235,68 @@ export default function Kitchen() {
       )}
     </div>
   );
+}
+
+/** A few tools under the design: pick and move, look around, comment, play a video, and the way to Studio. */
+function KitchenTools({ tool }: { tool: string }) {
+  const playing = useStore((s) => s.clock.playing);
+  // the frame that plays: the open one, or else the first on the page
+  const scene = useStore((s) => {
+    const els = s.timeline[s.cursor].doc.elements;
+    if (s.clock.scene && els[s.clock.scene]?.duration) return s.clock.scene;
+    return Object.values(els).find((e) => e.type === "frame" && e.duration)?.id ?? null;
+  });
+  const play = () => {
+    if (scene && getState().clock.scene !== scene) openScene(scene);
+    togglePlay();
+  };
+  const toolBtn = (t: "move" | "hand" | "comment", icon: "move" | "hand" | "marker", title: string) => (
+    <button className={`kitchen-tool ${tool === t ? "on" : ""}`} data-name={`kitchen-${t}`} title={title} onClick={() => setTool(t)}>
+      <Icon name={icon} size={15} />
+    </button>
+  );
+  return (
+    <div className="kitchen-tools">
+      {toolBtn("move", "move", "Pick and move (V)")}
+      {toolBtn("hand", "hand", "Look around: drag the view (H, or hold Space)")}
+      {toolBtn("comment", "marker", "Leave a comment on the design (C)")}
+      {scene && (
+        <>
+          <span className="kitchen-tools-sep" />
+          <button className="kitchen-tool wide" data-name="kitchen-play" title={playing ? "Pause (Space)" : "Play the video (Space)"} onClick={play}>
+            {playing ? "Pause" : "▶ Play"}
+          </button>
+        </>
+      )}
+      <span className="kitchen-tools-sep" />
+      <button className="kitchen-tool wide" title="Fit the whole design in view (Shift 1)" onClick={() => window.dispatchEvent(new Event("duet:fit"))}>
+        Fit
+      </button>
+      <button className="kitchen-tool wide" data-name="open-in-studio" title="Every tool, to work on the design yourself" onClick={() => setLayout({ space: "edit" })}>
+        Open in Studio
+      </button>
+    </div>
+  );
+}
+
+/** The edge of a Kitchen column: drag it to make the column wider or narrower, double-click to put it back. */
+function PullEdge({ side, k, min, max, reset }: { side: "left" | "right"; k: "kitchenChatW" | "recipeW"; min: number; max: number; reset: number }) {
+  const down = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const x0 = e.clientX;
+    const w0 = getLayout()[k];
+    const move = (m: PointerEvent) => {
+      const d = side === "right" ? m.clientX - x0 : x0 - m.clientX;
+      setLayout({ [k]: Math.max(min, Math.min(max, Math.round(w0 + d))) });
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+  return <div className={`kitchen-pull ${side}`} onPointerDown={down} onDoubleClick={() => setLayout({ [k]: reset })} title="Drag to make wider or narrower. Double-click to put it back." />;
 }
 
 /** In the chat's top row: work with a recipe, or with none. */
