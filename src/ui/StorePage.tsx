@@ -13,12 +13,25 @@ import {
   useSkills,
 } from "../ai/skills";
 import { useThings, findThings, countByKind, KIND_WORDS, type ThingKind, type Thing } from "../store/things";
+import {
+  saveScript,
+  deleteScript,
+  runScript,
+  RUNS_ON_WORDS,
+  scriptAsk,
+  useScripts,
+  type RunsOn,
+} from "../store/scripts";
+import { sendToAgent } from "../ai/agent";
+import { useDismiss } from "./useDismiss";
 import { ConnectAddon } from "./AddOns";
 import Icon, { type IconName } from "./Icons";
 
 interface StorePageProps {
   onClose: () => void;
 }
+
+const RUNS_ON_KEYS: RunsOn[] = ["selection", "each-frame", "file", "list"];
 
 function thingIcon(thing: Thing): IconName {
   if (thing.kind === "plugin") {
@@ -57,6 +70,7 @@ export default function StorePage({ onClose }: StorePageProps) {
   const [theme] = useTheme();
   const things = useThings();
   const skills = useSkills();
+  const userScripts = useScripts();
   const counts = countByKind(things);
 
   const [source, setSource] = useState<"duet" | "yours">("duet");
@@ -67,18 +81,68 @@ export default function StorePage({ onClose }: StorePageProps) {
   const selectedThing = selectedId ? things.find((t) => t.id === selectedId) : null;
   const selectedSkill = selectedThing?.kind === "skill" ? skills.find((s) => s.id === selectedThing.id) : null;
   const selectedSkillRules = selectedSkill ? skillParts(selectedSkill.body, selectedSkill.name).rules : "";
+  const selectedScript = selectedThing?.kind === "script" ? userScripts.find((s) => s.id === selectedThing.id) : null;
 
+  // Make choice dropdown (+ Make new)
+  const [makeChoiceOpen, setMakeChoiceOpen] = useState(false);
+  useDismiss(makeChoiceOpen, () => setMakeChoiceOpen(false), ".store-make-wrap");
+
+  // Skill editing state
   const [editingId, setEditingId] = useState<"new" | string | null>(null);
   const [skillName, setSkillName] = useState("");
   const [skillLine, setSkillLine] = useState("");
   const [skillRules, setSkillRules] = useState("");
   const [note, setNote] = useState<string | null>(null);
 
+  // Script maker state
+  const [editingScriptId, setEditingScriptId] = useState<"new" | string | null>(null);
+  const [scriptName, setScriptName] = useState("");
+  const [scriptLine, setScriptLine] = useState("");
+  const [scriptRunsOn, setScriptRunsOn] = useState<RunsOn>("selection");
+  const [scriptCode, setScriptCode] = useState("");
+  const [askText, setAskText] = useState("");
+  const [makerListText, setMakerListText] = useState("");
+  const [tryResult, setTryResult] = useState<{ text: string; logs: string[]; isError: boolean } | null>(null);
+  const [trying, setTrying] = useState(false);
+  const [scriptNote, setScriptNote] = useState<string | null>(null);
+
+  // Script page state
+  const [showCode, setShowCode] = useState(false);
+  const [runListText, setRunListText] = useState("");
+  const [runResult, setRunResult] = useState<{ text: string; logs: string[]; isError: boolean } | null>(null);
+  const [runningScript, setRunningScript] = useState(false);
+
+  useEffect(() => {
+    setShowCode(false);
+    setRunResult(null);
+    setRunListText("");
+  }, [selectedId]);
+
+  useEffect(() => {
+    const onSaved = (e: Event) => {
+      const detail = (e as CustomEvent<string>).detail;
+      if (detail) {
+        setSource("yours");
+        setSelectedId(detail);
+        setEditingId(null);
+        setEditingScriptId(null);
+      }
+    };
+    window.addEventListener("duet:script-saved", onSaved);
+    return () => window.removeEventListener("duet:script-saved", onSaved);
+  }, []);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.stopPropagation();
-        if (editingId) {
+        if (makeChoiceOpen) {
+          setMakeChoiceOpen(false);
+        } else if (editingScriptId) {
+          setEditingScriptId(null);
+          setScriptNote(null);
+          setTryResult(null);
+        } else if (editingId) {
           setEditingId(null);
           setNote(null);
         } else if (selectedId) {
@@ -93,7 +157,7 @@ export default function StorePage({ onClose }: StorePageProps) {
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [editingId, selectedId, selectedThing, onClose]);
+  }, [makeChoiceOpen, editingScriptId, editingId, selectedId, selectedThing, onClose]);
 
   const handleBack = () => {
     if (selectedThing && selectedThing.by === "You") {
@@ -102,8 +166,10 @@ export default function StorePage({ onClose }: StorePageProps) {
     setSelectedId(null);
   };
 
-  const startNew = () => {
+  const startNewSkill = () => {
+    setMakeChoiceOpen(false);
     setSelectedId(null);
+    setEditingScriptId(null);
     setSkillName("");
     setSkillLine("");
     setSkillRules("");
@@ -111,7 +177,22 @@ export default function StorePage({ onClose }: StorePageProps) {
     setEditingId("new");
   };
 
-  const startEdit = () => {
+  const startNewScript = () => {
+    setMakeChoiceOpen(false);
+    setSelectedId(null);
+    setEditingId(null);
+    setScriptName("");
+    setScriptLine("");
+    setScriptRunsOn("selection");
+    setScriptCode("");
+    setAskText("");
+    setMakerListText("");
+    setTryResult(null);
+    setScriptNote(null);
+    setEditingScriptId("new");
+  };
+
+  const startEditSkill = () => {
     if (!selectedThing) return;
     const s = skills.find((item) => item.id === selectedThing.id);
     const parts = s ? skillParts(s.body, selectedThing.name) : { name: selectedThing.name, line: selectedThing.line, rules: "" };
@@ -122,7 +203,7 @@ export default function StorePage({ onClose }: StorePageProps) {
     setEditingId(selectedThing.id);
   };
 
-  const cancelEdit = () => {
+  const cancelEditSkill = () => {
     setEditingId(null);
     setNote(null);
   };
@@ -152,6 +233,115 @@ export default function StorePage({ onClose }: StorePageProps) {
       }
       setNote(null);
     }
+  };
+
+  const startEditScript = () => {
+    if (!selectedScript && !selectedThing) return;
+    const s = selectedScript || {
+      name: selectedThing?.name ?? "",
+      line: selectedThing?.line ?? "",
+      runsOn: "selection" as RunsOn,
+      code: "",
+    };
+    setScriptName(s.name);
+    setScriptLine(s.line);
+    setScriptRunsOn(s.runsOn);
+    setScriptCode(s.code);
+    setAskText("");
+    setMakerListText("");
+    setTryResult(null);
+    setScriptNote(null);
+    setEditingScriptId(selectedThing?.id ?? null);
+  };
+
+  const cancelEditScript = () => {
+    setEditingScriptId(null);
+    setScriptNote(null);
+    setTryResult(null);
+  };
+
+  const handleSaveScript = async () => {
+    const isNew = editingScriptId === "new";
+    const res = await saveScript(
+      {
+        name: scriptName.trim(),
+        line: scriptLine.trim(),
+        runsOn: scriptRunsOn,
+      },
+      scriptCode,
+      isNew ? undefined : editingScriptId || undefined,
+    );
+    if ("error" in res) {
+      setScriptNote(res.error);
+      return;
+    }
+    setEditingScriptId(null);
+    setSelectedId(res.id);
+    setSource("yours");
+    setScriptNote(null);
+    setTryResult(null);
+  };
+
+  const handleTryScript = async () => {
+    setTrying(true);
+    try {
+      const list = scriptRunsOn === "list" ? makerListText.split("\n") : [];
+      const res = await runScript(
+        {
+          name: scriptName.trim() || "Untitled script",
+          code: scriptCode,
+          runsOn: scriptRunsOn,
+        },
+        list,
+      );
+      if (res.error) {
+        setTryResult({ text: res.error, logs: res.logs, isError: true });
+      } else {
+        const text = !res.changed
+          ? "It ran. Nothing in the design changed."
+          : res.steps === 1
+            ? "Made 1 change. One Undo takes it back."
+            : `Made ${res.steps} changes. One Undo takes them back.`;
+        setTryResult({ text, logs: res.logs, isError: false });
+      }
+    } finally {
+      setTrying(false);
+    }
+  };
+
+  const handleAskAi = async () => {
+    if (!askText.trim()) return;
+    const prompt = scriptAsk(askText, scriptRunsOn, scriptName, scriptCode);
+    window.dispatchEvent(new Event("duet:show-chat"));
+    await sendToAgent(prompt);
+  };
+
+  const handleRunScript = async () => {
+    if (!selectedScript) return;
+    setRunningScript(true);
+    try {
+      const list = selectedScript.runsOn === "list" ? runListText.split("\n") : [];
+      const res = await runScript(selectedScript, list);
+      if (res.error) {
+        setRunResult({ text: res.error, logs: res.logs, isError: true });
+      } else {
+        const text = !res.changed
+          ? "It ran. Nothing in the design changed."
+          : res.steps === 1
+            ? "Made 1 change. One Undo takes it back."
+            : `Made ${res.steps} changes. One Undo takes them back.`;
+        setRunResult({ text, logs: res.logs, isError: false });
+      }
+    } finally {
+      setRunningScript(false);
+    }
+  };
+
+  const handleDeleteScript = async () => {
+    if (!selectedThing) return;
+    await deleteScript(selectedThing.id);
+    setSource("yours");
+    setSelectedId(null);
   };
 
   const bring = async (directory: boolean) => {
@@ -239,12 +429,42 @@ export default function StorePage({ onClose }: StorePageProps) {
     </div>
   );
 
+  const renderMakeNewButton = () => (
+    <div className="store-make-wrap">
+      <button
+        type="button"
+        className={`pill store-make-btn ${makeChoiceOpen ? "on" : ""}`}
+        onClick={() => setMakeChoiceOpen(!makeChoiceOpen)}
+      >
+        + Make new
+      </button>
+      {makeChoiceOpen && (
+        <div className="ctx store-make-menu">
+          <button
+            type="button"
+            className="ctx-item store-make-option"
+            onClick={startNewSkill}
+          >
+            Skill
+          </button>
+          <button
+            type="button"
+            className="ctx-item store-make-option"
+            onClick={startNewScript}
+          >
+            Script
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <section className="skills-page store-page" data-theme={theme}>
       {editingId ? (
         <div className="store-thing-page">
           <div className="skills-page-head store-thing-head">
-            <button className="pill" onClick={cancelEdit}>
+            <button className="pill" onClick={cancelEditSkill}>
               ← Back
             </button>
             <button className="pill" onClick={onClose}>
@@ -311,7 +531,7 @@ export default function StorePage({ onClose }: StorePageProps) {
             <button className="pill primary" onClick={saveSkill}>
               Save skill
             </button>
-            <button className="pill" onClick={cancelEdit}>
+            <button className="pill" onClick={cancelEditSkill}>
               Cancel
             </button>
           </div>
@@ -330,10 +550,10 @@ export default function StorePage({ onClose }: StorePageProps) {
             </div>
           )}
         </div>
-      ) : selectedThing ? (
+      ) : editingScriptId ? (
         <div className="store-thing-page">
           <div className="skills-page-head store-thing-head">
-            <button className="pill" onClick={handleBack}>
+            <button className="pill" onClick={cancelEditScript}>
               ← Back
             </button>
             <button className="pill" onClick={onClose}>
@@ -344,76 +564,328 @@ export default function StorePage({ onClose }: StorePageProps) {
           <div className="store-thing-hero">
             <div className="store-thing-hero-main">
               <div className="store-thing-hero-tile">
-                <Icon name={thingIcon(selectedThing)} size={32} />
+                <Icon name="skill-custom" size={32} />
               </div>
               <div className="store-thing-title-group">
-                <h2 className="store-thing-name">{selectedThing.name}</h2>
+                <h2 className="store-thing-name">{editingScriptId === "new" ? "New script" : "Edit script"}</h2>
                 <div className="store-thing-meta">
-                  {KIND_WORDS[selectedThing.kind].one} · by {selectedThing.by}
+                  Script · by You
                 </div>
               </div>
             </div>
+          </div>
 
-            {selectedThing.kind === "skill" && (
-              <div className="store-thing-actions">
-                <div className="store-thing-switch-wrap">
-                  <span className="store-thing-switch-label">{selectedThing.on ? "Turned on" : "Turned off"}</span>
-                  <div
-                    className={`sw ${selectedThing.on ? "on" : ""}`}
-                    onClick={() => toggleSkill(selectedThing.id)}
-                    role="switch"
-                    aria-checked={selectedThing.on}
-                    title={selectedThing.on ? "Turn off" : "Turn on"}
-                  />
-                </div>
-                {selectedThing.editable && (
-                  <button className="pill store-edit-btn" onClick={startEdit}>
-                    Edit
-                  </button>
-                )}
-                {selectedThing.removable && (
-                  <button
-                    className="pill store-delete-btn"
-                    onClick={async () => {
-                      await deleteSkill(selectedThing.id);
-                      setSource("yours");
-                      setSelectedId(null);
-                    }}
-                  >
-                    Delete
-                  </button>
-                )}
-              </div>
-            )}
+          <div className="store-thing-section">
+            <div className="store-section-label">Name</div>
+            <input
+              type="text"
+              className="store-field-input"
+              value={scriptName}
+              placeholder="Name, like Grid of photos"
+              onChange={(e) => setScriptName(e.target.value)}
+              onKeyDown={(e) => e.stopPropagation()}
+            />
           </div>
 
           <div className="store-thing-section">
             <div className="store-section-label">What it does</div>
-            <p className="store-thing-line">{selectedThing.line}</p>
+            <input
+              type="text"
+              className="store-field-input"
+              value={scriptLine}
+              placeholder="What the script does in one line"
+              onChange={(e) => setScriptLine(e.target.value)}
+              onKeyDown={(e) => e.stopPropagation()}
+            />
           </div>
 
           <div className="store-thing-section">
-            <div className="store-section-label">What it can touch</div>
-            <ul className="store-touches-list">
-              {selectedThing.touches.map((touch, idx) => (
-                <li key={idx}>{touch}</li>
+            <div className="store-section-label">Runs on</div>
+            <div className="kind-quiet store-runs-on-switch" role="radiogroup" aria-label="Runs on">
+              {RUNS_ON_KEYS.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  role="radio"
+                  aria-checked={scriptRunsOn === r}
+                  className={scriptRunsOn === r ? "on" : ""}
+                  onClick={() => setScriptRunsOn(r)}
+                >
+                  {RUNS_ON_WORDS[r]}
+                </button>
               ))}
-            </ul>
+            </div>
           </div>
 
-          {selectedThing.kind === "skill" && (
+          <div className="store-thing-section">
+            <div className="store-section-label">Ask the AI to write it</div>
+            <div className="store-ask-row">
+              <input
+                type="text"
+                className="store-field-input"
+                value={askText}
+                placeholder="Ask the AI to write it..."
+                onChange={(e) => setAskText(e.target.value)}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.key === "Enter" && askText.trim()) handleAskAi();
+                }}
+              />
+              <button
+                type="button"
+                className="pill"
+                onClick={handleAskAi}
+                disabled={!askText.trim()}
+              >
+                Send
+              </button>
+            </div>
+            <div className="store-ask-hint">The AI will ask you before it saves the script.</div>
+          </div>
+
+          <div className="store-thing-section">
+            <div className="store-section-label">Code</div>
+            <textarea
+              className="store-field-textarea store-code-box"
+              value={scriptCode}
+              rows={10}
+              placeholder={`// A small piece of JavaScript of your own\n// duet.call("create_element", { ... })\n// duet.log("hello")`}
+              onChange={(e) => setScriptCode(e.target.value)}
+              onKeyDown={(e) => e.stopPropagation()}
+              spellCheck={false}
+            />
+          </div>
+
+          {scriptRunsOn === "list" && (
             <div className="store-thing-section">
-              <div className="store-section-label">Rules</div>
-              <div className="store-rules-box">{selectedSkillRules || "No rules defined."}</div>
+              <div className="store-section-label">One item per line</div>
+              <textarea
+                className="store-field-textarea store-list-input"
+                value={makerListText}
+                rows={4}
+                placeholder="One item per line"
+                onChange={(e) => setMakerListText(e.target.value)}
+                onKeyDown={(e) => e.stopPropagation()}
+              />
             </div>
           )}
 
-          {selectedThing.id === "plugin-connect" && (
-            <div className="store-thing-section">
-              <ConnectAddon />
+          {tryResult && (
+            <div className={`store-result-wrap ${tryResult.isError ? "error" : ""}`}>
+              <div className="store-result-line">{tryResult.text}</div>
+              {tryResult.logs.length > 0 && (
+                <div className="store-result-logs">
+                  {tryResult.logs.map((log, i) => (
+                    <div key={i} className="store-result-log-line">{log}</div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
+
+          {scriptNote && <div className="pop-note store-form-note">{scriptNote}</div>}
+
+          <div className="store-edit-actions">
+            <button type="button" className="pill" onClick={handleTryScript} disabled={trying}>
+              {trying ? "Trying..." : "Try it"}
+            </button>
+            <button type="button" className="pill primary" onClick={handleSaveScript}>
+              Save
+            </button>
+            <button type="button" className="pill" onClick={cancelEditScript}>
+              Cancel
+            </button>
+          </div>
         </div>
+      ) : selectedThing ? (
+        selectedThing.kind === "script" ? (
+          <div className="store-thing-page">
+            <div className="skills-page-head store-thing-head">
+              <button className="pill" onClick={handleBack}>
+                ← Back
+              </button>
+              <button className="pill" onClick={onClose}>
+                Close
+              </button>
+            </div>
+
+            <div className="store-thing-hero">
+              <div className="store-thing-hero-main">
+                <div className="store-thing-hero-tile">
+                  <Icon name={thingIcon(selectedThing)} size={32} />
+                </div>
+                <div className="store-thing-title-group">
+                  <h2 className="store-thing-name">{selectedThing.name}</h2>
+                  <div className="store-thing-meta">
+                    Script · by {selectedThing.by}
+                  </div>
+                </div>
+              </div>
+
+              <div className="store-thing-actions">
+                {selectedThing.editable && (
+                  <button className="pill store-edit-btn" onClick={startEditScript}>
+                    Edit
+                  </button>
+                )}
+                {selectedThing.removable && (
+                  <button className="pill store-delete-btn" onClick={handleDeleteScript}>
+                    Delete
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="store-thing-section">
+              <div className="store-section-label">What it does</div>
+              <p className="store-thing-line">{selectedScript?.line || selectedThing.line}</p>
+            </div>
+
+            <div className="store-thing-section">
+              <div className="store-section-label">Runs on</div>
+              <p className="store-thing-line">{RUNS_ON_WORDS[selectedScript?.runsOn ?? "selection"]}</p>
+            </div>
+
+            <div className="store-thing-section">
+              {selectedScript?.runsOn === "list" && (
+                <div className="store-run-list-wrap">
+                  <div className="store-section-label">One item per line</div>
+                  <textarea
+                    className="store-field-textarea store-list-input"
+                    value={runListText}
+                    rows={4}
+                    placeholder="One item per line"
+                    onChange={(e) => setRunListText(e.target.value)}
+                    onKeyDown={(e) => e.stopPropagation()}
+                  />
+                </div>
+              )}
+              <div className="store-run-actions">
+                <button
+                  type="button"
+                  className="pill primary"
+                  onClick={handleRunScript}
+                  disabled={runningScript}
+                >
+                  {runningScript ? "Running..." : "Run"}
+                </button>
+              </div>
+              {runResult && (
+                <div className={`store-result-wrap ${runResult.isError ? "error" : ""}`}>
+                  <div className="store-result-line">{runResult.text}</div>
+                  {runResult.logs.length > 0 && (
+                    <div className="store-result-logs">
+                      {runResult.logs.map((log, i) => (
+                        <div key={i} className="store-result-log-line">{log}</div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="store-thing-section">
+              <div className="store-see-code-wrap">
+                <button
+                  type="button"
+                  className="pill store-see-code-btn"
+                  onClick={() => setShowCode(!showCode)}
+                >
+                  {showCode ? "Hide the code" : "See the code"}
+                </button>
+              </div>
+              {showCode && (
+                <pre className="store-code-readonly">
+                  <code>{selectedScript?.code || ""}</code>
+                </pre>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="store-thing-page">
+            <div className="skills-page-head store-thing-head">
+              <button className="pill" onClick={handleBack}>
+                ← Back
+              </button>
+              <button className="pill" onClick={onClose}>
+                Close
+              </button>
+            </div>
+
+            <div className="store-thing-hero">
+              <div className="store-thing-hero-main">
+                <div className="store-thing-hero-tile">
+                  <Icon name={thingIcon(selectedThing)} size={32} />
+                </div>
+                <div className="store-thing-title-group">
+                  <h2 className="store-thing-name">{selectedThing.name}</h2>
+                  <div className="store-thing-meta">
+                    {KIND_WORDS[selectedThing.kind].one} · by {selectedThing.by}
+                  </div>
+                </div>
+              </div>
+
+              {selectedThing.kind === "skill" && (
+                <div className="store-thing-actions">
+                  <div className="store-thing-switch-wrap">
+                    <span className="store-thing-switch-label">{selectedThing.on ? "Turned on" : "Turned off"}</span>
+                    <div
+                      className={`sw ${selectedThing.on ? "on" : ""}`}
+                      onClick={() => toggleSkill(selectedThing.id)}
+                      role="switch"
+                      aria-checked={selectedThing.on}
+                      title={selectedThing.on ? "Turn off" : "Turn on"}
+                    />
+                  </div>
+                  {selectedThing.editable && (
+                    <button className="pill store-edit-btn" onClick={startEditSkill}>
+                      Edit
+                    </button>
+                  )}
+                  {selectedThing.removable && (
+                    <button
+                      className="pill store-delete-btn"
+                      onClick={async () => {
+                        await deleteSkill(selectedThing.id);
+                        setSource("yours");
+                        setSelectedId(null);
+                      }}
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="store-thing-section">
+              <div className="store-section-label">What it does</div>
+              <p className="store-thing-line">{selectedThing.line}</p>
+            </div>
+
+            <div className="store-thing-section">
+              <div className="store-section-label">What it can touch</div>
+              <ul className="store-touches-list">
+                {selectedThing.touches.map((touch, idx) => (
+                  <li key={idx}>{touch}</li>
+                ))}
+              </ul>
+            </div>
+
+            {selectedThing.kind === "skill" && (
+              <div className="store-thing-section">
+                <div className="store-section-label">Rules</div>
+                <div className="store-rules-box">{selectedSkillRules || "No rules defined."}</div>
+              </div>
+            )}
+
+            {selectedThing.id === "plugin-connect" && (
+              <div className="store-thing-section">
+                <ConnectAddon />
+              </div>
+            )}
+          </div>
+        )
       ) : (
         <>
           <div className="skills-page-head">
@@ -487,28 +959,14 @@ export default function StorePage({ onClose }: StorePageProps) {
               </div>
             </div>
 
-            {!(source === "yours" && yourThings.length === 0) && (
-              <button
-                type="button"
-                className="pill store-make-btn"
-                onClick={startNew}
-              >
-                + Make new
-              </button>
-            )}
+            {!(source === "yours" && yourThings.length === 0) && renderMakeNewButton()}
           </div>
 
           <div className="store-list">
             {source === "yours" && yourThings.length === 0 ? (
               <div className="store-yours-empty">
                 <div className="store-yours-empty-line">Skills, scripts and plugins you make live here</div>
-                <button
-                  type="button"
-                  className="pill store-make-btn"
-                  onClick={startNew}
-                >
-                  + Make new
-                </button>
+                {renderMakeNewButton()}
               </div>
             ) : isSearching ? (
               filtered.length === 0 ? (
