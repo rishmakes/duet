@@ -98,7 +98,7 @@ import {
   type BrushSettings,
 } from "./brushSettings";
 import { draw, labelRect, screenRect, setOnlyFrame, setQuietCanvas, setSceneOnly, shownOn } from "./render";
-import { openPage, showAllPages, usePageFocus } from "../ui/pageFocus";
+import { isAllPages as allPagesNow, openPage, showAllPages, usePageFocus } from "../ui/pageFocus";
 import { fontCss, layoutText, lineStep, textLift } from "./text";
 import { getPickedTrack } from "../ui/pickedTrack";
 import { maskSelection } from "../ui/actions";
@@ -1711,6 +1711,20 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     if (d.kind === "marquee" || d.kind === "node-marquee") setOverlay({ marquee: null });
   };
 
+  // one click, or Shift P: from one page to the open canvas of all pages, and back to the page that was picked
+  const flipPageView = () => {
+    const d = workDoc();
+    if (!d.pages) return;
+    if (allPagesNow(d)) {
+      let top = getState().selection[0];
+      while (top && d.elements[top]?.parentId) top = d.elements[top].parentId!;
+      const page = top && d.rootIds.includes(top) && d.elements[top]?.type === "frame" ? top : d.rootIds.find((id) => d.elements[id]?.type === "frame");
+      if (page) openPage(page);
+    } else {
+      showAllPages();
+      window.dispatchEvent(new Event("duet:all-pages"));
+    }
+  };
   const onDoubleClick = (e: React.MouseEvent) => {
     if (getState().tool === "zoom") return; // each click already zoomed
     if (getState().tool === "pen") {
@@ -2048,6 +2062,11 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
         setLayout({ commentsHidden: !getLayout().commentsHidden });
         return;
       }
+      if (e.shiftKey && !e.altKey && key === "p" && designing && !viewOnly) {
+        e.preventDefault();
+        flipPageView();
+        return;
+      }
       if (e.shiftKey && !e.altKey && key === "r") {
         e.preventDefault();
         setLayout({ rulers: !getLayout().rulers });
@@ -2295,23 +2314,24 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
       )}
       {isPageView && (
         <button
-          className="view-flip"
+          className={`view-flip ${isAllPages ? "on" : ""}`}
           data-name="view-flip"
-          title={isAllPages ? "Back to one page at a time" : "See every page on one open canvas"}
-          onClick={() => {
-            if (isAllPages) {
-              const sel = getState().selection[0];
-              let top = sel;
-              while (top && doc.elements[top]?.parentId) top = doc.elements[top].parentId!;
-              const page = top && doc.rootIds.includes(top) && doc.elements[top]?.type === "frame" ? top : doc.rootIds.find((id) => doc.elements[id]?.type === "frame");
-              if (page) openPage(page);
-            } else {
-              showAllPages();
-              window.dispatchEvent(new Event("duet:all-pages"));
-            }
-          }}
+          aria-label={isAllPages ? "One page at a time" : "All pages on one open canvas"}
+          title={isAllPages ? "One page at a time (Shift P)" : "All pages on one open canvas (Shift P)"}
+          onClick={flipPageView}
         >
-          {isAllPages ? "One page" : "All pages"}
+          {isAllPages ? (
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round">
+              <rect x="6" y="3.5" width="12" height="17" rx="2" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round">
+              <rect x="3" y="3" width="7.5" height="7.5" rx="1.5" />
+              <rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5" />
+              <rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5" />
+              <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5" />
+            </svg>
+          )}
         </button>
       )}
       {editingId && <TextEditor key={editingId} id={editingId} zoom={viewport.zoom} vx={viewport.x} vy={viewport.y} />}

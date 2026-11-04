@@ -10429,23 +10429,29 @@ button.ctx-item.store-make-option:hover {
   border-color: var(--muted);
 }
 
-/* one click between a page at a time and the open canvas, top right of the canvas */
+/* one click between a page at a time and the open canvas, where Rish marked it: right of the tools, below the top of the canvas */
 .view-flip {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: 88px;
+  right: 64px;
   z-index: 5;
-  height: 30px;
-  padding: 0 12px;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: var(--r-sm);
   border: 1.5px solid var(--line);
   background: var(--panel);
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 600;
+  color: var(--muted);
   cursor: pointer;
 }
 .view-flip:hover {
   border-color: var(--accent);
   color: var(--accent);
+}
+.view-flip.on {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
 }
