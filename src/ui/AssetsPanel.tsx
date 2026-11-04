@@ -190,23 +190,22 @@ export default function AssetsPanel() {
         </div>
       ) : (
         <>
-          {brand.colours.map((c) => (
-            <div key={c.id} className="skill brand-colour-row">
-              <button
-                type="button"
-                className={`cswatch round ${picker?.id === c.id ? "open" : ""}`}
-                data-cp={`brand-${c.id}`}
-                title={`Change ${c.name}`}
-                aria-label={`Change ${c.name}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const r = e.currentTarget.getBoundingClientRect();
-                  setPicker(picker?.id === c.id ? null : { id: c.id, at: r });
-                }}
-              >
-                <span style={{ background: c.hex }} />
-              </button>
-              <div className="grow">
+          <div className="brand-palette">
+            {brand.colours.map((c) => (
+              <div key={c.id} className="brand-chip">
+                <button
+                  type="button"
+                  className={`brand-swatch ${picker?.id === c.id ? "open" : ""}`}
+                  data-cp={`brand-${c.id}`}
+                  style={{ background: c.hex }}
+                  title={`Change ${c.name}`}
+                  aria-label={`Change ${c.name}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const r = e.currentTarget.getBoundingClientRect();
+                    setPicker(picker?.id === c.id ? null : { id: c.id, at: r });
+                  }}
+                />
                 {editingId === c.id ? (
                   <input
                     className="brand-rename-input"
@@ -241,35 +240,37 @@ export default function AssetsPanel() {
                   </div>
                 )}
                 <div className="hint2">{c.hex.toUpperCase()}</div>
+                <button
+                  type="button"
+                  className="brand-remove"
+                  title={`Remove ${c.name}`}
+                  aria-label={`Remove ${c.name}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (picker?.id === c.id) setPicker(null);
+                    dispatch("remove_brand_colour", { id: c.id });
+                  }}
+                >
+                  <Icon name="close" size={12} />
+                </button>
               </div>
-              <button
-                type="button"
-                className="brand-remove"
-                title={`Remove ${c.name}`}
-                aria-label={`Remove ${c.name}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (picker?.id === c.id) setPicker(null);
-                  dispatch("remove_brand_colour", { id: c.id });
-                }}
-              >
-                <Icon name="close" size={12} />
-              </button>
-            </div>
-          ))}
-
-          <button
-            type="button"
-            className="mini wide brand-add-colour"
-            onClick={() => {
-              dispatch("add_brand_colour", {
-                name: `Colour ${brand.colours.length + 1}`,
-                hex: hexToAdd,
-              });
-            }}
-          >
-            Add colour
-          </button>
+            ))}
+            <button
+              type="button"
+              className="brand-chip brand-add-colour"
+              title="Add a colour"
+              aria-label="Add colour"
+              onClick={() => {
+                dispatch("add_brand_colour", {
+                  name: `Colour ${brand.colours.length + 1}`,
+                  hex: hexToAdd,
+                });
+              }}
+            >
+              <span className="brand-swatch brand-swatch-add">+</span>
+              <span className="hint2">Add colour</span>
+            </button>
+          </div>
 
           <div className="brand-fonts">
             {brand.fonts.length > 0 ? `Fonts: ${brand.fonts.join(", ")}` : "Any font"}

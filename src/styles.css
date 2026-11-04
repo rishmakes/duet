@@ -1952,8 +1952,52 @@ option {
 }
 
 /* Brand kit in Assets panel */
-.brand-colour-row {
+.brand-palette {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 8px;
+  margin: 8px 6px 6px;
+}
+.brand-chip {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  font-size: 12px;
+}
+.brand-chip .hint2 {
+  margin: 0;
+}
+.brand-swatch {
+  display: block;
+  width: 100%;
+  height: 44px;
+  border-radius: var(--r-md, 10px);
+  border: 1px solid var(--line, rgba(0, 0, 0, 0.12));
+  cursor: pointer;
+  padding: 0;
+}
+.brand-swatch.open {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.brand-swatch-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border-style: dashed;
+  color: var(--muted);
+  font-size: 18px;
+}
+.brand-chip.brand-add-colour {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 .brand-colour-name {
   cursor: default;
@@ -1976,8 +2020,11 @@ option {
   outline: none;
 }
 .brand-remove {
+  position: absolute;
+  top: 3px;
+  right: 3px;
   opacity: 0;
-  background: none;
+  background: var(--panel-2);
   border: 0;
   color: var(--muted);
   cursor: pointer;
@@ -1988,16 +2035,13 @@ option {
   border-radius: var(--r-sm);
   transition: opacity 0.15s ease, color 0.15s ease;
 }
-.brand-colour-row:hover .brand-remove,
-.brand-colour-row .brand-remove:focus {
+.brand-chip:hover .brand-remove,
+.brand-chip .brand-remove:focus {
   opacity: 1;
 }
 .brand-remove:hover {
   color: var(--text);
   background: var(--panel-3);
-}
-.brand-add-colour {
-  margin: 4px 0 8px;
 }
 .brand-fonts {
   margin: 10px 6px 6px;
@@ -2098,6 +2142,20 @@ option {
   padding: 6px 8px;
   border-radius: var(--r-sm);
   user-select: none;
+}
+.design-style-row {
+  padding: 4px 6px;
+}
+.design-style-row .grow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.design-style-row .hint2 {
+  margin: 0;
+  white-space: nowrap;
 }
 .design-use-btn {
   padding: 2px 8px;
