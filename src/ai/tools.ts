@@ -1651,7 +1651,7 @@ async function answerTool(name: string, raw: unknown, by?: string): Promise<Tool
     // loaded here, not at the top: the scripts module itself runs through this file
     const { getScripts, saveScript } = await import("../store/scripts");
     const nm = a.name.trim();
-    const had = getScripts().find((s) => s.name.trim().toLowerCase() === nm.toLowerCase());
+    const had = getScripts().find((s) => !s.shipped && s.name.trim().toLowerCase() === nm.toLowerCase());
     // a script runs on the designer's work, so they always say yes first, whatever the mode
     void invoke("bring_back").catch(() => undefined);
     const ok = await askDesigner(`${had ? "Update" : "Save"} the script "${nm}"`);

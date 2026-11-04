@@ -369,7 +369,7 @@ export default function StorePage({ onClose }: StorePageProps) {
 
   const yourThings = things.filter((t) => t.by === "You");
   const sourceThings = things.filter((t) => (source === "yours" ? t.by === "You" : t.by !== "You"));
-  const availableKinds = (["skill", "script", "plugin"] as const).filter((k) => counts[k] > 0);
+  const availableKinds = (["skill", "script", "plugin"] as const).filter((k) => counts[k] > 0 || k === "script");
   const filtered = findThings(sourceThings, { query, kind: kindFilter });
 
   const isSearching = query.trim().length > 0;
@@ -378,22 +378,23 @@ export default function StorePage({ onClose }: StorePageProps) {
   const plugins = filtered.filter((t) => t.kind === "plugin");
   const scripts = filtered.filter((t) => t.kind === "script");
 
-  const duetSections = [
+  const scriptsAsked = kindFilter === "all" || kindFilter === "script";
+  const duetSections: { key: string; title: string; items: Thing[]; note?: string }[] = [
     { key: "on", title: "On", items: onSkills },
     { key: "off", title: "Off until you want it", items: offSkills },
+    { key: "scripts", title: "Scripts", items: scripts, note: "More scripts from Duet are coming. You can make your own now." },
     { key: "plugins", title: "Plugins", items: plugins },
-    { key: "scripts", title: "Scripts", items: scripts },
-  ].filter((s) => s.items.length > 0);
+  ].filter((s) => s.items.length > 0 || (s.key === "scripts" && scriptsAsked));
 
   const yourSkills = filtered.filter((t) => t.kind === "skill");
   const yourScripts = filtered.filter((t) => t.kind === "script");
   const yourPlugins = filtered.filter((t) => t.kind === "plugin");
 
-  const yoursSections = [
+  const yoursSections: { key: string; title: string; items: Thing[]; note?: string }[] = [
     { key: "skills", title: "Skills", items: yourSkills },
-    { key: "scripts", title: "Scripts", items: yourScripts },
+    { key: "scripts", title: "Scripts", items: yourScripts, note: yourScripts.length ? undefined : "A script does a job in your design, again and again. Write it yourself or ask the AI." },
     { key: "plugins", title: "Plugins", items: yourPlugins },
-  ].filter((s) => s.items.length > 0);
+  ].filter((s) => s.items.length > 0 || (s.key === "scripts" && scriptsAsked));
 
   const sections = source === "duet" ? duetSections : yoursSections;
 
@@ -963,7 +964,7 @@ export default function StorePage({ onClose }: StorePageProps) {
           </div>
 
           <div className="store-list">
-            {source === "yours" && yourThings.length === 0 ? (
+            {source === "yours" && yourThings.length === 0 && kindFilter !== "script" ? (
               <div className="store-yours-empty">
                 <div className="store-yours-empty-line">Skills, scripts and plugins you make live here</div>
                 {renderMakeNewButton()}
@@ -982,9 +983,15 @@ export default function StorePage({ onClose }: StorePageProps) {
               sections.map((sec) => (
                 <div key={sec.key} className="store-section">
                   <div className="store-section-title">{sec.title}</div>
-                  <div className="store-grid">
-                    {sec.items.map(renderRow)}
-                  </div>
+                  {sec.items.length > 0 && <div className="store-grid">{sec.items.map(renderRow)}</div>}
+                  {sec.key === "scripts" && sec.note && (
+                    <div className="store-section-note">
+                      <span>{sec.note}</span>
+                      <button className="store-section-make" onClick={startNewScript}>
+                        + Make a script
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))
             )}

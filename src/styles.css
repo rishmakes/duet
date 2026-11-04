@@ -10215,3 +10215,25 @@ button.ctx-item.store-make-option:hover {
   flex: none;
   max-width: 100%;
 }
+
+.store-section-note {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.store-section-make {
+  flex: none;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.store-section-make:hover {
+  border-color: var(--muted);
+}

@@ -71,12 +71,12 @@ export function scriptThing(s: Script): Thing {
     id: s.id,
     name: s.name,
     line: s.line,
-    by: "You",
+    by: s.shipped ? "Duet" : "You",
     touches: [`The open design: ${RUNS_ON_WORDS[s.runsOn].toLowerCase()}. One Undo takes a whole run back`],
     installed: true,
     on: false,
-    removable: true,
-    editable: true,
+    removable: !s.shipped,
+    editable: !s.shipped,
   };
 }
 

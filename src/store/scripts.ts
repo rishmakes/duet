@@ -23,7 +23,36 @@ export interface Script extends ScriptMeta {
   /** `script-<folder>`, unique among things in the Store. */
   id: string;
   code: string;
+  /** Comes with Duet: it can be run and read, not changed or deleted. */
+  shipped?: boolean;
 }
+
+/** Scripts that come with Duet. More will come; people make their own meanwhile. */
+export const DUET_SCRIPTS: Script[] = [
+  {
+    id: "script-duet-space-evenly",
+    name: "Space evenly in a row",
+    line: "Puts the same gap between three or more things you picked, keeping the first and the last where they are.",
+    runsOn: "selection",
+    shipped: true,
+    code: `const doc = await duet.call("get_document");
+const els = duet.items.map((id) => doc.elements[id]).filter(Boolean).sort((a, b) => a.x - b.x);
+if (els.length < 3) {
+  duet.log("Pick three or more things to space them out.");
+  return;
+}
+const first = els[0];
+const last = els[els.length - 1];
+const widths = els.reduce((n, e) => n + e.width, 0);
+const gap = (last.x + last.width - first.x - widths) / (els.length - 1);
+let x = first.x + first.width + gap;
+for (const e of els.slice(1, -1)) {
+  const dx = x - e.x;
+  if (Math.abs(dx) > 0.01) await duet.call("move_elements", { ids: [e.id], dx, dy: 0 });
+  x += e.width + gap;
+}`,
+  },
+];
 
 const RUNS_ON: RunsOn[] = ["selection", "each-frame", "file", "list"];
 
@@ -55,16 +84,16 @@ const slug = (s: string) =>
     .replace(/^-+|-+$/g, "")
     .slice(0, 50);
 
-let scripts: Script[] = [];
+let scripts: Script[] = [...DUET_SCRIPTS];
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
 
 export async function loadScripts() {
   try {
     const list = await invoke<{ id: string; meta: string; code: string }[]>("list_user_scripts");
-    scripts = list.map(({ id, meta, code }) => ({ id: `script-${id}`, code, ...readMeta(meta, id) }));
+    scripts = [...DUET_SCRIPTS, ...list.map(({ id, meta, code }) => ({ id: `script-${id}`, code, ...readMeta(meta, id) }))];
   } catch {
-    scripts = [];
+    scripts = [...DUET_SCRIPTS];
   }
   emit();
 }

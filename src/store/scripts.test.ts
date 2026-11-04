@@ -120,3 +120,40 @@ describe("asking the AI to write a script", () => {
     expect(t).toContain("save_script");
   });
 });
+
+import { DUET_SCRIPTS } from "./scripts";
+describe("the scripts that come with Duet", () => {
+  /** Run a script for real, in a bare room, with its calls answered by a ScriptRun. */
+  async function runFor(code: string, start: ReturnType<typeof emptyDoc>, items: string[]) {
+    const run = new ScriptRun(start);
+    const self = {} as Record<string, unknown>;
+    self.self = self;
+    let finished: (v: string) => void = () => {};
+    const end = new Promise<string>((r) => (finished = r));
+    self.postMessage = (m: { type: string; text?: string }) => {
+      if (m.type === "done" || m.type === "error") return finished(m.type === "error" ? String(m.text) : "done");
+      const reply = run.handle(m);
+      if (reply) void Promise.resolve().then(() => (self.onmessage as (e: { data: unknown }) => void)({ data: reply }));
+    };
+    vm.runInContext(workerSource(code), vm.createContext(self));
+    void (self.onmessage as (e: { data: unknown }) => void)({ data: { type: "start", items } });
+    return { result: await end, run };
+  }
+
+  it("Space evenly in a row puts the same gap between picked things", async () => {
+    let doc = emptyDoc();
+    const ids: string[] = [];
+    for (const [x, width] of [[0, 20], [30, 20], [150, 40], [200, 20]]) {
+      const r = scriptStep(doc, "create_element", { type: "rect", x, y: 0, width, height: 20 });
+      if (!("doc" in r)) throw new Error(r.error);
+      doc = r.doc;
+      ids.push(r.value as string);
+    }
+    const space = DUET_SCRIPTS.find((s) => s.id === "script-duet-space-evenly")!;
+    const { result, run } = await runFor(space.code, doc, ids);
+    expect(result).toBe("done");
+    const xs = ids.map((id) => run.doc.elements[id].x);
+    // 220 wide, 100 of things, so three gaps of 40
+    expect(xs).toEqual([0, 60, 120, 200]);
+  });
+});

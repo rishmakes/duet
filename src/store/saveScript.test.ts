@@ -41,7 +41,7 @@ describe("the AI saving a script for the designer", () => {
     const res = await saving;
     expect(res.isError).toBeFalsy();
     expect(folders.get("round-every-corner")?.code).toBe(code);
-    expect(getScripts()[0]).toMatchObject({ id: "script-round-every-corner", name: "Round every corner", runsOn: "selection" });
+    expect(getScripts().find((s) => !s.shipped)).toMatchObject({ id: "script-round-every-corner", name: "Round every corner", runsOn: "selection" });
   });
 
   it("brings a script of the same name up to date, in the same folder", async () => {
