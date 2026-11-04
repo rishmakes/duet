@@ -435,6 +435,37 @@ export const TOOLS: ToolDef[] = [
     },
   },
   {
+    name: "apply_text_style",
+    description: "Give text one of the file's text styles, so it takes the style's font, size, weight and line height and follows the style when it changes. get_working_rules lists the styles. Give style as the style's name or id, or an empty string to let the text go its own way again, keeping its look.",
+    inputSchema: { type: "object", properties: { ids, style: str }, required: ["ids", "style"] },
+  },
+  {
+    name: "make_design_system",
+    description: "Make the project's design system from what the design already uses: its colours and fonts, the gaps and padding of its auto layouts as spacing steps, its corner sizes, its components as pieces, and its most used kinds of text as text styles (when it has none). What is already in it stays. Use it when the designer asks for a design system or a brand kit for a design that exists. Then read get_working_rules, and tidy names and steps with change_design_system. The designer is always asked first.",
+    inputSchema: { type: "object", properties: { most: { type: "number", description: "The most colours to keep, 12 if left out." } } },
+  },
+  {
+    name: "change_design_system",
+    description: "Change the project's design system: what every design in it, and you, keep to. Give only what changes. colours by name: a name the kit has takes the new colour and the whole design follows; a new name is added. textStyles by name the same way: changing one changes all text that uses it. spacing, corners and pieces replace their lists. pieces are ids of things the design is built from, such as a button, a card or a header; each becomes a component. To build a piece first, draw it once in a frame, then name it here. The designer is always asked first.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        colours: { type: "array", items: { type: "object", properties: { name: str, hex: str }, required: ["name", "hex"] } },
+        removeColours: { type: "array", items: str },
+        fonts: { type: "array", items: str },
+        voice: { type: "string", description: "One line on how the brand speaks." },
+        spacing: { type: "array", items: num, description: "Pixel steps, like 4, 8, 16, 24, 32, 48." },
+        corners: { type: "array", items: num, description: "Corner sizes in pixels, like 4, 8, 16." },
+        pieces: ids,
+        textStyles: {
+          type: "array",
+          items: { type: "object", properties: { name: str, fontFamily: str, fontSize: num, fontWeight: num, lineHeight: { type: "number", description: "A multiple of the size, like 1.3." }, letterSpacing: num }, required: ["name", "fontSize"] },
+        },
+        removeTextStyles: { type: "array", items: str },
+      },
+    },
+  },
+  {
     name: "set_grade",
     description:
       "Change the colour of pictures and video clips, like the basic panel in Premiere's Lumetri or Lightroom. The designer sees the same controls in the Colour tab. Give only the controls to change; the others keep their values. Controls: exposure (stops of light, -5 to 5, 1 is twice the light), contrast, highlights, shadows, whites, blacks, temperature (minus cooler and bluer, plus warmer and more orange), tint (minus greener, plus more magenta), saturation (-100 is black and white), vibrance (moves dull colours most and skin least), all -100 to 100 with 0 meaning no change, and lookAmount (0 to 1, how much of the look is used). Also hue (-180 to 180 degrees, turns every colour round the wheel), vignette (-100 darker edges to 100 lighter edges), skinKeep (0 to 100, skin keeps its own colour while the rest changes), skinTone (minus pinker, plus more golden, only skin) and skinLight (only skin, darker or brighter). Skin is found by its colour, so check it on warm scenes. curves is an object of point lists, each point [x, y] from 0 to 1, for example {\"light\": [[0, 0.04], [0.5, 0.55], [1, 1]]}: light, red, green and blue map brightness in to out; hueHue, hueSat and hueLight are read round the colour wheel (x is the hue: 0 red, 0.17 yellow, 0.33 green, 0.5 cyan, 0.67 blue, 0.83 magenta) where 0.5 is no change, so [[0.55, 0.5], [0.6, 0.8], [0.65, 0.5]] on hueSat makes blues richer and leaves other colours alone; lightSat is read along brightness, 0.5 is no change. An empty list takes a curve away. Send reset true to put the colour back as it was. To use a .cube look, use load_look. Work in small steps: read color_readings, change a few controls, then read again and look_at_design to check.",
@@ -496,7 +527,7 @@ export const TOOLS: ToolDef[] = [
   },
 ];
 
-const EDITS = new Set(["add_board", "open_board", "rename_board", "move_to_board", "resolve_comment", "add_comment", "set_grade", "copy_grade", "create_instance", "create_element", "create_elements", "set_props", "duplicate_elements", "move_elements", "resize_element", "reparent_elements", "make_mask", "trace_image", "set_duration", "set_work_area", "set_timing", "set_entrance", "animate", "set_curve"]);
+const EDITS = new Set(["apply_text_style", "add_board", "open_board", "rename_board", "move_to_board", "resolve_comment", "add_comment", "set_grade", "copy_grade", "create_instance", "create_element", "create_elements", "set_props", "duplicate_elements", "move_elements", "resize_element", "reparent_elements", "make_mask", "trace_image", "set_duration", "set_work_area", "set_timing", "set_entrance", "animate", "set_curve"]);
 /** Things the designer is asked about first in Ask first mode: losing work, and reading or writing a file on the computer. */
 const RISKY = new Set(["load_look", "delete_elements", "delete_board", "place_image", "place_video", "place_sound", "export_frame", "export_video"]);
 
@@ -551,6 +582,24 @@ const BATCH_USAGE = ` How to call it: {"elements":[{"type":"frame","x":0,"y":0,"
 
 function boardName(id: unknown): string {
   return boardsOf(R.currentDoc()).find((b) => b.id === id)?.name ?? String(id);
+}
+
+/** What a change to the design system touches, in a few words. */
+function designChanges(a: Args): string {
+  const parts: string[] = [];
+  const list = (v: unknown) => (Array.isArray(v) ? v : []);
+  const cs = list(a.colours) as { name?: string; hex?: string }[];
+  if (cs.length) parts.push(`colours ${cs.map((c) => `${c.name} ${c.hex}`).join(", ")}`);
+  if (list(a.removeColours).length) parts.push(`take out ${list(a.removeColours).join(", ")}`);
+  if (list(a.fonts).length) parts.push(`fonts ${list(a.fonts).join(", ")}`);
+  const ts = list(a.textStyles) as { name?: string; fontSize?: number }[];
+  if (ts.length) parts.push(`text styles ${ts.map((t) => `${t.name} ${t.fontSize}px`).join(", ")}`);
+  if (list(a.removeTextStyles).length) parts.push(`take out the styles ${list(a.removeTextStyles).join(", ")}`);
+  if (list(a.spacing).length) parts.push(`spacing ${list(a.spacing).join(", ")}`);
+  if (list(a.corners).length) parts.push(`corners ${list(a.corners).join(", ")}`);
+  if (Array.isArray(a.pieces)) parts.push(a.pieces.length ? `pieces ${namesOf(a.pieces)}` : "no pieces");
+  if (typeof a.voice === "string") parts.push(`voice "${a.voice.slice(0, 40)}"`);
+  return parts.join("; ") || "nothing";
 }
 
 /** A sentence a designer would say, for approvals and suggestions. */
@@ -624,6 +673,12 @@ export function summarise(tool: string, a: Args): string {
       return `Resolve the comment "${String(R.currentDoc().comments?.find((c) => c.id === a.id)?.text ?? "").slice(0, 40)}"`;
     case "add_comment":
       return `Comment: ${String(a.text).slice(0, 40)}`;
+    case "apply_text_style":
+      return a.styleId ? `Give ${namesOf(a.ids)} the text style ${R.currentDoc().styles?.[String(a.styleId)]?.name ?? ""}` : `Let ${namesOf(a.ids)} go its own way from its text style`;
+    case "make_design_system":
+      return "Make a design system from this design: colours, fonts, text styles, spacing, corners and pieces";
+    case "change_design_system":
+      return `Change the design system: ${designChanges(a)}`;
     case "set_grade": {
       if (!a.grade) return `Reset the colour of ${namesOf(a.ids)}`;
       const g = a.grade as Record<string, unknown>;
@@ -671,6 +726,18 @@ export function fixLayouts(v: unknown, unsized = false): unknown {
 function prepare(tool: string, raw: Args, doc = R.currentDoc()): { args: Args } | { error: string } {
   const a = fixLayouts(raw) as Args;
   switch (tool) {
+    case "apply_text_style": {
+      const bad = missing(a.ids);
+      if (bad.length) return { error: `No element with id: ${bad.join(", ")}.` };
+      const notText = (a.ids as string[]).filter((i) => doc.elements[i]?.type !== "text");
+      if (notText.length) return { error: `${notText.join(", ")} is not text.` };
+      const want = String(a.style ?? "").trim();
+      if (!want) return { args: { ids: a.ids, styleId: null } };
+      const styles = doc.styles ?? {};
+      const styleId = styles[want] ? want : Object.keys(styles).find((k) => styles[k].name.trim().toLowerCase() === want.toLowerCase());
+      if (!styleId) return { error: `No text style called ${want}. The file has: ${Object.values(styles).map((st) => st.name).join(", ") || "none yet; make them with change_design_system"}.` };
+      return { args: { ids: a.ids, styleId } };
+    }
     case "resolve_comment": {
       const c = doc.comments?.find((x) => x.id === a.id);
       if (!c) return { error: `No comment with id ${String(a.id)}.` };
@@ -1404,7 +1471,7 @@ async function apply(tool: string, args: Args, by?: string): Promise<ToolResult>
   if (tool === "load_look") return loadLook(args, by);
   await ensureSaved();
   // changing a value over time is one tool for the AI and the set_keys command underneath, and copying a colour is setting it
-  const command = (tool === "animate" ? "set_keys" : tool === "copy_grade" ? "set_grade" : tool) as CommandName;
+  const command = (tool === "animate" ? "set_keys" : tool === "copy_grade" ? "set_grade" : tool === "change_design_system" ? "set_design_system" : tool) as CommandName;
   const label = commandLabel(command, args as never);
   R.dispatch(command, args as never, "ai", by);
   addMsg({ role: "note", text: summarise(tool, args), ...stepNow() }, said());
@@ -1660,6 +1727,17 @@ async function answerTool(name: string, raw: unknown, by?: string): Promise<Tool
     if ("error" in saved) return fail(saved.error);
     if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("duet:script-saved", { detail: saved.id }));
     return { text: `${had ? "Updated" : "Saved"} the script "${nm}". The designer can try it, change it and run it from the Store, under Yours. It has not been run yet.` };
+  }
+  if (name === "make_design_system" || name === "change_design_system") {
+    // a design system shapes everything made in the project after it, so the designer always says yes first, whatever the mode
+    const summary = summarise(name, a);
+    void invoke("bring_back").catch(() => undefined);
+    if (!(await askDesigner(R.live || !R.file ? summary : `In "${tabName(R.file)}": ${summary}`))) return fail("The designer said not now. Do not change the design system.");
+    const before = R.currentDoc();
+    const done = await apply(name, name === "make_design_system" ? { most: typeof a.most === "number" ? a.most : undefined } : a, by);
+    if (done.isError) return done;
+    if (R.currentDoc() === before) return { text: "Nothing in the design system changed. Check the names and values you gave." };
+    return { text: `Done. The design system now:\n${brandRules(R.currentDoc())}` };
   }
   if (name === "save_version") {
     if (typeof a.name !== "string" || !a.name.trim()) return fail("Give the version a name.");

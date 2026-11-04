@@ -1,5 +1,6 @@
 import { sameHex } from "../commands/brand";
 import type { Doc } from "../document/types";
+import { designSystemLines } from "../commands/designSystem";
 
 const HEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
 const COLOUR_KEYS = new Set(["fill", "stroke", "color", "from", "to"]);
@@ -7,12 +8,14 @@ const COLOUR_KEYS = new Set(["fill", "stroke", "color", "from", "to"]);
 /** The brand kit as rules for the AI, or an empty string when there is none. */
 export function brandRules(doc: Doc): string {
   const b = doc.brand;
-  if (!b || (!b.colours.length && !b.fonts.length && !b.voice && !b.logoId)) return "";
-  const lines = ["Brand kit for this project. Keep to it."];
+  const system = designSystemLines(doc);
+  if (!b || (!b.colours.length && !b.fonts.length && !b.voice && !b.logoId && !system.length)) return system.length ? ["Design system for this project. Keep to it.", ...system].join("\n") : "";
+  const lines = ["Brand kit and design system for this project. Keep to it."];
   if (b.colours.length) lines.push(`Colours: ${b.colours.map((c) => `${c.name} ${c.hex}`).join(", ")}.`);
   if (b.fonts.length) lines.push(`Fonts: ${b.fonts.join(", ")}.`);
   if (b.logoId && doc.elements[b.logoId]) lines.push(`The logo is ${b.logoId} ("${doc.elements[b.logoId].name}"). Copy it with duplicate_elements; never redraw it.`);
   if (b.voice) lines.push(`Voice: ${b.voice}`);
+  lines.push(...system);
   if (b.locked) lines.push("The kit is locked: Duet refuses any other colour or font. White, black and see-through are always allowed.");
   return lines.join("\n");
 }

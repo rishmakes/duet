@@ -19,6 +19,8 @@ import { addBoard, deleteBoard, moveBoard, moveToBoard, openBoardCmd, renameBoar
 import type { AddBoardArgs, DeleteBoardArgs, MoveBoardArgs, MoveToBoardArgs, OpenBoardArgs, RenameBoardArgs } from "./boards";
 import { addBrandColour, changeBrandColour, makeBrandKit, removeBrandColour, setBrand } from "./brand";
 import type { AddBrandColourArgs, ChangeBrandColourArgs, MakeBrandKitArgs, RemoveBrandColourArgs, SetBrandArgs } from "./brand";
+import { makeDesignSystem, setDesignSystem } from "./designSystem";
+import type { MakeDesignSystemArgs, SetDesignSystemArgs } from "./designSystem";
 import type { SetPagesArgs, AddPageArgs, ReorderPagesArgs } from "./pages";
 
 /**
@@ -1024,7 +1026,8 @@ const setBackground: CommandDef<SetBackgroundArgs> = {
 // ---- text styles ----
 const TEXT_FACE = ["fontFamily", "fontWeight", "fontSize", "lineHeight", "letterSpacing"] as const;
 
-function restyle(doc: Doc, styleId: string) {
+/** Text that uses this style takes its look again. Changes the document it is given. */
+export function restyle(doc: Doc, styleId: string) {
   const st = doc.styles?.[styleId];
   if (!st) return;
   for (const el of Object.values(doc.elements)) {
@@ -2416,8 +2419,20 @@ const makeBrandKitDef: CommandDef<MakeBrandKitArgs> = {
   run: (doc, a) => makeBrandKit(doc, a),
 };
 
+const setDesignSystemDef: CommandDef<SetDesignSystemArgs> = {
+  label: () => "Change the design system",
+  run: (doc, a) => setDesignSystem(doc, a),
+};
+
+const makeDesignSystemDef: CommandDef<MakeDesignSystemArgs> = {
+  label: () => "Make a design system from this design",
+  run: (doc, a) => makeDesignSystem(doc, a),
+};
+
 // ---- registry ----
 export const commands = {
+  set_design_system: setDesignSystemDef,
+  make_design_system: makeDesignSystemDef,
   set_brand: setBrandDef,
   add_brand_colour: addBrandColourDef,
   change_brand_colour: changeBrandColourDef,

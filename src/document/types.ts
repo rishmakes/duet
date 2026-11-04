@@ -280,6 +280,12 @@ export interface Brand {
   voice?: string;
   /** True when the AI may only use the kit's colours and fonts. */
   locked?: true;
+  /** Spacing steps in pixels, smallest first, like 4, 8, 16, 32. Left out when there are none. */
+  spacing?: number[];
+  /** Corner sizes in pixels, smallest first. Left out when there are none. */
+  corners?: number[];
+  /** The pieces a design is built from, like buttons, cards and headers: ids of components. */
+  pieces?: string[];
 }
 
 export interface Doc {

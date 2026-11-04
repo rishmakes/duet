@@ -239,11 +239,18 @@ function readBrand(v: unknown): Doc["brand"] {
     ? b.colours.filter((c): c is { id: string; name: string; hex: string } => !!c && typeof c.id === "string" && typeof c.name === "string" && hex(c.hex)).map((c) => ({ id: c.id, name: c.name, hex: c.hex }))
     : [];
   const fonts = Array.isArray(b.fonts) ? b.fonts.filter((f): f is string => typeof f === "string" && !!f.trim()) : [];
+  const nums = (l: unknown) => (Array.isArray(l) ? l.filter((n): n is number => typeof n === "number" && Number.isFinite(n) && n > 0) : []);
+  const spacing = nums(b.spacing);
+  const corners = nums(b.corners);
+  const pieces = Array.isArray(b.pieces) ? b.pieces.filter((id): id is string => typeof id === "string") : [];
   return {
     colours,
     fonts,
     ...(typeof b.logoId === "string" ? { logoId: b.logoId } : {}),
     ...(typeof b.voice === "string" && b.voice.trim() ? { voice: b.voice } : {}),
     ...(b.locked === true ? { locked: true as const } : {}),
+    ...(spacing.length ? { spacing } : {}),
+    ...(corners.length ? { corners } : {}),
+    ...(pieces.length ? { pieces } : {}),
   };
 }
