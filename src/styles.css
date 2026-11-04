@@ -10429,9 +10429,6 @@ button.ctx-item.store-make-option:hover {
   border-color: var(--muted);
 }
 
-/* SHOTS-TEMP: hide dev markers for site pictures, remove after (not committed) */
-.checkmark, .top-file-folder { display: none !important; }
-
 /* page view and the open canvas, two icons side by side: a pill at the top right of Kitchen's canvas, and at the right end of Studio's bar. The one you are in is dark, never purple. */
 .kitchen-flip,
 .studio-flip {
