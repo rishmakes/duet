@@ -15,7 +15,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import ContextMenu from "./ui/ContextMenu";
 import { installMenu } from "./ui/menu";
 import { setMinimized } from "./ai/chat";
-import { clampW, getLayout, isColorOpen, keepMode, modeOf, setLayout, useLayout } from "./ui/layout";
+import { clampW, fitStudio, getLayout, isColorOpen, keepMode, modeOf, setLayout, useLayout, useWindowWidth } from "./ui/layout";
 import { toggleTheme, useTheme } from "./ui/theme";
 import Icon from "./ui/Icons";
 import { ProjectsSidebar, ProjectMenu } from "./ui/ChatHome";
@@ -106,16 +106,16 @@ function FileName() {
 }
 
 /** A thin handle on the edge of the canvas: drag it to make the panel next to it wider or narrower. */
-function Grip({ side }: { side: "l" | "r" }) {
+function Grip({ side, lw, rw }: { side: "l" | "r"; lw: number; rw: number }) {
   const dock = useLayout((d) => d);
-  // which panel is on this side of the canvas
+  // which panel is on this side of the canvas, and how wide it really is on this window
   const key = (side === "l") !== dock.swapped ? "leftW" : "rightW";
-  const hidden = key === "leftW" ? dock.leftHidden : dock.rightHidden;
-  if (hidden) return null;
+  const shown = key === "leftW" ? lw : rw;
+  if (!shown) return null;
   const down = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     const startX = e.clientX;
-    const startW = getLayout()[key];
+    const startW = shown;
     const move = (m: PointerEvent) => setLayout({ [key]: clampW(startW + (side === "l" ? m.clientX - startX : startX - m.clientX)) });
     const up = () => {
       window.removeEventListener("pointermove", move);
@@ -298,8 +298,16 @@ export default function App() {
   // The grid follows the panels: their widths, which side they are on, and whether they are shown.
   // changing space leaves the page
   useEffect(() => setSkillsOpen(false), [dock.space]);
-  const lw = dock.leftHidden ? 0 : dock.leftW;
-  const rw = dock.rightHidden ? 0 : dock.rightW;
+  // on a small window the panels give way so the canvas keeps its room; nothing is saved, a wider window brings them back
+  const win = useWindowWidth();
+  const { lw, rw } = fitStudio(win, {
+    projectsOpen: dock.projectsOpen.edit,
+    chatCol: dock.chatDocked.edit ? 340 : 0,
+    lw: dock.leftHidden ? 0 : dock.leftW,
+    rw: dock.rightHidden ? 0 : dock.rightW,
+  });
+  const leftOff = lw === 0;
+  const rightOff = rw === 0;
   // Kitchen, like Chat, is a whole page of its own: no tools or panels around it, only your projects on the left
   const cooking = dock.space === "kitchen";
   // building a recipe full screen leaves only your projects and the top bar around it
@@ -362,10 +370,19 @@ export default function App() {
           )}
           {!cooking && (
           <>
-          <button className={`pill icon ${dock.leftHidden ? "" : "on"}`} title="Show or hide the layers panel" onClick={() => setLayout({ leftHidden: !dock.leftHidden })}>
+          {/* a panel folded away for room comes back by putting the other one away */}
+          <button
+            className={`pill icon ${leftOff ? "" : "on"}`}
+            title={!dock.leftHidden && leftOff ? "No room for the layers panel. Make the window wider, or click to put the design panel away" : "Show or hide the layers panel"}
+            onClick={() => setLayout(!dock.leftHidden && leftOff ? { rightHidden: true } : { leftHidden: !dock.leftHidden })}
+          >
             <Icon name="panel-left" size={15} />
           </button>
-          <button className={`pill icon ${dock.rightHidden ? "" : "on"}`} title="Show or hide the design panel" onClick={() => setLayout({ rightHidden: !dock.rightHidden })}>
+          <button
+            className={`pill icon ${rightOff ? "" : "on"}`}
+            title={!dock.rightHidden && rightOff ? "No room for the design panel. Make the window wider, or click to put the layers panel away" : "Show or hide the design panel"}
+            onClick={() => setLayout(!dock.rightHidden && rightOff ? { leftHidden: true } : { rightHidden: !dock.rightHidden })}
+          >
             <Icon name="panel-right" size={15} />
           </button>
           </>
@@ -403,7 +420,7 @@ export default function App() {
           <div className="studio-bar">
             <Toolbar row />
             <PageFlipButton className="studio-flip" />
-            {dock.rightHidden && <KindSwitch />}
+            {rightOff && <KindSwitch />}
           </div>
           {/* the chat's own column, always in the same place, unless it floats over the canvas */}
           {dock.chatDocked.edit && (
@@ -411,16 +428,16 @@ export default function App() {
               <ChatPanel docked />
             </section>
           )}
-          {!dock.leftHidden && <LayersPanel />}
+          {!leftOff && <LayersPanel />}
           <main className="canvas">
             <CanvasView />
-            <Grip side="l" />
-            <Grip side="r" />
+            <Grip side="l" lw={lw} rw={rw} />
+            <Grip side="r" lw={lw} rw={rw} />
             {isColorOpen(dock) && <BeforeAfter />}
             <PageStrip />
             {!dock.chatDocked.edit && <ChatPanel />}
           </main>
-          {!dock.rightHidden && <PropertiesPanel />}
+          {!rightOff && <PropertiesPanel />}
           <TimeStrip />
         </>
       )}

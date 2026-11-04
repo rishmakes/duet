@@ -246,3 +246,67 @@ export function keepMode(path: string, mode: Mode) {
     /* ignore */
   }
 }
+
+/* ---- a small window: the canvas keeps its room, and the panels give way ---- */
+
+/** The canvas is never narrower than this. */
+export const CANVAS_MIN = 480;
+/** How wide the projects list is open, and folded to its strip of icons. */
+export const PROJECTS_OPEN_W = 276;
+export const PROJECTS_FOLDED_W = 44;
+
+export interface StudioFit {
+  /** 0 when the panel is folded away, by the designer or for room. */
+  lw: number;
+  rw: number;
+}
+
+/**
+ * How Studio fits a window: the panels first shrink toward their smallest width, then the right panel folds away,
+ * then Layers. Nothing is saved: a wider window brings them back. A panel the designer closed stays closed,
+ * and the projects list stays as the designer left it.
+ */
+export function fitStudio(win: number, o: { projectsOpen: boolean; chatCol: number; lw: number; rw: number }): StudioFit {
+  const tries: StudioFit[] = [
+    { lw: o.lw, rw: o.rw },
+    { lw: o.lw, rw: 0 },
+    { lw: 0, rw: 0 },
+  ];
+  const room = win - (o.projectsOpen ? PROJECTS_OPEN_W : PROJECTS_FOLDED_W) - o.chatCol - CANVAS_MIN;
+  for (const t of tries) {
+    const want = t.lw + t.rw;
+    if (want <= room) return t;
+    const ws = [t.lw, t.rw];
+    const mins = ws.map((w) => (w ? Math.min(w, MIN_W) : 0));
+    const least = mins[0] + mins[1];
+    if (least <= room) {
+      const k = (room - least) / (want - least);
+      const [lw, rw] = ws.map((w, i) => (w ? Math.floor(mins[i] + (w - mins[i]) * k) : 0));
+      return { lw, rw };
+    }
+  }
+  return tries[tries.length - 1];
+}
+
+/** How wide Kitchen's recipe or chat column can be: it shrinks toward its smallest width so the design keeps its room. */
+export function fitKitchen(win: number, o: { projectsOpen: boolean; sideW: number; sideMin: number; comments: number }): number {
+  const room = win - (o.projectsOpen ? PROJECTS_OPEN_W : PROJECTS_FOLDED_W) - o.comments - CANVAS_MIN;
+  return Math.max(Math.min(o.sideW, room), Math.min(o.sideW, o.sideMin));
+}
+
+/** The window's width, kept up to date. */
+let winW = typeof window !== "undefined" ? window.innerWidth : 1440;
+const winSubs = new Set<() => void>();
+if (typeof window !== "undefined") {
+  window.addEventListener("resize", () => {
+    winW = window.innerWidth;
+    winSubs.forEach((f) => f());
+  });
+}
+export function useWindowWidth(): number {
+  return useSyncExternalStore(
+    (f) => (winSubs.add(f), () => winSubs.delete(f)),
+    () => winW,
+    () => winW,
+  );
+}

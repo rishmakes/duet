@@ -29,7 +29,7 @@ import PageFlipButton from "./PageFlip";
 import { dispatch, getState, openingNumber, setTool, useStore, workDoc } from "../state/store";
 import { loadRecipeChoice, saveRecipeChoice } from "../memory/files";
 import { schedulePack } from "../project/project";
-import { getLayout, setLayout, useLayout } from "./layout";
+import { fitKitchen, getLayout, setLayout, useLayout, useWindowWidth } from "./layout";
 import { openScene, pause, seek, togglePlay } from "../video/play";
 import { boardsOf, openBoard, pinnedOn } from "../document/boards";
 import { showComment, useOpenComment } from "./commentFocus";
@@ -59,6 +59,8 @@ export default function Kitchen() {
   const chatW = useLayout((d) => d.kitchenChatW);
   const plays = useStore((s) => Object.values(s.timeline[s.cursor].doc.elements).some((e) => e.type === "frame" && e.duration > 0));
   const recipeW = useLayout((d) => d.recipeW);
+  const projectsOpen = useLayout((d) => d.projectsOpen.kitchen);
+  const win = useWindowWidth();
   const commentsOpen = useLayout((d) => d.kitchenComments);
   const recipeFull = useLayout((d) => d.recipeFull);
   const chatH = useLayout((d) => d.kitchenChatH);
@@ -173,7 +175,9 @@ export default function Kitchen() {
   const full = recipeFull && !!recipe;
   const side = true;
   const recipeOpen = !!recipe && !recipeFolded;
-  const sideW = full ? "minmax(0, 1fr)" : `${recipeOpen ? recipeW : chatW}px`;
+  // on a small window the column shrinks toward its smallest width so the design keeps its room
+  const fitW = fitKitchen(win, { projectsOpen: projectsOpen, sideW: recipeOpen ? recipeW : chatW, sideMin: recipeOpen ? 420 : 280, comments: commentsOpen ? 300 : 0 });
+  const sideW = full ? "minmax(0, 1fr)" : `${fitW}px`;
   return (
     <div
       className={`kitchen ${docked ? "chat-docked" : ""} ${recipe ? "with-recipe" : ""} ${full ? "recipe-full" : ""}`}
@@ -200,7 +204,7 @@ export default function Kitchen() {
 
       {side && (
       <div className="kitchen-side">
-      {!full && <PullEdge side="left" k={recipeOpen ? "recipeW" : "kitchenChatW"} min={recipeOpen ? 420 : 280} max={900} reset={recipeOpen ? 560 : 360} />}
+      {!full && <PullEdge side="left" k={recipeOpen ? "recipeW" : "kitchenChatW"} min={recipeOpen ? 420 : 280} max={900} reset={recipeOpen ? 560 : 360} now={fitW} />}
       {/* with no recipe in use, its bar stays, so recipes are always one click away */}
       {!recipe && (
         <section className="kitchen-middle folded">
@@ -615,11 +619,15 @@ function PullHeight() {
 }
 
 /** The edge of a Kitchen column: drag it to make the column wider or narrower, double-click to put it back. */
-function PullEdge({ side, k, min, max, reset }: { side: "left" | "right"; k: "kitchenChatW" | "recipeW"; min: number; max: number; reset: number }) {
+/** Narrower than this, Kitchen's board opens a step's editor over the steps instead of beside them. */
+const TIGHT_BOARD = 740;
+
+function PullEdge({ side, k, min, max, reset, now }: { side: "left" | "right"; k: "kitchenChatW" | "recipeW"; min: number; max: number; reset: number; now?: number }) {
   const down = (e: React.PointerEvent) => {
     e.preventDefault();
     const x0 = e.clientX;
-    const w0 = getLayout()[k];
+    // start from the width it really has, which a small window may have shrunk
+    const w0 = now ?? getLayout()[k];
     const move = (m: PointerEvent) => {
       const d = side === "right" ? m.clientX - x0 : x0 - m.clientX;
       setLayout({ [k]: Math.max(min, Math.min(max, Math.round(w0 + d))) });
@@ -782,6 +790,9 @@ function StraightBoard({
   const scrollRef = useRef<HTMLDivElement>(null);
   const boardRef = useRef<HTMLDivElement>(null);
   const [editorTop, setEditorTop] = useState(16);
+  // a narrow board has no room for the editor beside the steps: it opens over them, just under the picked step
+  const [tight, setTight] = useState(false);
+  const tightRef = useRef(false);
 
   // Keyboard shortcut to remove step
   useEffect(() => {
@@ -816,8 +827,20 @@ function StraightBoard({
     const scrollRect = scrollEl.getBoundingClientRect();
     const board = boardEl.getBoundingClientRect();
     const pane = paneEl.getBoundingClientRect();
+    const narrow = board.width < TIGHT_BOARD;
+    if (narrow !== tightRef.current) {
+      tightRef.current = narrow;
+      setTight(narrow);
+    }
     const offset = cardRect.top - scrollRect.top;
     const tall = editorRef.current?.offsetHeight ?? 0;
+    if (narrow) {
+      // under the picked step, or over it when there is no room below
+      const below = offset + cardRect.height + 8;
+      setEditorTop(Math.max(0, below + tall <= scrollRect.height ? below : offset - tall - 8));
+      setString(null);
+      return;
+    }
     const top = Math.max(0, Math.min(offset, scrollRect.height - tall));
     setEditorTop(top);
     const mid = cardRect.top + cardRect.height / 2;
@@ -837,6 +860,7 @@ function StraightBoard({
     // the editor changes height as its step changes kind, and the side changes height when pulled
     const watch = new ResizeObserver(() => place());
     watch.observe(scrollEl);
+    if (boardRef.current) watch.observe(boardRef.current);
     if (editorRef.current) watch.observe(editorRef.current);
     return () => {
       scrollEl.removeEventListener("scroll", place);
@@ -913,7 +937,7 @@ function StraightBoard({
   };
 
   return (
-    <div className="kitchen-board" ref={boardRef}>
+    <div className={`kitchen-board ${tight ? "tight" : ""}`} ref={boardRef}>
       <div className="kitchen-steps-scroll" ref={scrollRef}>
         <div className="kitchen-steps-column">
           {steps.map((s, i) => {

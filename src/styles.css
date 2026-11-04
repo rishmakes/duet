@@ -10542,3 +10542,95 @@ button.ctx-item.store-make-option:hover {
   width: 15px;
   height: 15px;
 }
+
+/* the tool pill always fits the canvas: it never spills over the side panels or under the page view switch.
+   Centred while there is room; on a narrow canvas it moves to the left and its tools wrap onto a second line. */
+.app:not(.time-max) .studio-bar {
+  container-type: inline-size;
+}
+.app:not(.time-max) .studio-bar .toolbar.row {
+  flex-wrap: wrap;
+  max-width: calc(100% - 200px);
+}
+@container (max-width: 760px) {
+  .app:not(.time-max) .studio-bar .toolbar.row {
+    margin-left: 12px;
+    margin-right: auto;
+    max-width: calc(100% - 112px);
+    border-radius: 20px;
+  }
+}
+/* on a very narrow canvas the page view switch goes under the tools instead of beside them */
+.app:not(.time-max) .studio-bar {
+  flex-wrap: wrap;
+}
+@container (max-width: 600px) {
+  .app:not(.time-max) .studio-bar .toolbar.row {
+    max-width: calc(100% - 24px);
+  }
+  /* the Comment tool keeps only its flag, so the tools stay on one line */
+  .app:not(.time-max) .studio-bar .toolbar.row .tool.wide {
+    width: 30px;
+    padding: 0;
+    gap: 0;
+    font-size: 0;
+  }
+  .app:not(.time-max) .studio-bar .studio-flip {
+    position: static;
+    margin: 8px auto 0 12px;
+  }
+}
+
+/* a narrow Kitchen board: the steps take the width, and a step's editor opens over them, just under the picked step */
+.kitchen-board.tight .kitchen-steps-scroll {
+  width: 100%;
+  max-width: 420px;
+}
+.kitchen-board.tight .kitchen-editor-pane {
+  position: absolute;
+  top: 20px;
+  left: 24px;
+  right: 24px;
+  z-index: 5;
+  pointer-events: none;
+}
+.kitchen-board.tight .kitchen-editor-anchor {
+  pointer-events: auto;
+  max-width: 420px;
+}
+.kitchen-board.tight .kitchen-editor-card {
+  width: 100%;
+  box-shadow: 0 10px 32px var(--shadow);
+}
+.kitchen-board.tight .kitchen-editor-empty,
+.kitchen-board.tight .kitchen-string,
+.kitchen-board.tight .kitchen-editor-connector {
+  display: none;
+}
+
+/* Kitchen's tools on a narrow design: they move to the left so the page view switch keeps its place */
+.kitchen-canvas-stage {
+  container-type: inline-size;
+}
+@container (max-width: 600px) {
+  .kitchen-tools {
+    left: 16px;
+    transform: none;
+  }
+  /* tight: Comment keeps only its flag, and Open in Studio waits in the Kitchen and Studio switch at the top */
+  .kitchen-tool.with-icon {
+    font-size: 0;
+    gap: 0;
+    padding: 0 8px;
+  }
+  .kitchen-tool[data-name="open-in-studio"] {
+    display: none;
+  }
+}
+@container (max-width: 440px) {
+  .kitchen-flip {
+    top: 62px;
+    right: auto;
+    left: 16px;
+  }
+}

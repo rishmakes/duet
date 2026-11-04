@@ -147,3 +147,35 @@ describe("track heights in Edit", () => {
     expect(clamped.trackH).toEqual({ titles: 18, clips: 240, sound: 24 });
   });
 });
+
+import { CANVAS_MIN, fitKitchen, fitStudio, MIN_W, PROJECTS_FOLDED_W, PROJECTS_OPEN_W } from "./layout";
+
+describe("a small window", () => {
+  const base = { projectsOpen: false, chatCol: 0, lw: 232, rw: 248 };
+  it("leaves the panels alone when there is room", () => {
+    expect(fitStudio(1440, base)).toEqual({ lw: 232, rw: 248 });
+  });
+  it("shrinks both panels before folding any, and the canvas keeps its room", () => {
+    const win = PROJECTS_FOLDED_W + CANVAS_MIN + 400;
+    const f = fitStudio(win, base);
+    expect(f.lw).toBeGreaterThanOrEqual(MIN_W);
+    expect(f.rw).toBeGreaterThanOrEqual(MIN_W);
+    expect(f.lw + f.rw).toBeLessThanOrEqual(400);
+  });
+  it("folds the right panel first, then Layers", () => {
+    const one = fitStudio(PROJECTS_FOLDED_W + CANVAS_MIN + 300, base);
+    expect(one).toEqual({ lw: 232, rw: 0 });
+    const none = fitStudio(PROJECTS_FOLDED_W + CANVAS_MIN + 100, base);
+    expect(none).toEqual({ lw: 0, rw: 0 });
+  });
+  it("counts the open projects list and keeps a closed panel closed", () => {
+    const f = fitStudio(PROJECTS_OPEN_W + CANVAS_MIN + 300, { ...base, projectsOpen: true, lw: 0 });
+    expect(f).toEqual({ lw: 0, rw: 248 });
+  });
+  it("shrinks Kitchen's recipe column to its smallest, never below", () => {
+    const o = { projectsOpen: false, sideW: 560, sideMin: 420, comments: 0 };
+    expect(fitKitchen(1440, o)).toBe(560);
+    expect(fitKitchen(PROJECTS_FOLDED_W + CANVAS_MIN + 450, o)).toBe(450);
+    expect(fitKitchen(900, { ...o, projectsOpen: true })).toBe(420);
+  });
+});
