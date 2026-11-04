@@ -10429,9 +10429,6 @@ button.ctx-item.store-make-option:hover {
   border-color: var(--muted);
 }
 
-/* SHOTS-TEMP: hide dev markers for site pictures, remove after (not committed) */
-.checkmark, .top-file-folder { display: none !important; }
-
 /* page view and the open canvas, two icons side by side: a pill at the top right of Kitchen's canvas, and at the right end of Studio's bar. The one you are in is dark, never purple. */
 .kitchen-flip,
 .studio-flip {
@@ -10480,4 +10477,20 @@ button.ctx-item.store-make-option:hover {
 }
 .studio-bar {
   position: relative;
+}
+
+/* Studio's tools float in the middle in a white pill like Kitchen's; nothing sits under them but the canvas colour */
+.studio-bar {
+  background: var(--canvas);
+  border-bottom: 0;
+  justify-content: center;
+}
+.studio-bar .toolbar.row {
+  flex: 0 1 auto;
+  justify-content: center;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  box-shadow: 0 6px 20px var(--shadow);
 }
