@@ -1,10 +1,77 @@
 import { useEffect, useState } from "react";
 import { newId } from "../commands";
+import { hasDesignSystem, liveAssets, liveComponents } from "../commands/designSystem";
 import { componentsIn } from "../document/components";
 import { worldPos } from "../document/geometry";
+import type { TextStyle } from "../document/types";
 import { currentDoc, dispatch, getState, select, useStore } from "../state/store";
+import { loadKits, saveKit, useKits } from "../store/kits";
 import { ColorPicker } from "./ColorPicker";
 import Icon from "./Icons";
+
+/** Pixel steps or numbers parsed from a comma-separated string. */
+function parseNumbers(raw: string): number[] {
+  return raw
+    .split(/[,\s]+/)
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isFinite(n) && n > 0);
+}
+
+function weightName(w: number | undefined): string {
+  const weight = w ?? 400;
+  if (weight <= 300) return "light";
+  if (weight <= 400) return "regular";
+  if (weight <= 500) return "medium";
+  if (weight <= 600) return "semibold";
+  return "bold";
+}
+
+function styleHint(s: TextStyle): string {
+  return `${Math.round(s.fontSize)} px, ${weightName(s.fontWeight)}`;
+}
+
+function SaveKitRow({ defaultName, withSystem }: { defaultName: string; withSystem: boolean }) {
+  const [name, setName] = useState(defaultName);
+  const [msg, setMsg] = useState<{ text: string; isError: boolean } | null>(null);
+
+  const handleSave = async () => {
+    const res = await saveKit(currentDoc(), name.trim() || defaultName, withSystem);
+    if ("error" in res) {
+      setMsg({ text: res.error, isError: true });
+    } else {
+      setMsg({ text: "Saved. Use it in any project.", isError: false });
+    }
+  };
+
+  return (
+    <div className="kit-save-wrap">
+      <div className="kit-save-row">
+        <input
+          type="text"
+          className="kit-save-input"
+          value={name}
+          placeholder={defaultName}
+          onChange={(e) => {
+            setName(e.target.value);
+            if (msg) setMsg(null);
+          }}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === "Enter") void handleSave();
+          }}
+        />
+        <button type="button" className="mini primary kit-save-btn" onClick={() => void handleSave()}>
+          Save
+        </button>
+      </div>
+      {msg && (
+        <div className={`kit-save-msg ${msg.isError ? "error" : "success"}`}>
+          {msg.text}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** The components in this design. Click one to put a copy on the canvas. */
 function place(componentId: string) {
@@ -62,6 +129,50 @@ export default function AssetsPanel() {
 
   const logoEl = brand?.logoId ? doc.elements[brand.logoId] : null;
   const list = componentsIn(doc);
+
+  useEffect(() => {
+    void loadKits();
+  }, []);
+
+  const savedKits = useKits();
+
+  const brandAssets = liveAssets(doc);
+  const uiComponents = liveComponents(doc);
+  const textStylesList = Object.entries(doc.styles ?? {});
+
+  const docSpacing = (doc.system?.spacing ?? []).join(", ");
+  const docCorners = (doc.system?.corners ?? []).join(", ");
+
+  const [spacingStr, setSpacingStr] = useState(docSpacing);
+  const [cornersStr, setCornersStr] = useState(docCorners);
+
+  useEffect(() => {
+    setSpacingStr(docSpacing);
+  }, [docSpacing]);
+
+  useEffect(() => {
+    setCornersStr(docCorners);
+  }, [docCorners]);
+
+  const commitSpacing = () => {
+    const nums = parseNumbers(spacingStr);
+    const current = doc.system?.spacing ?? [];
+    const same = nums.length === current.length && nums.every((v, i) => v === current[i]);
+    if (!same) {
+      dispatch("set_design_system", { spacing: nums });
+    }
+  };
+
+  const commitCorners = () => {
+    const nums = parseNumbers(cornersStr);
+    const current = doc.system?.corners ?? [];
+    const same = nums.length === current.length && nums.every((v, i) => v === current[i]);
+    if (!same) {
+      dispatch("set_design_system", { corners: nums });
+    }
+  };
+
+  const isSingleTextPicked = sel.length === 1 && pickedEl?.type === "text";
 
   return (
     <div className="skills">
@@ -191,6 +302,60 @@ export default function AssetsPanel() {
             )}
           </div>
 
+          <div className="brand-assets-section">
+            <div className="brand-assets-label">Brand assets</div>
+            {brandAssets.length === 0 && (
+              <div className="hint2 brand-empty-hint">None</div>
+            )}
+            {brandAssets.map((id) => {
+              const el = doc.elements[id];
+              if (!el) return null;
+              return (
+                <div
+                  key={id}
+                  className="skill asset brand-asset-row"
+                  onClick={() => place(id)}
+                  title="Click to place a copy"
+                >
+                  <Icon name="component" size={14} className="ico" />
+                  <div className="grow">
+                    <div>{el.name}</div>
+                    <div className="hint2">
+                      {Math.round(el.width)} by {Math.round(el.height)}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="brand-remove"
+                    title={`Remove ${el.name}`}
+                    aria-label={`Remove ${el.name}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      dispatch("change_brand_kit", {
+                        assets: brandAssets.filter((a) => a !== id),
+                      });
+                    }}
+                  >
+                    <Icon name="close" size={12} />
+                  </button>
+                </div>
+              );
+            })}
+            {sel.length === 1 && !brandAssets.includes(sel[0]) && (
+              <button
+                type="button"
+                className="mini wide brand-asset-btn"
+                onClick={() =>
+                  dispatch("change_brand_kit", {
+                    assets: [...brandAssets, sel[0]],
+                  })
+                }
+              >
+                Make picked a brand asset
+              </button>
+            )}
+          </div>
+
           <div className="brand-voice-row">
             <input
               type="text"
@@ -240,6 +405,8 @@ export default function AssetsPanel() {
               Make from this design
             </button>
           </div>
+
+          <SaveKitRow defaultName="My brand kit" withSystem={false} />
         </>
       )}
 
@@ -253,6 +420,159 @@ export default function AssetsPanel() {
           }}
           onClose={() => setPicker(null)}
         />
+      )}
+
+      <div className="h brand-comp-head">Design system</div>
+      {!hasDesignSystem(doc) ? (
+        <div className="brand-kit-empty">
+          <div className="empty">
+            How your app or site screens are built: text styles, spacing, corners and UI components. It uses the brand kit's colours and fonts.
+          </div>
+          <button
+            type="button"
+            className="mini primary wide brand-make-btn-init"
+            onClick={() => dispatch("make_design_system", {})}
+          >
+            Make from this design
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="design-section">
+            <div className="brand-assets-label">Text styles</div>
+            {textStylesList.length === 0 && (
+              <div className="hint2 brand-empty-hint">None</div>
+            )}
+            {textStylesList.map(([styleId, style]) => (
+              <div key={styleId} className="skill design-style-row">
+                <Icon name="text" size={14} className="ico" />
+                <div className="grow">
+                  <div>{style.name}</div>
+                  <div className="hint2">{styleHint(style)}</div>
+                </div>
+                {isSingleTextPicked && (
+                  <button
+                    type="button"
+                    className="mini design-use-btn"
+                    title={`Use ${style.name}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      dispatch("apply_text_style", { ids: [sel[0]], styleId });
+                    }}
+                  >
+                    Use
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="brand-remove"
+                  title={`Remove ${style.name}`}
+                  aria-label={`Remove ${style.name}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    dispatch("set_design_system", { removeTextStyles: [style.name] });
+                  }}
+                >
+                  <Icon name="close" size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="design-field-row">
+            <span className="design-field-label">Spacing</span>
+            <input
+              type="text"
+              className="design-field-input"
+              value={spacingStr}
+              placeholder="4, 8, 16, 24"
+              onChange={(e) => setSpacingStr(e.target.value)}
+              onBlur={commitSpacing}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === "Enter") {
+                  commitSpacing();
+                  e.currentTarget.blur();
+                }
+              }}
+            />
+          </div>
+
+          <div className="design-field-row">
+            <span className="design-field-label">Corners</span>
+            <input
+              type="text"
+              className="design-field-input"
+              value={cornersStr}
+              placeholder="4, 8, 16, 24"
+              onChange={(e) => setCornersStr(e.target.value)}
+              onBlur={commitCorners}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === "Enter") {
+                  commitCorners();
+                  e.currentTarget.blur();
+                }
+              }}
+            />
+          </div>
+
+          <div className="design-section">
+            <div className="brand-assets-label">UI components</div>
+            {uiComponents.length === 0 && (
+              <div className="hint2 brand-empty-hint">None</div>
+            )}
+            {uiComponents.map((id) => {
+              const el = doc.elements[id];
+              if (!el) return null;
+              return (
+                <div
+                  key={id}
+                  className="skill asset design-comp-row"
+                  onClick={() => place(id)}
+                  title="Click to place a copy"
+                >
+                  <Icon name="component" size={14} className="ico" />
+                  <div className="grow">
+                    <div>{el.name}</div>
+                    <div className="hint2">
+                      {Math.round(el.width)} by {Math.round(el.height)}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="brand-remove"
+                    title={`Remove ${el.name}`}
+                    aria-label={`Remove ${el.name}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      dispatch("set_design_system", {
+                        components: uiComponents.filter((c) => c !== id),
+                      });
+                    }}
+                  >
+                    <Icon name="close" size={12} />
+                  </button>
+                </div>
+              );
+            })}
+            {sel.length === 1 && !uiComponents.includes(sel[0]) && (
+              <button
+                type="button"
+                className="mini wide brand-comp-btn"
+                onClick={() =>
+                  dispatch("set_design_system", {
+                    components: [...uiComponents, sel[0]],
+                  })
+                }
+              >
+                Make picked a UI component
+              </button>
+            )}
+          </div>
+
+          <SaveKitRow defaultName="My design system" withSystem={true} />
+        </>
       )}
 
       <div className="h brand-comp-head">Components</div>
@@ -273,6 +593,30 @@ export default function AssetsPanel() {
           <span className="add-copy">Place</span>
         </div>
       ))}
+
+      {savedKits.length > 0 && (
+        <>
+          <div className="h brand-comp-head">Use a kit</div>
+          {savedKits.map((k) => (
+            <div key={k.id} className="skill asset kit-use-row">
+              <div className="grow">
+                <div>{k.kit.name}</div>
+                <div className="hint2">{k.kit.system ? "Design system" : "Brand kit"}</div>
+              </div>
+              <button
+                type="button"
+                className="mini primary kit-use-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  dispatch("use_kit", { kit: k.kit });
+                }}
+              >
+                Use
+              </button>
+            </div>
+          ))}
+        </>
+      )}
     </div>
   );
 }

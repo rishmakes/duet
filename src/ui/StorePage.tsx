@@ -13,6 +13,9 @@ import {
   useSkills,
 } from "../ai/skills";
 import { useThings, findThings, countByKind, KIND_WORDS, type ThingKind, type Thing } from "../store/things";
+import { useKits, deleteKit, loadKits, type SavedKit } from "../store/kits";
+import type { Kit } from "../commands/designSystem";
+import { dispatch } from "../state/store";
 import {
   saveScript,
   deleteScript,
@@ -66,18 +69,36 @@ function thingIcon(thing: Thing): IconName {
   }
 }
 
+function kitHint(k: Kit): string {
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  const colours = plural(k.brand.colours?.length ?? 0, "colour", "colours");
+  if (k.system) {
+    const styles = plural(k.system.textStyles?.length ?? 0, "text style", "text styles");
+    const comps = plural(k.system.components?.length ?? 0, "UI component", "UI components");
+    return `Design system: ${colours}, ${styles}, ${comps}`;
+  }
+  const assets = plural(k.brand.assets?.length ?? 0, "asset", "assets");
+  return `Brand kit: ${colours}, ${assets}`;
+}
+
 export default function StorePage({ onClose }: StorePageProps) {
   const [theme] = useTheme();
   const things = useThings();
   const skills = useSkills();
   const userScripts = useScripts();
   const counts = countByKind(things);
+  const kits = useKits();
+
+  useEffect(() => {
+    void loadKits();
+  }, []);
 
   const [source, setSource] = useState<"duet" | "yours">("duet");
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<ThingKind | "all">("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  const selectedKit = selectedId?.startsWith("kit-") ? kits.find((k) => k.id === selectedId) : null;
   const selectedThing = selectedId ? things.find((t) => t.id === selectedId) : null;
   const selectedSkill = selectedThing?.kind === "skill" ? skills.find((s) => s.id === selectedThing.id) : null;
   const selectedSkillRules = selectedSkill ? skillParts(selectedSkill.body, selectedSkill.name).rules : "";
@@ -146,7 +167,7 @@ export default function StorePage({ onClose }: StorePageProps) {
           setEditingId(null);
           setNote(null);
         } else if (selectedId) {
-          if (selectedThing && selectedThing.by === "You") {
+          if ((selectedThing && selectedThing.by === "You") || selectedId.startsWith("kit-")) {
             setSource("yours");
           }
           setSelectedId(null);
@@ -160,7 +181,7 @@ export default function StorePage({ onClose }: StorePageProps) {
   }, [makeChoiceOpen, editingScriptId, editingId, selectedId, selectedThing, onClose]);
 
   const handleBack = () => {
-    if (selectedThing && selectedThing.by === "You") {
+    if ((selectedThing && selectedThing.by === "You") || selectedId?.startsWith("kit-")) {
       setSource("yours");
     }
     setSelectedId(null);
@@ -390,6 +411,12 @@ export default function StorePage({ onClose }: StorePageProps) {
   const yourScripts = filtered.filter((t) => t.kind === "script");
   const yourPlugins = filtered.filter((t) => t.kind === "plugin");
 
+  const matchingKits = kits.filter((k) => {
+    if (!isSearching) return true;
+    const q = query.toLowerCase();
+    return k.kit.name.toLowerCase().includes(q) || kitHint(k.kit).toLowerCase().includes(q);
+  });
+
   const yoursSections: { key: string; title: string; items: Thing[]; note?: string }[] = [
     { key: "skills", title: "Skills", items: yourSkills },
     { key: "scripts", title: "Scripts", items: yourScripts, note: yourScripts.length ? undefined : "A script does a job in your design, again and again. Write it yourself or ask the AI." },
@@ -397,6 +424,27 @@ export default function StorePage({ onClose }: StorePageProps) {
   ].filter((s) => s.items.length > 0 || (s.key === "scripts" && scriptsAsked));
 
   const sections = source === "duet" ? duetSections : yoursSections;
+
+  const renderKitRow = (k: SavedKit) => (
+    <div
+      key={k.id}
+      className="store-row"
+      onClick={() => setSelectedId(k.id)}
+    >
+      <div className="store-row-tile">
+        <Icon name="component" size={20} />
+      </div>
+      <div className="store-row-info">
+        <div className="store-row-name-wrap">
+          <span className="store-row-name">{k.kit.name}</span>
+          <span className="store-row-by">by You</span>
+        </div>
+        <div className="store-row-line" title={kitHint(k.kit)}>
+          {kitHint(k.kit)}
+        </div>
+      </div>
+    </div>
+  );
 
   const renderRow = (thing: Thing) => (
     <div
@@ -887,6 +935,57 @@ export default function StorePage({ onClose }: StorePageProps) {
             )}
           </div>
         )
+      ) : selectedKit ? (
+        <div className="store-thing-page">
+          <div className="skills-page-head store-thing-head">
+            <button className="pill" onClick={handleBack}>
+              ← Back
+            </button>
+            <button className="pill" onClick={onClose}>
+              Close
+            </button>
+          </div>
+
+          <div className="store-thing-hero">
+            <div className="store-thing-hero-main">
+              <div className="store-thing-hero-tile">
+                <Icon name="component" size={32} />
+              </div>
+              <div className="store-thing-title-group">
+                <h2 className="store-thing-name">{selectedKit.kit.name}</h2>
+                <div className="store-thing-meta">
+                  {selectedKit.kit.system ? "Design system" : "Brand kit"} · by You
+                </div>
+              </div>
+            </div>
+
+            <div className="store-thing-actions">
+              <button
+                type="button"
+                className="pill primary"
+                onClick={() => dispatch("use_kit", { kit: selectedKit.kit })}
+              >
+                Use in this project
+              </button>
+              <button
+                type="button"
+                className="pill store-delete-btn"
+                onClick={async () => {
+                  await deleteKit(selectedKit.id);
+                  setSource("yours");
+                  setSelectedId(null);
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+
+          <div className="store-thing-section">
+            <div className="store-section-label">What it has</div>
+            <p className="store-thing-line">{kitHint(selectedKit.kit)}</p>
+          </div>
+        </div>
       ) : (
         <>
           <div className="skills-page-head">
@@ -960,21 +1059,22 @@ export default function StorePage({ onClose }: StorePageProps) {
               </div>
             </div>
 
-            {!(source === "yours" && yourThings.length === 0) && renderMakeNewButton()}
+            {!(source === "yours" && yourThings.length === 0 && kits.length === 0) && renderMakeNewButton()}
           </div>
 
           <div className="store-list">
-            {source === "yours" && yourThings.length === 0 && kindFilter !== "script" ? (
+            {source === "yours" && yourThings.length === 0 && kits.length === 0 && kindFilter !== "script" ? (
               <div className="store-yours-empty">
                 <div className="store-yours-empty-line">Skills, scripts and plugins you make live here</div>
                 {renderMakeNewButton()}
               </div>
             ) : isSearching ? (
-              filtered.length === 0 ? (
+              filtered.length === 0 && (source !== "yours" || matchingKits.length === 0) ? (
                 <div className="store-empty">Nothing found</div>
               ) : (
                 <div className="store-grid">
                   {filtered.map(renderRow)}
+                  {source === "yours" && matchingKits.map(renderKitRow)}
                 </div>
               )
             ) : sections.length === 0 ? (
@@ -990,6 +1090,18 @@ export default function StorePage({ onClose }: StorePageProps) {
                       <button className="store-section-make" onClick={startNewScript}>
                         + Make a script
                       </button>
+                    </div>
+                  )}
+                  {source === "yours" && sec.key === "scripts" && kindFilter === "all" && (
+                    <div key="kits" className="store-section" style={{ marginTop: 12 }}>
+                      <div className="store-section-title">Kits</div>
+                      {kits.length > 0 ? (
+                        <div className="store-grid">{kits.map(renderKitRow)}</div>
+                      ) : (
+                        <div className="store-section-note">
+                          <span>Save a brand kit or design system in the Assets panel to use it here.</span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
