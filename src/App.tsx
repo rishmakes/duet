@@ -312,7 +312,8 @@ export default function App() {
     ? { gridTemplateColumns: "auto minmax(0, 1fr)", gridTemplateRows: `44px minmax(0, 1fr) ${hist}`, gridTemplateAreas: '"top top" "projects kitchen" "projects hist"' }
     : {
     gridTemplateColumns: dock.swapped ? `auto ${chatCol}px ${rw}px 1fr ${lw}px` : `auto ${chatCol}px ${lw}px 1fr ${rw}px`,
-    gridTemplateRows: `44px 40px minmax(0, 1fr) auto ${hist}`,
+    // the tools float over the canvas like Kitchen's, so their row takes no room, except in the maximised timeline
+    gridTemplateRows: `44px ${timeMax ? "40px" : "0px"} minmax(0, 1fr) auto ${hist}`,
     gridTemplateAreas: timeMax
       ? '"top top top top top" "projects chat bar bar bar" "projects chat time time time" "projects chat time time time" "projects hist hist hist hist"'
       : dock.swapped

@@ -10506,3 +10506,22 @@ button.ctx-item.store-make-option:hover {
   background: var(--text);
   color: var(--panel);
 }
+
+/* the tools float over the canvas exactly as Kitchen's do: no bar, no container, nothing to cut the shadow */
+.app:not(.time-max) .studio-bar {
+  height: 0;
+  padding: 0;
+  overflow: visible;
+  align-items: flex-start;
+  background: none;
+  z-index: 20;
+}
+.app:not(.time-max) .studio-bar .toolbar.row {
+  margin-top: 14px;
+  overflow: visible;
+}
+.app:not(.time-max) .studio-bar .studio-flip {
+  top: 14px;
+  right: 16px;
+  transform: none;
+}
