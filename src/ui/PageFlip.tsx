@@ -1,38 +1,32 @@
 import { dispatch, getState, useStore, workDoc } from "../state/store";
 import { useLayout } from "./layout";
-import { isAllPages as allPagesNow, openPage, showAllPages, usePageFocus } from "./pageFocus";
+import { openPage, resetPageFocus } from "./pageFocus";
 
-/** One click, or Shift P: from one page at a time to the open canvas of all pages, and back to the page that was picked.
- *  A design without pages turns page view on first. */
+/** One click, or Shift P: from the open canvas to page view (one page at a time, the picked page or the first), and back to the open canvas. */
 export function flipPageView() {
   const d = workDoc();
-  if (!d.pages) {
-    dispatch("set_pages", { on: true });
-    const first = d.rootIds.find((id) => d.elements[id]?.type === "frame");
-    if (first) openPage(first);
+  if (d.pages) {
+    dispatch("set_pages", { on: false });
+    resetPageFocus();
+    window.dispatchEvent(new Event("duet:fit"));
     return;
   }
-  if (allPagesNow(d)) {
-    let top = getState().selection[0];
-    while (top && d.elements[top]?.parentId) top = d.elements[top].parentId!;
-    const page = top && d.rootIds.includes(top) && d.elements[top]?.type === "frame" ? top : d.rootIds.find((id) => d.elements[id]?.type === "frame");
-    if (page) openPage(page);
-  } else {
-    showAllPages();
-    window.dispatchEvent(new Event("duet:all-pages"));
-  }
+  let top = getState().selection[0];
+  while (top && d.elements[top]?.parentId) top = d.elements[top].parentId!;
+  const page = top && d.rootIds.includes(top) && d.elements[top]?.type === "frame" ? top : d.rootIds.find((id) => d.elements[id]?.type === "frame");
+  dispatch("set_pages", { on: true });
+  if (page) openPage(page);
 }
 
-/** The flip as an icon button. The icon is two arrows going opposite ways and never changes; it is lit while all pages are on one open canvas. */
+/** The flip as an icon button. The icon is two arrows going opposite ways and never changes; it is lit while the design is in page view. */
 export default function PageFlipButton({ className }: { className: string }) {
   const doc = useStore((s) => workDoc(s));
-  const { isAllPages } = usePageFocus(doc);
   const designing = useLayout((d) => d.mode === "design" || d.mode === "photo");
   if (!designing) return null;
-  const label = !doc.pages || isAllPages ? "Work on one page at a time (Shift P)" : "See all pages on one open canvas (Shift P)";
+  const label = doc.pages ? "Switch to the open canvas (Shift P)" : "Switch to page view, one page at a time (Shift P)";
   return (
     <button
-      className={`${className} ${isAllPages ? "on" : ""}`}
+      className={`${className} ${doc.pages ? "on" : ""}`}
       data-name="view-flip"
       aria-label={label}
       title={label}

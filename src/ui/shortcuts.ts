@@ -17,7 +17,7 @@ export const SHORTCUTS: { group: string; keys: [string, string][] }[] = [
       ["Shift Cmd N", "New paint layer (Photo)"],
       ["Esc", "Pick nothing and go back to Move"],
       ["Shift R", "Show or hide the rulers, and pull guides out of them"],
-      ["Shift P", "Flip between one page at a time and all pages on the open canvas"],
+      ["Shift P", "Switch between page view and the open canvas"],
     ],
   },
   {

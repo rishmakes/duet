@@ -10429,6 +10429,9 @@ button.ctx-item.store-make-option:hover {
   border-color: var(--muted);
 }
 
+/* SHOTS-TEMP: hide dev markers for site pictures, remove after (not committed) */
+.checkmark, .top-file-folder { display: none !important; }
+
 /* the flip between one page and all pages: a round white button at the top right of Kitchen's canvas, a bare icon at the right end of Studio's tool bar */
 .kitchen-flip {
   position: absolute;
@@ -10448,10 +10451,12 @@ button.ctx-item.store-make-option:hover {
   outline: none;
 }
 .studio-flip {
-  flex: none;
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
   width: 32px;
   height: 32px;
-  margin-right: 10px;
   display: grid;
   place-items: center;
   align-self: center;
@@ -10470,4 +10475,19 @@ button.ctx-item.store-make-option:hover {
 .studio-flip.on {
   color: var(--accent);
   background: var(--accent-soft);
+}
+
+/* Studio's tools sit in the middle in a white pill like Kitchen's, and the flip icon stays alone at the right */
+.studio-bar {
+  position: relative;
+  justify-content: center;
+}
+.studio-bar .toolbar.row {
+  flex: 0 1 auto;
+  justify-content: center;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  box-shadow: 0 4px 14px var(--shadow);
 }
