@@ -27,7 +27,7 @@ export interface RemoveBrandColourArgs {
 }
 
 export interface MakeBrandKitArgs {
-  /** The most colours to keep, most used first. */
+  /** The most colours to keep, most used first. 5 if left out: a brand is a few colours, not every colour on the page. */
   most?: number;
 }
 
@@ -115,6 +115,13 @@ export function removeBrandColour(doc: Doc, a: RemoveBrandColourArgs): Doc {
 }
 
 /** A kit made from what the design already uses: its colours, most used first, and its fonts. Logo and voice stay. */
+/** Greys, white and black say nothing about a brand: they have no hue to speak of. */
+function isNeutral(hex: string): boolean {
+  const h = sameHex(hex).slice(1);
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+  return Math.max(r, g, b) - Math.min(r, g, b) < 14;
+}
+
 export function makeBrandKit(doc: Doc, a: MakeBrandKitArgs): Doc {
   const count = new Map<string, number>();
   const fonts = new Set<string>();
@@ -125,10 +132,11 @@ export function makeBrandKit(doc: Doc, a: MakeBrandKitArgs): Doc {
   for (const s of Object.values(doc.styles ?? {})) if (s.fontFamily) fonts.add(s.fontFamily);
   const b = doc.brand ?? empty();
   const known = new Set(b.colours.map((c) => c.hex));
-  const fresh = [...count.entries()]
-    .filter(([hex]) => !known.has(hex))
-    .sort((x, y) => y[1] - x[1])
-    .slice(0, Math.max(0, (a.most ?? 12) - b.colours.length))
+  const wanted = [...count.entries()].filter(([hex]) => !known.has(hex)).sort((x, y) => y[1] - x[1]);
+  // The brand's own colours first; greys, white and black only if the design has nothing else.
+  const coloured = wanted.filter(([hex]) => !isNeutral(hex));
+  const fresh = (coloured.length || b.colours.length ? coloured : wanted)
+    .slice(0, Math.max(0, (a.most ?? 5) - b.colours.length))
     .map(([hex], i) => ({ id: newId("colour"), name: `Colour ${b.colours.length + i + 1}`, hex }));
   return withBrand(doc, { ...b, colours: [...b.colours, ...fresh], fonts: [...new Set([...b.fonts, ...fonts])] });
 }

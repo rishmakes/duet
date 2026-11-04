@@ -21,6 +21,26 @@ describe("brand kit", () => {
     expect(d.brand?.fonts).toEqual(["Inter"]);
   });
 
+  it("keeps the few colours that are the brand, not every grey and white on the page", () => {
+    let d = design();
+    d = runCommand(d, "create_element", { id: "g", type: "rect", x: 0, y: 0, width: 5, height: 5, parentId: "f" });
+    d = runCommand(d, "set_props", { ids: ["g"], props: { fill: "#d9d9de", stroke: "#ffffff" } });
+    const kit = runCommand(d, "make_brand_kit", {});
+    expect(kit.brand?.colours.map((c) => c.hex).sort()).toEqual(["#0b1f3a", "#ff6600"]);
+    let many = design();
+    for (let i = 0; i < 8; i++) {
+      many = runCommand(many, "create_element", { id: `m${i}`, type: "rect", x: 0, y: 0, width: 5, height: 5, parentId: "f" });
+      many = runCommand(many, "set_props", { ids: [`m${i}`], props: { fill: `#${(i * 30 + 20).toString(16).padStart(2, "0")}3a${(i * 20 + 40).toString(16).padStart(2, "0")}` } });
+    }
+    expect(runCommand(many, "make_brand_kit", {}).brand?.colours.length).toBe(5);
+  });
+
+  it("a design with only greys still gets a kit", () => {
+    let d = runCommand(emptyDoc(), "create_element", { id: "f", type: "frame", x: 0, y: 0, width: 100, height: 100 });
+    d = runCommand(d, "set_props", { ids: ["f"], props: { fill: "#ffffff" } });
+    expect(runCommand(d, "make_brand_kit", {}).brand?.colours.map((c) => c.hex)).toEqual(["#ffffff"]);
+  });
+
   it("making it again adds only new colours", () => {
     const once = runCommand(design(), "make_brand_kit", {});
     const twice = runCommand(once, "make_brand_kit", {});

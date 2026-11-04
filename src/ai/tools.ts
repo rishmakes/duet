@@ -441,8 +441,8 @@ export const TOOLS: ToolDef[] = [
   },
   {
     name: "make_brand_kit",
-    description: "Make the project's brand kit from what the design already uses: its colours, most used first, and its fonts. The brand kit is who the designer or their client is, in everything they make: posts, videos and UI. What is already in it stays. Then read get_working_rules and name the colours with change_brand_kit. The designer is always asked first.",
-    inputSchema: { type: "object", properties: { most: { type: "number", description: "The most colours to keep, 12 if left out." } } },
+    description: "Make the project's brand kit from what the design already uses: its few main colours, most used first (greys, white and black are left out), and its fonts. The brand kit is who the designer or their client is, in everything they make: posts, videos and UI. What is already in it stays. Then read get_working_rules and name the colours with change_brand_kit. The designer is always asked first.",
+    inputSchema: { type: "object", properties: { most: { type: "number", description: "The most colours to keep, 5 if left out. A brand is a few colours." } } },
   },
   {
     name: "change_brand_kit",
