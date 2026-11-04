@@ -19,8 +19,8 @@ import { addBoard, deleteBoard, moveBoard, moveToBoard, openBoardCmd, renameBoar
 import type { AddBoardArgs, DeleteBoardArgs, MoveBoardArgs, MoveToBoardArgs, OpenBoardArgs, RenameBoardArgs } from "./boards";
 import { addBrandColour, changeBrandColour, makeBrandKit, removeBrandColour, setBrand } from "./brand";
 import type { AddBrandColourArgs, ChangeBrandColourArgs, MakeBrandKitArgs, RemoveBrandColourArgs, SetBrandArgs } from "./brand";
-import { makeDesignSystem, setDesignSystem } from "./designSystem";
-import type { MakeDesignSystemArgs, SetDesignSystemArgs } from "./designSystem";
+import { makeDesignSystem, setDesignSystem, useKit } from "./designSystem";
+import type { MakeDesignSystemArgs, SetDesignSystemArgs, UseKitArgs } from "./designSystem";
 import type { SetPagesArgs, AddPageArgs, ReorderPagesArgs } from "./pages";
 
 /**
@@ -2429,8 +2429,14 @@ const makeDesignSystemDef: CommandDef<MakeDesignSystemArgs> = {
   run: (doc, a) => makeDesignSystem(doc, a),
 };
 
+const useKitDef: CommandDef<UseKitArgs> = {
+  label: (a) => `Use the kit ${a.kit?.name ?? ""}`.trim(),
+  run: (doc, a) => useKit(doc, a),
+};
+
 // ---- registry ----
 export const commands = {
+  use_kit: useKitDef,
   set_design_system: setDesignSystemDef,
   make_design_system: makeDesignSystemDef,
   set_brand: setBrandDef,

@@ -1,5 +1,5 @@
 import type { Brand, Doc, El, TextStyle } from "../document/types";
-import { canBeComponent, isDerived } from "../document/components";
+import { canBeComponent, isDerived, syncInstances } from "../document/components";
 import { addBrandColour, changeBrandColour, makeBrandKit, removeBrandColour, setBrand } from "./brand";
 import { newId, restyle } from "./index";
 
@@ -185,3 +185,126 @@ export function designSystemLines(doc: Doc): string[] {
   return lines;
 }
 
+
+// ---- kits: a design system made once and used in any project ----
+
+/** A design system as a file of its own. Its pieces travel with it, with the components they are built from. */
+export interface Kit {
+  kind: "duet-kit";
+  version: 1;
+  name: string;
+  colours: { name: string; hex: string }[];
+  fonts: string[];
+  voice?: string;
+  spacing?: number[];
+  corners?: number[];
+  textStyles: TextStyle[];
+  /** Ids of the pieces, in order. */
+  pieces: string[];
+  /** The pieces and the components inside them, with everything in them, as in a design file. */
+  elements: Record<string, El>;
+}
+
+/** A thing and everything inside it, leaving out the insides of copies, which are rebuilt from their main. */
+function subtree(doc: Doc, id: string, out: Record<string, El>) {
+  const el = doc.elements[id];
+  if (!el || out[id] || isDerived(id)) return;
+  out[id] = el.type === "instance" ? { ...el, childIds: [] } : el;
+  if (el.type === "instance") subtree(doc, el.componentId, out);
+  else for (const c of el.childIds) subtree(doc, c, out);
+}
+
+/** The project's design system as a kit, named. */
+export function kitFromDoc(doc: Doc, name: string): Kit {
+  const b = doc.brand ?? empty();
+  const pieces = livePieces(doc);
+  const elements: Record<string, El> = {};
+  for (const id of pieces) subtree(doc, id, elements);
+  // a component a piece is built from sits at the top of the kit, never inside a frame it does not come with
+  for (const el of Object.values(elements)) if (el.parentId && !elements[el.parentId]) elements[el.id] = { ...el, parentId: null };
+  return {
+    kind: "duet-kit",
+    version: 1,
+    name: name.trim() || "Design system",
+    colours: b.colours.map(({ name: n, hex }) => ({ name: n, hex })),
+    fonts: [...b.fonts],
+    ...(b.voice ? { voice: b.voice } : {}),
+    ...(b.spacing?.length ? { spacing: [...b.spacing] } : {}),
+    ...(b.corners?.length ? { corners: [...b.corners] } : {}),
+    textStyles: Object.values(doc.styles ?? {}),
+    pieces,
+    elements: structuredClone(elements),
+  };
+}
+
+/** A kit read from a file, or null when it is not one. */
+export function readKit(text: string): Kit | null {
+  let k: Partial<Kit>;
+  try {
+    k = JSON.parse(text) as Partial<Kit>;
+  } catch {
+    return null;
+  }
+  if (!k || k.kind !== "duet-kit" || typeof k.name !== "string") return null;
+  const elements = k.elements && typeof k.elements === "object" ? k.elements : {};
+  return {
+    kind: "duet-kit",
+    version: 1,
+    name: k.name,
+    colours: Array.isArray(k.colours) ? k.colours.filter((c) => c && typeof c.name === "string" && HEX.test(String(c.hex))) : [],
+    fonts: Array.isArray(k.fonts) ? k.fonts.filter((f) => typeof f === "string") : [],
+    ...(typeof k.voice === "string" ? { voice: k.voice } : {}),
+    ...(Array.isArray(k.spacing) ? { spacing: steps(k.spacing) } : {}),
+    ...(Array.isArray(k.corners) ? { corners: steps(k.corners) } : {}),
+    textStyles: Array.isArray(k.textStyles) ? k.textStyles.filter((s) => s && typeof s.name === "string" && Number(s.fontSize) > 0) : [],
+    pieces: Array.isArray(k.pieces) ? k.pieces.filter((id) => typeof id === "string" && !!elements[id]) : [],
+    elements,
+  };
+}
+
+export interface UseKitArgs {
+  kit: Kit;
+}
+
+/**
+ * Bring a kit into the design: its colours, fonts, text styles, spacing and corners join the design
+ * system (a name the project has takes the kit's value), and its pieces are placed in a row to the
+ * right of the design, ready to be used. A piece the design already has is not placed twice.
+ */
+export function useKit(doc: Doc, a: UseKitArgs): Doc {
+  const k = a.kit;
+  if (!k || k.kind !== "duet-kit") return doc;
+  let d = setDesignSystem(doc, {
+    colours: k.colours,
+    fonts: [...new Set([...(doc.brand?.fonts ?? []), ...k.fonts])],
+    ...(k.voice && !doc.brand?.voice ? { voice: k.voice } : {}),
+    ...(k.spacing?.length ? { spacing: k.spacing } : {}),
+    ...(k.corners?.length ? { corners: k.corners } : {}),
+    textStyles: k.textStyles,
+  });
+
+  // what comes in: every top thing in the kit whose id the design does not have yet, with what is inside it
+  const tops = Object.values(k.elements).filter((el) => !el.parentId && !d.elements[el.id]);
+  if (tops.length) {
+    const elements = { ...d.elements };
+    const add = (id: string) => {
+      const el = k.elements[id];
+      if (!el || elements[id]) return;
+      elements[id] = structuredClone(el);
+      if (el.type !== "instance") el.childIds.forEach(add);
+    };
+    // placed in a row to the right of everything on the open board, tops lined up
+    const roots = d.rootIds.map((id) => d.elements[id]).filter(Boolean);
+    let x = roots.length ? Math.max(...roots.map((r) => r.x + r.width)) + 120 : 0;
+    const y = roots.length ? Math.min(...roots.map((r) => r.y)) : 0;
+    for (const t of tops) {
+      add(t.id);
+      elements[t.id] = { ...elements[t.id], x, y };
+      x += t.width + 40;
+    }
+    d = { ...d, elements, rootIds: [...d.rootIds, ...tops.map((t) => t.id)] };
+  }
+  const pieces = k.pieces.filter((id) => d.elements[id]?.component);
+  d = { ...d, brand: { ...(d.brand ?? empty()), pieces: [...new Set([...livePieces(d), ...pieces])] } };
+  return syncInstances(d);
+}

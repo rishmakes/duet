@@ -494,6 +494,63 @@ fn delete_user_script(id: String) -> Result<(), String> {
     Ok(())
 }
 
+// ---------- design system kits ----------
+
+/// A kit is one file, `~/.duet/kits/<id>.duet-kit`: a design system and its pieces, made once and used in any project.
+#[derive(Serialize)]
+struct UserKit {
+    id: String,
+    body: String,
+}
+
+fn kit_file(id: &str) -> Result<std::path::PathBuf, String> {
+    let ok = !id.is_empty()
+        && id.len() <= 60
+        && id.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+    if !ok {
+        return Err("A kit name can use lowercase letters, numbers and dashes.".to_string());
+    }
+    let dir = duet_home_dir()?.join("kits");
+    fs::create_dir_all(&dir).map_err(err)?;
+    Ok(dir.join(format!("{id}.duet-kit")))
+}
+
+#[tauri::command]
+fn list_kits() -> Result<Vec<UserKit>, String> {
+    let dir = duet_home_dir()?.join("kits");
+    let mut out = Vec::new();
+    if let Ok(read) = fs::read_dir(&dir) {
+        for entry in read.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("duet-kit") {
+                continue;
+            }
+            let Some(id) = path.file_stem().and_then(|s| s.to_str()).map(|s| s.to_string()) else {
+                continue;
+            };
+            if let Ok(body) = fs::read_to_string(&path) {
+                out.push(UserKit { id, body });
+            }
+        }
+    }
+    out.sort_by(|a, b| a.id.cmp(&b.id));
+    Ok(out)
+}
+
+#[tauri::command]
+fn write_kit(id: String, body: String) -> Result<(), String> {
+    write_whole(&kit_file(&id)?, &body)
+}
+
+#[tauri::command]
+fn delete_kit(id: String) -> Result<(), String> {
+    let f = kit_file(&id)?;
+    if f.exists() {
+        fs::remove_file(f).map_err(err)?;
+    }
+    Ok(())
+}
+
 /// What the Store remembers, like which skills are off, kept in a file beside the skills so it is never lost with the app's own storage.
 #[tauri::command]
 fn read_store_state() -> Result<Option<String>, String> {
@@ -745,6 +802,9 @@ pub fn run() {
             delete_user_script,
             read_store_state,
             write_store_state,
+            list_kits,
+            write_kit,
+            delete_kit,
             git_prepare,
             git_commit,
             git_history,

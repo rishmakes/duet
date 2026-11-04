@@ -466,6 +466,11 @@ export const TOOLS: ToolDef[] = [
     },
   },
   {
+    name: "use_kit",
+    description: "Bring one of the designer's saved kits into this project: its colours, fonts, text styles, spacing and corners join the design system, and its pieces are placed beside the design, ready for create_instance. get_working_rules lists the saved kits. Use it when the designer asks to use a kit or a design system they made before. The designer is always asked first.",
+    inputSchema: { type: "object", properties: { name: str }, required: ["name"] },
+  },
+  {
     name: "set_grade",
     description:
       "Change the colour of pictures and video clips, like the basic panel in Premiere's Lumetri or Lightroom. The designer sees the same controls in the Colour tab. Give only the controls to change; the others keep their values. Controls: exposure (stops of light, -5 to 5, 1 is twice the light), contrast, highlights, shadows, whites, blacks, temperature (minus cooler and bluer, plus warmer and more orange), tint (minus greener, plus more magenta), saturation (-100 is black and white), vibrance (moves dull colours most and skin least), all -100 to 100 with 0 meaning no change, and lookAmount (0 to 1, how much of the look is used). Also hue (-180 to 180 degrees, turns every colour round the wheel), vignette (-100 darker edges to 100 lighter edges), skinKeep (0 to 100, skin keeps its own colour while the rest changes), skinTone (minus pinker, plus more golden, only skin) and skinLight (only skin, darker or brighter). Skin is found by its colour, so check it on warm scenes. curves is an object of point lists, each point [x, y] from 0 to 1, for example {\"light\": [[0, 0.04], [0.5, 0.55], [1, 1]]}: light, red, green and blue map brightness in to out; hueHue, hueSat and hueLight are read round the colour wheel (x is the hue: 0 red, 0.17 yellow, 0.33 green, 0.5 cyan, 0.67 blue, 0.83 magenta) where 0.5 is no change, so [[0.55, 0.5], [0.6, 0.8], [0.65, 0.5]] on hueSat makes blues richer and leaves other colours alone; lightSat is read along brightness, 0.5 is no change. An empty list takes a curve away. Send reset true to put the colour back as it was. To use a .cube look, use load_look. Work in small steps: read color_readings, change a few controls, then read again and look_at_design to check.",
@@ -679,6 +684,8 @@ export function summarise(tool: string, a: Args): string {
       return "Make a design system from this design: colours, fonts, text styles, spacing, corners and pieces";
     case "change_design_system":
       return `Change the design system: ${designChanges(a)}`;
+    case "use_kit":
+      return `Use the kit "${(a.kit as { name?: string } | undefined)?.name ?? ""}": its colours, fonts, text styles, spacing and pieces join this project`;
     case "set_grade": {
       if (!a.grade) return `Reset the colour of ${namesOf(a.ids)}`;
       const g = a.grade as Record<string, unknown>;
@@ -1679,7 +1686,11 @@ async function answerTool(name: string, raw: unknown, by?: string): Promise<Tool
   }
   if (name === "get_context") return { text: context() };
   if (name === "get_prototype") return { text: JSON.stringify(prototypeMap(R.currentDoc())) };
-  if (name === "get_working_rules") return { text: [outsideRules(), brandRules(R.currentDoc()), skillsText()].filter(Boolean).join("\n\n") };
+  if (name === "get_working_rules") {
+    const { getKits } = await import("../store/kits");
+    const kits = getKits().map((k) => k.kit.name);
+    return { text: [outsideRules(), brandRules(R.currentDoc()), kits.length ? `Saved kits the designer can use here (use_kit): ${kits.join(", ")}.` : "", skillsText()].filter(Boolean).join("\n\n") };
+  }
   if (name === "get_outline") return { text: outline(R.currentDoc(), Array.isArray(a.ids) ? (a.ids as unknown[]).map(String) : undefined) };
   if (name === "get_document") {
     const d = R.currentDoc();
@@ -1728,13 +1739,22 @@ async function answerTool(name: string, raw: unknown, by?: string): Promise<Tool
     if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("duet:script-saved", { detail: saved.id }));
     return { text: `${had ? "Updated" : "Saved"} the script "${nm}". The designer can try it, change it and run it from the Store, under Yours. It has not been run yet.` };
   }
-  if (name === "make_design_system" || name === "change_design_system") {
+  if (name === "make_design_system" || name === "change_design_system" || name === "use_kit") {
+    let args: Args = a;
+    if (name === "make_design_system") args = { most: typeof a.most === "number" ? a.most : undefined };
+    if (name === "use_kit") {
+      const { getKits } = await import("../store/kits");
+      const want = String(a.name ?? "").trim().toLowerCase();
+      const found = getKits().find((k) => k.kit.name.trim().toLowerCase() === want);
+      if (!found) return fail(`No saved kit called ${String(a.name)}. The designer has: ${getKits().map((k) => k.kit.name).join(", ") || "none yet"}.`);
+      args = { kit: found.kit };
+    }
     // a design system shapes everything made in the project after it, so the designer always says yes first, whatever the mode
-    const summary = summarise(name, a);
+    const summary = summarise(name, args);
     void invoke("bring_back").catch(() => undefined);
     if (!(await askDesigner(R.live || !R.file ? summary : `In "${tabName(R.file)}": ${summary}`))) return fail("The designer said not now. Do not change the design system.");
     const before = R.currentDoc();
-    const done = await apply(name, name === "make_design_system" ? { most: typeof a.most === "number" ? a.most : undefined } : a, by);
+    const done = await apply(name, args, by);
     if (done.isError) return done;
     if (R.currentDoc() === before) return { text: "Nothing in the design system changed. Check the names and values you gave." };
     return { text: `Done. The design system now:\n${brandRules(R.currentDoc())}` };

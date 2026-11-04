@@ -4,6 +4,7 @@ import { parseDoc, serializeDoc } from "../document/serialize";
 import { emptyDoc } from "../document/types";
 import type { Doc } from "../document/types";
 import { brandRules } from "../ai/brandLock";
+import { kitFromDoc, readKit } from "./designSystem";
 
 /** A card frame laid out with gaps of 16 and padding of 24, a rounded button inside, and three kinds of text. */
 function design(): Doc {
@@ -111,5 +112,43 @@ describe("design system", () => {
     expect(back.brand?.spacing).toEqual(d.brand?.spacing);
     expect(back.brand?.corners).toEqual(d.brand?.corners);
     expect(back.brand?.pieces).toEqual(d.brand?.pieces);
+  });
+
+  it("is saved as a kit with its pieces, and the components the pieces are built from", () => {
+    let d = runCommand(design(), "create_element", { id: "card", type: "frame", x: 500, y: 0, width: 200, height: 100 });
+    d = runCommand(d, "create_instance", { componentId: "b", id: "cb", x: 10, y: 10, parentId: "card" });
+    d = runCommand(d, "make_design_system", {});
+    d = runCommand(d, "set_design_system", { pieces: ["card"] });
+    const kit = readKit(JSON.stringify(kitFromDoc(d, "Clay")))!;
+    expect(kit.name).toBe("Clay");
+    expect(kit.pieces).toEqual(["card"]);
+    expect(Object.keys(kit.elements).sort()).toEqual(["b", "card", "cb"]);
+    expect(kit.elements.b.parentId).toBeNull();
+    expect(kit.textStyles.length).toBe(3);
+    expect(kit.spacing).toEqual([16, 24]);
+  });
+
+  it("a kit used in another project brings its system and places its pieces beside the design", () => {
+    let src = runCommand(design(), "make_design_system", {});
+    src = runCommand(src, "set_design_system", { colours: [{ name: "Orange", hex: "#ff6600" }] });
+    const kit = kitFromDoc(src, "Clay");
+    let d = runCommand(emptyDoc(), "create_element", { id: "home", type: "frame", x: 0, y: 0, width: 300, height: 600 });
+    d = runCommand(d, "use_kit", { kit });
+    expect(d.brand?.pieces).toEqual(["b"]);
+    expect(d.elements.b.component).toBe(true);
+    expect(d.elements.b.x).toBe(420);
+    expect(d.rootIds).toEqual(["home", "b"]);
+    expect(d.brand?.spacing).toEqual([16, 24]);
+    expect(Object.values(d.styles ?? {}).map((s) => s.name)).toEqual(["Heading", "Body", "Small"]);
+    expect(d.brand?.colours.find((c) => c.name === "Orange")?.hex).toBe("#ff6600");
+    // using it again does not place the pieces twice
+    const again = runCommand(d, "use_kit", { kit });
+    expect(again.rootIds).toEqual(["home", "b"]);
+    expect(Object.keys(again.styles ?? {}).length).toBe(3);
+  });
+
+  it("a file that is not a kit is not read as one", () => {
+    expect(readKit("{}")).toBeNull();
+    expect(readKit("not json")).toBeNull();
   });
 });

@@ -61,6 +61,7 @@ const WORKING: Record<string, string> = {
   make_design_system: "Reading your design system",
   change_design_system: "Tidying the design system",
   apply_text_style: "Using a text style",
+  use_kit: "Bringing in your kit",
 };
 
 /**
