@@ -25,6 +25,7 @@ import {
   getCooking,
   useRecipes,
 } from "../ai/recipes";
+import PageFlipButton from "./PageFlip";
 import { dispatch, getState, openingNumber, setTool, useStore, workDoc } from "../state/store";
 import { loadRecipeChoice, saveRecipeChoice } from "../memory/files";
 import { schedulePack } from "../project/project";
@@ -375,6 +376,7 @@ function KitchenTools({ tool }: { tool: string }) {
       <button className="kitchen-tool wide" data-name="open-in-studio" title="Every tool, to work on the design yourself" onClick={() => setLayout({ space: "edit" })}>
         Open in Studio
       </button>
+      <PageFlipButton className="kitchen-tool" />
     </div>
   );
 }

@@ -8,6 +8,7 @@ import Icon from "./Icons";
 import type { IconName } from "./Icons";
 import { useLayout } from "./layout";
 import { useDismiss } from "./useDismiss";
+import PageFlipButton from "./PageFlip";
 import { FRAME_PRESETS, newId } from "../commands";
 import type { FramePreset } from "../commands";
 
@@ -133,6 +134,7 @@ export default function Toolbar({ row = false }: { row?: boolean }) {
       <button className="tool" title="Image (Shift Cmd K)" onClick={() => void pickImages()}>
         <Icon name="image" />
       </button>
+      {row && !motion && <PageFlipButton className="tool" />}
       <div className="tool-bottom">
       {motion && (
         <>

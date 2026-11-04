@@ -10428,29 +10428,3 @@ button.ctx-item.store-make-option:hover {
 .store-section-make:hover {
   border-color: var(--muted);
 }
-
-/* one click between a page at a time and the open canvas: a bare icon in the top right corner of the canvas */
-.view-flip {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 5;
-  width: 30px;
-  height: 30px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  outline: none;
-}
-.view-flip:hover {
-  color: var(--accent);
-  background: var(--accent-soft);
-}
-.view-flip.on {
-  color: var(--accent);
-}
