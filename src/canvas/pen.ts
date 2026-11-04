@@ -6,7 +6,7 @@ import { workDoc, dispatch, getState, select, setOverlay, setTool } from "../sta
 
 /**
  * The pen. Click to place a corner point. Click and drag to pull out a smooth curve.
- * Click the first point to close the shape. Enter or double-click ends an open line. Escape cancels.
+ * Click the first point to close the shape. Enter or double-click ends an open line. Escape ends it too and keeps it, or lets the pen go when only one point is down.
  */
 
 type P = { x: number; y: number };

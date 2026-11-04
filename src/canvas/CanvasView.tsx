@@ -1909,8 +1909,12 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
         }
         if (e.key === "Escape") {
           e.preventDefault();
-          penCancel();
-          setTool("move");
+          // two points or more: the line ends here and is kept, and the pen stays ready for the next one; one point is nothing, so the pen is let go
+          if ((getState().overlay.pen?.nodes.length ?? 0) >= 2) penFinish(false, false);
+          else {
+            penCancel();
+            setTool("move");
+          }
           return;
         }
         if (e.key === "Backspace" || e.key === "Delete") {

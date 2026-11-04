@@ -22,6 +22,7 @@ export const TOOLS: { tool: Tool; label: string; key: string; icon: IconName }[]
   { tool: "text", label: "Text", key: "T", icon: "text" },
   { tool: "hand", label: "Hand", key: "H", icon: "hand" },
   { tool: "zoom", label: "Zoom", key: "Z", icon: "zoom" },
+  { tool: "comment", label: "Comment", key: "C", icon: "comment" },
 ];
 
 export const PHOTO_TOOLS: { tool: Tool; label: string; key: string; icon: IconName }[] = [
