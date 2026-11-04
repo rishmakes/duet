@@ -66,7 +66,8 @@
   --time-instance-soft: rgba(34, 184, 207, 0.16);
 }
 
-:root[data-theme="light"] {
+:root[data-theme="light"],
+[data-theme="light"] {
   color-scheme: light;
   --bg: #ececee;
   --panel: #ffffff;
@@ -9350,13 +9351,93 @@ input.chathome-name.rename {
 .store-page .sw.on::after {
   background: var(--bg);
 }
-.store-page button.mini.primary {
+.store-page button.mini.primary,
+.store-page .pill.primary {
   background: var(--text);
   color: var(--panel);
   border-color: var(--text);
 }
-.store-page button.mini.primary:hover {
+.store-page button.mini.primary:hover,
+.store-page .pill.primary:hover {
   opacity: 0.9;
+}
+.store-field-input {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.12s ease;
+}
+.store-field-input:focus {
+  border-color: var(--text);
+}
+.store-field-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  box-sizing: border-box;
+  outline: none;
+  resize: vertical;
+  min-height: 160px;
+  font-family: inherit;
+  transition: border-color 0.12s ease;
+}
+.store-field-textarea:focus {
+  border-color: var(--text);
+}
+.store-rules-box {
+  padding: 12px 14px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.store-form-note {
+  font-size: 13px;
+  color: var(--error, #e5484d);
+  line-height: 1.4;
+  margin: 0;
+}
+.store-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.store-bring-quieter {
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.store-bring-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+.store-bring-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 .store-thing-page {
   display: flex;

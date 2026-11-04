@@ -80,3 +80,36 @@ describe("a recipe step that picks its own skills", () => {
     useStepSkills(null);
   });
 });
+
+describe("making and changing a skill of your own in the Store", () => {
+  beforeEach(async () => {
+    files.clear();
+    await loadSkills();
+  });
+
+  it("saves the name, what it does and the rules, and takes them apart again", async () => {
+    const { createSkill, skillParts } = await import("./skills");
+    expect(await createSkill("My brand", "- Pill buttons.", "Keeps my brand look.")).toBeNull();
+    const body = files.get("my-brand")!;
+    expect(body).toBe("# My brand\nKeeps my brand look.\n\n- Pill buttons.\n");
+    expect(skillParts(body)).toEqual({ name: "My brand", line: "Keeps my brand look.", rules: "- Pill buttons." });
+    expect(getSkills().find((s) => s.id === "mine-my-brand")?.summary).toBe("Keeps my brand look.");
+    // a skill written without a line keeps its first rule as a rule
+    expect(skillParts("# Old\n- One rule\n- Two")).toEqual({ name: "Old", line: "", rules: "- One rule\n- Two" });
+  });
+
+  it("refuses a name Duet already ships", async () => {
+    const { createSkill } = await import("./skills");
+    expect(await createSkill("Spacing", "- x")).toMatch(/Duet already has/);
+  });
+
+  it("changes a skill in place, keeping its id when renamed", async () => {
+    const { createSkill, updateSkill } = await import("./skills");
+    await createSkill("My brand", "- Pill buttons.");
+    expect(await updateSkill("mine-my-brand", "Brand two", "Newer look.", "- Square buttons.")).toBeNull();
+    expect(files.get("my-brand")).toBe("# Brand two\nNewer look.\n\n- Square buttons.\n");
+    expect(getSkills().find((s) => s.id === "mine-my-brand")?.name).toBe("Brand two");
+    expect(await updateSkill("spacing", "Spacing", "", "- x")).toMatch(/Only your own/);
+    expect(await updateSkill("mine-my-brand", "Spacing", "", "- x")).toMatch(/already a skill/);
+  });
+});

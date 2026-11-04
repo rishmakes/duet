@@ -168,13 +168,35 @@ const slug = (s: string) =>
 /** The id a skill of your own gets from its name. */
 export const mySkillId = (name: string) => `mine-${slug(name)}`;
 
+/** A skill file in Duet's shape: the name, one line on what it does, then the rules. */
+export function skillBody(name: string, line: string, rules: string): string {
+  const first = line.trim().split("\n")[0].trim();
+  return `# ${name.trim()}\n${first ? `${first}\n\n` : ""}${rules.trim()}\n`;
+}
+
+/** Take a skill file apart again for editing: its name, what it does, and its rules. */
+export function skillParts(body: string, fallback = ""): { name: string; line: string; rules: string } {
+  const lines = body.replace(/\r\n/g, "\n").split("\n");
+  const h = lines.findIndex((l) => l.trim().startsWith("# "));
+  const name = h >= 0 ? lines[h].trim().slice(2).trim() : fallback;
+  let rest = h >= 0 ? lines.slice(h + 1) : lines;
+  while (rest.length && !rest[0].trim()) rest = rest.slice(1);
+  // the line right under the name says what it does, unless it is already a rule or a heading
+  const top = rest[0]?.trim() ?? "";
+  const hasLine = !!top && !top.startsWith("-") && !top.startsWith("#") && !top.startsWith("*") && !/^\d+\./.test(top);
+  const line = hasLine ? top : "";
+  const rules = (hasLine ? rest.slice(1) : rest).join("\n").trim();
+  return { name: name || fallback, line, rules };
+}
+
 /** Save a skill of your own. Returns a message if it could not be saved. */
-export async function createSkill(name: string, rules: string): Promise<string | null> {
+export async function createSkill(name: string, rules: string, line = ""): Promise<string | null> {
   const id = slug(name);
   if (!id) return "Give the skill a name.";
   if (!rules.trim()) return "Write at least one rule.";
   if (skills.some((s) => s.id === `mine-${id}`)) return "You already have a skill with that name.";
-  const body = `# ${name.trim()}\n${rules.trim()}\n`;
+  if (skills.some((s) => s.source === "shipped" && slug(s.name) === id)) return `Duet already has a skill called "${name.trim()}". Choose another name.`;
+  const body = skillBody(name, line, rules);
   try {
     await invoke("write_user_skill", { id, body });
   } catch (e) {
@@ -248,6 +270,25 @@ export async function importSkillPath(path: string): Promise<string | null> {
   } catch (e) {
     return String(e);
   }
+}
+
+/**
+ * Change a skill of your own. It keeps its id even when renamed, so recipe steps that use it still find it.
+ * Returns a message if it could not be saved.
+ */
+export async function updateSkill(skillId: string, name: string, line: string, rules: string): Promise<string | null> {
+  if (!skillId.startsWith("mine-") || !skills.some((s) => s.id === skillId)) return "Only your own skills can be changed.";
+  if (!name.trim()) return "Give the skill a name.";
+  if (!rules.trim()) return "Write at least one rule.";
+  const clash = skills.find((s) => s.id !== skillId && s.name.trim().toLowerCase() === name.trim().toLowerCase());
+  if (clash) return `There is already a skill called "${clash.name}".`;
+  try {
+    await invoke("write_user_skill", { id: skillId.slice(5), body: skillBody(name, line, rules) });
+  } catch (e) {
+    return String(e);
+  }
+  await loadSkills();
+  return null;
 }
 
 export async function deleteSkill(skillId: string) {
