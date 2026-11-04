@@ -38,7 +38,7 @@ How to check a change:
 3. dev_read_interface says what the panels show, as numbered lines of words. Pass filter to see only lines with a word in them.
 4. dev_press presses something by its name or by its line number. dev_type writes in a box. dev_key presses a key.
 5. Read the interface again to see what changed. Line numbers are only good until the next read.
-5b. dev_look_at_window gives a picture of the whole Duet window, drawn by Duet itself. Use it to see how a change looks, and as the starting point of any mockup: start from what is really there, never from a guess.
+5b. dev_look_at_window gives a picture of the whole Duet window, drawn by Duet itself, without the DEV tag (so it looks like the real Duet; the tag stays on the real window). Use it to see how a change looks, and as the starting point of any mockup: start from what is really there, never from a guess.
 6. dev_history lists the last steps and who made each one. dev_errors lists what went wrong since the last look.
 7. After Duet's code changes, dev_reload loads the interface again. Wait three seconds after it: a call made while it loads is lost. The test design is lost too, so start a new one.
 8. dev_leave_test_design throws the test design away and brings the project back. Always finish with it.
@@ -106,8 +106,8 @@ export const BUILDER_TOOLS: ToolDef[] = [
   },
   {
     name: "dev_look_at_window",
-    description: "Builder tool. See the whole Duet window as it is right now, drawn by Duet itself like the picture Feedback attaches: only Duet, nothing else on the screen. Use it to check how a change looks, and to start a mockup from what is really there. maxSize is the longest side in pixels (default 1600).",
-    inputSchema: { type: "object", properties: { maxSize: num } },
+    description: "Builder tool. See the whole Duet window as it is right now, drawn by Duet itself like the picture Feedback attaches: only Duet, nothing else on the screen. Use it to check how a change looks, and to start a mockup from what is really there. maxSize is the longest side in pixels (default 1600). The picture leaves out the DEV tag and the folder name that mark Duet dev (they stay on the real window), so it looks like the real Duet and is fit for the website; set keepDevTag true to keep them.",
+    inputSchema: { type: "object", properties: { maxSize: num, keepDevTag: bool } },
   },
   { name: "dev_reload", description: "Builder tool. Load the interface again, so a change to Duet's code is surely the one running. A test design does not survive it: the project that was open comes back.", inputSchema: { type: "object", properties: {} } },
   {
@@ -424,7 +424,10 @@ export async function callBuilderTool(name: string, raw: unknown, by?: string): 
       const w = window.innerWidth;
       const h = window.innerHeight;
       const most = typeof a.maxSize === "number" && a.maxSize > 0 ? a.maxSize : 1600;
-      const url = await toPng(document.body, { pixelRatio: Math.min(window.devicePixelRatio || 1, most / Math.max(w, h)), width: w, height: h, cacheBust: false, skipFonts: true });
+      // Duet dev shows a DEV tag and "in Duet dev" so it is never mistaken for the real Duet. The picture leaves them out, so it looks like the real one; keepDevTag brings them back.
+      const keep = a.keepDevTag === true;
+      const filter = (n: Node) => keep || !(n instanceof Element && (n.classList.contains("checkmark") || n.classList.contains("top-file-folder")));
+      const url = await toPng(document.body, { pixelRatio: Math.min(window.devicePixelRatio || 1, most / Math.max(w, h)), width: w, height: h, cacheBust: false, skipFonts: true, filter });
       return { text: "The Duet window as it is now.", image: { data: url.split(",")[1], mime: "image/png" } };
     } catch (e) {
       return fail(`The window could not be drawn: ${String(e instanceof Error ? e.message : e)}`);
