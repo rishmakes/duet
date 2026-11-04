@@ -10435,10 +10435,11 @@ button.ctx-item.store-make-option:hover {
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 3px;
+  padding: 4px;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--panel);
+  box-shadow: 0 6px 20px var(--shadow);
 }
 .kitchen-flip {
   position: absolute;
@@ -10458,7 +10459,7 @@ button.ctx-item.store-make-option:hover {
   display: grid;
   place-items: center;
   width: 30px;
-  height: 26px;
+  height: 30px;
   border: 0;
   border-radius: 999px;
   background: none;
@@ -10488,9 +10489,20 @@ button.ctx-item.store-make-option:hover {
 .studio-bar .toolbar.row {
   flex: 0 1 auto;
   justify-content: center;
-  padding: 3px 8px;
+  gap: 2px;
+  padding: 4px;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--panel);
   box-shadow: 0 6px 20px var(--shadow);
+}
+/* same size, round selection and dark selected tool as Kitchen's pill */
+.studio-bar .toolbar.row .tool {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+}
+.studio-bar .toolbar.row .tool.on {
+  background: var(--text);
+  color: var(--panel);
 }
