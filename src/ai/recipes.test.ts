@@ -13,6 +13,7 @@ import {
   moveStepTo,
   readCook,
   readRecipe,
+  stepSkillIds,
   removeStep,
   sameDesign,
   startCooking,
@@ -81,11 +82,13 @@ describe("recipes", () => {
     expect(readRecipe(JSON.stringify({ name: "x" }))).toBeNull();
   });
 
-  it("keeps the skills a step picked when the recipe is read back", () => {
-    const withSkills = { ...r, steps: r.steps.map((s, i) => (i === 0 ? { ...s, skills: ["spacing"] } : s)) };
-    const back = readRecipe(JSON.stringify(withSkills));
-    expect(back?.steps[0].skills).toEqual(["spacing"]);
-    expect(back?.steps[1].skills).toBeUndefined();
+  it("keeps what a step uses when the recipe is read back, and drops what it cannot read", () => {
+    const uses = [{ kind: "skill", id: "spacing" }, { kind: "rocket", id: "x" }, "junk"];
+    const withUses = { ...r, steps: r.steps.map((s, i) => (i === 0 ? { ...s, uses } : s)) };
+    const back = readRecipe(JSON.stringify(withUses));
+    expect(back?.steps[0].uses).toEqual([{ kind: "skill", id: "spacing" }]);
+    expect(stepSkillIds(back!.steps[0])).toEqual(["spacing"]);
+    expect(stepSkillIds(back!.steps[1])).toEqual([]);
   });
 
   describe("a cook stays on its design", () => {

@@ -21,12 +21,21 @@ export interface Step {
   kind: StepKind;
   /** For the AI, what to do. For the designer, the question or what to look at. */
   does: string;
-  /** For an AI step, the skills it uses. Left out, it uses the skills turned on for the whole app. */
-  skills?: string[];
+  /** For an AI step, what it uses: skills today, scripts and plugins later. Nothing added means no skills. */
+  uses?: Use[];
   /** Where the box sits on the Kitchen board. */
   x: number;
   y: number;
 }
+
+/** One thing a step uses. Only skills are real today. */
+export interface Use {
+  kind: "skill";
+  id: string;
+}
+
+/** The skills a step uses, by id. */
+export const stepSkillIds = (step: Step): string[] => (step.uses ?? []).filter((u) => u.kind === "skill").map((u) => u.id);
 
 export interface Recipe {
   id: string;
@@ -163,7 +172,9 @@ export function readRecipe(text: string): Recipe | null {
         title: typeof s.title === "string" ? s.title : `Step ${i + 1}`,
         kind: s.kind === "ask" || s.kind === "review" ? s.kind : "ai",
         does: typeof s.does === "string" ? s.does : "",
-        ...(Array.isArray(s.skills) ? { skills: s.skills.filter((k): k is string => typeof k === "string") } : {}),
+        ...(Array.isArray(s.uses)
+          ? { uses: s.uses.filter((u): u is Use => !!u && typeof u === "object" && (u as Use).kind === "skill" && typeof (u as Use).id === "string").map((u) => ({ kind: u.kind, id: u.id })) }
+          : {}),
         x: typeof s.x === "number" ? s.x : 60 + (i % PER_ROW) * GAP,
         y: typeof s.y === "number" ? s.y : 80 + Math.floor(i / PER_ROW) * ROW,
       }));
@@ -519,7 +530,8 @@ async function go() {
   const aiSteps = c.recipe.steps.filter((s) => s.kind === "ai");
   const stepNum = aiSteps.indexOf(step) + 1;
   const shortLine = `Recipe "${c.recipe.name}", step ${stepNum} of ${aiSteps.length}: ${step.title}.`;
-  useStepSkills(step.skills);
+  // until steps can pick what they use, a step that never picked keeps the skills that are on
+  useStepSkills(step.uses ? stepSkillIds(step) : null);
   try {
     await sendToAgent(prompt);
   } finally {

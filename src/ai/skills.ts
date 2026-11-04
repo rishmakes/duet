@@ -165,6 +165,9 @@ const slug = (s: string) =>
     .replace(/^-+|-+$/g, "")
     .slice(0, 50);
 
+/** The id a skill of your own gets from its name. */
+export const mySkillId = (name: string) => `mine-${slug(name)}`;
+
 /** Save a skill of your own. Returns a message if it could not be saved. */
 export async function createSkill(name: string, rules: string): Promise<string | null> {
   const id = slug(name);
