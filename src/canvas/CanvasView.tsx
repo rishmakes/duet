@@ -431,8 +431,8 @@ function manyBox(doc: Doc, ids: string[]): Rect | null {
   return top.length > 1 ? unionRect(top.map((i) => worldBounds(doc, i))) : null;
 }
 
-/** The mouse is the same pen as the one in the toolbar, turned the other way; the tip, bottom right, is the point it draws from. */
-const PEN_CURSOR = `url("data:image/svg+xml,${encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 24 24'><g transform='translate(24 0) scale(-1 1)' fill='white' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><path d='M3.5 20.5C5 16.5 5 12.5 6.5 10.5C8 8.5 10.5 8 12.5 6.5L17.5 11.5C16 13.5 15.5 16 13.5 17.5C11.5 19 7.5 19 3.5 20.5zM12.5 6.5L15 4c.6-.6 1.4-.6 2 0l3 3c.6.6.6 1.4 0 2l-2.5 2.5M3.5 20.5l5.76-5.76'/><circle cx='10.5' cy='13.5' r='1.75'/></g></svg>")}") 22 22, crosshair`;
+/** The mouse is the same pen as the one in the toolbar, with the tip at the top left, which is the point it draws from, and the base at the bottom right. */
+const PEN_CURSOR = `url("data:image/svg+xml,${encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 24 24'><g transform='translate(0 24) scale(1 -1)' fill='white' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><path d='M3.5 20.5C5 16.5 5 12.5 6.5 10.5C8 8.5 10.5 8 12.5 6.5L17.5 11.5C16 13.5 15.5 16 13.5 17.5C11.5 19 7.5 19 3.5 20.5zM12.5 6.5L15 4c.6-.6 1.4-.6 2 0l3 3c.6.6.6 1.4 0 2l-2.5 2.5M3.5 20.5l5.76-5.76'/><circle cx='10.5' cy='13.5' r='1.75'/></g></svg>")}") 4 4, crosshair`;
 
 export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean }) {
   const wrapRef = useRef<HTMLDivElement>(null);

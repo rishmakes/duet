@@ -52,11 +52,12 @@ const PATHS: Record<IconName, React.ReactNode> = {
       <path d="M8.5 11V8.5a3.5 3.5 0 016.6-1.6" />
     </>
   ),
+  // the tip at the top left, the base at the bottom right
   pen: (
-    <>
+    <g transform="translate(0 24) scale(1 -1)">
       <path d="M3.5 20.5C5 16.5 5 12.5 6.5 10.5C8 8.5 10.5 8 12.5 6.5L17.5 11.5C16 13.5 15.5 16 13.5 17.5C11.5 19 7.5 19 3.5 20.5zM12.5 6.5L15 4c.6-.6 1.4-.6 2 0l3 3c.6.6.6 1.4 0 2l-2.5 2.5M3.5 20.5l5.76-5.76" />
       <circle cx="10.5" cy="13.5" r="1.75" />
-    </>
+    </g>
   ),
   brush: (
     <>
