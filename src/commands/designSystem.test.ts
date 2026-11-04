@@ -24,18 +24,34 @@ function design(): Doc {
 }
 
 describe("design system", () => {
-  it("is read from the design: spacing, corners, pieces and text styles", () => {
+  it("is read from the design: spacing, corners, components and text styles", () => {
     const d = runCommand(design(), "make_design_system", {});
-    expect(d.brand?.spacing).toEqual([16, 24]);
-    expect(d.brand?.corners).toEqual([8, 12]);
-    expect(d.brand?.pieces).toEqual(["b"]);
+    expect(d.system?.spacing).toEqual([16, 24]);
+    expect(d.system?.corners).toEqual([8, 12]);
+    expect(d.system?.components).toEqual(["b"]);
     const styles = Object.values(d.styles ?? {});
     expect(styles.map((s) => [s.name, s.fontSize])).toEqual([
       ["Heading", 32],
       ["Body", 16],
       ["Small", 12],
     ]);
+  });
+
+  it("with no brand kit yet, makes one too; with one, leaves it alone", () => {
+    const d = runCommand(design(), "make_design_system", {});
     expect(d.brand?.colours.map((c) => c.hex)).toContain("#ff6600");
+    let mine = runCommand(design(), "change_brand_kit", { colours: [{ name: "Ink", hex: "#111111" }] });
+    mine = runCommand(mine, "make_design_system", {});
+    expect(mine.brand?.colours.map((c) => c.name)).toEqual(["Ink"]);
+  });
+
+  it("brand assets are not taken as UI components", () => {
+    let d = runCommand(design(), "create_element", { id: "lt", type: "frame", x: 500, y: 0, width: 300, height: 60 });
+    d = runCommand(d, "change_brand_kit", { assets: ["lt"] });
+    expect(d.elements.lt.component).toBe(true);
+    d = runCommand(d, "make_design_system", {});
+    expect(d.system?.components).toEqual(["b"]);
+    expect(d.brand?.assets).toEqual(["lt"]);
   });
 
   it("making it does not change the design itself", () => {
@@ -47,7 +63,7 @@ describe("design system", () => {
   it("a design with no auto layout gets standard spacing steps", () => {
     let d = runCommand(emptyDoc(), "create_element", { id: "r", type: "rect", x: 0, y: 0, width: 10, height: 10 });
     d = runCommand(d, "make_design_system", {});
-    expect(d.brand?.spacing).toEqual([4, 8, 16, 24, 32, 48]);
+    expect(d.system?.spacing).toEqual([4, 8, 16, 24, 32, 48]);
   });
 
   it("changing a text style by name changes every text that uses it", () => {
@@ -73,75 +89,88 @@ describe("design system", () => {
     expect(d.elements.s.fontSize).toBe(11);
   });
 
-  it("colours by name: a known name changes and the design follows, a new name is added", () => {
-    let d = runCommand(design(), "set_design_system", { colours: [{ name: "Orange", hex: "#ff6600" }] });
-    d = runCommand(d, "set_design_system", { colours: [{ name: "orange", hex: "#ee5500" }, { name: "Ink", hex: "#111111" }] });
+  it("brand colours by name: a known name changes and the design follows, a new name is added", () => {
+    let d = runCommand(design(), "change_brand_kit", { colours: [{ name: "Orange", hex: "#ff6600" }] });
+    d = runCommand(d, "change_brand_kit", { colours: [{ name: "orange", hex: "#ee5500" }, { name: "Ink", hex: "#111111" }] });
     expect(d.brand?.colours.map((c) => [c.name, c.hex])).toEqual([
       ["Orange", "#ee5500"],
       ["Ink", "#111111"],
     ]);
     expect(d.elements.b.fill).toBe("#ee5500");
-    d = runCommand(d, "set_design_system", { removeColours: ["Ink"] });
+    d = runCommand(d, "change_brand_kit", { removeColours: ["Ink"] });
     expect(d.brand?.colours.length).toBe(1);
   });
 
-  it("spacing and corners are tidied; pieces become components", () => {
+  it("spacing and corners are tidied; components are made components", () => {
     let d = runCommand(design(), "create_element", { id: "card", type: "frame", x: 500, y: 0, width: 200, height: 100 });
-    d = runCommand(d, "set_design_system", { spacing: [8, 4, 8, -2, 16.4], corners: [0, 6], pieces: ["b", "card", "nope"] });
-    expect(d.brand?.spacing).toEqual([4, 8, 16]);
-    expect(d.brand?.corners).toEqual([6]);
-    expect(d.brand?.pieces).toEqual(["b", "card"]);
+    d = runCommand(d, "set_design_system", { spacing: [8, 4, 8, -2, 16.4], corners: [0, 6], components: ["b", "card", "nope"] });
+    expect(d.system?.spacing).toEqual([4, 8, 16]);
+    expect(d.system?.corners).toEqual([6]);
+    expect(d.system?.components).toEqual(["b", "card"]);
     expect(d.elements.card.component).toBe(true);
   });
 
-  it("the AI reads it as rules, without pieces that were deleted", () => {
+  it("the AI reads both, without components that were deleted", () => {
     let d = runCommand(design(), "make_design_system", {});
     let rules = brandRules(d);
+    expect(rules).toContain("Brand kit");
+    expect(rules).toContain("Design system");
     expect(rules).toContain("Spacing steps: 16, 24 px");
     expect(rules).toContain("Corner sizes: 8, 12 px");
     expect(rules).toContain("Heading");
-    expect(rules).toContain('b "');
     d = runCommand(d, "delete_elements", { ids: ["b"] });
     rules = brandRules(d);
-    expect(rules).not.toContain("Pieces:");
+    expect(rules).not.toContain("UI components:");
   });
 
-  it("is kept in the file", () => {
-    const d = runCommand(design(), "make_design_system", {});
+  it("both are kept in the file", () => {
+    let d = runCommand(design(), "create_element", { id: "lt", type: "frame", x: 500, y: 0, width: 300, height: 60 });
+    d = runCommand(d, "change_brand_kit", { assets: ["lt"] });
+    d = runCommand(d, "make_design_system", {});
     const back = parseDoc(serializeDoc(d));
-    expect(back.brand?.spacing).toEqual(d.brand?.spacing);
-    expect(back.brand?.corners).toEqual(d.brand?.corners);
-    expect(back.brand?.pieces).toEqual(d.brand?.pieces);
+    expect(back.system).toEqual(d.system);
+    expect(back.brand?.assets).toEqual(["lt"]);
   });
 
-  it("is saved as a kit with its pieces, and the components the pieces are built from", () => {
+  it("a brand kit is saved as a kit with its assets, and no design system", () => {
+    let d = runCommand(design(), "create_element", { id: "lt", type: "frame", x: 500, y: 0, width: 300, height: 60 });
+    d = runCommand(d, "change_brand_kit", { colours: [{ name: "Orange", hex: "#ff6600" }], assets: ["lt"] });
+    d = runCommand(d, "make_design_system", {});
+    const kit = readKit(JSON.stringify(kitFromDoc(d, "Rish", false)))!;
+    expect(kit.brand.assets).toEqual(["lt"]);
+    expect(kit.system).toBeUndefined();
+    expect(Object.keys(kit.elements)).toEqual(["lt"]);
+  });
+
+  it("a design system is saved with its brand kit, its components and what they are built from", () => {
     let d = runCommand(design(), "create_element", { id: "card", type: "frame", x: 500, y: 0, width: 200, height: 100 });
     d = runCommand(d, "create_instance", { componentId: "b", id: "cb", x: 10, y: 10, parentId: "card" });
     d = runCommand(d, "make_design_system", {});
-    d = runCommand(d, "set_design_system", { pieces: ["card"] });
-    const kit = readKit(JSON.stringify(kitFromDoc(d, "Clay")))!;
+    d = runCommand(d, "set_design_system", { components: ["card"] });
+    const kit = readKit(JSON.stringify(kitFromDoc(d, "Clay", true)))!;
     expect(kit.name).toBe("Clay");
-    expect(kit.pieces).toEqual(["card"]);
+    expect(kit.system?.components).toEqual(["card"]);
     expect(Object.keys(kit.elements).sort()).toEqual(["b", "card", "cb"]);
     expect(kit.elements.b.parentId).toBeNull();
-    expect(kit.textStyles.length).toBe(3);
-    expect(kit.spacing).toEqual([16, 24]);
+    expect(kit.system?.textStyles.length).toBe(3);
+    expect(kit.system?.spacing).toEqual([16, 24]);
+    expect(kit.brand.colours.length).toBeGreaterThan(0);
   });
 
-  it("a kit used in another project brings its system and places its pieces beside the design", () => {
+  it("a kit used in another project brings both and places its components beside the design", () => {
     let src = runCommand(design(), "make_design_system", {});
-    src = runCommand(src, "set_design_system", { colours: [{ name: "Orange", hex: "#ff6600" }] });
-    const kit = kitFromDoc(src, "Clay");
+    src = runCommand(src, "change_brand_kit", { colours: [{ name: "Orange", hex: "#ff6600" }] });
+    const kit = kitFromDoc(src, "Clay", true);
     let d = runCommand(emptyDoc(), "create_element", { id: "home", type: "frame", x: 0, y: 0, width: 300, height: 600 });
     d = runCommand(d, "use_kit", { kit });
-    expect(d.brand?.pieces).toEqual(["b"]);
+    expect(d.system?.components).toEqual(["b"]);
     expect(d.elements.b.component).toBe(true);
     expect(d.elements.b.x).toBe(420);
     expect(d.rootIds).toEqual(["home", "b"]);
-    expect(d.brand?.spacing).toEqual([16, 24]);
+    expect(d.system?.spacing).toEqual([16, 24]);
     expect(Object.values(d.styles ?? {}).map((s) => s.name)).toEqual(["Heading", "Body", "Small"]);
     expect(d.brand?.colours.find((c) => c.name === "Orange")?.hex).toBe("#ff6600");
-    // using it again does not place the pieces twice
+    // using it again does not place anything twice
     const again = runCommand(d, "use_kit", { kit });
     expect(again.rootIds).toEqual(["home", "b"]);
     expect(Object.keys(again.styles ?? {}).length).toBe(3);

@@ -440,13 +440,13 @@ export const TOOLS: ToolDef[] = [
     inputSchema: { type: "object", properties: { ids, style: str }, required: ["ids", "style"] },
   },
   {
-    name: "make_design_system",
-    description: "Make the project's design system from what the design already uses: its colours and fonts, the gaps and padding of its auto layouts as spacing steps, its corner sizes, its components as pieces, and its most used kinds of text as text styles (when it has none). What is already in it stays. Use it when the designer asks for a design system or a brand kit for a design that exists. Then read get_working_rules, and tidy names and steps with change_design_system. The designer is always asked first.",
+    name: "make_brand_kit",
+    description: "Make the project's brand kit from what the design already uses: its colours, most used first, and its fonts. The brand kit is who the designer or their client is, in everything they make: posts, videos and UI. What is already in it stays. Then read get_working_rules and name the colours with change_brand_kit. The designer is always asked first.",
     inputSchema: { type: "object", properties: { most: { type: "number", description: "The most colours to keep, 12 if left out." } } },
   },
   {
-    name: "change_design_system",
-    description: "Change the project's design system: what every design in it, and you, keep to. Give only what changes. colours by name: a name the kit has takes the new colour and the whole design follows; a new name is added. textStyles by name the same way: changing one changes all text that uses it. spacing, corners and pieces replace their lists. pieces are ids of things the design is built from, such as a button, a card or a header; each becomes a component. To build a piece first, draw it once in a frame, then name it here. The designer is always asked first.",
+    name: "change_brand_kit",
+    description: "Change the project's brand kit: who the designer or their client is, in everything they make. Give only what changes. colours by name: a name the kit has takes the new colour and the whole design follows; a new name is added. assets are ids of things used again and again in posts, videos and pages, such as a lower third, a logo intro or a post frame; each becomes a component, and the list replaces the old one. logoId is the logo, or an empty string for none. The designer is always asked first.",
     inputSchema: {
       type: "object",
       properties: {
@@ -454,9 +454,25 @@ export const TOOLS: ToolDef[] = [
         removeColours: { type: "array", items: str },
         fonts: { type: "array", items: str },
         voice: { type: "string", description: "One line on how the brand speaks." },
+        logoId: str,
+        assets: ids,
+      },
+    },
+  },
+  {
+    name: "make_design_system",
+    description: "Make the project's design system for UI from what the design already uses: the gaps and padding of its auto layouts as spacing steps, its corner sizes, its components (other than brand assets) as UI components, and its most used kinds of text as text styles (when it has none). It sits on top of the brand kit and takes its colours and fonts from it; with no brand kit yet, one is made too. What is already in it stays. Use it when the designer asks for a design system for an app, a site or screens. Then read get_working_rules and tidy it with change_design_system. The designer is always asked first.",
+    inputSchema: { type: "object", properties: { most: { type: "number", description: "If a brand kit is made too: the most colours to keep, 12 if left out." } } },
+  },
+  {
+    name: "change_design_system",
+    description: "Change the project's design system for UI. Give only what changes. textStyles by name: a name the file has is changed and all text using it follows; a new name is added. spacing, corners and components replace their lists. components are ids of the UI parts screens are built from, such as a button, a card or a header; each becomes a component. To make one first, draw it once in a frame, then name it here. Colours and fonts belong to the brand kit: use change_brand_kit for those. The designer is always asked first.",
+    inputSchema: {
+      type: "object",
+      properties: {
         spacing: { type: "array", items: num, description: "Pixel steps, like 4, 8, 16, 24, 32, 48." },
         corners: { type: "array", items: num, description: "Corner sizes in pixels, like 4, 8, 16." },
-        pieces: ids,
+        components: ids,
         textStyles: {
           type: "array",
           items: { type: "object", properties: { name: str, fontFamily: str, fontSize: num, fontWeight: num, lineHeight: { type: "number", description: "A multiple of the size, like 1.3." }, letterSpacing: num }, required: ["name", "fontSize"] },
@@ -467,7 +483,7 @@ export const TOOLS: ToolDef[] = [
   },
   {
     name: "use_kit",
-    description: "Bring one of the designer's saved kits into this project: its colours, fonts, text styles, spacing and corners join the design system, and its pieces are placed beside the design, ready for create_instance. get_working_rules lists the saved kits. Use it when the designer asks to use a kit or a design system they made before. The designer is always asked first.",
+    description: "Bring one of the designer's saved kits into this project: its brand kit joins this project's, its design system too when it has one, and its brand assets and UI components are placed beside the design, ready for create_instance. get_working_rules lists the saved kits. Use it when the designer asks to use a kit or a design system they made before. The designer is always asked first.",
     inputSchema: { type: "object", properties: { name: str }, required: ["name"] },
   },
   {
@@ -532,6 +548,8 @@ export const TOOLS: ToolDef[] = [
   },
 ];
 
+/** Tools that make or change the brand kit or the design system: the designer always says yes first. */
+const KIT_TOOLS = new Set(["make_brand_kit", "change_brand_kit", "make_design_system", "change_design_system", "use_kit"]);
 const EDITS = new Set(["apply_text_style", "add_board", "open_board", "rename_board", "move_to_board", "resolve_comment", "add_comment", "set_grade", "copy_grade", "create_instance", "create_element", "create_elements", "set_props", "duplicate_elements", "move_elements", "resize_element", "reparent_elements", "make_mask", "trace_image", "set_duration", "set_work_area", "set_timing", "set_entrance", "animate", "set_curve"]);
 /** Things the designer is asked about first in Ask first mode: losing work, and reading or writing a file on the computer. */
 const RISKY = new Set(["load_look", "delete_elements", "delete_board", "place_image", "place_video", "place_sound", "export_frame", "export_video"]);
@@ -602,7 +620,9 @@ function designChanges(a: Args): string {
   if (list(a.removeTextStyles).length) parts.push(`take out the styles ${list(a.removeTextStyles).join(", ")}`);
   if (list(a.spacing).length) parts.push(`spacing ${list(a.spacing).join(", ")}`);
   if (list(a.corners).length) parts.push(`corners ${list(a.corners).join(", ")}`);
-  if (Array.isArray(a.pieces)) parts.push(a.pieces.length ? `pieces ${namesOf(a.pieces)}` : "no pieces");
+  if (Array.isArray(a.components)) parts.push(a.components.length ? `UI components ${namesOf(a.components)}` : "no UI components");
+  if (Array.isArray(a.assets)) parts.push(a.assets.length ? `brand assets ${namesOf(a.assets)}` : "no brand assets");
+  if (typeof a.logoId === "string") parts.push(a.logoId ? `logo ${namesOf([a.logoId])}` : "no logo");
   if (typeof a.voice === "string") parts.push(`voice "${a.voice.slice(0, 40)}"`);
   return parts.join("; ") || "nothing";
 }
@@ -680,12 +700,16 @@ export function summarise(tool: string, a: Args): string {
       return `Comment: ${String(a.text).slice(0, 40)}`;
     case "apply_text_style":
       return a.styleId ? `Give ${namesOf(a.ids)} the text style ${R.currentDoc().styles?.[String(a.styleId)]?.name ?? ""}` : `Let ${namesOf(a.ids)} go its own way from its text style`;
+    case "make_brand_kit":
+      return "Make a brand kit from this design: its colours and fonts";
+    case "change_brand_kit":
+      return `Change the brand kit: ${designChanges(a)}`;
     case "make_design_system":
-      return "Make a design system from this design: colours, fonts, text styles, spacing, corners and pieces";
+      return R.currentDoc().brand ? "Make a design system from this design: text styles, spacing, corners and UI components" : "Make a brand kit and a design system from this design: colours, fonts, text styles, spacing, corners and UI components";
     case "change_design_system":
       return `Change the design system: ${designChanges(a)}`;
     case "use_kit":
-      return `Use the kit "${(a.kit as { name?: string } | undefined)?.name ?? ""}": its colours, fonts, text styles, spacing and pieces join this project`;
+      return `Use the kit "${(a.kit as { name?: string } | undefined)?.name ?? ""}" in this project`;
     case "set_grade": {
       if (!a.grade) return `Reset the colour of ${namesOf(a.ids)}`;
       const g = a.grade as Record<string, unknown>;
@@ -1739,9 +1763,9 @@ async function answerTool(name: string, raw: unknown, by?: string): Promise<Tool
     if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("duet:script-saved", { detail: saved.id }));
     return { text: `${had ? "Updated" : "Saved"} the script "${nm}". The designer can try it, change it and run it from the Store, under Yours. It has not been run yet.` };
   }
-  if (name === "make_design_system" || name === "change_design_system" || name === "use_kit") {
+  if (KIT_TOOLS.has(name)) {
     let args: Args = a;
-    if (name === "make_design_system") args = { most: typeof a.most === "number" ? a.most : undefined };
+    if (name === "make_design_system" || name === "make_brand_kit") args = { most: typeof a.most === "number" ? a.most : undefined };
     if (name === "use_kit") {
       const { getKits } = await import("../store/kits");
       const want = String(a.name ?? "").trim().toLowerCase();
@@ -1749,15 +1773,15 @@ async function answerTool(name: string, raw: unknown, by?: string): Promise<Tool
       if (!found) return fail(`No saved kit called ${String(a.name)}. The designer has: ${getKits().map((k) => k.kit.name).join(", ") || "none yet"}.`);
       args = { kit: found.kit };
     }
-    // a design system shapes everything made in the project after it, so the designer always says yes first, whatever the mode
+    // a brand kit or design system shapes everything made in the project after it, so the designer always says yes first, whatever the mode
     const summary = summarise(name, args);
     void invoke("bring_back").catch(() => undefined);
-    if (!(await askDesigner(R.live || !R.file ? summary : `In "${tabName(R.file)}": ${summary}`))) return fail("The designer said not now. Do not change the design system.");
+    if (!(await askDesigner(R.live || !R.file ? summary : `In "${tabName(R.file)}": ${summary}`))) return fail("The designer said not now. Do not change the brand kit or the design system.");
     const before = R.currentDoc();
     const done = await apply(name, args, by);
     if (done.isError) return done;
-    if (R.currentDoc() === before) return { text: "Nothing in the design system changed. Check the names and values you gave." };
-    return { text: `Done. The design system now:\n${brandRules(R.currentDoc())}` };
+    if (R.currentDoc() === before) return { text: "Nothing changed. Check the names and values you gave." };
+    return { text: `Done. The brand kit and design system now:\n${brandRules(R.currentDoc())}` };
   }
   if (name === "save_version") {
     if (typeof a.name !== "string" || !a.name.trim()) return fail("Give the version a name.");

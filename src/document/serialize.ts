@@ -157,6 +157,7 @@ export function serializeDoc(doc: Doc): string {
   if (doc.background) out.background = doc.background;
   if (doc.styles && Object.keys(doc.styles).length) out.styles = doc.styles;
   if (doc.brand) out.brand = doc.brand;
+  if (doc.system) out.system = doc.system;
   if (doc.guides && (doc.guides.x.length || doc.guides.y.length)) out.guides = { x: [...doc.guides.x].sort((a, b) => a - b), y: [...doc.guides.y].sort((a, b) => a - b) };
   if (doc.comments?.length) out.comments = doc.comments;
   if (doc.pages) out.pages = true;
@@ -213,6 +214,7 @@ export function parseDoc(text: string): Doc {
   }
   const styles = r.styles && typeof r.styles === "object" ? (r.styles as Doc["styles"]) : undefined;
   const brand = readBrand(r.brand);
+  const system = readSystem(r.system);
   const background = typeof r.background === "string" && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(r.background) ? r.background : undefined;
   const g = (r as { guides?: { x?: unknown; y?: unknown } }).guides;
   const nums = (v: unknown) => (Array.isArray(v) ? v.filter((n): n is number => typeof n === "number" && Number.isFinite(n)) : []);
@@ -227,7 +229,7 @@ export function parseDoc(text: string): Doc {
     const saved = new Set((el.tracks ?? []).map((t) => t.id));
     if (oldTracks(el) || el.childIds.some((c) => elements[c] && !saved.has(elements[c].track ?? ""))) keepTracks({ version: 1, rootIds: [], elements }, el.id);
   }
-  return relayout(syncInstances({ version: 1, rootIds: r.rootIds as string[], elements, ...(background ? { background } : {}), ...(styles ? { styles } : {}), ...(brand ? { brand } : {}), ...(guides ? { guides } : {}), ...(comments.length ? { comments } : {}), ...(r.pages === true ? { pages: true as const } : {}), ...(boards ? { boards, board } : {}) }));
+  return relayout(syncInstances({ version: 1, rootIds: r.rootIds as string[], elements, ...(background ? { background } : {}), ...(styles ? { styles } : {}), ...(brand ? { brand } : {}), ...(system ? { system } : {}), ...(guides ? { guides } : {}), ...(comments.length ? { comments } : {}), ...(r.pages === true ? { pages: true as const } : {}), ...(boards ? { boards, board } : {}) }));
 }
 
 /** A brand kit read from a file, keeping only what makes sense. */
@@ -239,18 +241,27 @@ function readBrand(v: unknown): Doc["brand"] {
     ? b.colours.filter((c): c is { id: string; name: string; hex: string } => !!c && typeof c.id === "string" && typeof c.name === "string" && hex(c.hex)).map((c) => ({ id: c.id, name: c.name, hex: c.hex }))
     : [];
   const fonts = Array.isArray(b.fonts) ? b.fonts.filter((f): f is string => typeof f === "string" && !!f.trim()) : [];
-  const nums = (l: unknown) => (Array.isArray(l) ? l.filter((n): n is number => typeof n === "number" && Number.isFinite(n) && n > 0) : []);
-  const spacing = nums(b.spacing);
-  const corners = nums(b.corners);
-  const pieces = Array.isArray(b.pieces) ? b.pieces.filter((id): id is string => typeof id === "string") : [];
+  const assets = ids(b.assets);
   return {
     colours,
     fonts,
     ...(typeof b.logoId === "string" ? { logoId: b.logoId } : {}),
     ...(typeof b.voice === "string" && b.voice.trim() ? { voice: b.voice } : {}),
     ...(b.locked === true ? { locked: true as const } : {}),
-    ...(spacing.length ? { spacing } : {}),
-    ...(corners.length ? { corners } : {}),
-    ...(pieces.length ? { pieces } : {}),
+    ...(assets.length ? { assets } : {}),
   };
+}
+
+const nums = (l: unknown) => (Array.isArray(l) ? l.filter((n): n is number => typeof n === "number" && Number.isFinite(n) && n > 0) : []);
+const ids = (l: unknown) => (Array.isArray(l) ? l.filter((id): id is string => typeof id === "string") : []);
+
+/** A design system read from a file, keeping only what makes sense. */
+function readSystem(v: unknown): Doc["system"] {
+  if (!v || typeof v !== "object") return undefined;
+  const s = v as Record<string, unknown>;
+  const spacing = nums(s.spacing);
+  const corners = nums(s.corners);
+  const components = ids(s.components);
+  if (!spacing.length && !corners.length && !components.length) return undefined;
+  return { ...(spacing.length ? { spacing } : {}), ...(corners.length ? { corners } : {}), ...(components.length ? { components } : {}) };
 }

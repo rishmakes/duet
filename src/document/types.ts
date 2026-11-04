@@ -280,12 +280,18 @@ export interface Brand {
   voice?: string;
   /** True when the AI may only use the kit's colours and fonts. */
   locked?: true;
-  /** Spacing steps in pixels, smallest first, like 4, 8, 16, 32. Left out when there are none. */
+  /** Brand assets used in everything, like lower thirds, a logo intro or a post frame: ids of components. */
+  assets?: string[];
+}
+
+/** How a UI is built, on top of the brand kit. Its text styles are the file's styles. */
+export interface DesignSystem {
+  /** Spacing steps in pixels, smallest first, like 4, 8, 16, 32. */
   spacing?: number[];
-  /** Corner sizes in pixels, smallest first. Left out when there are none. */
+  /** Corner sizes in pixels, smallest first. */
   corners?: number[];
-  /** The pieces a design is built from, like buttons, cards and headers: ids of components. */
-  pieces?: string[];
+  /** UI components the screens are built from, like buttons, cards and headers: ids of components. */
+  components?: string[];
 }
 
 export interface Doc {
@@ -296,6 +302,8 @@ export interface Doc {
   styles?: Record<string, TextStyle>;
   /** The brand kit, or left out when there is none. */
   brand?: Brand;
+  /** The design system for UI, or left out when there is none. */
+  system?: DesignSystem;
   /** Ruler guides pulled out from the rulers: the page pixel each runs through. Left out when there are none. */
   guides?: { x: number[]; y: number[] };
   /** Comments pinned on the canvas, oldest first. Left out when there are none. */

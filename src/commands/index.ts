@@ -19,8 +19,8 @@ import { addBoard, deleteBoard, moveBoard, moveToBoard, openBoardCmd, renameBoar
 import type { AddBoardArgs, DeleteBoardArgs, MoveBoardArgs, MoveToBoardArgs, OpenBoardArgs, RenameBoardArgs } from "./boards";
 import { addBrandColour, changeBrandColour, makeBrandKit, removeBrandColour, setBrand } from "./brand";
 import type { AddBrandColourArgs, ChangeBrandColourArgs, MakeBrandKitArgs, RemoveBrandColourArgs, SetBrandArgs } from "./brand";
-import { makeDesignSystem, setDesignSystem, useKit } from "./designSystem";
-import type { MakeDesignSystemArgs, SetDesignSystemArgs, UseKitArgs } from "./designSystem";
+import { changeBrandKit, makeDesignSystem, setDesignSystem, useKit } from "./designSystem";
+import type { ChangeBrandKitArgs, MakeDesignSystemArgs, SetDesignSystemArgs, UseKitArgs } from "./designSystem";
 import type { SetPagesArgs, AddPageArgs, ReorderPagesArgs } from "./pages";
 
 /**
@@ -2419,6 +2419,11 @@ const makeBrandKitDef: CommandDef<MakeBrandKitArgs> = {
   run: (doc, a) => makeBrandKit(doc, a),
 };
 
+const changeBrandKitDef: CommandDef<ChangeBrandKitArgs> = {
+  label: () => "Change the brand kit",
+  run: (doc, a) => changeBrandKit(doc, a),
+};
+
 const setDesignSystemDef: CommandDef<SetDesignSystemArgs> = {
   label: () => "Change the design system",
   run: (doc, a) => setDesignSystem(doc, a),
@@ -2437,6 +2442,7 @@ const useKitDef: CommandDef<UseKitArgs> = {
 // ---- registry ----
 export const commands = {
   use_kit: useKitDef,
+  change_brand_kit: changeBrandKitDef,
   set_design_system: setDesignSystemDef,
   make_design_system: makeDesignSystemDef,
   set_brand: setBrandDef,
