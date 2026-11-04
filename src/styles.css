@@ -9225,6 +9225,15 @@ input.chathome-name.rename {
   margin-bottom: 24px;
   border-bottom: 1px solid var(--line);
 }
+.store-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.store-source-switch {
+  margin-bottom: 3px;
+}
 .store-tabs {
   display: flex;
   align-items: center;
@@ -9311,6 +9320,22 @@ input.chathome-name.rename {
   text-align: center;
   color: var(--muted);
   font-size: 13px;
+}
+.store-yours-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 56px 16px;
+  text-align: center;
+}
+.store-yours-empty-line {
+  color: var(--muted);
+  font-size: 13.5px;
+}
+.store-yours-empty .store-make-btn {
+  margin-bottom: 0;
 }
 .store-section {
   display: flex;
@@ -9439,6 +9464,9 @@ input.chathome-name.rename {
 .store-page button.mini.primary:hover,
 .store-page .pill.primary:hover {
   opacity: 0.9;
+}
+.store-page .pill:hover {
+  border-color: var(--text);
 }
 .store-field-input {
   width: 100%;

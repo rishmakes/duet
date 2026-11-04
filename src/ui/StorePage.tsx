@@ -59,9 +59,14 @@ export default function StorePage({ onClose }: StorePageProps) {
   const skills = useSkills();
   const counts = countByKind(things);
 
+  const [source, setSource] = useState<"duet" | "yours">("duet");
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<ThingKind | "all">("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const selectedThing = selectedId ? things.find((t) => t.id === selectedId) : null;
+  const selectedSkill = selectedThing?.kind === "skill" ? skills.find((s) => s.id === selectedThing.id) : null;
+  const selectedSkillRules = selectedSkill ? skillParts(selectedSkill.body, selectedSkill.name).rules : "";
 
   const [editingId, setEditingId] = useState<"new" | string | null>(null);
   const [skillName, setSkillName] = useState("");
@@ -77,6 +82,9 @@ export default function StorePage({ onClose }: StorePageProps) {
           setEditingId(null);
           setNote(null);
         } else if (selectedId) {
+          if (selectedThing && selectedThing.by === "You") {
+            setSource("yours");
+          }
           setSelectedId(null);
         } else {
           onClose();
@@ -85,7 +93,14 @@ export default function StorePage({ onClose }: StorePageProps) {
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [editingId, selectedId, onClose]);
+  }, [editingId, selectedId, selectedThing, onClose]);
+
+  const handleBack = () => {
+    if (selectedThing && selectedThing.by === "You") {
+      setSource("yours");
+    }
+    setSelectedId(null);
+  };
 
   const startNew = () => {
     setSelectedId(null);
@@ -122,6 +137,7 @@ export default function StorePage({ onClose }: StorePageProps) {
       const newId = mySkillId(skillName);
       setEditingId(null);
       setSelectedId(newId);
+      setSource("yours");
       setNote(null);
     } else if (editingId) {
       const result = await updateSkill(editingId, skillName, skillLine, skillRules);
@@ -131,6 +147,9 @@ export default function StorePage({ onClose }: StorePageProps) {
       }
       setEditingId(null);
       setSelectedId(editingId);
+      if (selectedThing && selectedThing.by === "You") {
+        setSource("yours");
+      }
       setNote(null);
     }
   };
@@ -153,16 +172,15 @@ export default function StorePage({ onClose }: StorePageProps) {
       setNote(problems.join(" "));
     } else if (paths.length > 0) {
       setEditingId(null);
+      setSource("yours");
       setNote(null);
     }
   };
 
-  const selectedThing = selectedId ? things.find((t) => t.id === selectedId) : null;
-  const selectedSkill = selectedThing?.kind === "skill" ? skills.find((s) => s.id === selectedThing.id) : null;
-  const selectedSkillRules = selectedSkill ? skillParts(selectedSkill.body, selectedSkill.name).rules : "";
-
+  const yourThings = things.filter((t) => t.by === "You");
+  const sourceThings = things.filter((t) => (source === "yours" ? t.by === "You" : t.by !== "You"));
   const availableKinds = (["skill", "script", "plugin"] as const).filter((k) => counts[k] > 0);
-  const filtered = findThings(things, { query, kind: kindFilter });
+  const filtered = findThings(sourceThings, { query, kind: kindFilter });
 
   const isSearching = query.trim().length > 0;
   const onSkills = filtered.filter((t) => t.kind === "skill" && t.on);
@@ -170,12 +188,24 @@ export default function StorePage({ onClose }: StorePageProps) {
   const plugins = filtered.filter((t) => t.kind === "plugin");
   const scripts = filtered.filter((t) => t.kind === "script");
 
-  const sections = [
+  const duetSections = [
     { key: "on", title: "On", items: onSkills },
     { key: "off", title: "Off until you want it", items: offSkills },
     { key: "plugins", title: "Plugins", items: plugins },
     { key: "scripts", title: "Scripts", items: scripts },
   ].filter((s) => s.items.length > 0);
+
+  const yourSkills = filtered.filter((t) => t.kind === "skill");
+  const yourScripts = filtered.filter((t) => t.kind === "script");
+  const yourPlugins = filtered.filter((t) => t.kind === "plugin");
+
+  const yoursSections = [
+    { key: "skills", title: "Skills", items: yourSkills },
+    { key: "scripts", title: "Scripts", items: yourScripts },
+    { key: "plugins", title: "Plugins", items: yourPlugins },
+  ].filter((s) => s.items.length > 0);
+
+  const sections = source === "duet" ? duetSections : yoursSections;
 
   const renderRow = (thing: Thing) => (
     <div
@@ -303,7 +333,7 @@ export default function StorePage({ onClose }: StorePageProps) {
       ) : selectedThing ? (
         <div className="store-thing-page">
           <div className="skills-page-head store-thing-head">
-            <button className="pill" onClick={() => setSelectedId(null)}>
+            <button className="pill" onClick={handleBack}>
               ← Back
             </button>
             <button className="pill" onClick={onClose}>
@@ -346,6 +376,7 @@ export default function StorePage({ onClose }: StorePageProps) {
                     className="pill store-delete-btn"
                     onClick={async () => {
                       await deleteSkill(selectedThing.id);
+                      setSource("yours");
                       setSelectedId(null);
                     }}
                   >
@@ -409,41 +440,77 @@ export default function StorePage({ onClose }: StorePageProps) {
           </div>
 
           <div className="store-toolbar">
-            <div className="store-tabs" role="tablist">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={kindFilter === "all"}
-                className={`store-tab ${kindFilter === "all" ? "on" : ""}`}
-                onClick={() => setKindFilter("all")}
-              >
-                All
-              </button>
-              {availableKinds.map((k) => (
+            <div className="store-toolbar-left">
+              <div className="kind-quiet store-source-switch" role="tablist" aria-label="Source">
                 <button
-                  key={k}
                   type="button"
                   role="tab"
-                  aria-selected={kindFilter === k}
-                  className={`store-tab ${kindFilter === k ? "on" : ""}`}
-                  onClick={() => setKindFilter(k)}
+                  aria-selected={source === "duet"}
+                  className={source === "duet" ? "on" : ""}
+                  onClick={() => setSource("duet")}
                 >
-                  {KIND_WORDS[k].many}
+                  From Duet
                 </button>
-              ))}
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={source === "yours"}
+                  className={source === "yours" ? "on" : ""}
+                  onClick={() => setSource("yours")}
+                >
+                  Yours
+                </button>
+              </div>
+
+              <div className="store-tabs" role="tablist" aria-label="Kind">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={kindFilter === "all"}
+                  className={`store-tab ${kindFilter === "all" ? "on" : ""}`}
+                  onClick={() => setKindFilter("all")}
+                >
+                  All
+                </button>
+                {availableKinds.map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    role="tab"
+                    aria-selected={kindFilter === k}
+                    className={`store-tab ${kindFilter === k ? "on" : ""}`}
+                    onClick={() => setKindFilter(k)}
+                  >
+                    {KIND_WORDS[k].many}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <button
-              type="button"
-              className="pill store-make-btn"
-              onClick={startNew}
-            >
-              + Make new
-            </button>
+            {!(source === "yours" && yourThings.length === 0) && (
+              <button
+                type="button"
+                className="pill store-make-btn"
+                onClick={startNew}
+              >
+                + Make new
+              </button>
+            )}
           </div>
 
           <div className="store-list">
-            {isSearching ? (
+            {source === "yours" && yourThings.length === 0 ? (
+              <div className="store-yours-empty">
+                <div className="store-yours-empty-line">Skills, scripts and plugins you make live here</div>
+                <button
+                  type="button"
+                  className="pill store-make-btn"
+                  onClick={startNew}
+                >
+                  + Make new
+                </button>
+              </div>
+            ) : isSearching ? (
               filtered.length === 0 ? (
                 <div className="store-empty">Nothing found</div>
               ) : (
