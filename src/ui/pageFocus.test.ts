@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { openPage, showAllPages, resetPageFocus, getActivePage, isAllPages } from "./pageFocus";
+import { openPage, showAllPages, resetPageFocus, getActivePage, isAllPages, newPageFromAi } from "./pageFocus";
 import { emptyDoc } from "../document/types";
 import { runCommand } from "../commands";
 
@@ -45,5 +45,19 @@ describe("pageFocus", () => {
 
     expect(isAllPages(doc2)).toBe(false);
     expect(getActivePage(doc2)).toBe("tab2-p1");
+  });
+});
+
+describe("following the AI to a new page", () => {
+  const pages = () => runCommand(runCommand(emptyDoc(), "set_pages", { on: true }), "add_page", { id: "p1" });
+  it("goes to the page an AI just made, and never moves for the designer's own page", () => {
+    const before = pages();
+    const after = runCommand(before, "add_page", { id: "p2" });
+    expect(newPageFromAi(before, after, "Claude Code")).toBe("p2");
+    expect(newPageFromAi(before, after, "you")).toBeNull();
+  });
+  it("stays put when the AI changes things on the page already open", () => {
+    const before = pages();
+    expect(newPageFromAi(before, before, "Claude Code")).toBeNull();
   });
 });

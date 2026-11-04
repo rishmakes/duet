@@ -27,8 +27,17 @@ export function resetPageFocus() {
   notify();
 }
 
+/** Page view shows one page, so when the AI makes a new page the view follows it, or the designer would never see the work. */
+export function newPageFromAi(before: Doc | undefined, after: Doc, actor: string): string | null {
+  if (actor === "you" || !before || !after.pages) return null;
+  const had = new Set(before.rootIds);
+  const fresh = after.rootIds.filter((id) => !had.has(id) && after.elements[id]?.type === "frame");
+  return fresh.length ? fresh[fresh.length - 1] : null;
+}
+
 // Reset page focus whenever tabs change or project changes
 let lastTabId: string | null = null;
+let lastDoc: Doc | undefined;
 if (typeof window !== "undefined") {
   window.addEventListener("duet:tabs", resetPageFocus);
   subscribeStore(() => {
@@ -38,6 +47,11 @@ if (typeof window !== "undefined") {
       resetPageFocus();
     }
     lastTabId = curId;
+    const now = s.timeline[s.cursor];
+    const doc = now?.doc;
+    const follow = doc && lastDoc && doc !== lastDoc ? newPageFromAi(lastDoc, doc, now.actor) : null;
+    lastDoc = doc;
+    if (follow && !allPagesMode) openPage(follow);
   });
 }
 

@@ -135,7 +135,7 @@ export const SCREEN: Recipe = {
       id: "screen-finish",
       title: "Finish and check",
       kind: "ai",
-      does: "Do what each open comment asks, then resolve it. Then make the finished screen from the layout in the brand kit's colours and fonts, using the design system's text styles, spacing, corners and components. Never leave an empty picture box: use a brand colour block or a simple shape from the kit instead, or no picture. Then look at the screen and fix gaps under text, uneven edges, text that runs out of its box, and low contrast. Say what you fixed. Change nothing else.",
+      does: "Do what each open comment asks, then resolve it. Then make the rough layout into the finished screen, in place: brand kit colours and fonts only, and the design system's text styles, spacing, corners and components. Fix the components themselves when they are the problem, so every copy follows. Rules: never leave an empty picture box, fill it with a rounded block in a brand colour, a different one for each item, with a simple shape or a first letter in the brand font; fill the screen top to bottom with real content, no empty gap under the list; every item the same width and the same left edge; header at the top and the main button pinned at the bottom; one spacing step between items. Writing must never invent facts (prices, addresses, names, numbers, quotes): use clear placeholders instead. Then look at the screen again and fix gaps under text, uneven edges, text that runs out of its box and low contrast. Say what you fixed.",
     },
   ]),
 };

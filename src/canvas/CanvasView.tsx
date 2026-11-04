@@ -453,6 +453,9 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
   // in Motion or Page View the frame sits still in the middle: no scrolling, panning or zooming away from it
   const lockedRef = useRef(false);
   lockedRef.current = (motion && !!scene && !viewOnly) || isPageLocked;
+  // the page on show, so Fit and Zoom to selection frame it and not the empty room around it
+  const shownPageRef = useRef<string | null>(null);
+  shownPageRef.current = isPageLocked ? activePageId : null;
 
   useEffect(() => {
     setSceneOnly(motion ? scene : null);
@@ -2135,7 +2138,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
 
   // the top bar and the layers panel can ask the canvas to move
   useEffect(() => {
-    const fit = () => zoomToFit(sizeRef.current.w, sizeRef.current.h);
+    const fit = () => (shownPageRef.current ? zoomToElements([shownPageRef.current], sizeRef.current.w, sizeRef.current.h) : zoomToFit(sizeRef.current.w, sizeRef.current.h));
     const fitSelection = (e: Event) => {
       const ids = (e as CustomEvent<string[] | undefined>).detail ?? getState().selection;
       zoomToElements(ids, sizeRef.current.w, sizeRef.current.h);
