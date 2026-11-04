@@ -1714,7 +1714,13 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
   // one click, or Shift P: from one page to the open canvas of all pages, and back to the page that was picked
   const flipPageView = () => {
     const d = workDoc();
-    if (!d.pages) return;
+    if (!d.pages) {
+      // a design without pages turns page view on: one page at a time, the first frame to begin with
+      dispatch("set_pages", { on: true });
+      const first = d.rootIds.find((id) => d.elements[id]?.type === "frame");
+      if (first) openPage(first);
+      return;
+    }
     if (allPagesNow(d)) {
       let top = getState().selection[0];
       while (top && d.elements[top]?.parentId) top = d.elements[top].parentId!;
@@ -2312,15 +2318,15 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
           Find your design
         </button>
       )}
-      {isPageView && (
+      {designing && !viewOnly && (
         <button
           className={`view-flip ${isAllPages ? "on" : ""}`}
           data-name="view-flip"
-          aria-label={isAllPages ? "One page at a time" : "All pages on one open canvas"}
-          title={isAllPages ? "One page at a time (Shift P)" : "All pages on one open canvas (Shift P)"}
+          aria-label={!doc.pages || isAllPages ? "One page at a time" : "All pages on one open canvas"}
+          title={!doc.pages ? "One page at a time (Shift P)" : isAllPages ? "One page at a time (Shift P)" : "All pages on one open canvas (Shift P)"}
           onClick={flipPageView}
         >
-          {isAllPages ? (
+          {!doc.pages || isAllPages ? (
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round">
               <rect x="6" y="3.5" width="12" height="17" rx="2" />
             </svg>
