@@ -1,6 +1,6 @@
 /** One icon set for the whole app: 24 grid, round ends, same stroke weight everywhere. */
 
-export type IconName = "cut-here" | "cut-close" | "cut-before" | "cut-after" | "move" | "frame" | "rect" | "ellipse" | "text" | "hand" | "zoom" | "image" | "plus" | "pen" | "brush" | "eraser" | "mask" | "group" | "lock" | "unlock" | "eye" | "eye-off" | "sound" | "sound-off" | "component" | "instance" | "panel-left" | "panel-right" | "arrow" | "search" | "settings" | "skills" | "new-chat" | "folder" | "trash" | "close" | "unlist" | "restore" | "dots" | "grid" | "list" | "copy" | "move-to" | "marker" | "sun" | "moon" | "home" | "feedback" | "fold";
+export type IconName = "cut-here" | "cut-close" | "cut-before" | "cut-after" | "move" | "frame" | "rect" | "ellipse" | "text" | "hand" | "zoom" | "image" | "plus" | "pen" | "brush" | "eraser" | "mask" | "group" | "lock" | "unlock" | "eye" | "eye-off" | "sound" | "sound-off" | "component" | "instance" | "panel-left" | "panel-right" | "arrow" | "search" | "settings" | "skills" | "new-chat" | "folder" | "trash" | "close" | "unlist" | "restore" | "dots" | "grid" | "list" | "copy" | "move-to" | "marker" | "sun" | "moon" | "home" | "feedback" | "fold" | "skill-auto-layout" | "skill-mobile-screens" | "skill-spacing" | "skill-type-scale" | "skill-contrast" | "skill-plain-words" | "skill-bold-blocks" | "skill-bento" | "skill-calm-and-trusted" | "skill-friendly-and-modern" | "skill-prototypes" | "skill-custom" | "plugin-connect";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   move: <path d="M5.5 3.5l13 6.3-5.7 1.8-1.8 5.9z" />,
@@ -202,6 +202,91 @@ const PATHS: Record<IconName, React.ReactNode> = {
       <path d="M3.5 10v4a1 1 0 0 0 1 1h3l9 4.5v-15l-9 4.5h-3a1 1 0 0 0-1 1z" />
       <path d="M7.5 15l1.5 5h2.5l-1.2-4" />
       <path d="M20 10v4" />
+    </>
+  ),
+  "skill-auto-layout": (
+    <>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
+      <rect x="6.5" y="7.5" width="4.5" height="9" rx="1" />
+      <rect x="13" y="7.5" width="4.5" height="9" rx="1" />
+    </>
+  ),
+  "skill-mobile-screens": (
+    <>
+      <rect x="6.5" y="3.5" width="11" height="17" rx="2.5" />
+      <path d="M10 6.5h4M10.5 17.5h3" />
+    </>
+  ),
+  "skill-spacing": (
+    <>
+      <rect x="3.5" y="5.5" width="4" height="13" rx="1" />
+      <rect x="16.5" y="5.5" width="4" height="13" rx="1" />
+      <path d="M7.5 12h9M10 9.5L7.5 12 10 14.5M14 9.5l2.5 2.5-2.5 2.5" />
+    </>
+  ),
+  "skill-type-scale": (
+    <>
+      <path d="M3.5 18l5-12 5 12M5.6 13.5h5.8" />
+      <path d="M15.5 18l3-7.5 3 7.5M16.8 15h3.4" />
+    </>
+  ),
+  "skill-contrast": (
+    <>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M12 4v16" />
+      <path d="M12 4a8 8 0 010 16z" fill="currentColor" stroke="none" />
+    </>
+  ),
+  "skill-plain-words": (
+    <>
+      <path d="M4 6a2 2 0 012-2h12a2 2 0 012 2v8a2 2 0 01-2 2h-5.5L8 19.5V16H6a2 2 0 01-2-2z" />
+      <path d="M8 8.5h8M8 12h5" />
+    </>
+  ),
+  "skill-bold-blocks": (
+    <>
+      <rect x="4" y="4" width="11" height="11" rx="1.5" />
+      <path d="M8.5 15v3.5a1.5 1.5 0 001.5 1.5h8.5a1.5 1.5 0 001.5-1.5V10a1.5 1.5 0 00-1.5-1.5H15" />
+    </>
+  ),
+  "skill-bento": (
+    <>
+      <rect x="3.5" y="4" width="7.5" height="16" rx="1.5" />
+      <rect x="13" y="4" width="7.5" height="7" rx="1.5" />
+      <rect x="13" y="13" width="7.5" height="7" rx="1.5" />
+    </>
+  ),
+  "skill-calm-and-trusted": (
+    <>
+      <path d="M12 3.5s6 2 6 7.5c0 5-4.5 8-6 9.5-1.5-1.5-6-4.5-6-9.5 0-5.5 6-7.5 6-7.5z" />
+      <path d="M9.5 12l2 2 3.5-4" />
+    </>
+  ),
+  "skill-friendly-and-modern": (
+    <>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M9 10.5v.5M15 10.5v.5" />
+      <path d="M8.5 13.5a4.5 4.5 0 007 0" />
+    </>
+  ),
+  "skill-prototypes": (
+    <>
+      <rect x="3.5" y="6" width="6" height="10" rx="1.5" />
+      <rect x="14.5" y="8" width="6" height="10" rx="1.5" />
+      <path d="M9.5 11h5M12.5 9l2 2-2 2" />
+    </>
+  ),
+  "skill-custom": (
+    <>
+      <path d="M5.5 4.5h9a2 2 0 012 2V18a2 2 0 01-2 2h-9a2 2 0 01-2-2V6.5a2 2 0 012-2z" />
+      <path d="M12 9l.8 1.7 1.7.8-1.7.8-.8 1.7-.8-1.7-1.7-.8 1.7-.8z" />
+      <path d="M7.5 17h5" />
+    </>
+  ),
+  "plugin-connect": (
+    <>
+      <path d="M10 14a4 4 0 005.66 0l2.83-2.83a4 4 0 00-5.66-5.66L11.5 6.85" />
+      <path d="M14 10a4 4 0 00-5.66 0L5.5 12.83a4 4 0 005.66 5.66L12.5 17.15" />
     </>
   ),
 };
