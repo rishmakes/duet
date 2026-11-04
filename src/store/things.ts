@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useSkills, type Skill } from "../ai/skills";
+import { useScripts, RUNS_ON_WORDS, type Script } from "./scripts";
 
 /**
  * The Store's one list. Skills, scripts and plugins are all "things": the Store page,
@@ -64,8 +65,23 @@ export const CONNECT_PLUGIN: Thing = {
   editable: false,
 };
 
-export function buildThings(skills: Skill[]): Thing[] {
-  return [...skills.map(skillThing), CONNECT_PLUGIN];
+export function scriptThing(s: Script): Thing {
+  return {
+    kind: "script",
+    id: s.id,
+    name: s.name,
+    line: s.line,
+    by: "You",
+    touches: [`The open design: ${RUNS_ON_WORDS[s.runsOn].toLowerCase()}. One Undo takes a whole run back`],
+    installed: true,
+    on: false,
+    removable: true,
+    editable: true,
+  };
+}
+
+export function buildThings(skills: Skill[], scripts: Script[] = []): Thing[] {
+  return [...skills.map(skillThing), ...scripts.map(scriptThing), CONNECT_PLUGIN];
 }
 
 export interface Finding {
@@ -94,5 +110,6 @@ export function countByKind(list: Thing[]): Record<ThingKind, number> {
 /** Every thing, kept up to date as skills change. */
 export function useThings(): Thing[] {
   const skills = useSkills();
-  return useMemo(() => buildThings(skills), [skills]);
+  const scripts = useScripts();
+  return useMemo(() => buildThings(skills, scripts), [skills, scripts]);
 }

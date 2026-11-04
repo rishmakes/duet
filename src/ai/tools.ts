@@ -1529,6 +1529,47 @@ function changedIds(a: Doc, b: Doc): string[] {
   return out;
 }
 
+// ---- scripts: the same tools, kept to the design ----
+
+/**
+ * What a script may change: the design, through the same commands as the AI and the designer.
+ * Files, pictures from the computer, exports and the internet are doors a script does not have.
+ */
+const SCRIPT_EDITS = new Set([...EDITS, "delete_elements", "delete_board"].filter((t) => t !== "trace_image" && t !== "duplicate_elements"));
+const SCRIPT_READS = new Set(["get_document", "get_outline"]);
+export const scriptTools = () => [...SCRIPT_READS, ...SCRIPT_EDITS];
+
+/**
+ * One step of a script, on a design that is not on screen yet. Pure: the design in, the design out.
+ * The runner keeps the result and puts it in history once, as one step, when the script ends well.
+ */
+export function scriptStep(doc: Doc, tool: string, raw: unknown): { doc: Doc; value?: unknown } | { error: string } {
+  const a = (raw && typeof raw === "object" ? raw : {}) as Args;
+  if (tool === "get_document") return { doc, value: { rootIds: doc.rootIds, elements: doc.elements } };
+  if (tool === "get_outline") return { doc, value: outline(doc, Array.isArray(a.ids) ? (a.ids as unknown[]).map(String) : undefined) };
+  if (!SCRIPT_EDITS.has(tool)) return { error: `A script cannot use ${tool}. It can use: ${scriptTools().join(", ")}.` };
+  // the checks look things up in the design they are pointed at: point them at the script's copy, for this moment only
+  // (all of this runs without waiting, so no AI call can come in between)
+  const was = R;
+  R = { ...liveRoom, live: false, currentDoc: () => doc };
+  let check: ReturnType<typeof prepare>;
+  try {
+    check = prepare(tool, a, doc);
+  } finally {
+    R = was;
+  }
+  if ("error" in check) return check;
+  // a locked brand kit holds for scripts too
+  const off = offBrand(doc, check.args);
+  if (off) return { error: off };
+  const command = (tool === "animate" ? "set_keys" : tool === "copy_grade" ? "set_grade" : tool) as CommandName;
+  try {
+    return { doc: runCommand(doc, command, check.args as never), value: check.args.id ?? check.args.ids ?? null };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 /** Run one tool call from an agent. `by` is the name of the AI tool that asked, when it said who it is. */
 export function callTool(name: string, raw: unknown, by?: string, thread?: string): Promise<ToolResult> {
   return oneAtATime(async () => {

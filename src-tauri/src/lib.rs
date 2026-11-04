@@ -427,6 +427,88 @@ fn delete_user_skill(id: String) -> Result<(), String> {
     Ok(())
 }
 
+// ---------- scripts of your own, and what the Store remembers ----------
+
+/// A script is a folder: `script.json` says what it is, `script.js` is the code.
+#[derive(Serialize)]
+struct UserScript {
+    id: String,
+    meta: String,
+    code: String,
+}
+
+fn script_dir(id: &str) -> Result<std::path::PathBuf, String> {
+    let ok = !id.is_empty()
+        && id.len() <= 60
+        && id.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+    if !ok {
+        return Err("A script name can use lowercase letters, numbers and dashes.".to_string());
+    }
+    Ok(duet_home_dir()?.join("scripts").join(id))
+}
+
+#[tauri::command]
+fn list_user_scripts() -> Result<Vec<UserScript>, String> {
+    let dir = duet_home_dir()?.join("scripts");
+    let mut out = Vec::new();
+    if let Ok(read) = fs::read_dir(&dir) {
+        for entry in read.flatten() {
+            let path = entry.path();
+            let Some(id) = path.file_name().and_then(|s| s.to_str()).map(|s| s.to_string()) else {
+                continue;
+            };
+            if !path.is_dir() {
+                continue;
+            }
+            let (Ok(meta), Ok(code)) = (fs::read_to_string(path.join("script.json")), fs::read_to_string(path.join("script.js"))) else {
+                continue;
+            };
+            out.push(UserScript { id, meta, code });
+        }
+    }
+    out.sort_by(|a, b| a.id.cmp(&b.id));
+    Ok(out)
+}
+
+/// Write a file whole or not at all: a half-written script or list is never left behind.
+fn write_whole(path: &Path, body: &str) -> Result<(), String> {
+    let tmp = path.with_extension("tmp");
+    fs::write(&tmp, body).map_err(err)?;
+    fs::rename(&tmp, path).map_err(err)
+}
+
+#[tauri::command]
+fn write_user_script(id: String, meta: String, code: String) -> Result<(), String> {
+    let dir = script_dir(&id)?;
+    fs::create_dir_all(&dir).map_err(err)?;
+    write_whole(&dir.join("script.js"), &code)?;
+    write_whole(&dir.join("script.json"), &meta)
+}
+
+#[tauri::command]
+fn delete_user_script(id: String) -> Result<(), String> {
+    let dir = script_dir(&id)?;
+    if dir.exists() {
+        fs::remove_dir_all(dir).map_err(err)?;
+    }
+    Ok(())
+}
+
+/// What the Store remembers, like which skills are off, kept in a file beside the skills so it is never lost with the app's own storage.
+#[tauri::command]
+fn read_store_state() -> Result<Option<String>, String> {
+    let f = duet_home_dir()?.join("store.json");
+    if !f.exists() {
+        return Ok(None);
+    }
+    fs::read_to_string(f).map(Some).map_err(err)
+}
+
+#[tauri::command]
+fn write_store_state(body: String) -> Result<(), String> {
+    write_whole(&duet_home_dir()?.join("store.json"), &body)
+}
+
 // ---------- history ----------
 // Git runs inside the app (libgit2), so designers never need to install it.
 // The words "commit" and "tag" never reach the interface.
@@ -658,6 +740,11 @@ pub fn run() {
             list_user_skills,
             write_user_skill,
             delete_user_skill,
+            list_user_scripts,
+            write_user_script,
+            delete_user_script,
+            read_store_state,
+            write_store_state,
             git_prepare,
             git_commit,
             git_history,

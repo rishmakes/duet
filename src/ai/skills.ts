@@ -72,7 +72,32 @@ export function describeSkill(body: string, fallback: string): { name: string; s
   return { name: name || fallback, summary };
 }
 
+/**
+ * Which skills are off, as kept in `store.json` in Duet's folder beside the skills, so the choice is
+ * never lost with the app's own storage. Null until that file has been read.
+ */
+let fileOff: Set<string> | null = null;
+/** Anything else kept in store.json, written back untouched. */
+let storeRest: Record<string, unknown> = {};
+
+async function readStoreState(): Promise<Set<string> | null> {
+  try {
+    const text = await invoke<string | null>("read_store_state");
+    if (!text) return null;
+    const { skillsOff, ...rest } = JSON.parse(text) as { skillsOff?: unknown };
+    storeRest = rest;
+    return Array.isArray(skillsOff) ? new Set(skillsOff.map(String)) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoreState(off: Set<string>) {
+  void invoke("write_store_state", { body: JSON.stringify({ ...storeRest, skillsOff: [...off].sort() }, null, 2) }).catch(() => undefined);
+}
+
 function offSet(): Set<string> {
+  if (fileOff) return new Set(fileOff);
   try {
     const raw = localStorage.getItem(KEY);
     const off = new Set(JSON.parse(raw ?? "[]") as string[]);
@@ -93,6 +118,8 @@ function offSet(): Set<string> {
 }
 
 function saveOff(set: Set<string>) {
+  fileOff = new Set(set);
+  writeStoreState(set);
   try {
     localStorage.setItem(KEY, JSON.stringify([...set]));
   } catch {
@@ -126,6 +153,12 @@ function build(mine: { id: string; body: string }[]): Skill[] {
 skills = build([]);
 
 export async function loadSkills() {
+  if (!fileOff) {
+    const kept = await readStoreState();
+    // the first time, what this computer remembered moves into the file
+    if (kept) fileOff = kept;
+    else saveOff(offSet());
+  }
   let mine: { id: string; body: string }[] = [];
   try {
     mine = await invoke<{ id: string; body: string }[]>("list_user_skills");

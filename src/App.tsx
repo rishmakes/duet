@@ -4,6 +4,7 @@ import { detectAgent, startAgentListeners, stopAll, workingNow } from "./ai/agen
 import { ask } from "./ui/dialog";
 import { startMcp } from "./ai/mcp";
 import { loadSkills } from "./ai/skills";
+import { loadScripts } from "./store/scripts";
 import CanvasView from "./canvas/CanvasView";
 import { findProjects, flushPack, inTauri, newProject, openProject, openProjectAt, isCheckCopy, restoreLast, saveNow, startAutosave, trashList } from "./project/project";
 import { invoke } from "@tauri-apps/api/core";
@@ -226,6 +227,7 @@ export default function App() {
       stops.push(() => clearInterval(daily));
       void installMenu();
       loadSkills();
+      void loadScripts();
       detectAgent();
       startMcp().then((f) => (alive ? stops.push(f) : f()));
       startAgentListeners().then((f) => (alive ? stops.push(f) : f()));
