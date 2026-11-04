@@ -29,6 +29,7 @@ import { setLayout } from "../ui/layout";
 import { tracePicture } from "../project/trace";
 import { getState, goTo, keepAiWorkWhile, liveRoom, parkedFiles, roomFor } from "../state/store";
 import type { Room } from "../state/store";
+import type { RunsOn } from "../store/scripts";
 import { parentOf } from "../state/directions";
 import { addMsg, askDesigner, conversationProject, getChat, messagesOf, setMinimized, taskOf, updateMsg } from "./chat";
 import { outsideRules, skillsText } from "./rules";
@@ -416,6 +417,21 @@ export const TOOLS: ToolDef[] = [
         rules: { type: "string", description: "The rules, one per line, each starting with \"- \". Headings starting with ## may group them." },
       },
       required: ["name", "rules"],
+    },
+  },
+  {
+    name: "save_script",
+    description:
+      "Save a script for the designer: a small piece of JavaScript they can run again and again from the Store, with no AI and no internet. Use it when the designer asks you to make or write a script, or when they repeat the same job by hand and say yes to keeping it. The code is the body of an async function given `duet`: `await duet.call(tool, args)` calls the same tools you have, with the same arguments, and returns what the tool made (a new element's id, or the ids changed); `duet.items` is what it runs on (ids of the picked things, ids of every frame, or the lines of a list the designer types); `duet.log(text)` notes a line for the designer. A script can use only get_document, get_outline and the design tools that change the design (create_element, create_elements, set_props, move_elements, resize_element, reparent_elements, delete_elements, animate, set_grade and the like); it cannot place files, export, trace, duplicate or reach the internet. get_document returns {rootIds, elements}. A whole run is one step in history, and if the script throws, nothing changes. runsOn is selection, each-frame, file or list. Saving under a name the designer already has brings that script up to date. The designer is always asked first.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "A short name, like Round every corner." },
+        line: { type: "string", description: "One line on what it does." },
+        runsOn: { type: "string", enum: ["selection", "each-frame", "file", "list"] },
+        code: { type: "string", description: "The script's body, for example: for (const id of duet.items) await duet.call(\"set_props\", { ids: [id], props: { radius: 12 } });" },
+      },
+      required: ["name", "runsOn", "code"],
     },
   },
   {
@@ -1628,6 +1644,22 @@ async function answerTool(name: string, raw: unknown, by?: string): Promise<Tool
     const saved = await keepTaughtSkill(a.name, summary, a.rules);
     if ("error" in saved) return fail(saved.error);
     return { text: saved.updated ? `Updated the skill "${a.name.trim()}". It is on, and every later conversation follows it.` : `Saved the skill "${a.name.trim()}". It is on, and every later conversation follows it. The designer can see it in Skills.` };
+  }
+  if (name === "save_script") {
+    if (typeof a.name !== "string" || !a.name.trim() || typeof a.code !== "string" || !a.code.trim()) return fail("Give a name and the code.");
+    const runsOn = ["selection", "each-frame", "file", "list"].includes(a.runsOn as string) ? (a.runsOn as RunsOn) : "selection";
+    // loaded here, not at the top: the scripts module itself runs through this file
+    const { getScripts, saveScript } = await import("../store/scripts");
+    const nm = a.name.trim();
+    const had = getScripts().find((s) => s.name.trim().toLowerCase() === nm.toLowerCase());
+    // a script runs on the designer's work, so they always say yes first, whatever the mode
+    void invoke("bring_back").catch(() => undefined);
+    const ok = await askDesigner(`${had ? "Update" : "Save"} the script "${nm}"`);
+    if (!ok) return fail("The designer said not now. Do not save this script.");
+    const saved = await saveScript({ name: nm, line: typeof a.line === "string" ? a.line : "", runsOn }, a.code, had?.id);
+    if ("error" in saved) return fail(saved.error);
+    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("duet:script-saved", { detail: saved.id }));
+    return { text: `${had ? "Updated" : "Saved"} the script "${nm}". The designer can try it, change it and run it from the Store, under Yours. It has not been run yet.` };
   }
   if (name === "save_version") {
     if (typeof a.name !== "string" || !a.name.trim()) return fail("Give the version a name.");

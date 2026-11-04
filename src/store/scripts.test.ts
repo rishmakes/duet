@@ -109,3 +109,14 @@ describe("the script's own room", () => {
     expect(r.sent).toContainEqual({ type: "error", text: "oops" });
   });
 });
+
+import { scriptAsk } from "./scripts";
+describe("asking the AI to write a script", () => {
+  it("says what it runs on, carries the code so far, and asks for save_script", () => {
+    const t = scriptAsk("round every corner", "each-frame", "Round", "duet.log(1);");
+    expect(t).toContain('called "Round"');
+    expect(t).toContain('runsOn "each-frame"');
+    expect(t).toContain("duet.log(1);");
+    expect(t).toContain("save_script");
+  });
+});

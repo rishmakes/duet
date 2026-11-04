@@ -240,3 +240,14 @@ export function runScript(script: Pick<Script, "name" | "code" | "runsOn">, list
     worker.postMessage({ type: "start", items });
   });
 }
+
+/** What the script maker sends the AI when the designer asks it to write a script. */
+export function scriptAsk(ask: string, runsOn: RunsOn, name = "", code = ""): string {
+  const parts = [
+    `Write me a Duet script${name.trim() ? ` called "${name.trim()}"` : ""}: ${ask.trim()}`,
+    `It runs on: ${RUNS_ON_WORDS[runsOn].toLowerCase()} (runsOn "${runsOn}").`,
+  ];
+  if (code.trim()) parts.push(`Start from what I have so far:\n\`\`\`js\n${code.trim()}\n\`\`\``);
+  parts.push("Look at the design first if it helps, then hand it to me with save_script. Do not change the design yourself.");
+  return parts.join("\n\n");
+}

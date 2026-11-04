@@ -57,6 +57,7 @@ const WORKING: Record<string, string> = {
   delete_elements: "Clearing something away",
   duplicate_elements: "Making a copy",
   save_skill: "Saving your rules as a skill",
+  save_script: "Writing a script",
 };
 
 /**
