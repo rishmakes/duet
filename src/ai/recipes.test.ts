@@ -9,6 +9,8 @@ import {
   cookToSave,
   getCooking,
   LANDING_PAGE,
+  SCREEN,
+  BUILT_IN,
   moveStep,
   moveStepTo,
   readCook,
@@ -240,5 +242,14 @@ describe("recipes", () => {
       expect(snakeRow).toContain("M692,160");
       expect(snakeRow).toContain("172,230");
     });
+  });
+});
+
+describe("the built-in recipes", () => {
+  it("has a short screen recipe whose steps are all in order and none are empty", () => {
+    expect(BUILT_IN.map((r) => r.id)).toEqual(["landing-page", "screen-from-a-brief"]);
+    expect(SCREEN.steps.map((x) => x.kind)).toEqual(["ask", "ai", "ai", "review", "ai"]);
+    expect(SCREEN.steps.every((x) => x.does.length > 20)).toBe(true);
+    expect(new Set(SCREEN.steps.map((x) => x.id)).size).toBe(SCREEN.steps.length);
   });
 });

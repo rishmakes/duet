@@ -2153,9 +2153,20 @@ option {
   gap: 8px;
   min-width: 0;
 }
-.design-style-row .hint2 {
+.design-style-row .hint2,
+.design-comp-row .hint2 {
   margin: 0;
   white-space: nowrap;
+}
+.design-comp-row {
+  padding: 4px 6px;
+}
+.design-comp-row .grow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
 }
 .design-use-btn {
   padding: 2px 8px;

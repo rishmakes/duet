@@ -110,7 +110,37 @@ export const LANDING_PAGE: Recipe = {
   ]),
 };
 
-export const BUILT_IN: Recipe[] = [LANDING_PAGE];
+/** Recipe two: one screen, short enough to cook in a sitting. */
+export const SCREEN: Recipe = {
+  id: "screen-from-a-brief",
+  name: "Screen from a brief",
+  about: "Brief, questions, a rough layout, your comments, the finished screen with a check.",
+  builtIn: true,
+  steps: place([
+    { id: "screen-brief", title: "Brief", kind: "ask", does: "What is the screen for, who uses it, and what should they do on it?" },
+    {
+      id: "screen-questions",
+      title: "Questions",
+      kind: "ai",
+      does: "Read the brief and the project's brand kit and design system. Ask the designer the 2 questions whose answers change the screen most: what must be on it, and how it should feel. Short, plain questions, numbered. Do not change the design in this step.",
+    },
+    {
+      id: "screen-layout",
+      title: "Rough layout",
+      kind: "ai",
+      does: "Answer your own questions from the designer's brief and make a rough layout of the screen in one frame beside the existing work: grey boxes and real words only. Use the design system's components and spacing where it has them. Writing must never invent facts (prices, addresses, names, numbers, quotes): use clear placeholders instead.",
+    },
+    { id: "screen-comments", title: "Your comments", kind: "review", does: "Pin comments on the layout where you want changes. Continue when you are done." },
+    {
+      id: "screen-finish",
+      title: "Finish and check",
+      kind: "ai",
+      does: "Do what each open comment asks, then resolve it. Then make the finished screen from the layout in the brand kit's colours and fonts, using the design system's text styles, spacing, corners and components. Never leave an empty picture box: use a brand colour block or a simple shape from the kit instead, or no picture. Then look at the screen and fix gaps under text, uneven edges, text that runs out of its box, and low contrast. Say what you fixed. Change nothing else.",
+    },
+  ]),
+};
+
+export const BUILT_IN: Recipe[] = [LANDING_PAGE, SCREEN];
 
 // ---- changing a recipe (pure: recipe in, recipe out) ----
 
