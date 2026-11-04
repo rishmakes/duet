@@ -337,10 +337,10 @@ export default function App() {
         </div>
         {/* Kitchen or Studio, the two ways to work, in the middle so it stays put whatever the sides hold */}
         <div className="pill mode-switch space-switch">
-          <button className={cooking ? "active" : ""} data-name="space-kitchen" onClick={() => setLayout({ space: "kitchen" })} title="Work with AI agents: chat, mark what to change, or follow a recipe step by step">
+          <button className={cooking ? "active" : ""} data-name="space-kitchen" onClick={() => (setHomeOpen(false), setLayout({ space: "kitchen" }))} title="Work with AI agents: chat, mark what to change, or follow a recipe step by step">
             Kitchen
           </button>
-          <button className={cooking ? "" : "active"} data-name="space-edit" onClick={() => setLayout({ space: "edit" })} title="Every tool, to work on the design yourself">
+          <button className={cooking ? "" : "active"} data-name="space-edit" onClick={() => (setHomeOpen(false), setLayout({ space: "edit" }))} title="Every tool, to work on the design yourself">
             Studio
           </button>
         </div>
