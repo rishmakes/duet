@@ -450,9 +450,12 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
   const isPageView = designing && !!doc.pages && !viewOnly;
   const isPageLocked = isPageView && !!activePageId && !isAllPages;
 
-  // in Motion or Page View the frame sits still in the middle: no scrolling, panning or zooming away from it
+  // in Motion the frame sits still in the middle: no scrolling, panning or zooming away from it.
+  // Page View frames the page on show but lets you move and zoom freely, and Fit brings the page back.
   const lockedRef = useRef(false);
-  lockedRef.current = (motion && !!scene && !viewOnly) || isPageLocked;
+  lockedRef.current = motion && !!scene && !viewOnly;
+  const pageShownRef = useRef(false);
+  pageShownRef.current = isPageLocked;
   // the page on show, so Fit and Zoom to selection frame it and not the empty room around it
   const shownPageRef = useRef<string | null>(null);
   shownPageRef.current = isPageLocked ? activePageId : null;
@@ -895,7 +898,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
       canvas.style.height = `${h}px`;
       sizeRef.current = { w, h, dpr };
       const open = motion ? getState().clock.scene : activePageId;
-      if (lockedRef.current && open) zoomToElements([open], w, h);
+      if ((lockedRef.current || pageShownRef.current) && open) zoomToElements([open], w, h);
       schedule();
     };
     resize();
