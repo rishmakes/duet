@@ -943,7 +943,14 @@ function StraightBoard({
   };
 
   return (
-    <div className={`kitchen-board ${tight ? "tight" : ""}`} ref={boardRef}>
+    <div
+      className={`kitchen-board ${tight ? "tight" : ""}`}
+      ref={boardRef}
+      // a click on the empty dotted space around the steps closes the open card
+      onClick={(e) => {
+        if (tight && !(e.target as HTMLElement).closest(".kitchen-card, .kitchen-inline-editor, button, input, textarea, select")) setShut(true);
+      }}
+    >
       <div className="kitchen-steps-scroll" ref={scrollRef}>
         <div className="kitchen-steps-column">
           {steps.map((s, i) => {
