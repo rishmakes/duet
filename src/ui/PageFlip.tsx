@@ -1,4 +1,5 @@
 import { dispatch, getState, useStore, workDoc } from "../state/store";
+import { useLayout } from "./layout";
 import { isAllPages as allPagesNow, openPage, showAllPages, usePageFocus } from "./pageFocus";
 
 /** One click, or Shift P: from one page at a time to the open canvas of all pages, and back to the page that was picked.
@@ -22,15 +23,16 @@ export function flipPageView() {
   }
 }
 
-/** The flip as an icon button, for the end of a toolbar. It shows where a click goes: the grid for all pages, the single page for one at a time. */
+/** The flip as an icon button. The icon is two arrows going opposite ways and never changes; it is lit while all pages are on one open canvas. */
 export default function PageFlipButton({ className }: { className: string }) {
   const doc = useStore((s) => workDoc(s));
   const { isAllPages } = usePageFocus(doc);
-  const toOne = !doc.pages || isAllPages;
-  const label = toOne ? "One page at a time (Shift P)" : "All pages on one open canvas (Shift P)";
+  const designing = useLayout((d) => d.mode === "design" || d.mode === "photo");
+  if (!designing) return null;
+  const label = !doc.pages || isAllPages ? "Work on one page at a time (Shift P)" : "See all pages on one open canvas (Shift P)";
   return (
     <button
-      className={className}
+      className={`${className} ${isAllPages ? "on" : ""}`}
       data-name="view-flip"
       aria-label={label}
       title={label}
@@ -39,17 +41,9 @@ export default function PageFlipButton({ className }: { className: string }) {
         flipPageView();
       }}
     >
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round">
-        {toOne ? (
-          <rect x="6" y="3.5" width="12" height="17" rx="2" />
-        ) : (
-          <>
-            <rect x="3" y="3" width="7.5" height="7.5" rx="1.5" />
-            <rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5" />
-            <rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5" />
-            <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5" />
-          </>
-        )}
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 8h15M15 4l4 4-4 4" />
+        <path d="M20 16H5M9 12l-4 4 4 4" />
       </svg>
     </button>
   );

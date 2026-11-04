@@ -10428,3 +10428,46 @@ button.ctx-item.store-make-option:hover {
 .store-section-make:hover {
   border-color: var(--muted);
 }
+
+/* the flip between one page and all pages: a round white button at the top right of Kitchen's canvas, a bare icon at the right end of Studio's tool bar */
+.kitchen-flip {
+  position: absolute;
+  right: 16px;
+  top: 14px;
+  z-index: 10;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 6px 20px var(--shadow);
+  cursor: pointer;
+  outline: none;
+}
+.studio-flip {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  margin-right: 10px;
+  display: grid;
+  place-items: center;
+  align-self: center;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  outline: none;
+}
+.kitchen-flip:hover,
+.studio-flip:hover {
+  color: var(--accent);
+}
+.kitchen-flip.on,
+.studio-flip.on {
+  color: var(--accent);
+  background: var(--accent-soft);
+}

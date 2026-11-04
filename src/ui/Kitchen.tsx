@@ -189,6 +189,7 @@ export default function Kitchen() {
               {!docked && <ChatPanel extra={pick} />}
             </main>
             <KitchenTools tool={tool} />
+            <PageFlipButton className="kitchen-flip" />
           </div>
           {/* many people never leave Kitchen: a long review timeline, where every comment is a marker */}
           {plays && <ReviewBar />}
@@ -376,7 +377,6 @@ function KitchenTools({ tool }: { tool: string }) {
       <button className="kitchen-tool wide" data-name="open-in-studio" title="Every tool, to work on the design yourself" onClick={() => setLayout({ space: "edit" })}>
         Open in Studio
       </button>
-      <PageFlipButton className="kitchen-tool" />
     </div>
   );
 }

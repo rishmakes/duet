@@ -1,3 +1,4 @@
+import PageFlipButton from "./ui/PageFlip";
 import { useEffect, useState } from "react";
 import { useDismiss } from "./ui/useDismiss";
 import { detectAgent, startAgentListeners, stopAll, workingNow } from "./ai/agent";
@@ -400,6 +401,7 @@ export default function App() {
           {/* Studio's own bar, under the top bar: the tools; the kind of work lives at the top of the right panel, and waits here while that panel is hidden */}
           <div className="studio-bar">
             <Toolbar row />
+            <PageFlipButton className="studio-flip" />
             {dock.rightHidden && <KindSwitch />}
           </div>
           {/* the chat's own column, always in the same place, unless it floats over the canvas */}
