@@ -2324,7 +2324,10 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
           data-name="view-flip"
           aria-label={!doc.pages || isAllPages ? "One page at a time" : "All pages on one open canvas"}
           title={!doc.pages ? "One page at a time (Shift P)" : isAllPages ? "One page at a time (Shift P)" : "All pages on one open canvas (Shift P)"}
-          onClick={flipPageView}
+          onClick={(e) => {
+            e.currentTarget.blur();
+            flipPageView();
+          }}
         >
           {!doc.pages || isAllPages ? (
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round">
