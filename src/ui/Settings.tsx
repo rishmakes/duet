@@ -7,7 +7,6 @@ import { toolName } from "../ai/who";
 import { useStore } from "../state/store";
 import { getVersion } from "@tauri-apps/api/app";
 import { setLayout, useLayout } from "./layout";
-import { ConnectAddon } from "./AddOns";
 import { useTheme } from "./theme";
 
 interface SettingsProps {
@@ -289,7 +288,16 @@ export default function Settings({ check = false, onClose }: SettingsProps) {
               {matchAddons && (
                 <>
                   <div className="settings-section-title">Add-ons</div>
-                  <ConnectAddon />
+                  <p className="settings-store-note">Plugins now live in the Store</p>
+                  <button
+                    className="pill"
+                    onClick={() => {
+                      onClose();
+                      window.dispatchEvent(new Event("duet:skills-page"));
+                    }}
+                  >
+                    Open the Store
+                  </button>
                 </>
               )}
               {!matchingShortcuts.length && !hasGeneralMatches && !hasDeveloperMatches && !matchAddons && (
@@ -357,7 +365,16 @@ export default function Settings({ check = false, onClose }: SettingsProps) {
               {activeSection === "Add-ons" && (
                 <div className="settings-content">
                   <div className="settings-section-title">Add-ons</div>
-                  <ConnectAddon />
+                  <p className="settings-store-note">Plugins now live in the Store</p>
+                  <button
+                    className="pill"
+                    onClick={() => {
+                      onClose();
+                      window.dispatchEvent(new Event("duet:skills-page"));
+                    }}
+                  >
+                    Open the Store
+                  </button>
                 </div>
               )}
               {activeSection === "Developer" && check && (

@@ -18,7 +18,7 @@ import Icon from "./ui/Icons";
 import { ProjectsSidebar, ProjectMenu } from "./ui/ChatHome";
 import { renameProject } from "./project/project";
 import { message } from "./ui/dialog";
-import SkillsPanel from "./ui/SkillsPanel";
+import StorePage from "./ui/StorePage";
 import KindSwitch from "./ui/KindSwitch";
 import VideoCut from "./ui/VideoCut";
 import TimeStrip from "./ui/TimeStrip";
@@ -417,17 +417,7 @@ export default function App() {
           <TimeStrip />
         </>
       )}
-      {skillsOpen && (
-        <section className="skills-page">
-          <div className="skills-page-head">
-            <h2>Skills</h2>
-            <button className="pill" onClick={() => setSkillsOpen(false)}>
-              Close
-            </button>
-          </div>
-          <SkillsPanel />
-        </section>
-      )}
+      {skillsOpen && <StorePage onClose={() => setSkillsOpen(false)} />}
       {recipesOpen && <RecipesPage onClose={() => setRecipesOpen(false)} />}
       {dock.historyLine && !recipeFull && <HistoryStrip />}
       <Versions />

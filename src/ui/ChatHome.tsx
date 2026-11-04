@@ -632,7 +632,7 @@ export function ProjectsSidebar() {
             <button className="rail-btn" title="Home" onClick={goHome}>
               <Icon name="home" size={18} />
             </button>
-            <button className="rail-btn" title="Skills" onClick={openSkills}>
+            <button className="rail-btn" title="Store" onClick={openSkills}>
               <Icon name="skills" size={18} />
             </button>
             <button className="rail-btn" title="Recipes" onClick={openRecipes}>
@@ -693,7 +693,7 @@ export function ProjectsSidebar() {
             </button>
             <button className="chathome-item" onClick={openSkills}>
               <Icon name="skills" size={16} />
-              Skills
+              Store
             </button>
             <button className="chathome-item" onClick={openRecipes}>
               <Icon name="list" size={16} />
