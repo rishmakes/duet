@@ -10528,3 +10528,20 @@ button.ctx-item.store-make-option:hover {
   right: 16px;
   transform: none;
 }
+
+/* the Comment tool in Studio is the same as Kitchen's: a flag and its name */
+.studio-bar .toolbar.row .tool.wide {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  padding: 0 12px;
+  gap: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.studio-bar .toolbar.row .tool.wide svg {
+  width: 15px;
+  height: 15px;
+}

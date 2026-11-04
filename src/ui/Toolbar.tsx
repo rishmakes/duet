@@ -22,7 +22,7 @@ export const TOOLS: { tool: Tool; label: string; key: string; icon: IconName }[]
   { tool: "text", label: "Text", key: "T", icon: "text" },
   { tool: "hand", label: "Hand", key: "H", icon: "hand" },
   { tool: "zoom", label: "Zoom", key: "Z", icon: "zoom" },
-  { tool: "comment", label: "Comment", key: "C", icon: "comment" },
+  { tool: "comment", label: "Comment", key: "C", icon: "marker" },
 ];
 
 export const PHOTO_TOOLS: { tool: Tool; label: string; key: string; icon: IconName }[] = [
@@ -116,7 +116,7 @@ export default function Toolbar({ row = false }: { row?: boolean }) {
           key={t.tool}
           ref={t.tool === "frame" ? frameBtnRef : undefined}
           data-name={`tool-${t.tool}`}
-          className={`tool ${tool === t.tool ? "on" : ""}`}
+          className={`tool ${tool === t.tool ? "on" : ""} ${row && t.tool === "comment" ? "wide" : ""}`}
           title={`${t.label} (${t.key})`}
           onClick={() => {
             if (t.tool === "frame") {
@@ -129,6 +129,7 @@ export default function Toolbar({ row = false }: { row?: boolean }) {
           }}
         >
           <Icon name={t.icon} />
+          {row && t.tool === "comment" && "Comment"}
         </button>
       ))}
       <button className="tool" title="Image (Shift Cmd K)" onClick={() => void pickImages()}>
