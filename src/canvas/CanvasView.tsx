@@ -431,6 +431,9 @@ function manyBox(doc: Doc, ids: string[]): Rect | null {
   return top.length > 1 ? unionRect(top.map((i) => worldBounds(doc, i))) : null;
 }
 
+/** The mouse becomes a pen nib while the pen is picked; the tip of the nib, bottom left, is the point it draws from. */
+const PEN_CURSOR = `url("data:image/svg+xml,${encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><path d='M2.5 21.5L5 13l8-8 6 6-8 8z' fill='white' stroke='black' stroke-width='1.4' stroke-linejoin='round'/><path d='M5 13l6 6M3 21l6-6' stroke='black' stroke-width='1.4' stroke-linecap='round'/><path d='M13 5l2-2.5 6 6L19 11' fill='none' stroke='black' stroke-width='1.4' stroke-linejoin='round'/></svg>")}") 3 21, crosshair`;
+
 export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -1003,7 +1006,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
   };
 
   const setCursor = (c: string) => {
-    if (canvasRef.current) canvasRef.current.style.cursor = c;
+    if (canvasRef.current) canvasRef.current.style.cursor = c === "pen" ? PEN_CURSOR : c;
   };
 
   /** The ruler guide under a point on the screen, if one is within a few pixels. */
@@ -1296,7 +1299,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
       if (s.tool === "brush" || s.tool === "eraser") return setCursor("none");
       if (s.tool === "pen") {
         penHover(p);
-        return setCursor("crosshair");
+        return setCursor("pen");
       }
       if (CREATE_TOOLS.includes(s.tool) || s.tool === "comment") return setCursor(s.tool === "text" ? "text" : "crosshair");
       if (s.tool === "zoom") return setCursor(e.altKey ? "zoom-out" : "zoom-in");
@@ -2071,7 +2074,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
       if (tools[key]) {
         e.preventDefault();
         setTool(tools[key]);
-        setCursor(tools[key] === "hand" ? "grab" : tools[key] === "zoom" ? "zoom-in" : tools[key] === "brush" || tools[key] === "eraser" ? "none" : tools[key] === "move" ? "default" : "crosshair");
+        setCursor(tools[key] === "hand" ? "grab" : tools[key] === "zoom" ? "zoom-in" : tools[key] === "brush" || tools[key] === "eraser" ? "none" : tools[key] === "move" ? "default" : tools[key] === "pen" ? "pen" : "crosshair");
         return;
       }
       if (!mod && !e.altKey && !e.shiftKey && (s.tool === "brush" || s.tool === "eraser") && (e.code === "BracketLeft" || e.code === "BracketRight" || e.key === "[" || e.key === "]")) {
