@@ -10581,31 +10581,17 @@ button.ctx-item.store-make-option:hover {
   }
 }
 
-/* a narrow Kitchen board: the steps take the width, and a step's editor opens over them, just under the picked step */
+/* a narrow Kitchen board: the steps take the width, and a step's editor opens in the list under the picked step */
 .kitchen-board.tight .kitchen-steps-scroll {
   width: 100%;
-  max-width: 420px;
+  max-width: 460px;
 }
-.kitchen-board.tight .kitchen-editor-pane {
-  position: absolute;
-  top: 20px;
-  left: 24px;
-  right: 24px;
-  z-index: 5;
-  pointer-events: none;
-}
-.kitchen-board.tight .kitchen-editor-anchor {
-  pointer-events: auto;
-  max-width: 420px;
-}
-.kitchen-board.tight .kitchen-editor-card {
+.kitchen-inline-editor {
   width: 100%;
-  box-shadow: 0 10px 32px var(--shadow);
+  margin-top: 8px;
 }
-.kitchen-board.tight .kitchen-editor-empty,
-.kitchen-board.tight .kitchen-string,
-.kitchen-board.tight .kitchen-editor-connector {
-  display: none;
+.kitchen-inline-editor .kitchen-editor-card {
+  width: 100%;
 }
 
 /* Kitchen's tools on a narrow design: they move to the left so the page view switch keeps its place */

@@ -790,9 +790,17 @@ function StraightBoard({
   const scrollRef = useRef<HTMLDivElement>(null);
   const boardRef = useRef<HTMLDivElement>(null);
   const [editorTop, setEditorTop] = useState(16);
-  // a narrow board has no room for the editor beside the steps: it opens over them, just under the picked step
+  // a narrow board has no room for the editor beside the steps: it opens in the list, under the picked step,
+  // and clicking that step again shuts it
   const [tight, setTight] = useState(false);
   const tightRef = useRef(false);
+  const [shut, setShut] = useState(false);
+  // the card that opens in the list scrolls into sight
+  useEffect(() => {
+    if (!tight || shut) return;
+    const t = window.setTimeout(() => boardRef.current?.querySelector(".kitchen-inline-editor")?.scrollIntoView({ block: "nearest", behavior: "smooth" }), 30);
+    return () => window.clearTimeout(t);
+  }, [tight, shut, effectiveId]);
 
   // Keyboard shortcut to remove step
   useEffect(() => {
@@ -817,6 +825,16 @@ function StraightBoard({
   // the string from the picked step to its editor; it bends to follow the step even when the step is scrolled out of sight
   const [string, setString] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const place = () => {
+    const boardW = boardRef.current?.getBoundingClientRect().width ?? 0;
+    const narrow = boardW > 0 && boardW < TIGHT_BOARD;
+    if (narrow !== tightRef.current) {
+      tightRef.current = narrow;
+      setTight(narrow);
+    }
+    if (narrow) {
+      setString(null);
+      return;
+    }
     if (!effectiveId) return;
     const cardEl = cardRefs.current[effectiveId];
     const scrollEl = scrollRef.current;
@@ -827,20 +845,8 @@ function StraightBoard({
     const scrollRect = scrollEl.getBoundingClientRect();
     const board = boardEl.getBoundingClientRect();
     const pane = paneEl.getBoundingClientRect();
-    const narrow = board.width < TIGHT_BOARD;
-    if (narrow !== tightRef.current) {
-      tightRef.current = narrow;
-      setTight(narrow);
-    }
     const offset = cardRect.top - scrollRect.top;
     const tall = editorRef.current?.offsetHeight ?? 0;
-    if (narrow) {
-      // under the picked step, or over it when there is no room below
-      const below = offset + cardRect.height + 8;
-      setEditorTop(Math.max(0, below + tall <= scrollRect.height ? below : offset - tall - 8));
-      setString(null);
-      return;
-    }
     const top = Math.max(0, Math.min(offset, scrollRect.height - tall));
     setEditorTop(top);
     const mid = cardRect.top + cardRect.height / 2;
@@ -967,7 +973,12 @@ function StraightBoard({
                   className={`kitchen-card ${isPicked ? "picked" : ""} ${st} ${drag?.id === s.id ? "dragging" : ""}`}
                   style={shift(i)}
                   onPointerDown={(e) => grab(e, s.id)}
-                  onClick={() => !dragged.current && onPick(s.id)}
+                  onClick={() => {
+                    if (dragged.current) return;
+                    if (tight && isPicked) return setShut(!shut);
+                    setShut(false);
+                    onPick(s.id);
+                  }}
                   title="Drag to move this step"
                 >
                   <div className="kitchen-card-main">
@@ -988,6 +999,11 @@ function StraightBoard({
                   </div>
                   <StepPreview step={s} live={live} />
                 </div>
+                {tight && isPicked && !shut && pickedStep && (
+                  <div className="kitchen-inline-editor">
+                    <StepEditor recipe={recipe} step={pickedStep} onChange={onChange} onPick={onPick} live={live} />
+                  </div>
+                )}
               </React.Fragment>
             );
           })}
@@ -1027,6 +1043,7 @@ function StraightBoard({
           <polygon points={`${string.x2 - 8},${string.y2 - 5} ${string.x2},${string.y2} ${string.x2 - 8},${string.y2 + 5}`} />
         </svg>
       )}
+      {!tight && (
       <div className="kitchen-editor-pane">
         {pickedStep ? (
           <div className="kitchen-editor-anchor" ref={editorRef} style={{ transform: `translateY(${editorTop}px)` }}>
@@ -1046,6 +1063,7 @@ function StraightBoard({
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }
