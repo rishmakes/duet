@@ -10428,3 +10428,24 @@ button.ctx-item.store-make-option:hover {
 .store-section-make:hover {
   border-color: var(--muted);
 }
+
+/* one click between a page at a time and the open canvas, top right of the canvas */
+.view-flip {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 5;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: var(--r-sm);
+  border: 1.5px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.view-flip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}

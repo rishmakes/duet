@@ -98,7 +98,7 @@ import {
   type BrushSettings,
 } from "./brushSettings";
 import { draw, labelRect, screenRect, setOnlyFrame, setQuietCanvas, setSceneOnly, shownOn } from "./render";
-import { openPage, usePageFocus } from "../ui/pageFocus";
+import { openPage, showAllPages, usePageFocus } from "../ui/pageFocus";
 import { fontCss, layoutText, lineStep, textLift } from "./text";
 import { getPickedTrack } from "../ui/pickedTrack";
 import { maskSelection } from "../ui/actions";
@@ -1719,6 +1719,13 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     }
     const p = point(e);
     const doc = workDoc();
+    // double-click a frame's name: zoom back to that frame
+    const named = labelAt(p.sx, p.sy);
+    if (named && doc.elements[named]?.type === "frame") {
+      select([named]);
+      zoomToElements([named], sizeRef.current.w, sizeRef.current.h);
+      return;
+    }
     if (editing()) {
       if (doubleClickNode(p.x, p.y, hitNode(p.sx, p.sy))) return;
       if (!hitTest(doc, p.x, p.y)) {
@@ -2284,6 +2291,27 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
       {lost && (
         <button className="find" onClick={() => zoomToFit(sizeRef.current.w, sizeRef.current.h)}>
           Find your design
+        </button>
+      )}
+      {isPageView && (
+        <button
+          className="view-flip"
+          data-name="view-flip"
+          title={isAllPages ? "Back to one page at a time" : "See every page on one open canvas"}
+          onClick={() => {
+            if (isAllPages) {
+              const sel = getState().selection[0];
+              let top = sel;
+              while (top && doc.elements[top]?.parentId) top = doc.elements[top].parentId!;
+              const page = top && doc.rootIds.includes(top) && doc.elements[top]?.type === "frame" ? top : doc.rootIds.find((id) => doc.elements[id]?.type === "frame");
+              if (page) openPage(page);
+            } else {
+              showAllPages();
+              window.dispatchEvent(new Event("duet:all-pages"));
+            }
+          }}
+        >
+          {isAllPages ? "One page" : "All pages"}
         </button>
       )}
       {editingId && <TextEditor key={editingId} id={editingId} zoom={viewport.zoom} vx={viewport.x} vy={viewport.y} />}
