@@ -5596,7 +5596,8 @@ button.agent-perm {
 }
 .curve-grid line,
 .curve-straight {
-  stroke: var(--line);
+  stroke: var(--muted);
+  stroke-opacity: 0.35;
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
 }

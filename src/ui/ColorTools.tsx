@@ -56,7 +56,7 @@ function Line({ label, value, min, max, onLive, onDone, tint }: { label: string;
 }
 
 const TONE: { key: CurveKey; label: string; ink: string }[] = [
-  { key: "light", label: "Light", ink: "#ece8e6" },
+  { key: "light", label: "Light", ink: "var(--text)" },
   { key: "red", label: "Red", ink: "#e5604f" },
   { key: "green", label: "Green", ink: "#5fbf6a" },
   { key: "blue", label: "Blue", ink: "#5b8fe8" },
@@ -134,7 +134,7 @@ export function CurvesBox({ ids, grade }: { ids: string[]; grade: Grade }) {
           </g>
         ))}
         <line className="curve-straight" x1={0} y1={H} x2={W} y2={0} />
-        <path d={line} fill="none" stroke={ink} strokeWidth={1.6} vectorEffect="non-scaling-stroke" />
+        <path d={line} fill="none" style={{ stroke: ink }} strokeWidth={1.6} vectorEffect="non-scaling-stroke" />
         {pts.map(([x, y], i) => (
           <circle
             key={i}
@@ -142,7 +142,7 @@ export function CurvesBox({ ids, grade }: { ids: string[]; grade: Grade }) {
             cx={x * W}
             cy={(1 - y) * H}
             r={4}
-            stroke={ink}
+            style={{ stroke: ink }}
             onPointerDown={(e) => grab(e, i, pts)}
             onDoubleClick={(e) => {
               e.stopPropagation();
