@@ -309,8 +309,8 @@ export default function App() {
   });
   const leftOff = lw === 0;
   const rightOff = rw === 0;
-  // the chat under the right panel, while that panel is shown; with the panel away it floats again
-  const chatUnder = dock.chatInPanel && !rightOff;
+  // in Studio the chat sits under the right panel; with the panel put away it floats over the canvas
+  const chatUnder = !rightOff;
   // Kitchen, like Chat, is a whole page of its own: no tools or panels around it, only your projects on the left
   const cooking = dock.space === "kitchen";
   // building a recipe full screen leaves only your projects and the top bar around it

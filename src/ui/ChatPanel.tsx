@@ -90,7 +90,6 @@ function agyModelList(): Promise<ModelChoice[]> {
 export default function ChatPanel({ docked = false, extra, onFold }: { docked?: boolean; extra?: React.ReactNode; onFold?: () => void }) {
   const space = useLayout((d) => d.space);
   const chatDocked = useLayout((d) => d.chatDocked);
-  const inPanel = useLayout((d) => d.chatInPanel);
   // the main chat, or the task on show
   const task = useChat((s) => (s.thread ? s.tasks.find((t) => t.key === s.thread) : undefined));
   const mainMessages = useChat((s) => s.messages);
@@ -667,21 +666,20 @@ export default function ChatPanel({ docked = false, extra, onFold }: { docked?: 
           )}
           {running && <span className="chat-status">{nm(members.find((m) => m.id === agent)?.name ?? "The AI")} is working…</span>}
         </div>
-        {/* in Studio the chat floats over the canvas, or sits under the right panel; Kitchen keeps it in its side */}
-        {!onFold && (
+        {/* Kitchen's chat, when it floats, can go back into Kitchen's side; Studio's chat always sits under the right panel */}
+        {space === "kitchen" && !docked && !onFold && (
           <button
             type="button"
             className="chat-dock-btn"
-            data-name={inPanel ? "chat-float" : "chat-dock"}
-            title={inPanel ? "Float the chat over the canvas" : "Put the chat under the right panel"}
+            data-name="chat-dock"
+            title="Put the chat back in Kitchen's side"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
-              if (inPanel) setMinimized(false);
-              setLayout({ chatInPanel: !inPanel, chatDocked: { ...chatDocked, [space]: false }, ...(inPanel ? {} : { rightHidden: false }) });
+              setLayout({ chatDocked: { ...chatDocked, kitchen: true } });
             }}
           >
-            <Icon name="panel-right" size={14} />
+            <Icon name="panel-left" size={14} />
           </button>
         )}
         {extra && (
