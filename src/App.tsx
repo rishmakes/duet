@@ -27,6 +27,7 @@ import VideoCut from "./ui/VideoCut";
 import TimeStrip from "./ui/TimeStrip";
 import { wireClips } from "./video/play";
 import { wireKeys } from "./video/keys";
+import { installTilde } from "./ui/tildeFull";
 import ChatPanel from "./ui/ChatPanel";
 import PanelChat from "./ui/PanelChat";
 import BeforeAfter from "./ui/BeforeAfter";
@@ -304,8 +305,8 @@ export default function App() {
   const { lw, rw } = fitStudio(win, {
     projectsOpen: dock.projectsOpen.edit,
     chatCol: 0,
-    lw: dock.leftHidden ? 0 : dock.leftW,
-    rw: dock.rightHidden ? 0 : dock.rightW,
+    lw: dock.leftHidden || dock.canvasMax ? 0 : dock.leftW,
+    rw: dock.rightHidden || dock.canvasMax ? 0 : dock.rightW,
   });
   const leftOff = lw === 0;
   const rightOff = rw === 0;
@@ -316,6 +317,7 @@ export default function App() {
   // building a recipe full screen leaves only your projects and the top bar around it
   const recipeFull = cooking && dock.recipeFull && !!dock.recipeOn;
   const chatFull = dock.chatFull;
+  useEffect(() => installTilde(), []);
   const hist = dock.historyLine && !recipeFull ? "48px" : "0";
   // the chat has a column of its own on the left, or floats over the canvas
   // the chat floats over the canvas, or sits under the right panel
@@ -444,7 +446,7 @@ export default function App() {
           ) : (
             !rightOff && <PropertiesPanel />
           )}
-          <TimeStrip />
+          {!dock.canvasMax && <TimeStrip />}
         </>
       )}
       {/* the chat full screen, over the work area; the projects and the history line stay */}

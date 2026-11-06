@@ -286,23 +286,7 @@ export default function TimeStrip() {
     return () => window.removeEventListener("keydown", key, true);
   }, [sceneId, look]);
 
-  // the tilde key, or the one beside 1, makes the timeline fill the window and brings it back; Escape too
-  useEffect(() => {
-    if (mode !== "motion") return;
-    const key = (e: KeyboardEvent) => {
-      const on = document.activeElement as HTMLElement | null;
-      if (e.metaKey || e.ctrlKey || e.altKey || (on && (on.tagName === "INPUT" || on.tagName === "TEXTAREA" || on.tagName === "SELECT" || on.isContentEditable))) return;
-      if (e.key === "`" || e.key === "~") {
-        e.preventDefault();
-        e.stopPropagation();
-        setLayout({ timeMax: !getLayout().timeMax });
-      } else if (e.key === "Escape" && getLayout().timeMax) {
-        setLayout({ timeMax: false });
-      }
-    };
-    window.addEventListener("keydown", key, true);
-    return () => window.removeEventListener("keydown", key, true);
-  }, [mode]);
+  // the tilde key lives in ./tildeFull: it fills the window with whatever part is under the pointer
 
   // cutting keys, the ones video editors already have in their hands
   useEffect(() => {
