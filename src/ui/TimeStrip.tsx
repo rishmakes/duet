@@ -156,7 +156,11 @@ export default function TimeStrip() {
       : chosen ?? openOne;
   const plays = !!frame && frame.duration > 0;
   const sceneId = mode === "motion" && plays ? frame.id : null;
+  // opening a project clears the clock, so the scene is opened again whenever the clock lost it
   useEffect(() => openScene(sceneId), [sceneId]);
+  useEffect(() => {
+    if (sceneId && !clock.scene) openScene(sceneId);
+  }, [sceneId, clock.scene]);
 
   // Cut silences listens to the picked clips, or to every clip with sound when none is picked
   const heard = sceneId && doc.elements[sceneId] ? doc.elements[sceneId].childIds.map((id) => doc.elements[id]).filter((el) => el && playsFile(el)) : [];

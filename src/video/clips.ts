@@ -328,6 +328,21 @@ export function syncClips(doc: Doc, sceneId: string | null, t: number, playing: 
  * While a frame plays, the clock follows the clip that is playing, so the clip never has to jump to
  * catch the clock. Returns the frame time the clip is at, or null when no clip is playing.
  */
+/** What each clip at this moment is doing, for a note when playing gets stuck. */
+export function clipReport(doc: Doc, sceneId: string, t: number): string {
+  const scene = doc.elements[sceneId];
+  if (!scene) return "no scene";
+  const out: string[] = [];
+  for (const id of clipsIn(doc, sceneId)) {
+    const el = doc.elements[id];
+    const { start, end } = spanOf(el, scene);
+    if (t < start || t >= end) continue;
+    const v = clipPlayers.get(id);
+    out.push(v ? `${el.name}: at ${v.currentTime.toFixed(2)}, ready ${v.readyState}, paused ${v.paused}, seeking ${v.seeking}, error ${v.error?.code ?? "none"}` : `${el.name}: no player`);
+  }
+  return out.join("; ") || "no clip here";
+}
+
 export function clockFromClip(doc: Doc, sceneId: string, t: number): number | null {
   const scene = doc.elements[sceneId];
   if (!scene?.duration) return null;

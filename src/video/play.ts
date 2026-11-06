@@ -1,5 +1,6 @@
 import { currentDoc, getState, setClock, subscribe } from "../state/store";
-import { clockFromClip, onClipPicture, syncClips } from "./clips";
+import { clipReport, clockFromClip, onClipPicture, syncClips } from "./clips";
+import { logError } from "../errorLog";
 
 /** Playing a frame that has a length: the clock runs, the canvas follows, and clips keep in step. */
 
@@ -47,10 +48,36 @@ function tick(now: number) {
   raf = requestAnimationFrame(tick);
 }
 
+/** Notes why pressing play did not play, so a play button that does nothing can be found on any computer. */
+function noteStuckPlay(scene: { name: string; duration: number } | null) {
+  const s = getState();
+  if (!scene?.duration) {
+    logError("play did nothing", `no scene open (clock scene ${s.clock.scene ?? "none"}, found ${scene ? `${scene.name}, length ${scene.duration}` : "nothing"})`);
+    return;
+  }
+  const t0 = s.clock.t;
+  let frames = 0;
+  const count = () => {
+    frames++;
+    if (frames < 30) requestAnimationFrame(count);
+  };
+  requestAnimationFrame(count);
+  setTimeout(() => {
+    const now = getState().clock;
+    if (now.playing && Math.abs(now.t - t0) < 0.05) {
+      logError("play did nothing", `${scene.name}: still at ${now.t.toFixed(2)} s after 1 s; the window drew ${frames} times; visible ${document.visibilityState}, focused ${document.hasFocus()}; ${clipReport(currentDoc(getState()), scene && s.clock.scene ? s.clock.scene : "", now.t)}`);
+    }
+  }, 1000);
+}
+
 export function play() {
   const s = getState();
   const scene = s.clock.scene ? currentDoc(s).elements[s.clock.scene] : null;
-  if (!scene?.duration || s.clock.playing) return;
+  if (!scene?.duration || s.clock.playing) {
+    if (!s.clock.playing) noteStuckPlay(scene ?? null);
+    return;
+  }
+  noteStuckPlay(scene);
   // pressing play at the end of the work area, or of the scene, starts again from the work area's beginning.
   // With the playhead put outside the work area on purpose, it plays from there to the end of the scene.
   const from = scene.workArea?.start ?? 0;
@@ -107,7 +134,10 @@ export const togglePlay = () => (getState().clock.playing ? pause() : play());
 export function seek(t: number) {
   const s = getState();
   const scene = s.clock.scene ? currentDoc(s).elements[s.clock.scene] : null;
-  if (!scene) return;
+  if (!scene) {
+    logError("playhead did not move", `no scene open (clock scene ${s.clock.scene ?? "none"})`);
+    return;
+  }
   setClock({ t: Math.max(0, Math.min(scene.duration, t)) });
 }
 
