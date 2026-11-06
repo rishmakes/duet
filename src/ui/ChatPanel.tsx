@@ -90,6 +90,7 @@ function agyModelList(): Promise<ModelChoice[]> {
 export default function ChatPanel({ docked = false, extra, onFold }: { docked?: boolean; extra?: React.ReactNode; onFold?: () => void }) {
   const space = useLayout((d) => d.space);
   const chatDocked = useLayout((d) => d.chatDocked);
+  const inPanel = useLayout((d) => d.chatInPanel);
   // the main chat, or the task on show
   const task = useChat((s) => (s.thread ? s.tasks.find((t) => t.key === s.thread) : undefined));
   const mainMessages = useChat((s) => s.messages);
@@ -394,6 +395,12 @@ export default function ChatPanel({ docked = false, extra, onFold }: { docked?: 
       const top = pos.y < near;
       const bottom = p.height - (pos.y + b.height) < near;
       setMoving(null);
+      // let go over the right panel: the chat stays there, under the panel
+      const panel = space === "edit" ? document.querySelector(".app > aside.right")?.getBoundingClientRect() : null;
+      if (panel && m.clientX >= panel.left && m.clientX <= panel.right && m.clientY >= panel.top && m.clientY <= panel.bottom) {
+        setLayout({ chatInPanel: true });
+        return;
+      }
       if ((left || right) && (top || bottom)) setLayout({ chat: { corner: `${top ? "t" : "b"}${left ? "l" : "r"}` as Corner } });
       else setLayout({ chat: { x: pos.x, y: pos.y } });
     };
@@ -666,20 +673,24 @@ export default function ChatPanel({ docked = false, extra, onFold }: { docked?: 
           )}
           {running && <span className="chat-status">{nm(members.find((m) => m.id === agent)?.name ?? "The AI")} is working…</span>}
         </div>
-        {/* Kitchen's chat, when it floats, can go back into Kitchen's side; Studio's chat always sits under the right panel */}
-        {space === "kitchen" && !docked && !onFold && (
+        {/* one button: in Studio it puts the chat under the right panel, or floats it again; a floating Kitchen chat goes back into Kitchen's side */}
+        {!onFold && (
           <button
             type="button"
             className="chat-dock-btn"
-            data-name="chat-dock"
-            title="Put the chat back in Kitchen's side"
+            data-name={space === "kitchen" ? "chat-dock" : inPanel ? "chat-float" : "chat-to-panel"}
+            title={space === "kitchen" ? "Put the chat back in Kitchen's side" : inPanel ? "Float the chat over the canvas, for a wider timeline" : "Put the chat under the right panel. You can also drag it there"}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
-              setLayout({ chatDocked: { ...chatDocked, kitchen: true } });
+              if (space === "kitchen") setLayout({ chatDocked: { ...chatDocked, kitchen: true } });
+              else {
+                if (inPanel) setMinimized(false);
+                setLayout({ chatInPanel: !inPanel, ...(inPanel ? {} : { rightHidden: false }) });
+              }
             }}
           >
-            <Icon name="panel-left" size={14} />
+            <Icon name={space === "kitchen" ? "panel-left" : "panel-right"} size={14} />
           </button>
         )}
         {extra && (
