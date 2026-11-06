@@ -4,8 +4,10 @@ import { spanOf, withKey } from "../document/time";
 import { QUIETEST_DB, dbText, dipKeys, fadeAt, fromDb, toDb, volumeAt } from "../document/sound";
 import type { El, Key } from "../document/types";
 
-/** Room above and below the line, so it can be grabbed at the top and the bottom. */
-const PAD = 5;
+/** Room below the line, so it can be grabbed at the bottom. */
+const PAD = 6;
+/** Room above it: the clip's name sits at the top, so full volume runs just under it. */
+const TOP = 20;
 const round = (t: number) => Math.round(t * 1000) / 1000;
 
 /**
@@ -22,10 +24,11 @@ export default function VolumeLine({ el, scene, pps, width, height, on }: { el: 
   const [tip, setTip] = useState<string | null>(null);
   const keys = el.keys.volume ?? [];
 
-  const room = Math.max(1, height - PAD * 2);
-  const yOf = (v: number) => PAD + (1 - (v <= 0 ? 0 : Math.max(0, Math.min(1, (toDb(v) - QUIETEST_DB) / -QUIETEST_DB)))) * room;
+  const top = height >= 44 ? TOP : PAD;
+  const room = Math.max(1, height - top - PAD);
+  const yOf = (v: number) => top + (1 - (v <= 0 ? 0 : Math.max(0, Math.min(1, (toDb(v) - QUIETEST_DB) / -QUIETEST_DB)))) * room;
   const vOf = (y: number) => {
-    const p = 1 - (y - PAD) / room;
+    const p = 1 - (y - top) / room;
     return p <= 0 ? 0 : fromDb(QUIETEST_DB + Math.min(1, p) * -QUIETEST_DB);
   };
   const xOf = (t: number) => (t - span.start) * pps;
@@ -220,9 +223,9 @@ export default function VolumeLine({ el, scene, pps, width, height, on }: { el: 
             points={line}
             data-name="volume-hit"
             onPointerDown={downOnLine}
-            onMouseEnter={() => !tip && setTip("Drag up or down for volume · click to add a point · drag sideways to pick a part")}
-            onMouseLeave={() => setTip((t) => (t?.startsWith("Drag up") ? null : t))}
-          />
+          >
+            <title>Volume. Drag up or down, click to add a point, drag sideways to pick a part</title>
+          </polyline>
         )}
         {on &&
           keys
@@ -234,7 +237,7 @@ export default function VolumeLine({ el, scene, pps, width, height, on }: { el: 
                 data-name="volume-point"
                 cx={xOf(k.t)}
                 cy={yOf(volumeAt(el, k.t) * fadeAt(el, span, k.t))}
-                r={4}
+                r={5.5}
                 onPointerDown={(e) => downOnPoint(e, k)}
               >
                 <title>{`${dbText(k.v)}. Drag to change, click to pick`}</title>
@@ -242,10 +245,10 @@ export default function VolumeLine({ el, scene, pps, width, height, on }: { el: 
             ))}
         {on && (
           <>
-            <circle className="volume-fade" data-name="fade-in" cx={Math.max(5, fin)} cy={PAD} r={4} onPointerDown={(e) => downOnFade(e, "fadeIn")}>
+            <circle className="volume-fade" data-name="fade-in" cx={Math.max(6, fin)} cy={top} r={5} onPointerDown={(e) => downOnFade(e, "fadeIn")}>
               <title>Fade in: drag to the right</title>
             </circle>
-            <circle className="volume-fade" data-name="fade-out" cx={Math.min(width - 5, width - fout)} cy={PAD} r={4} onPointerDown={(e) => downOnFade(e, "fadeOut")}>
+            <circle className="volume-fade" data-name="fade-out" cx={Math.min(width - 6, width - fout)} cy={top} r={5} onPointerDown={(e) => downOnFade(e, "fadeOut")}>
               <title>Fade out: drag to the left</title>
             </circle>
           </>
