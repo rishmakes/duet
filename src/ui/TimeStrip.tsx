@@ -23,6 +23,8 @@ import type { ExportChoice } from "../video/scene";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { DEFAULT_TRACK_H, NO_HEIGHTS, TIME_MIN_H, TRACK_MAX_H, TRACK_MIN_H, getLayout, isColorOpen, setLayout, useLayout } from "./layout";
 import { useDismiss } from "./useDismiss";
+import { openBoard, pinnedOn } from "../document/boards";
+import { showComment } from "./commentFocus";
 import { rowLook, trackRows } from "../document/tracks";
 import type { TrackRow } from "../document/tracks";
 import { getPickedTrack, pickTrack, usePickedTrack } from "./pickedTrack";
@@ -72,6 +74,8 @@ export default function TimeStrip() {
   const [growing, setGrowing] = useState<number | null>(null);
   const doc = useStore((s) => currentDoc(s));
   const selection = useStore((s) => s.selection);
+  // comments still open on this board, numbered as on their pins; the ones made at a moment of a video stand on its timeline
+  const liveComments = (doc.comments ?? []).filter((c) => pinnedOn(c, openBoard(doc)) && !c.resolved).map((c, i) => ({ c, n: i + 1 }));
   const clock = useStore((s) => s.clock);
   const lanes = useRef<HTMLDivElement>(null);
   // the rows as last drawn, for the keys that pick the clip before or after
@@ -1682,6 +1686,26 @@ export default function TimeStrip() {
                 )}
               </b>
             ))}
+            {/* a comment made at a moment is a marker too, with its number for a head */}
+            {liveComments
+              .filter(({ c }) => c.scene === frame.id && typeof c.t === "number")
+              .map(({ c, n }) => (
+                <b
+                  key={c.id}
+                  className={`time-comment ${c.by === "ai" ? "ai" : ""}`}
+                  data-name="comment-marker"
+                  style={{ left: c.t! * pps }}
+                  title={`${clockText(c.t!)} · ${c.text}`}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    pause();
+                    seek(c.t!);
+                    showComment(c.id);
+                  }}
+                >
+                  {n}
+                </b>
+              ))}
           </div>
         </div>
         {displayRows.map((row, ri) => {
@@ -1867,6 +1891,11 @@ export default function TimeStrip() {
         )}
         {hushing &&
           silences.map((r) => <div key={r.start} className="time-silence" style={{ left: NAMES + r.start * pps, width: Math.max(1, (r.end - r.start) * pps) }} />)}
+        {liveComments
+          .filter(({ c }) => c.scene === frame.id && typeof c.t === "number")
+          .map(({ c }) => (
+            <div key={c.id} className={`time-marker-line comment ${c.by === "ai" ? "ai" : ""}`} style={{ left: NAMES + c.t! * pps }} />
+          ))}
         {(frame.markers ?? []).map((m) => (
           <div key={m.id} className="time-marker-line" style={{ left: NAMES + m.t * pps, "--marker": m.color } as React.CSSProperties} />
         ))}

@@ -7384,6 +7384,33 @@ input.chathome-name.rename {
   pointer-events: none;
   z-index: 1;
 }
+/* a comment at a moment: the marker's line, with the comment's number as its head */
+.time-row.ruler .time-comment {
+  position: absolute;
+  top: 0;
+  width: 18px;
+  height: 18px;
+  margin-left: -9px;
+  display: grid;
+  place-items: center;
+  border-radius: 50% 50% 50% 3px;
+  background: var(--text);
+  color: var(--panel);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  z-index: 2;
+}
+.time-row.ruler .time-comment.ai {
+  background: var(--accent);
+  color: #fff;
+}
+.time-marker-line.comment {
+  background: var(--text);
+}
+.time-marker-line.comment.ai {
+  background: var(--accent);
+}
 .ctx-colors {
   display: flex;
   gap: 8px;
