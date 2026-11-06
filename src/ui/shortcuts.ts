@@ -70,7 +70,7 @@ export const SHORTCUTS: { group: string; keys: [string, string][] }[] = [
       ["J, K and L", "Back, stop, forward. J or L again doubles the speed, up to eight times"],
       ["Cmd Left and Right", "Step one frame back or forward. With Shift, ten frames"],
       ["K with J or L", "Step one frame back or forward"],
-      ["C or S", "Split at the playhead"],
+      ["S", "Split at the playhead"],
       ["D", "Delete the clip and close the gap"],
       ["M", "Add a marker at the playhead, or take it away"],
       ["B and N", "Begin and end the work area at the playhead. Play stays inside it"],

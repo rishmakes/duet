@@ -359,7 +359,7 @@ function KitchenTools({ tool }: { tool: string }) {
       {toolBtn("move", "move", "Pick and move (V)")}
       {toolBtn("hand", "hand", "Look around: drag the view (H, or hold Space)")}
       <button className={`kitchen-tool wide with-icon ${tool === "comment" ? "on" : ""}`} data-name="kitchen-comment" title="Click anywhere on the design to leave a note, for the AI or for people. On a video it marks the moment too (C)" onClick={() => setTool(tool === "comment" ? "move" : "comment")}>
-        <Icon name="marker" size={15} /> Comment
+        <Icon name="comment" size={15} /> Comment
       </button>
       {boards.length > 1 && (
         <>
@@ -528,7 +528,7 @@ function ReviewBar() {
           </div>
         )}
         <button className="kitchen-tool wide with-icon review-comment" data-name="comment-at-moment" title="Write a comment about this moment" onClick={() => (pause(), setWriting(t))}>
-          <Icon name="marker" size={14} /> Comment at {clockTime(t)}
+          <Icon name="comment" size={14} /> Comment at {clockTime(t)}
         </button>
       </div>
       <button className={`kitchen-tool wide ${commentsOpen ? "on" : ""}`} data-name="kitchen-comments" title="Read and resolve the comments" onClick={() => setLayout({ kitchenComments: !commentsOpen })}>

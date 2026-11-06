@@ -360,7 +360,7 @@ export default function TimeStrip() {
         stretching.current = false;
         setStretchTool(false);
       }
-      if (!["s", "c", "d", "j", "k", "l", " "].includes(k)) return;
+      if (!["s", "d", "j", "k", "l", " "].includes(k)) return;
       e.preventDefault();
       e.stopPropagation();
       // the canvas listens on the window too, and must not take the spacebar for the hand tool
@@ -379,7 +379,7 @@ export default function TimeStrip() {
         }
         return shuttle(k === "j" ? -1 : 1);
       }
-      // S or C splits at the playhead, as the razor does in other video editors; D takes the clip away and closes the gap
+      // S splits at the playhead, as the razor does in other video editors (C is always Comment); D takes the clip away and closes the gap
       cutNow(k === "d" ? "remove" : "split");
     };
     const up = (e: KeyboardEvent) => {

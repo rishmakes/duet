@@ -22,7 +22,7 @@ export const TOOLS: { tool: Tool; label: string; key: string; icon: IconName }[]
   { tool: "text", label: "Text", key: "T", icon: "text" },
   { tool: "hand", label: "Hand", key: "H", icon: "hand" },
   { tool: "zoom", label: "Zoom", key: "Z", icon: "zoom" },
-  { tool: "comment", label: "Comment", key: "C", icon: "marker" },
+  { tool: "comment", label: "Comment", key: "C", icon: "comment" },
 ];
 
 export const PHOTO_TOOLS: { tool: Tool; label: string; key: string; icon: IconName }[] = [
@@ -31,7 +31,7 @@ export const PHOTO_TOOLS: { tool: Tool; label: string; key: string; icon: IconNa
 ];
 
 const CUTS: { kind: CutKind; label: string; key?: string; icon: IconName }[] = [
-  { kind: "split", label: "Cut here", key: "C", icon: "cut-here" },
+  { kind: "split", label: "Cut here", key: "S", icon: "cut-here" },
   { kind: "remove", label: "Delete and close the gap", key: "D", icon: "cut-close" },
   { kind: "before", label: "Cut away what comes before", icon: "cut-before" },
   { kind: "after", label: "Cut away what comes after", icon: "cut-after" },
