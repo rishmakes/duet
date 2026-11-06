@@ -309,7 +309,7 @@ export default function App() {
   });
   const leftOff = lw === 0;
   const rightOff = rw === 0;
-  // in Studio the chat sits under the right panel; with the panel put away it floats over the canvas
+  // in Studio the chat sits under the right panel, and that column runs down to the history line, beside the timeline; with the panel put away the chat floats over the canvas
   const chatUnder = !rightOff;
   // Kitchen, like Chat, is a whole page of its own: no tools or panels around it, only your projects on the left
   const cooking = dock.space === "kitchen";
@@ -329,8 +329,8 @@ export default function App() {
     gridTemplateAreas: timeMax
       ? '"top top top top top" "projects chat bar bar bar" "projects chat time time time" "projects chat time time time" "projects hist hist hist hist"'
       : dock.swapped
-      ? '"top top top top top" "projects chat right bar left" "projects chat right canvas left" "projects chat time time time" "projects hist hist hist hist"'
-      : '"top top top top top" "projects chat left bar right" "projects chat left canvas right" "projects chat time time time" "projects hist hist hist hist"',
+      ? '"top top top top top" "projects chat right bar left" "projects chat right canvas left" "projects chat right time time" "projects hist hist hist hist"'
+      : '"top top top top top" "projects chat left bar right" "projects chat left canvas right" "projects chat time time right" "projects hist hist hist hist"',
 
   };
 
