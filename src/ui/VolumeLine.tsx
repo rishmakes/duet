@@ -114,7 +114,10 @@ export default function VolumeLine({ el, scene, pps, width, height, on }: { el: 
       } else {
         // a click: a new point on the line, where it is now
         const t = round(start.t);
-        dispatch("set_keys", { id: el.id, prop: "volume", keys: withKey(keys, { t, v: volumeAt(el, t), ease: "linear" }, true).map((k) => ({ t: k.t, v: k.v, ease: k.ease })), label: "Add a volume point" } as never);
+        let list = withKey(keys, { t, v: volumeAt(el, t), ease: "linear" }, true);
+        // the line holds still past its last point, so the clip's ends get a point too: moving this one then bends only its own part
+        for (const edge of [round(span.start), round(span.end)]) if (!list.some((k) => Math.abs(k.t - edge) < 0.004)) list = withKey(list, { t: edge, v: volumeAt(el, edge), ease: "linear" });
+        dispatch("set_keys", { id: el.id, prop: "volume", keys: list.map((k) => ({ t: k.t, v: k.v, ease: k.ease })), label: "Add a volume point" } as never);
         setPicked(t);
       }
     };
@@ -245,10 +248,10 @@ export default function VolumeLine({ el, scene, pps, width, height, on }: { el: 
             ))}
         {on && (
           <>
-            <circle className="volume-fade" data-name="fade-in" cx={Math.max(6, fin)} cy={top} r={5} onPointerDown={(e) => downOnFade(e, "fadeIn")}>
+            <circle className="volume-fade" data-name="fade-in" cx={Math.max(6, fin)} cy={yOf(volumeAt(el, span.start + Math.max(6, fin) / pps))} r={5} onPointerDown={(e) => downOnFade(e, "fadeIn")}>
               <title>Fade in: drag to the right</title>
             </circle>
-            <circle className="volume-fade" data-name="fade-out" cx={Math.min(width - 6, width - fout)} cy={top} r={5} onPointerDown={(e) => downOnFade(e, "fadeOut")}>
+            <circle className="volume-fade" data-name="fade-out" cx={Math.min(width - 6, width - fout)} cy={yOf(volumeAt(el, span.start + Math.min(width - 6, width - fout) / pps))} r={5} onPointerDown={(e) => downOnFade(e, "fadeOut")}>
               <title>Fade out: drag to the left</title>
             </circle>
           </>
