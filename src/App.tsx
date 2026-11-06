@@ -315,6 +315,7 @@ export default function App() {
   const cooking = dock.space === "kitchen";
   // building a recipe full screen leaves only your projects and the top bar around it
   const recipeFull = cooking && dock.recipeFull && !!dock.recipeOn;
+  const chatFull = dock.chatFull;
   const hist = dock.historyLine && !recipeFull ? "48px" : "0";
   // the chat has a column of its own on the left, or floats over the canvas
   // the chat floats over the canvas, or sits under the right panel
@@ -445,6 +446,12 @@ export default function App() {
           )}
           <TimeStrip />
         </>
+      )}
+      {/* the chat full screen, over the work area; the projects and the history line stay */}
+      {chatFull && (
+        <div className="chat-full">
+          <ChatPanel docked full />
+        </div>
       )}
       {skillsOpen && <StorePage onClose={() => setSkillsOpen(false)} />}
       {recipesOpen && <RecipesPage onClose={() => setRecipesOpen(false)} />}

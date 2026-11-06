@@ -87,7 +87,15 @@ function agyModelList(): Promise<ModelChoice[]> {
 }
 
 /** `docked` fills the space it is given, as the middle of Chat; otherwise it floats on the canvas. */
-export default function ChatPanel({ docked = false, extra, onFold }: { docked?: boolean; extra?: React.ReactNode; onFold?: () => void }) {
+type ChatProps = { docked?: boolean; extra?: React.ReactNode; onFold?: () => void; full?: boolean };
+/** While the chat is full screen, only the full screen one shows, so there is never a second copy of it. */
+export default function ChatPanel(props: ChatProps) {
+  const chatFull = useLayout((d) => d.chatFull);
+  if (chatFull && !props.full) return null;
+  return <ChatBody {...props} />;
+}
+
+function ChatBody({ docked = false, extra, onFold, full = false }: ChatProps) {
   const space = useLayout((d) => d.space);
   const chatDocked = useLayout((d) => d.chatDocked);
   const inPanel = useLayout((d) => d.chatInPanel);
@@ -673,8 +681,23 @@ export default function ChatPanel({ docked = false, extra, onFold }: { docked?: 
           )}
           {running && <span className="chat-status">{nm(members.find((m) => m.id === agent)?.name ?? "The AI")} is working…</span>}
         </div>
+        {/* full screen: the chat wide in the middle, like the old Chat space; a cross brings back your work */}
+        <button
+          type="button"
+          className="chat-dock-btn"
+          data-name={full ? "chat-full-close" : "chat-full"}
+          title={full ? "Back to your work" : "Full screen chat"}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            setMinimized(false);
+            setLayout({ chatFull: !full });
+          }}
+        >
+          {full ? <Icon name="close" size={14} /> : <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M8.5 2.5h3v3M5.5 11.5h-3v-3M11.5 2.5 8 6M2.5 11.5 6 8" /></svg>}
+        </button>
         {/* one button: in Studio it puts the chat under the right panel, or floats it again; a floating Kitchen chat goes back into Kitchen's side */}
-        {!onFold && (
+        {!onFold && !full && (
           <button
             type="button"
             className="chat-dock-btn"

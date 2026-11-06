@@ -68,6 +68,8 @@ export interface Dock {
   recipeW: number;
   /** The recipe takes all of Kitchen, to build and plan it. Never kept between runs. */
   recipeFull: boolean;
+  /** The chat takes the whole work area, wide and calm like the old Chat space. Never kept between runs. */
+  chatFull: boolean;
   /** Kitchen's recipe, or its chat, folded down to its bar. */
   recipeFolded: boolean;
   kitchenChatFolded: boolean;
@@ -130,6 +132,7 @@ export const defaults = (): Dock => ({
   recipeOn: null,
   kitchenComments: false,
   recipeFull: false,
+  chatFull: false,
   kitchenChatH: 380,
   recipeFolded: false,
   kitchenChatFolded: false,
@@ -172,7 +175,7 @@ export function parseLayout(raw: unknown): Dock {
     const chatInPanel = r.chatInPanel === true;
     const panelChatH = typeof r.panelChatH === "number" && Number.isFinite(r.panelChatH) ? Math.max(PANEL_CHAT_MIN, Math.round(r.panelChatH)) : 360;
     const recipeOn = typeof r.recipeOn === "string" ? r.recipeOn : null;
-    return { ...defaults(), ...r, recipeFull: false, projectsOpen, chatDocked, chatInPanel, panelChatH, recipeOn, prototyping: false, mode, space, timeLook, timeMax: false, videoTab, photoTab, historyLine, trackH, rowH };
+    return { ...defaults(), ...r, recipeFull: false, chatFull: false, projectsOpen, chatDocked, chatInPanel, panelChatH, recipeOn, prototyping: false, mode, space, timeLook, timeMax: false, videoTab, photoTab, historyLine, trackH, rowH };
   }
   return defaults();
 }

@@ -6197,6 +6197,22 @@ input.chathome-name.rename {
   border-radius: 0;
   background: transparent;
 }
+/* the chat full screen: over the work area, below the top bar, with the history line kept; one calm column in the middle */
+.chat-full {
+  grid-column: 2 / -1;
+  grid-row: 2 / -2;
+  z-index: 40;
+  display: flex;
+  justify-content: center;
+  min-height: 0;
+  background: var(--bg);
+}
+.chat-full > .chat.docked {
+  width: min(760px, 100%) !important;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
 .chat.docked .csize {
   display: none;
 }
