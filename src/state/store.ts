@@ -307,6 +307,15 @@ export function dispatch<N extends CommandName>(name: N, args: ArgsOf<N>, actor:
   commit(doc, commandLabel(name, args), actor, by);
 }
 
+/**
+ * Switch between the open canvas and page view. It is only how the design is looked at, so it is kept with
+ * the project but is never a step in history: every step already loaded takes it, and undo does not flip it back.
+ */
+export function setPagesView(on: boolean) {
+  const timeline = state.timeline.map((e) => (isLoaded(e) ? { ...e, doc: runCommand(e.doc, "set_pages", { on }) } : e));
+  set({ timeline });
+}
+
 /** Arrow presses closer together than this count as one step. Shorter than the wait before saving. */
 const NUDGE_GAP = 600;
 let lastNudge: { entry: HistoryEntry; ids: string } | null = null;

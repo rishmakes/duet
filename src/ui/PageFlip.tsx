@@ -1,4 +1,4 @@
-import { dispatch, getState, useStore, workDoc } from "../state/store";
+import { getState, setPagesView, useStore, workDoc } from "../state/store";
 import { useLayout } from "./layout";
 import { openPage, resetPageFocus } from "./pageFocus";
 
@@ -6,7 +6,7 @@ import { openPage, resetPageFocus } from "./pageFocus";
 export function flipPageView() {
   const d = workDoc();
   if (d.pages) {
-    dispatch("set_pages", { on: false });
+    setPagesView(false);
     resetPageFocus();
     window.dispatchEvent(new Event("duet:fit"));
     return;
@@ -14,7 +14,7 @@ export function flipPageView() {
   let top = getState().selection[0];
   while (top && d.elements[top]?.parentId) top = d.elements[top].parentId!;
   const page = top && d.rootIds.includes(top) && d.elements[top]?.type === "frame" ? top : d.rootIds.find((id) => d.elements[id]?.type === "frame");
-  dispatch("set_pages", { on: true });
+  setPagesView(true);
   if (page) openPage(page);
 }
 

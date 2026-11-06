@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { newId } from "../commands";
-import { dispatch, select } from "../state/store";
+import { dispatch, select, setPagesView } from "../state/store";
 import { listedProjects, newDesignTab, openProject, openProjectAt } from "../project/project";
 import type { Recent } from "../project/project";
 import { setLayout } from "./layout";
@@ -89,7 +89,7 @@ export default function Home({ onClose }: HomeProps) {
     if (tile.kind === "sized" && tile.width && tile.height) {
       resetPageFocus();
       await newDesignTab();
-      dispatch("set_pages", { on: true });
+      setPagesView(true);
       const id = newId("frame");
       dispatch("create_preset_frame", {
         preset: { name: tile.title, width: tile.width, height: tile.height },
@@ -109,7 +109,7 @@ export default function Home({ onClose }: HomeProps) {
     const w = clampDim(customW, 1080);
     const h = clampDim(customH, 1350);
     await newDesignTab();
-    dispatch("set_pages", { on: true });
+    setPagesView(true);
     const id = newId("frame");
     dispatch("create_preset_frame", {
       preset: { name: "Custom", width: w, height: h },
