@@ -267,8 +267,8 @@ let tabs: string[] | null = null;
 export function getTabs(): string[] {
   if (tabs) return tabs;
   try {
-    // Duet dev keeps its own open projects only until it closes, so reloading its code does not lose them
-    const raw = JSON.parse((checkCopy ? sessionStorage : localStorage).getItem(TABS_KEY) ?? "[]");
+    // open projects last until Duet closes: quitting closes them, and the next start begins on Home
+    const raw = JSON.parse(sessionStorage.getItem(TABS_KEY) ?? "[]");
     tabs = Array.isArray(raw) ? raw.filter((p): p is string => typeof p === "string" && /\.duet$/i.test(p)) : [];
   } catch {
     tabs = [];
@@ -279,8 +279,7 @@ export function getTabs(): string[] {
 function setTabs(next: string[]) {
   tabs = next;
   try {
-    // Duet dev shares this storage with the Duet a designer works in, and must leave it alone
-    (checkCopy ? sessionStorage : localStorage).setItem(TABS_KEY, JSON.stringify(next));
+    sessionStorage.setItem(TABS_KEY, JSON.stringify(next));
   } catch {
     /* private mode: tabs last until Duet closes */
   }
@@ -1356,9 +1355,10 @@ async function sendCopyDialog(choice: CopyChoice): Promise<{ saved: string } | {
   });
 }
 
-/** On launch, go back to where you were. */
+/** On launch, nothing opens by itself: quitting closed every project, and Duet starts on Home. Kept for a reload of the page, which goes back to the project on screen. */
 export async function restoreLast() {
   if (!inTauri()) return;
+  if (!sessionStorage.getItem(TABS_KEY)) return;
   // Duet dev never opens a designer's project by itself: two Duets on one project would fight over it
   if (await learnCheckCopy()) return;
   let path: string | null = null;
