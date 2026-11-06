@@ -27,6 +27,21 @@ export interface HistoryEntry {
   covers?: string[];
   /** The step this one was made on, when it starts a new direction. */
   from?: string;
+  /** Where the saved step is kept, so a step opened without its design can fetch it. */
+  hash?: string;
+}
+
+/**
+ * A long history opens with the designs of only its newest steps. An older step holds this stand-in
+ * until it is needed: going back to it fetches its design first. Never shown or saved.
+ */
+export const NOT_LOADED: Doc = Object.freeze({ version: 1, rootIds: Object.freeze([]) as unknown as string[], elements: Object.freeze({}) as Doc["elements"] }) as Doc;
+export const isLoaded = (e: HistoryEntry) => e.doc !== NOT_LOADED;
+
+/** Fetches a saved step's design from a project's folder. Set by the project code. */
+let stepLoader: ((path: string, hash: string) => Promise<Doc>) | null = null;
+export function setStepLoader(load: (path: string, hash: string) => Promise<Doc>) {
+  stepLoader = load;
 }
 
 export interface Viewport {
@@ -390,9 +405,36 @@ export function restoreDoc(doc: Doc, label: string, actor: Actor = "you", by?: s
 export function goTo(index: number, box: Box = liveBox) {
   const s = box.get();
   const i = Math.max(0, Math.min(s.timeline.length - 1, index));
+  if (!isLoaded(s.timeline[i])) {
+    void fetchStep(s.timeline[i], box).then((doc) => {
+      const at = doc ? box.get().timeline.findIndex((e) => e.hash === s.timeline[i].hash && isLoaded(e)) : -1;
+      if (at >= 0) goTo(at, box);
+    });
+    return;
+  }
   const doc = s.timeline[i].doc;
   const was = s.timeline[s.cursor].doc;
   box.set({ cursor: i, transientDoc: null, selection: cleanSelection(s.selection, doc, was), focus: cleanSelection(s.focus, doc, was), editingId: null });
+}
+
+/** The design of a step, fetched from the project's folder when the step was opened without it. Null if it cannot be read. */
+export async function stepDoc(entry: HistoryEntry, box: Box = liveBox): Promise<Doc | null> {
+  return isLoaded(entry) ? entry.doc : fetchStep(entry, box);
+}
+
+async function fetchStep(entry: HistoryEntry, box: Box): Promise<Doc | null> {
+  const path = box.get().project.path;
+  if (!entry.hash || !path || !stepLoader) return null;
+  try {
+    const doc = await stepLoader(path, entry.hash);
+    // keep it, so going back there again is instant; the history may have moved on meanwhile
+    const now = box.get();
+    if (now.timeline.includes(entry)) box.set({ timeline: now.timeline.map((e) => (e === entry ? { ...e, doc } : e)) });
+    return doc;
+  } catch (e) {
+    console.warn("Could not read a saved step:", e);
+    return null;
+  }
 }
 
 /** Undo and redo follow the direction you are on. */
@@ -472,6 +514,8 @@ export interface Room {
   dispatch: <N extends CommandName>(name: N, args: ArgsOf<N>, actor?: Actor, by?: string) => void;
   restoreDoc: (doc: Doc, label: string, actor?: Actor, by?: string) => void;
   goTo: (index: number) => void;
+  /** A step's design, fetched first when the step was opened without it. */
+  stepDoc: (entry: HistoryEntry) => Promise<Doc | null>;
   select: (ids: string[]) => void;
   noteAiWork: (ids: string[], by?: string) => void;
   noteAiArea: (area: { x: number; y: number; width: number; height: number }, by?: string) => void;
@@ -489,6 +533,7 @@ export const liveRoom: Room = {
   dispatch,
   restoreDoc,
   goTo: (i) => goTo(i),
+  stepDoc: (e) => stepDoc(e),
   select,
   noteAiWork,
   noteAiArea,
@@ -508,6 +553,7 @@ export function roomFor(file: string | null): Room | null {
     dispatch: (name, args, actor = "you", by) => commit(runAtNow(currentDoc(box.get()), name, args, box), commandLabel(name, args), actor, by, box),
     restoreDoc: (doc, label, actor = "you", by) => commit(doc, label, actor, by, box),
     goTo: (i) => goTo(i, box),
+    stepDoc: (e) => stepDoc(e, box),
     select: (ids) => box.set({ selection: ids }),
     // where an AI works is shown on the canvas, and this project is not on it
     noteAiWork: () => undefined,

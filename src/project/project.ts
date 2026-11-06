@@ -15,12 +15,14 @@ import { logError } from "../errorLog";
 import { isUntitledName, nameFromWork } from "./naming";
 import { lineTo } from "../state/directions";
 import { keepable, packThread, readThread } from "../memory/thread";
-import { dropParked, getState, isParked, parkedFiles, loadDoc, loadTimeline, onParkedChange, parkLive, parkedState, setEntryVersion, setProject, subscribe, unpark } from "../state/store";
+import { NOT_LOADED, setStepLoader, dropParked, getState, isParked, parkedFiles, loadDoc, loadTimeline, onParkedChange, parkLive, parkedState, setEntryVersion, setProject, subscribe, unpark } from "../state/store";
 import type { HistoryEntry } from "../state/store";
 
 const FILE = "design.json";
 const LAST_KEY = "duet:last-project";
 const HISTORY_LIMIT = 300;
+/** Steps opened with their design. Older ones fetch it when the designer goes back to them, so a long history opens quickly. */
+const FULL_STEPS = 20;
 
 export const inTauri = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -1095,15 +1097,19 @@ interface HistoryItem {
 }
 
 /** The saved steps of this project, oldest first. Empty if there is no history yet. */
+setStepLoader(async (path, hash) => parseDoc(await invoke<string>("git_step_doc", { path, hash })));
+
 async function readHistory(path: string): Promise<HistoryEntry[]> {
   try {
-    const items = await invoke<HistoryItem[]>("git_history", { path, limit: HISTORY_LIMIT });
+    const items = await invoke<HistoryItem[]>("git_history", { path, limit: HISTORY_LIMIT, full: FULL_STEPS });
+    openMark("read history");
     const out: HistoryEntry[] = [];
     for (const i of items) {
       try {
         const names = i.steps ?? [];
         out.push({
-          doc: parseDoc(i.doc),
+          doc: i.doc ? parseDoc(i.doc) : NOT_LOADED,
+          hash: i.hash,
           label: i.label,
           actor: i.actor === "ai" ? "ai" : "you",
           ...(i.actor === "ai" && i.by ? { by: i.by } : {}),
@@ -1133,13 +1139,18 @@ async function loadFrom(path: string, quiet: boolean, file: string): Promise<boo
       return false;
     }
     const doc = parseDoc(await invoke<string>("read_text_file", { path: design }));
+    openMark("read design");
     await adoptFonts(path);
+    openMark("fonts");
     const entries = await readHistory(path);
+    openMark(`read each step (${entries.length} steps)`);
     stepsKept = new Set(entries.flatMap((e) => [e.step, ...(e.covers ?? [])].filter((n): n is string => !!n)));
     // the project being left waits in its tab; what was said in it goes into its file first
     if (getState().project.file !== file && !(await parkCurrent())) await flushPack();
+    openMark("leave last project");
     showConversationFor(file);
     await bringBackThread(path);
+    openMark("chat");
     if (entries.length === 0) {
       loadDoc(doc);
       await startHistory(path, "Start of project");
@@ -1156,10 +1167,12 @@ async function loadFrom(path: string, quiet: boolean, file: string): Promise<boo
         loadingHistory = false;
       }
     }
+    openMark("show history");
     lastSaved = committed();
     setProject({ path, file, name: baseName(file), status: "saved", error: null });
     remember(file);
     void writePreview(path, committed()); // older projects get their picture the first time they are opened
+    openMark("finish");
     return true;
   } catch (e) {
     if (!quiet) await oops(e instanceof DesignFileError ? e.message : String(e));
@@ -1179,15 +1192,46 @@ export async function openProjectAt(path: string, closing = false): Promise<bool
   return openAny(path, closing);
 }
 
+/**
+ * How long each part of opening a project took. An open slower than SLOW_OPEN is written to
+ * ~/.duet/errors.log with its parts, so a slow open on any computer can be found later.
+ */
+const SLOW_OPEN = 1500;
+let openClock: { start: number; last: number; parts: string[] } | null = null;
+function openMark(part: string) {
+  if (!openClock) return;
+  const now = performance.now();
+  openClock.parts.push(`${part} ${Math.round(now - openClock.last)} ms`);
+  openClock.last = now;
+}
+function openDone(file: string, ok: boolean) {
+  const c = openClock;
+  openClock = null;
+  if (!c) return;
+  const total = Math.round(performance.now() - c.start);
+  const line = `${baseName(file)}: ${total} ms${ok ? "" : " (not opened)"} | ${c.parts.join(", ")}`;
+  console.info("[open]", line);
+  // while building Duet every open is noted, so the parts can be compared
+  if (total > SLOW_OPEN || import.meta.env.DEV) logError(total > SLOW_OPEN ? "slow open" : "open", line);
+}
+
 /** Open a project file. */
 function openAny(path: string, quiet = false): Promise<boolean> {
-  const job = openFile(path, quiet);
+  const now = performance.now();
+  openClock = { start: now, last: now, parts: [] };
+  const job = openFile(path, quiet).then((ok) => {
+    openDone(path, ok);
+    return ok;
+  });
   opening = job;
   return job;
 }
 
 async function openFile(path: string, quiet: boolean): Promise<boolean> {
-  if (isParked(path)) return bringBack(path);
+  if (isParked(path)) {
+    openMark("from its tab");
+    return bringBack(path);
+  }
   try {
     if ((await invoke<boolean>("is_directory", { path })) === true) {
       if (!quiet) await oops("Duet projects are single .duet files now. Choose a file that ends in .duet.");
@@ -1203,7 +1247,9 @@ async function openFile(path: string, quiet: boolean): Promise<boolean> {
       window.dispatchEvent(new Event("duet:recents"));
       return quiet ? false : findOrLetGo(path);
     }
+    openMark("find file");
     const work = await invoke<string>("unpack_project", { file: path });
+    openMark("unpack");
     return loadFrom(work, quiet, path);
   } catch (e) {
     if (!quiet) await oops(String(e));

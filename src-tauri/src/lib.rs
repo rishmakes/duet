@@ -207,10 +207,12 @@ fn file_turn() -> std::sync::MutexGuard<'static, ()> {
 fn pack_project(dir: String, file: String, fresh: Option<bool>) -> Result<(), String> {
     let _turn = file_turn();
     if fresh == Some(true) {
-        package::pack(Path::new(&dir), Path::new(&file))
+        package::pack(Path::new(&dir), Path::new(&file))?;
     } else {
-        package::pack_existing(Path::new(&dir), Path::new(&file))
+        package::pack_existing(Path::new(&dir), Path::new(&file))?;
     }
+    package::mark_same(Path::new(&dir), Path::new(&file));
+    Ok(())
 }
 
 /// The picture of a project for the list, from inside its file, as base64. None when it has none.
@@ -266,8 +268,10 @@ fn unpack_project(file: String) -> Result<String, String> {
         (Ok(w), Ok(f)) => w > f + std::time::Duration::from_secs(3),
         _ => false,
     };
-    if !newer {
+    // unpacking again is skipped when the working folder already holds what the file holds
+    if !newer && !package::is_same(&dir, Path::new(&file)) {
         package::unpack(Path::new(&file), &dir)?;
+        package::mark_same(&dir, Path::new(&file));
     }
     Ok(dir.to_string_lossy().to_string())
 }
@@ -633,7 +637,10 @@ struct HistoryItem {
 
 /// The saved steps of a project, oldest first, each with the design as it was then.
 #[tauri::command(async)]
-fn git_history(path: String, limit: usize) -> Result<Vec<HistoryItem>, String> {
+/// The newest `full` steps come with their design; older ones come without it (an empty doc), and
+/// git_step_doc fetches one when it is needed, so a long history opens quickly.
+fn git_history(path: String, limit: usize, full: Option<usize>) -> Result<Vec<HistoryItem>, String> {
+    let full = full.unwrap_or(usize::MAX);
     let repo = match Repository::open(&path) {
         Ok(r) => r,
         Err(_) => return Ok(vec![]),
@@ -685,11 +692,14 @@ fn git_history(path: String, limit: usize) -> Result<Vec<HistoryItem>, String> {
             Ok(e) => e,
             Err(_) => continue,
         };
-        let blob = match entry.to_object(&repo).and_then(|o| o.peel_to_blob()) {
-            Ok(b) => b,
-            Err(_) => continue,
+        let doc = if items.len() < full {
+            match entry.to_object(&repo).and_then(|o| o.peel_to_blob()) {
+                Ok(b) => String::from_utf8_lossy(b.content()).to_string(),
+                Err(_) => continue,
+            }
+        } else {
+            String::new()
         };
-        let doc = String::from_utf8_lossy(blob.content()).to_string();
         items.push(HistoryItem {
             hash: oid.to_string(),
             time: commit.time().seconds(),
@@ -704,6 +714,16 @@ fn git_history(path: String, limit: usize) -> Result<Vec<HistoryItem>, String> {
     }
     items.reverse();
     Ok(items)
+}
+
+/// The design saved in one step, for a step that git_history sent without it.
+#[tauri::command(async)]
+fn git_step_doc(path: String, hash: String) -> Result<String, String> {
+    let repo = Repository::open(&path).map_err(err)?;
+    let oid = git2::Oid::from_str(&hash).map_err(err)?;
+    let tree = repo.find_commit(oid).map_err(err)?.tree().map_err(err)?;
+    let blob = tree.get_path(Path::new(DESIGN_FILE)).map_err(err)?.to_object(&repo).and_then(|o| o.peel_to_blob()).map_err(err)?;
+    Ok(String::from_utf8_lossy(blob.content()).to_string())
 }
 
 /// Give the latest saved step a name, like "Client round 1".
@@ -808,6 +828,7 @@ pub fn run() {
             git_prepare,
             git_commit,
             git_history,
+            git_step_doc,
             git_name_version,
             video::video_ready,
             video::video_info,
@@ -937,7 +958,7 @@ mod tests {
         write(&p, "{\"n\":2}");
         assert!(git_commit(p.clone(), "Add rectangle\n\nActor: ai\nBy: Claude Code".into()).unwrap());
 
-        let h = git_history(p.clone(), 50).unwrap();
+        let h = git_history(p.clone(), 50, None).unwrap();
         assert_eq!(h.len(), 2);
         assert_eq!(h[0].label, "Start of project");
         assert_eq!(h[0].actor, "you");
@@ -959,11 +980,26 @@ mod tests {
         write(&p, "{\"n\":2}");
         assert!(git_commit(p.clone(), "Move logo\n\nActor: ai\nSteps: aaaaaa bbbbbb".into()).unwrap());
 
-        let h = git_history(p.clone(), 50).unwrap();
+        let h = git_history(p.clone(), 50, None).unwrap();
         assert!(h[0].steps.is_empty());
         assert_eq!(h[1].steps, vec!["aaaaaa", "bbbbbb"]);
         assert_eq!(h[1].actor, "ai");
         assert_eq!(h[1].label, "Move logo");
+    }
+
+    #[test]
+    fn sends_only_the_newest_designs_and_fetches_an_older_one_on_request() {
+        let p = project("lazy");
+        for n in 1..=3 {
+            write(&p, &format!("{{\"n\":{n}}}"));
+            git_commit(p.clone(), format!("step {n}")).unwrap();
+        }
+        let h = git_history(p.clone(), 50, Some(1)).unwrap();
+        assert_eq!(h.len(), 3);
+        assert_eq!(h[0].doc, "");
+        assert_eq!(h[1].doc, "");
+        assert_eq!(h[2].doc, "{\"n\":3}");
+        assert_eq!(git_step_doc(p, h[0].hash.clone()).unwrap(), "{\"n\":1}");
     }
 
     #[test]
@@ -972,7 +1008,7 @@ mod tests {
         write(&p, "{}");
         assert!(git_commit(p.clone(), "one".into()).unwrap());
         assert!(!git_commit(p.clone(), "two".into()).unwrap());
-        assert_eq!(git_history(p, 50).unwrap().len(), 1);
+        assert_eq!(git_history(p, 50, None).unwrap().len(), 1);
     }
 
     #[test]
@@ -984,7 +1020,7 @@ mod tests {
         write(&p, "{\"n\":2}");
         git_commit(p.clone(), "second".into()).unwrap();
 
-        let h = git_history(p, 50).unwrap();
+        let h = git_history(p, 50, None).unwrap();
         assert_eq!(h[0].versions, vec!["Client round 1".to_string()]);
         assert!(h[1].versions.is_empty());
     }
@@ -992,9 +1028,9 @@ mod tests {
     #[test]
     fn empty_project_has_no_history() {
         let p = project("empty");
-        assert!(git_history(p.clone(), 10).unwrap().is_empty());
+        assert!(git_history(p.clone(), 10, None).unwrap().is_empty());
         git_prepare(p.clone()).unwrap();
-        assert!(git_history(p, 10).unwrap().is_empty());
+        assert!(git_history(p, 10, None).unwrap().is_empty());
     }
 
     #[test]

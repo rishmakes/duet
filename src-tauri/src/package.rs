@@ -36,14 +36,15 @@ pub fn work_dir_for_file(file: &str) -> Result<PathBuf, String> {
 
 fn already_compressed(name: &str) -> bool {
     let n = name.to_lowercase();
-    [".png", ".jpg", ".jpeg", ".webp", ".gif", ".zip"].iter().any(|e| n.ends_with(e)) || n.contains("/objects/pack/")
+    // every saved step in the history is squeezed already; squeezing it again only costs time
+    [".png", ".jpg", ".jpeg", ".webp", ".gif", ".zip"].iter().any(|e| n.ends_with(e)) || n.contains(".git/objects/")
 }
 
 fn add_dir(zip: &mut ZipWriter<File>, root: &Path, dir: &Path) -> Result<(), String> {
     for entry in fs::read_dir(dir).map_err(err)?.flatten() {
         let path = entry.path();
         let rel = path.strip_prefix(root).map_err(err)?.to_string_lossy().replace('\\', "/");
-        if rel.ends_with(".tmp") {
+        if rel.ends_with(".tmp") || rel == SAME_AS {
             continue;
         }
         if path.is_dir() {
@@ -59,6 +60,38 @@ fn add_dir(zip: &mut ZipWriter<File>, root: &Path, dir: &Path) -> Result<(), Str
         }
     }
     Ok(())
+}
+
+/// Kept in a working folder, never in the file: which file it matches, as that file's size and time.
+const SAME_AS: &str = ".same-as";
+
+fn file_mark(file: &Path) -> Option<String> {
+    let m = fs::metadata(file).ok()?;
+    let t = m.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?;
+    Some(format!("{} {}", m.len(), t.as_nanos()))
+}
+
+/// Note that a working folder now holds exactly what this file holds.
+pub fn mark_same(dir: &Path, file: &Path) {
+    if let Some(mark) = file_mark(file) {
+        let _ = fs::write(dir.join(SAME_AS), mark);
+    }
+}
+
+fn changed_after(a: &Path, b: &Path) -> bool {
+    match (fs::metadata(a).and_then(|m| m.modified()), fs::metadata(b).and_then(|m| m.modified())) {
+        (Ok(x), Ok(y)) => x > y,
+        _ => true,
+    }
+}
+
+/// Whether a working folder still holds exactly what this file holds, so it need not be unpacked again.
+pub fn is_same(dir: &Path, file: &Path) -> bool {
+    match (fs::read_to_string(dir.join(SAME_AS)), file_mark(file)) {
+        // and the design was not written after the mark, which would mean work the file does not hold yet
+        (Ok(seen), Some(now)) => seen == now && !changed_after(&dir.join("design.json"), &dir.join(SAME_AS)),
+        _ => false,
+    }
 }
 
 /// Pack a project folder into one file. Written beside it first, then swapped in, so a crash never
@@ -322,6 +355,33 @@ mod tests {
         let _ = fs::remove_dir_all(&d);
         fs::create_dir_all(&d).unwrap();
         d
+    }
+
+    #[test]
+    fn a_working_folder_that_matches_its_file_is_not_unpacked_again() {
+        let d = temp("same");
+        let (src, file, work) = (d.join("src"), d.join("p.duet"), d.join("work"));
+        fs::create_dir_all(&src).unwrap();
+        fs::write(src.join("design.json"), "{}").unwrap();
+        pack(&src, &file).unwrap();
+        mark_same(&src, &file);
+        assert!(is_same(&src, &file));
+        // the mark stays out of the file
+        assert!(ZipArchive::new(File::open(&file).unwrap()).unwrap().by_name(SAME_AS).is_err());
+        assert!(!is_same(&work, &file));
+        unpack(&file, &work).unwrap();
+        mark_same(&work, &file);
+        assert!(is_same(&work, &file));
+        // a design written after the mark is work the file does not hold
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        fs::write(work.join("design.json"), "{\"n\":1}").unwrap();
+        assert!(!is_same(&work, &file));
+        // a file changed elsewhere no longer matches
+        unpack(&file, &work).unwrap();
+        mark_same(&work, &file);
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        pack(&src, &file).unwrap();
+        assert!(!is_same(&work, &file));
     }
 
     #[test]

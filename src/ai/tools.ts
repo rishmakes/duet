@@ -1800,7 +1800,9 @@ async function answerTool(name: string, raw: unknown, by?: string): Promise<Tool
       void invoke("bring_back").catch(() => undefined);
       if (!(await askDesigner(summary))) return fail("The designer said no. Nothing was changed.");
     }
-    R.restoreDoc(v.doc, `Went back to version "${v.version}"`, "ai", by);
+    const doc = await R.stepDoc(v);
+    if (!doc) return fail(`The version "${v.version}" could not be read from the project's file.`);
+    R.restoreDoc(doc, `Went back to version "${v.version}"`, "ai", by);
     return { text: `Done: the design is back to "${v.version}". What was there before is still in the history.` };
   }
   if (name === "picture_of_duet") {

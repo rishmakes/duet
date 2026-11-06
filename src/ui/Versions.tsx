@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { saveVersion } from "../project/project";
-import { restoreDoc, useStore } from "../state/store";
+import { restoreDoc, stepDoc, useStore } from "../state/store";
 import { useLayout } from "./layout";
 import { useDismiss } from "./useDismiss";
 
@@ -69,7 +69,7 @@ export default function Versions() {
           <button
             className="mini"
             onClick={() => {
-              restoreDoc(e.doc, `Went back to version "${e.version}"`);
+              void stepDoc(e).then((doc) => doc && restoreDoc(doc, `Went back to version "${e.version}"`));
               setOpen(false);
             }}
           >
