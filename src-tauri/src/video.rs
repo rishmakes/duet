@@ -254,6 +254,30 @@ pub struct Sound {
     /// How fast the file plays: 2 is twice as fast. `length` is in video time, so the part of the file used is `length * speed`.
     #[serde(default = "one")]
     speed: f64,
+    /// When its loudness changes while it plays: straight pieces of [seconds from its start, 0 to 1]. They replace `volume`.
+    #[serde(default)]
+    gains: Vec<(f64, f64)>,
+}
+
+/// The ffmpeg volume for a sound: one number, or straight pieces added up, worked out for every bit of sound as it plays.
+fn volume_filter(s: &Sound) -> String {
+    if s.gains.len() < 2 {
+        let v = s.gains.first().map(|g| g.1).unwrap_or(s.volume);
+        return format!("volume={:.4}", v.clamp(0.0, 1.0));
+    }
+    let mut parts: Vec<String> = Vec::new();
+    for w in s.gains.windows(2) {
+        let ((t0, g0), (t1, g1)) = (w[0], w[1]);
+        if t1 <= t0 {
+            continue;
+        }
+        let (g0, g1) = (g0.clamp(0.0, 1.0), g1.clamp(0.0, 1.0));
+        parts.push(format!("gte(t,{t0:.3})*lt(t,{t1:.3})*({g0:.4}+{:.6}*(t-{t0:.3}))", (g1 - g0) / (t1 - t0)));
+    }
+    // after the last point it holds the last value
+    let (tl, gl) = s.gains[s.gains.len() - 1];
+    parts.push(format!("gte(t,{tl:.3})*{:.4}", gl.clamp(0.0, 1.0)));
+    format!("volume='{}':eval=frame", parts.join("+"))
 }
 
 fn one() -> f64 {
@@ -330,7 +354,7 @@ fn scene_args(fps: u32, seconds: f64, quality: u32, sounds: &[Sound], out: &str,
         args.extend(["-ss".into(), format!("{:.3}", s.from.max(0.0)), "-t".into(), format!("{:.3}", s.length.max(0.05) * s.speed), "-i".into(), s.path.clone()]);
         let wait = (s.at.max(0.0) * 1000.0).round() as u64;
         let pace = if (s.speed - 1.0).abs() > 0.0001 { format!("{},", tempo(s.speed)) } else { String::new() };
-        graph += &format!("[{}:a]aresample=48000,aformat=channel_layouts=stereo,{pace}volume={:.3},adelay={wait}:all=1[a{i}];", i + 1, s.volume.clamp(0.0, 1.0));
+        graph += &format!("[{}:a]aresample=48000,aformat=channel_layouts=stereo,{pace}{},adelay={wait}:all=1[a{i}];", i + 1, volume_filter(s));
     }
     args.extend(["-map".into(), "0:v".into()]);
     if !sounds.is_empty() {
@@ -720,12 +744,12 @@ mod tests {
 
     #[test]
     fn a_frame_that_plays_gets_its_pictures_and_each_clip_heard_at_its_moment() {
-        let sounds = vec![Sound { path: "a.mp4".into(), from: 1.0, at: 2.5, length: 3.0, volume: 0.5, speed: 1.0 }];
+        let sounds = vec![Sound { path: "a.mp4".into(), from: 1.0, at: 2.5, length: 3.0, volume: 0.5, speed: 1.0, gains: vec![] }];
         let args = scene_args(30, 10.0, 18, &sounds, "out.mp4", 1920, 1080, false).join(" ");
         assert!(args.contains("-f rawvideo -pix_fmt rgb48le -s 1920x1080 -framerate 30 -i -"));
         assert!(args.contains("format=yuv420p") && args.contains("-color_primaries bt709"));
         assert!(args.contains("-ss 1.000 -t 3.000 -i a.mp4"));
-        assert!(args.contains("volume=0.500,adelay=2500:all=1[a0]"));
+        assert!(args.contains("volume=0.5000,adelay=2500:all=1[a0]"));
         assert!(args.contains("atrim=duration=10.000[a]"));
         let silent = scene_args(30, 10.0, 18, &[], "out.mp4", 1920, 1080, false).join(" ");
         assert!(!silent.contains("filter_complex"));
@@ -734,12 +758,23 @@ mod tests {
     }
 
     #[test]
+    fn a_sound_that_changes_loudness_is_written_as_pieces_and_holds_its_last_value() {
+        let s = Sound { path: "a.mp4".into(), from: 0.0, at: 0.0, length: 4.0, volume: 1.0, speed: 1.0, gains: vec![(0.0, 0.0), (1.0, 1.0), (4.0, 0.5)] };
+        let f = volume_filter(&s);
+        assert!(f.starts_with("volume='") && f.ends_with("':eval=frame"));
+        assert!(f.contains("gte(t,0.000)*lt(t,1.000)*(0.0000+1.000000*(t-0.000))"));
+        assert!(f.contains("gte(t,4.000)*0.5000"));
+        let steady = Sound { gains: vec![], ..s };
+        assert_eq!(volume_filter(&steady), "volume=1.0000");
+    }
+
+    #[test]
     fn a_faster_or_slower_clip_uses_more_or_less_of_its_file_and_its_sound_keeps_pace() {
-        let fast = vec![Sound { path: "a.mp4".into(), from: 1.0, at: 0.0, length: 3.0, volume: 1.0, speed: 2.0 }];
+        let fast = vec![Sound { path: "a.mp4".into(), from: 1.0, at: 0.0, length: 3.0, volume: 1.0, speed: 2.0, gains: vec![] }];
         let args = scene_args(30, 10.0, 18, &fast, "out.mp4", 1920, 1080, false).join(" ");
         assert!(args.contains("-ss 1.000 -t 6.000 -i a.mp4"));
-        assert!(args.contains("atempo=2.0000,volume=1.000"));
-        let slow = vec![Sound { path: "a.mp4".into(), from: 0.0, at: 0.0, length: 4.0, volume: 1.0, speed: 0.25 }];
+        assert!(args.contains("atempo=2.0000,volume=1.0000"));
+        let slow = vec![Sound { path: "a.mp4".into(), from: 0.0, at: 0.0, length: 4.0, volume: 1.0, speed: 0.25, gains: vec![] }];
         let args = scene_args(30, 10.0, 18, &slow, "out.mp4", 1920, 1080, false).join(" ");
         assert!(args.contains("-t 1.000 -i a.mp4"));
         assert!(args.contains("atempo=0.5,atempo=0.5000,volume"));

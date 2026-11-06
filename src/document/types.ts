@@ -74,6 +74,8 @@ export interface Track {
   hidden?: true;
   /** Nothing on it is heard, in playing or in export, including things put on it later. */
   silent?: true;
+  /** How loud everything on it is, from 0 to 1, on top of each clip's own volume. Left out when 1. */
+  volume?: number;
 }
 
 /** One moment in the changing outline of a drawn shape: where every point and its handles are, in pixels inside the parent. */
@@ -93,7 +95,7 @@ export const playsFile = (el: { type: ElementType }) => el.type === "video" || e
 export const BLENDS = ["normal", "multiply", "screen", "overlay", "soft-light", "darken", "lighten", "add"] as const;
 export type Blend = (typeof BLENDS)[number];
 
-export const MOVING = ["x", "y", "width", "height", "opacity", "rotation"] as const;
+export const MOVING = ["x", "y", "width", "height", "opacity", "rotation", "volume"] as const;
 export type Moving = (typeof MOVING)[number];
 
 /** How many picture pixels one painted patch covers on each side. */
@@ -206,6 +208,9 @@ export interface El {
   /** A video clip or a sound only: the second in its file where playing starts, and how loud it is from 0 to 1. For these, src is where the file is on the computer. A sound has no place on the canvas: it is only heard. */
   clipFrom: number;
   volume: number;
+  /** A video clip or a sound only: seconds its sound takes to rise at its start, and to die away at its end. They stay with the ends when it is trimmed. */
+  fadeIn: number;
+  fadeOut: number;
   /** A video clip or a sound only: how fast its file plays. 1 is normal, 2 is twice as fast, 0.5 is half. The clip's bar is as long as it takes. */
   speed: number;
   childIds: string[];

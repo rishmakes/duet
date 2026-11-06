@@ -62,6 +62,12 @@
   --time-video-soft: var(--duet-soft);
   --time-sound: #e5a93c;
   --time-sound-soft: rgba(229, 169, 60, 0.16);
+  /* the volume line is drawn over a clip's dark picture and waves, so it is the same in both themes */
+  --volume-line: #ffd666;
+  --volume-line-faint: rgba(255, 214, 102, 0.45);
+  --volume-line-wash: rgba(255, 214, 102, 0.18);
+  --volume-dot: #fff;
+  --volume-dot-edge: #1b1b1f;
   --time-instance: #22b8cf;
   --time-instance-soft: rgba(34, 184, 207, 0.16);
 }
@@ -10620,4 +10626,152 @@ button.ctx-item.store-make-option:hover {
     right: auto;
     left: 16px;
   }
+}
+
+/* Sound section: the number keeps its unit beside it */
+.sound-sec .grade-row {
+  grid-template-columns: 76px 1fr 58px;
+}
+.sound-num {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.sound-num small {
+  color: var(--muted);
+  font-size: 10px;
+}
+.sound-hint {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+/* The volume line over a clip's waves (#297): faint until the clip is picked */
+.volume-line {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.volume-path {
+  fill: none;
+  stroke: var(--volume-line-faint);
+  stroke-width: 1.2;
+}
+.volume-line.on .volume-path {
+  stroke: var(--volume-line);
+  stroke-width: 1.6;
+}
+.volume-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 12;
+  pointer-events: stroke;
+  cursor: ns-resize;
+}
+.volume-point,
+.volume-fade {
+  pointer-events: all;
+  cursor: grab;
+  stroke: var(--volume-dot-edge);
+  stroke-width: 1.5;
+}
+.volume-point {
+  fill: var(--volume-line);
+}
+.volume-point.picked {
+  fill: var(--volume-dot);
+  stroke: var(--volume-line);
+  stroke-width: 2;
+}
+.volume-fade {
+  fill: var(--volume-dot);
+  cursor: ew-resize;
+}
+.volume-stretch {
+  fill: var(--volume-line-wash);
+  stroke: var(--volume-line-faint);
+  stroke-width: 1;
+}
+.volume-remove {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  line-height: 18px;
+  cursor: pointer;
+  z-index: 3;
+}
+.volume-tip {
+  position: absolute;
+  left: 4px;
+  bottom: calc(100% + 4px);
+  padding: 3px 7px;
+  border-radius: var(--r-sm);
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  font-size: 11px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 4;
+}
+.volume-dip {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--r-md);
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--shadow-strong);
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: default;
+  z-index: 5;
+}
+.volume-dip input[type="range"] {
+  width: 110px;
+}
+.volume-dip b {
+  min-width: 42px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A track's own volume, under its name, on rows tall enough for it */
+.track-volume {
+  position: absolute;
+  left: 16px;
+  right: 10px;
+  bottom: 5px;
+  width: auto;
+  height: 3px;
+  margin: 0;
+  appearance: none;
+  border-radius: 2px;
+  background: var(--line);
+  cursor: pointer;
+}
+.track-volume::-webkit-slider-thumb {
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--time-sound);
+  border: 2px solid var(--panel);
+}
+.time-row.row-compact .track-volume {
+  display: none;
 }

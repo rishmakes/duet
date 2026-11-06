@@ -13,7 +13,10 @@ import { extractPayload } from "../document/clipboard";
 import { canMask, canTurn, worldBounds } from "../document/geometry";
 import { defaultLayout } from "../document/layout";
 import { outlineFromData } from "../document/path";
-import { ENTRANCES, sceneOf } from "../document/time";
+import { ENTRANCES, sceneOf, spanOf } from "../document/time";
+import { dbText, dipKeys, loudnessMap } from "../document/sound";
+import { trackOf } from "../document/tracks";
+import { PEAK_SLICE, peaksOf } from "../video/faces";
 import { MOVING, emptyDoc } from "../document/types";
 import { boardsOf, commentsHere, describeMark, onOpenBoard, openBoard } from "../document/boards";
 import { GRADE_CONTROLS, canGrade, gradeChanges } from "../document/grade";
@@ -60,7 +63,7 @@ const ids = { type: "array", items: str, description: "Element ids, from get_doc
 const props = {
   type: "object",
   description:
-    "Any of: name, x, y, width, height (numbers, in pixels), fill (hex colour like #1b1b1f), stroke (hex colour, or null for none), strokeWidth, radius (corner radius), opacity (0 to 1), blend (normal, multiply, screen, overlay, soft-light, darken, lighten or add; screen makes black clear, for a black and white mist or light clip over a scene), component (true to make this something that can be reused: place copies of it with create_instance, and changing it changes every copy), rotation (degrees, clockwise, around its own middle; on a group it turns everything inside together; frames and copies of components cannot be turned), d (a path only: redraw its outline, as SVG path text measured from the corner of its parent frame), text, fontSize, fontFamily (any installed font name, or empty for the system font), fontWeight (300 to 900, 400 is regular, 700 is bold), textAlign (left, center or right), lineHeight (a multiple of the size, like 1.4), letterSpacing (pixels), textFixed (true to keep the width and wrap words), shadow ({x, y, blur, color} or null), gradient ({from, to, angle in degrees, 90 runs top to bottom} or null, replaces the fill), link (id of a frame to open when this is clicked in Present mode, or null), linkKind (empty to go to that screen, overlay to open it on top, back to go back), trigger (empty for on click, hover for while the pointer is over it, like a menu that drops down), transition (empty, dissolve, push-left, push-right, push-up or push-down), transitionMs (milliseconds, 300 if 0), scroll (on a screen: true so that what is below its bottom edge can be scrolled in Present mode), layout (frames only: auto layout that lines up the children, as {dir is row or column, gap, padX, padY, align is start, center, end or stretch, justify is start, center, end or between, hug true or false; a frame made with no width or height hugs unless hug is false}, or null to turn it off; children are placed in their layer order), locked (true to stop it being picked on the canvas), hidden (true to hide it: not drawn, picked or exported; false to show it again), grow (inside an auto layout frame: 1 to fill the free space along the direction, 0 to keep its size).",
+    "Any of: name, x, y, width, height (numbers, in pixels), fill (hex colour like #1b1b1f), stroke (hex colour, or null for none), strokeWidth, radius (corner radius), opacity (0 to 1), blend (normal, multiply, screen, overlay, soft-light, darken, lighten or add; screen makes black clear, for a black and white mist or light clip over a scene), component (true to make this something that can be reused: place copies of it with create_instance, and changing it changes every copy), rotation (degrees, clockwise, around its own middle; on a group it turns everything inside together; frames and copies of components cannot be turned), d (a path only: redraw its outline, as SVG path text measured from the corner of its parent frame), text, fontSize, fontFamily (any installed font name, or empty for the system font), fontWeight (300 to 900, 400 is regular, 700 is bold), textAlign (left, center or right), lineHeight (a multiple of the size, like 1.4), letterSpacing (pixels), textFixed (true to keep the width and wrap words), shadow ({x, y, blur, color} or null), gradient ({from, to, angle in degrees, 90 runs top to bottom} or null, replaces the fill), link (id of a frame to open when this is clicked in Present mode, or null), linkKind (empty to go to that screen, overlay to open it on top, back to go back), trigger (empty for on click, hover for while the pointer is over it, like a menu that drops down), transition (empty, dissolve, push-left, push-right, push-up or push-down), transitionMs (milliseconds, 300 if 0), scroll (on a screen: true so that what is below its bottom edge can be scrolled in Present mode), layout (frames only: auto layout that lines up the children, as {dir is row or column, gap, padX, padY, align is start, center, end or stretch, justify is start, center, end or between, hug true or false; a frame made with no width or height hugs unless hug is false}, or null to turn it off; children are placed in their layer order), locked (true to stop it being picked on the canvas), hidden (true to hide it: not drawn, picked or exported; false to show it again), grow (inside an auto layout frame: 1 to fill the free space along the direction, 0 to keep its size), volume (a clip or sound: 0 to 1, 1 is the file as it is, 0.5 is 6 dB quieter, 0.25 is 12 dB quieter; it cannot go louder than the file), fadeIn and fadeOut (a clip or sound: seconds its sound takes to rise at its start and to die away at its end).",
 };
 
 export const TOOLS: ToolDef[] = [
@@ -330,7 +333,7 @@ export const TOOLS: ToolDef[] = [
   {
     name: "animate",
     description:
-      "Make one property of one thing change over time, inside a frame that plays. prop is x, y, width, height, opacity or rotation. keys is the whole list of moments for that property, replacing what was there: each has t (seconds from the start of the frame), v (the value then) and ease (linear, in, out or in-out, which is used if left out; it shapes the way into that moment). x and y are relative to the parent, like everywhere else. Before the first moment the first value holds, after the last the last holds. An empty list makes it stay as it is. Give several calls for several properties.",
+      "Make one property of one thing change over time, inside a frame that plays. prop is x, y, width, height, opacity, rotation or volume (a clip or sound: 0 to 1, how loud over time). keys is the whole list of moments for that property, replacing what was there: each has t (seconds from the start of the frame), v (the value then) and ease (linear, in, out or in-out, which is used if left out; it shapes the way into that moment). x and y are relative to the parent, like everywhere else. Before the first moment the first value holds, after the last the last holds. An empty list makes it stay as it is. Give several calls for several properties.",
     inputSchema: {
       type: "object",
       properties: { id: str, prop: str, keys: { type: "array", items: { type: "object", properties: { t: num, v: num, ease: str }, required: ["t", "v"] } } },
@@ -522,6 +525,18 @@ export const TOOLS: ToolDef[] = [
     inputSchema: { type: "object", properties: { id: { ...str, description: "A picture or a clip." }, t: { ...num, description: "For a clip: seconds into its frame." }, original: { type: "boolean" } }, required: ["id"] },
   },
   {
+    name: "hear_sound",
+    description:
+      "How loud a clip or sound is, since you cannot hear it. levels has one digit per second of its frame, starting at fromSecond: 0 is silence, 9 the loudest in that clip. getsLouderAt lists the seconds where it suddenly gets louder, like a beat drop or a chorus. Also returns its volume, fades, track volume and volume points as they are now, in dB. Read it before changing sound, and again after.",
+    inputSchema: { type: "object", properties: { id: { ...str, description: "A clip or a sound." } }, required: ["id"] },
+  },
+  {
+    name: "change_volume_between",
+    description:
+      "Make one stretch of a clip or sound louder or quieter, from one second of its frame to another, by some decibels: -6 is clearly quieter, -12 is music under a voice, -20 is far in the background, plus raises it back up. Short smooth ramps are added outside the stretch, so it never jumps. It cannot go louder than the file. The designer sees it as points on the clip's volume line and can drag them.",
+    inputSchema: { type: "object", properties: { id: str, from: num, to: num, db: num }, required: ["id", "from", "to", "db"] },
+  },
+  {
     name: "resolve_comment",
     description:
       "Mark a comment the designer pinned on the canvas as dealt with, once you have done what it asks. get_context lists the open ones under comments, each with where it points, the thing under it and what is near. Say in reply what you did, in a few words.",
@@ -550,7 +565,7 @@ export const TOOLS: ToolDef[] = [
 
 /** Tools that make or change the brand kit or the design system: the designer always says yes first. */
 const KIT_TOOLS = new Set(["make_brand_kit", "change_brand_kit", "make_design_system", "change_design_system", "use_kit"]);
-const EDITS = new Set(["apply_text_style", "add_board", "open_board", "rename_board", "move_to_board", "resolve_comment", "add_comment", "set_grade", "copy_grade", "create_instance", "create_element", "create_elements", "set_props", "duplicate_elements", "move_elements", "resize_element", "reparent_elements", "make_mask", "trace_image", "set_duration", "set_work_area", "set_timing", "set_entrance", "animate", "set_curve"]);
+const EDITS = new Set(["apply_text_style", "add_board", "open_board", "rename_board", "move_to_board", "resolve_comment", "add_comment", "set_grade", "copy_grade", "create_instance", "create_element", "create_elements", "set_props", "duplicate_elements", "move_elements", "resize_element", "reparent_elements", "make_mask", "trace_image", "set_duration", "set_work_area", "set_timing", "set_entrance", "animate", "change_volume_between", "set_curve"]);
 /** Things the designer is asked about first in Ask first mode: losing work, and reading or writing a file on the computer. */
 const RISKY = new Set(["load_look", "delete_elements", "delete_board", "place_image", "place_video", "place_sound", "export_frame", "export_video"]);
 
@@ -663,6 +678,8 @@ export function summarise(tool: string, a: Args): string {
       return `Change how ${namesOf(a.ids)} speeds up and slows down`;
     case "animate":
       return `Change ${String(a.prop)} of ${nameOf(a.id)} over time`;
+    case "change_volume_between":
+      return `${Number(a.db) < 0 ? "Lower" : "Raise"} ${nameOf(a.id)} by ${Math.abs(Number(a.db))} dB from ${String(a.from)}s to ${String(a.to)}s`;
     case "trace_image":
       return `Trace ${nameOf(a.id)} into shapes`;
     case "make_mask":
@@ -921,6 +938,12 @@ function prepare(tool: string, raw: Args, doc = R.currentDoc()): { args: Args } 
         const not = list.filter((i) => doc.elements[i].type === "instance" || i.includes("::"));
         if (not.length) return { error: `${namesOf(not)} is a copy of a component, so it cannot be made into one.` };
       }
+      for (const k of ["volume", "fadeIn", "fadeOut"]) {
+        if (!(k in p)) continue;
+        if (typeof p[k] !== "number" || (p[k] as number) < 0 || (k === "volume" && (p[k] as number) > 1)) return { error: k === "volume" ? "volume must be a number from 0 to 1." : `${k} must be a number of seconds, 0 or more.` };
+        const no = list.filter((i) => doc.elements[i].type !== "video" && doc.elements[i].type !== "sound");
+        if (no.length) return { error: `${namesOf(no)} has no sound. ${k} is for clips and sounds.` };
+      }
       if ("rotation" in p) {
         if (typeof p.rotation !== "number") return { error: "rotation must be a number of degrees." };
         const fixed = list.filter((i) => !canTurn(doc, i));
@@ -1038,6 +1061,16 @@ function prepare(tool: string, raw: Args, doc = R.currentDoc()): { args: Args } 
       const ok = typeof shape === "string" ? ["steady", "gentle", "snappy", "bouncy"].includes(shape) : Array.isArray(shape) && shape.length === 4 && shape.every((n) => typeof n === "number");
       if (!ok) return { error: "shape must be steady, gentle, snappy, bouncy, or four numbers." };
       return { args: a };
+    }
+    case "change_volume_between": {
+      const el = typeof a.id === "string" ? doc.elements[a.id] : undefined;
+      if (!el) return { error: `No element with id: ${String(a.id)}.` };
+      if (el.type !== "video" && el.type !== "sound") return { error: `${el.name} has no sound. Give a clip or a sound.` };
+      const scene = sceneOf(doc, el.id);
+      if (!scene || scene.id === el.id) return { error: `${el.name} must be inside a frame that plays.` };
+      for (const k of ["from", "to", "db"]) if (typeof a[k] !== "number" || !Number.isFinite(a[k])) return { error: `${k} must be a number.` };
+      if (Math.abs((a.to as number) - (a.from as number)) < 0.05) return { error: "from and to must be at least a twentieth of a second apart." };
+      return { args: { id: el.id, prop: "volume", keys: dipKeys(el, scene, a.from as number, a.to as number, a.db as number), from: a.from, to: a.to, db: a.db } };
     }
     case "animate": {
       if (missing([a.id]).length) return { error: `No element with id: ${String(a.id)}.` };
@@ -1319,6 +1352,33 @@ async function colorReadings(a: Args): Promise<ToolResult> {
   return { text: JSON.stringify({ id: el.id, name: el.name, grade: gradeChanges(el.grade), readings: read, of: a.original === true ? "the original, without its colour changes" : "with its colour changes" }, null, 2) };
 }
 
+async function hearSound(a: Args): Promise<ToolResult> {
+  const doc = R.currentDoc();
+  const el = typeof a.id === "string" ? doc.elements[a.id] : undefined;
+  if (!el) return fail(`No element with id: ${String(a.id)}.`);
+  if (el.type !== "video" && el.type !== "sound") return fail(`${el.name} has no sound. Give a clip or a sound.`);
+  const scene = sceneOf(doc, el.id);
+  if (!scene || scene.id === el.id) return fail(`${el.name} must be inside a frame that plays.`);
+  const peaks = await peaksOf(el.src);
+  if (!peaks?.length) return fail(`The sound of ${el.name} could not be read. It may have none.`);
+  const span = spanOf(el, scene);
+  const track = trackOf(doc, el);
+  return {
+    text: JSON.stringify({
+      id: el.id,
+      name: el.name,
+      heardFrom: span.start,
+      heardTo: span.end,
+      ...loudnessMap(el, span, peaks, PEAK_SLICE),
+      volume: dbText(el.volume),
+      fadeIn: el.fadeIn || 0,
+      fadeOut: el.fadeOut || 0,
+      track: track ? { name: track.name, volume: dbText(track.volume ?? 1), silent: !!track.silent } : null,
+      volumePoints: (el.keys.volume ?? []).map((k) => ({ t: k.t, volume: dbText(k.v) })),
+    }),
+  };
+}
+
 async function placeVideo(args: Args, by?: string): Promise<ToolResult> {
   let path = String(args.path);
   // Duet's own folder sits in the home folder, which is how the home folder is found
@@ -1502,7 +1562,7 @@ async function apply(tool: string, args: Args, by?: string): Promise<ToolResult>
   if (tool === "load_look") return loadLook(args, by);
   await ensureSaved();
   // changing a value over time is one tool for the AI and the set_keys command underneath, and copying a colour is setting it
-  const command = (tool === "animate" ? "set_keys" : tool === "copy_grade" ? "set_grade" : tool === "change_design_system" ? "set_design_system" : tool) as CommandName;
+  const command = (tool === "animate" || tool === "change_volume_between" ? "set_keys" : tool === "copy_grade" ? "set_grade" : tool === "change_design_system" ? "set_design_system" : tool) as CommandName;
   const label = commandLabel(command, args as never);
   R.dispatch(command, args as never, "ai", by);
   addMsg({ role: "note", text: summarise(tool, args), ...stepNow() }, said());
@@ -1676,7 +1736,7 @@ export function scriptStep(doc: Doc, tool: string, raw: unknown): { doc: Doc; va
   // a locked brand kit holds for scripts too
   const off = offBrand(doc, check.args);
   if (off) return { error: off };
-  const command = (tool === "animate" ? "set_keys" : tool === "copy_grade" ? "set_grade" : tool) as CommandName;
+  const command = (tool === "animate" || tool === "change_volume_between" ? "set_keys" : tool === "copy_grade" ? "set_grade" : tool) as CommandName;
   try {
     return { doc: runCommand(doc, command, check.args as never), value: check.args.id ?? check.args.ids ?? null };
   } catch (e) {
@@ -1724,6 +1784,7 @@ async function answerTool(name: string, raw: unknown, by?: string): Promise<Tool
   if (name === "look_at_design") return lookAtDesign(a.ids, a.maxSize, R);
   if (name === "look_at_attachment") return lookAtAttachment(a.number);
   if (name === "color_readings") return colorReadings(a);
+  if (name === "hear_sound") return hearSound(a);
   if (name === "list_looks") {
     const list = await invoke<string[]>("looks_list").catch(() => []);
     return { text: list.length ? `Looks kept in Documents, Duet, Looks:\n${list.join("\n")}` : "No looks are kept yet. Give load_look the full path of a .cube file." };

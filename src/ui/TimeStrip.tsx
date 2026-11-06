@@ -12,6 +12,8 @@ import type { SilenceChoice } from "../video/silence";
 import { openScene, pause, seek, shuttle, togglePlay } from "../video/play";
 import Icon from "./Icons";
 import ClipFace from "./ClipFace";
+import VolumeLine from "./VolumeLine";
+import { QUIETEST_DB, dbText, fromDb, toDb } from "../document/sound";
 import { setKeyFocus } from "./keyFocus";
 import { QUALITIES, SIZES, addMedia, clipKind, dropClips, exportScene, exportSize, keepDropped, stopExport } from "../video/scene";
 import { lastChoice, rememberExport, shortFolder } from "../video/exportPrefs";
@@ -1160,6 +1162,7 @@ export default function TimeStrip() {
         }}
       >
         {look === "cut" && playsFile(el) && <ClipFace el={el} from={span.start} pps={pps} width={Math.max(4, (span.end - span.start) * pps) - 2} height={faceH} on={isSelected} />}
+        {look === "cut" && playsFile(el) && <VolumeLine el={el} scene={frame} pps={pps} width={Math.max(4, (span.end - span.start) * pps) - 2} height={faceH} on={isSelected && selection.length === 1} />}
         {look === "cut" && (
           <span className="time-span-name">
             {el.name}
@@ -1740,6 +1743,33 @@ export default function TimeStrip() {
                   >
                     <Icon name={quiet(row) ? "sound-off" : "sound"} size={12} />
                   </button>
+                )}
+                {look === "cut" && row.track && row.items.some(playsFile) && (
+                  <input
+                    type="range"
+                    className="track-volume"
+                    data-name={`track-volume-${row.name}`}
+                    min={QUIETEST_DB}
+                    max={0}
+                    step={0.5}
+                    value={Math.max(QUIETEST_DB, toDb(row.saved?.volume ?? 1))}
+                    title={`Track volume: ${dbText(row.saved?.volume ?? 1)}. Drag to make everything on this track louder or quieter`}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      dispatch("set_track_switch", { id: frame.id, track: row.track!, volume: 1 });
+                    }}
+                    onChange={(e) => dragPreview("set_track_switch", { id: frame.id, track: row.track!, volume: fromDb(parseFloat(e.currentTarget.value)) })}
+                    onPointerUp={(e) => {
+                      dragCancel();
+                      dispatch("set_track_switch", { id: frame.id, track: row.track!, volume: fromDb(parseFloat(e.currentTarget.value)) });
+                    }}
+                    onKeyUp={(e) => {
+                      dragCancel();
+                      dispatch("set_track_switch", { id: frame.id, track: row.track!, volume: fromDb(parseFloat(e.currentTarget.value)) });
+                    }}
+                  />
                 )}
                 {!(row.track || row.items.some(playsFile)) && (
                   <button className="time-eye time-sound" disabled title="Nothing here has sound">

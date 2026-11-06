@@ -8,6 +8,7 @@ import { currentDoc, dispatch, getState, select } from "../state/store";
 import { clipsIn, drawingMade, fileLength, holdClips, setMadePicture } from "./clips";
 import { pause } from "./play";
 import { hiddenHere, loudness } from "../document/tracks";
+import { gainMoves, gainPoints } from "../document/sound";
 
 /** A frame that plays: bringing clips into it, and making one video file out of it. */
 
@@ -169,20 +170,37 @@ export async function placeSounds(sceneId: string, paths: string[]): Promise<str
 }
 
 
+/** Loudness points kept for a part of a sound: from `skip` seconds in, for `length` seconds, timed from that part's start. */
+export function cutGains(gains: [number, number][], skip: number, length: number): [number, number][] {
+  const at = (t: number) => {
+    if (t <= gains[0][0]) return gains[0][1];
+    for (let i = 1; i < gains.length; i++) {
+      const [t1, g1] = gains[i];
+      if (t > t1) continue;
+      const [t0, g0] = gains[i - 1];
+      return t1 === t0 ? g1 : g0 + ((g1 - g0) * (t - t0)) / (t1 - t0);
+    }
+    return gains[gains.length - 1][1];
+  };
+  const r = (t: number) => Math.round(t * 1000) / 1000;
+  const inside = gains.filter(([t]) => t > skip + 0.0005 && t < skip + length - 0.0005).map(([t, g]): [number, number] => [r(t - skip), g]);
+  return [[0, at(skip)], ...inside, [r(length), at(skip + length)]];
+}
+
 /** Sounds cut to a part of the scene, timed from its start. */
 export function soundsBetween(list: ReturnType<typeof soundsOf>, from: number, to: number) {
   return list.flatMap((s) => {
     const start = Math.max(s.at, from);
     const end = Math.min(s.at + s.length, to);
     if (end <= start) return [];
-    return [{ ...s, from: s.from + (start - s.at) * s.speed, at: start - from, length: end - start }];
+    return [{ ...s, from: s.from + (start - s.at) * s.speed, at: start - from, length: end - start, ...(s.gains ? { gains: cutGains(s.gains, start - s.at, end - start) } : {}) }];
   });
 }
 
 /** The sound of every clip in a frame: which file, from where in it, when it is heard, and how loud. */
 export function soundsOf(doc: Doc, sceneId: string) {
   const scene = doc.elements[sceneId];
-  const out: { path: string; from: number; at: number; length: number; volume: number; speed: number }[] = [];
+  const out: { path: string; from: number; at: number; length: number; volume: number; speed: number; gains?: [number, number][] }[] = [];
   const walk = (id: string, from: number, to: number) => {
     for (const c of doc.elements[id]?.childIds ?? []) {
       const el = doc.elements[c];
@@ -192,7 +210,11 @@ export function soundsOf(doc: Doc, sceneId: string) {
       const start = Math.max(span.start, from);
       const end = Math.min(span.end, to);
       if (end <= start) continue;
-      if (playsFile(el) && el.src && loudness(doc, el) > 0) out.push({ path: el.src, from: fileTimeAt(el, span.start, start), at: start, length: end - start, volume: loudness(doc, el), speed: el.speed || 1 });
+      if (playsFile(el) && el.src && loudness(doc, el) > 0) {
+        // a sound that changes loudness while it plays is written as points; a steady one as one number
+        const moving = gainMoves(el);
+        out.push({ path: el.src, from: fileTimeAt(el, span.start, start), at: start, length: end - start, volume: moving ? 1 : loudness(doc, el), speed: el.speed || 1, ...(moving ? { gains: gainPoints(doc, el, scene, start, end) } : {}) });
+      }
       walk(c, start, end);
     }
   };

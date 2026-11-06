@@ -16,8 +16,8 @@ export function trackOf(doc: Doc, el: El): Track | null {
 /** Whether a thing is hidden, by itself or by its track. */
 export const hiddenHere = (doc: Doc, el: El) => !!el.hidden || !!trackOf(doc, el)?.hidden;
 
-/** How loud a clip or sound is heard, from 0 to 1: nothing when its track is silent. */
-export const loudness = (doc: Doc, el: El) => (trackOf(doc, el)?.silent ? 0 : el.volume);
+/** How loud a clip or sound is at rest, from 0 to 1, with its track: nothing when its track is silent. Over time, see gainAt. */
+export const loudness = (doc: Doc, el: El) => (trackOf(doc, el)?.silent ? 0 : (trackOf(doc, el)?.volume ?? 1) * el.volume);
 
 /** Whether two things show at the same time in the frame. */
 const overlap = (a: El, b: El, frame: El) => {

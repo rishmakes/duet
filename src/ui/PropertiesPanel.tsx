@@ -5,6 +5,7 @@ import { dragCancel, dragPreview, getState, workDoc, dispatch, select, useStore,
 import { playsFile } from "../document/types";
 import { BLENDS } from "../document/types";
 import type { Blend, El, Layout, Moving } from "../document/types";
+import SoundSection from "./SoundSection";
 import { canBeComponent, isLooseCopy } from "../document/components";
 import { canTurn } from "../document/geometry";
 import { defaultLayout } from "../document/layout";
@@ -253,7 +254,7 @@ interface KeyMark {
 
 const BLEND_NAMES: Record<Blend, string> = { normal: "Normal", multiply: "Multiply", screen: "Screen", overlay: "Overlay", "soft-light": "Soft light", darken: "Darken", lighten: "Lighten", add: "Add" };
 
-const KEY_NAMES: Record<Moving, string> = { x: "X", y: "Y", width: "width", height: "height", rotation: "rotation", opacity: "opacity" };
+const KEY_NAMES: Record<Moving, string> = { x: "X", y: "Y", width: "width", height: "height", rotation: "rotation", opacity: "opacity", volume: "volume" };
 
 /**
  * The keyframe mark for some properties of one thing at the playhead. Position and size key both of their
@@ -1229,6 +1230,7 @@ export default function PropertiesPanel() {
           </button>
         </div>
       )}
+      {mode === "motion" && els.length > 0 && els.every(playsFile) && <SoundSection els={els} scene={sceneOf(doc, els[0].id)} />}
       {mode === "motion" && els.length > 0 && els.every(playsFile) && <PlaySpeedSection els={els} />}
       {keyed && <SpeedSection el={keyed} />}
 

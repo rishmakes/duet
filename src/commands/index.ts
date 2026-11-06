@@ -156,6 +156,8 @@ const createElement: CommandDef<CreateArgs> = {
       markers: [],
       clipFrom: 0,
       volume: 1,
+      fadeIn: 0,
+      fadeOut: 0,
       speed: 1,
       childIds: [],
       ...defaults[a.type],
@@ -931,13 +933,15 @@ export interface SetTrackSwitchArgs {
   track: TrackRef;
   hidden?: boolean;
   silent?: boolean;
+  /** How loud everything on it is, 0 to 1. */
+  volume?: number;
 }
 
-/** Hide a track or make it silent, or undo that. It holds for everything on it, now and later. */
+/** Hide a track or make it silent, or undo that, or set how loud it is. It holds for everything on it, now and later. */
 const setTrackSwitch: CommandDef<SetTrackSwitchArgs> = {
-  label: (a) => (a.hidden === true ? "Hide track" : a.hidden === false ? "Show track" : a.silent === true ? "Track sound off" : "Track sound on"),
+  label: (a) => (a.volume !== undefined ? "Track volume" : a.hidden === true ? "Hide track" : a.hidden === false ? "Show track" : a.silent === true ? "Track sound off" : "Track sound on"),
   run: (doc, a) => {
-    if (!scene(doc, a.id) || (a.hidden === undefined && a.silent === undefined)) return doc;
+    if (!scene(doc, a.id) || (a.hidden === undefined && a.silent === undefined && a.volume === undefined)) return doc;
     const next = clone(doc);
     const track = findTrack(next, a.id, a.track);
     if (!track) return doc;
@@ -948,6 +952,11 @@ const setTrackSwitch: CommandDef<SetTrackSwitchArgs> = {
     if (a.silent !== undefined) {
       if (a.silent) track.silent = true;
       else delete track.silent;
+    }
+    if (a.volume !== undefined && Number.isFinite(a.volume)) {
+      const v = Math.round(Math.max(0, Math.min(1, a.volume)) * 10000) / 10000;
+      if (v === 1) delete track.volume;
+      else track.volume = v;
     }
     return next;
   },
@@ -1296,6 +1305,8 @@ const wrapInLayout: CommandDef<WrapArgs> = {
       markers: [],
       clipFrom: 0,
       volume: 1,
+      fadeIn: 0,
+      fadeOut: 0,
       speed: 1,
       childIds: [],
     };
@@ -1405,6 +1416,8 @@ const groupElements: CommandDef<GroupArgs> = {
       markers: [],
       clipFrom: 0,
       volume: 1,
+      fadeIn: 0,
+      fadeOut: 0,
       speed: 1,
       childIds: [],
     };
@@ -1956,7 +1969,7 @@ export interface SetKeyArgs {
   ease?: Key["ease"];
 }
 
-const propName: Record<Moving, string> = { x: "position", y: "position", width: "size", height: "size", opacity: "opacity", rotation: "rotation" };
+const propName: Record<Moving, string> = { x: "position", y: "position", width: "size", height: "size", opacity: "opacity", rotation: "rotation", volume: "volume" };
 
 const setKey: CommandDef<SetKeyArgs> = {
   label: (a) => `Set ${propName[a.prop] ?? "a value"} at ${round(a.t)}s`,

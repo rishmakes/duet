@@ -141,7 +141,7 @@ export function elAt(el: El, t: number): El {
     if (keys?.length) {
       const v = valueAt(keys, t);
       // a bouncy shape overshoots: opacity stays between clear and solid, and a size never goes below a pixel
-      out[p] = p === "opacity" ? Math.min(1, Math.max(0, v)) : p === "width" || p === "height" ? Math.max(1, v) : v;
+      out[p] = p === "opacity" || p === "volume" ? Math.min(1, Math.max(0, v)) : p === "width" || p === "height" ? Math.max(1, v) : v;
     }
   }
   return out;
