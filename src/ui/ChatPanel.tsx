@@ -90,6 +90,9 @@ function agyModelList(): Promise<ModelChoice[]> {
 export default function ChatPanel({ docked = false, extra, onFold }: { docked?: boolean; extra?: React.ReactNode; onFold?: () => void }) {
   const space = useLayout((d) => d.space);
   const chatDocked = useLayout((d) => d.chatDocked);
+  const inPanel = useLayout((d) => d.chatInPanel);
+  const chatPlace = inPanel ? "panel" : chatDocked[space] ? "left" : "float";
+  const [placeOpen, setPlaceOpen] = useState(false);
   // the main chat, or the task on show
   const task = useChat((s) => (s.thread ? s.tasks.find((t) => t.key === s.thread) : undefined));
   const mainMessages = useChat((s) => s.messages);
@@ -191,6 +194,7 @@ export default function ChatPanel({ docked = false, extra, onFold }: { docked?: 
   const litTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  useDismiss(placeOpen, () => setPlaceOpen(false), ".chat-place");
   useDismiss(popOpen, () => setPopOpen(false), ".agent-pop, [data-name='agent-button'], [data-name='members']");
   useDismiss(permOpen, () => setPermOpen(false), ".perm-pop, [data-name='perm-button']");
   useDismiss(settingsOpen, () => setSettingsOpen(false), ".chat-settings, [data-name='chat-settings']");
@@ -666,21 +670,43 @@ export default function ChatPanel({ docked = false, extra, onFold }: { docked?: 
           )}
           {running && <span className="chat-status">{nm(members.find((m) => m.id === agent)?.name ?? "The AI")} is working…</span>}
         </div>
-        {/* the chat stands in a column on the left, or floats over the canvas: the designer picks, in Studio; Kitchen keeps it in its side */}
-        {!onFold && <button
-          type="button"
-          className="chat-dock-btn"
-          data-name={docked ? "chat-float" : "chat-dock"}
-          title={docked ? "Float the chat over the canvas, for more room" : "Put the chat in a column on the left"}
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (!docked) setMinimized(false);
-            setLayout({ chatDocked: { ...chatDocked, [space]: !docked } });
-          }}
-        >
-          <Icon name="panel-left" size={14} />
-        </button>}
+        {/* where the chat stands in Studio: floating over the canvas, in a column on the left, or under the right panel; Kitchen keeps it in its side */}
+        {!onFold && (
+          <div className="chat-place" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="chat-dock-btn"
+              data-name="chat-place"
+              title="Where the chat sits"
+              onClick={() => setPlaceOpen(!placeOpen)}
+            >
+              <Icon name={inPanel ? "panel-right" : "panel-left"} size={14} />
+            </button>
+            {placeOpen && (
+              <div className="chat-place-pop">
+                {([
+                  ["float", "Float over the canvas"],
+                  ["left", "Column on the left"],
+                  ["panel", "Under the right panel"],
+                ] as const).map(([k, label]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    className={chatPlace === k ? "on" : ""}
+                    data-name={`chat-place-${k}`}
+                    onClick={() => {
+                      setPlaceOpen(false);
+                      if (k === "float") setMinimized(false);
+                      setLayout({ chatDocked: { ...chatDocked, [space]: k === "left" }, chatInPanel: k === "panel", ...(k === "panel" ? { rightHidden: false } : {}) });
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         {extra && (
           <div className="chat-extra" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
             {extra}

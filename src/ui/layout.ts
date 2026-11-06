@@ -59,6 +59,10 @@ export interface Dock {
   wheelZooms: boolean;
   /** In each space, whether the chat stands in its own column on the left, or floats over the canvas. */
   chatDocked: Record<Space, boolean>;
+  /** In Studio, the chat sits under the right panel instead, with a line to pull to make it taller or shorter. */
+  chatInPanel: boolean;
+  /** How tall the chat is under the right panel. */
+  panelChatH: number;
   /** How wide Kitchen's chat column and recipe column are, pulled by their edges. */
   kitchenChatW: number;
   recipeW: number;
@@ -121,6 +125,8 @@ export const defaults = (): Dock => ({
   wheelZooms: true,
   editChatOpen: false,
   chatDocked: { kitchen: true, edit: false },
+  chatInPanel: false,
+  panelChatH: 360,
   recipeOn: null,
   kitchenComments: false,
   recipeFull: false,
@@ -134,6 +140,7 @@ export const defaults = (): Dock => ({
   trackH: { ...DEFAULT_TRACK_H },
 });
 export const CHAT_MIN = { w: 280, h: 140 };
+export const PANEL_CHAT_MIN = 160;
 export const TIME_MIN_H = 72;
 
 export function parseLayout(raw: unknown): Dock {
@@ -162,8 +169,10 @@ export function parseLayout(raw: unknown): Dock {
     const projectsOpen = { kitchen: open.kitchen === true, edit: open.edit === true };
     const docked = (r.chatDocked ?? {}) as Partial<Record<Space, unknown>>;
     const chatDocked = { kitchen: docked.kitchen !== false, edit: docked.edit === true };
+    const chatInPanel = r.chatInPanel === true;
+    const panelChatH = typeof r.panelChatH === "number" && Number.isFinite(r.panelChatH) ? Math.max(PANEL_CHAT_MIN, Math.round(r.panelChatH)) : 360;
     const recipeOn = typeof r.recipeOn === "string" ? r.recipeOn : null;
-    return { ...defaults(), ...r, recipeFull: false, projectsOpen, chatDocked, recipeOn, prototyping: false, mode, space, timeLook, timeMax: false, videoTab, photoTab, historyLine, trackH, rowH };
+    return { ...defaults(), ...r, recipeFull: false, projectsOpen, chatDocked, chatInPanel, panelChatH, recipeOn, prototyping: false, mode, space, timeLook, timeMax: false, videoTab, photoTab, historyLine, trackH, rowH };
   }
   return defaults();
 }

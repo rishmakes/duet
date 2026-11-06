@@ -10776,3 +10776,83 @@ button.ctx-item.store-make-option:hover {
 .time-row.row-compact .track-volume {
   display: none;
 }
+/* the chat under the right panel in Studio: the panel above, a line to pull, the chat below */
+.right-stack {
+  grid-area: right;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+}
+.right-stack > .right {
+  flex: 1 1 0;
+  min-height: 0;
+  border-left: none;
+}
+.app.swapped .right-stack {
+  border-left: none;
+  border-right: 1px solid var(--line);
+}
+.panel-chat {
+  position: relative;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: calc(100% - 120px);
+  border-top: 1px solid var(--line);
+}
+.panel-chat > .chat.docked {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.panel-chat-grip {
+  position: absolute;
+  top: -4px;
+  left: 0;
+  right: 0;
+  height: 8px;
+  cursor: row-resize;
+  z-index: 5;
+}
+.panel-chat-grip:hover {
+  background: linear-gradient(transparent 3px, var(--accent) 3px, var(--accent) 5px, transparent 5px);
+}
+.chat-place {
+  position: relative;
+  flex: none;
+}
+.chat-place-pop {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: 0 12px 32px var(--shadow-strong);
+}
+.chat-place-pop > button {
+  text-align: left;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.chat-place-pop > button:hover {
+  background: var(--panel-2);
+}
+.chat-place-pop > button.on {
+  color: var(--accent);
+}

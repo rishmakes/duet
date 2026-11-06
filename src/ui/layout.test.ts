@@ -179,3 +179,11 @@ describe("a small window", () => {
     expect(fitKitchen(900, { ...o, projectsOpen: true })).toBe(420);
   });
 });
+
+describe("chat under the right panel", () => {
+  it("is off unless chosen, and keeps a height no smaller than the least", () => {
+    expect(parseLayout({}).chatInPanel).toBe(false);
+    expect(parseLayout({ chatInPanel: true, panelChatH: 20 })).toMatchObject({ chatInPanel: true, panelChatH: 160 });
+    expect(parseLayout({ panelChatH: "tall" }).panelChatH).toBe(360);
+  });
+});

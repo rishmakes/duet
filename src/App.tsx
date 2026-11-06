@@ -28,6 +28,7 @@ import TimeStrip from "./ui/TimeStrip";
 import { wireClips } from "./video/play";
 import { wireKeys } from "./video/keys";
 import ChatPanel from "./ui/ChatPanel";
+import PanelChat from "./ui/PanelChat";
 import BeforeAfter from "./ui/BeforeAfter";
 import ExportMenu from "./ui/ExportMenu";
 import HistoryStrip from "./ui/HistoryStrip";
@@ -302,19 +303,21 @@ export default function App() {
   const win = useWindowWidth();
   const { lw, rw } = fitStudio(win, {
     projectsOpen: dock.projectsOpen.edit,
-    chatCol: dock.chatDocked.edit ? 340 : 0,
+    chatCol: dock.chatDocked.edit && !dock.chatInPanel ? 340 : 0,
     lw: dock.leftHidden ? 0 : dock.leftW,
     rw: dock.rightHidden ? 0 : dock.rightW,
   });
   const leftOff = lw === 0;
   const rightOff = rw === 0;
+  // the chat under the right panel, while that panel is shown; with the panel away it floats again
+  const chatUnder = dock.chatInPanel && !rightOff;
   // Kitchen, like Chat, is a whole page of its own: no tools or panels around it, only your projects on the left
   const cooking = dock.space === "kitchen";
   // building a recipe full screen leaves only your projects and the top bar around it
   const recipeFull = cooking && dock.recipeFull && !!dock.recipeOn;
   const hist = dock.historyLine && !recipeFull ? "48px" : "0";
   // the chat has a column of its own on the left, or floats over the canvas
-  const chatCol = dock.chatDocked.edit ? 340 : 0;
+  const chatCol = dock.chatDocked.edit && !dock.chatInPanel ? 340 : 0;
   const timeMax = dock.timeMax && !cooking && dock.mode === "motion";
   const appStyle = cooking
     ? { gridTemplateColumns: "auto minmax(0, 1fr)", gridTemplateRows: `44px minmax(0, 1fr) ${hist}`, gridTemplateAreas: '"top top" "projects kitchen" "projects hist"' }
@@ -423,7 +426,7 @@ export default function App() {
             {rightOff && <KindSwitch />}
           </div>
           {/* the chat's own column, always in the same place, unless it floats over the canvas */}
-          {dock.chatDocked.edit && (
+          {chatCol > 0 && (
             <section className="studio-chat">
               <ChatPanel docked />
             </section>
@@ -435,9 +438,16 @@ export default function App() {
             <Grip side="r" lw={lw} rw={rw} />
             {isColorOpen(dock) && <BeforeAfter />}
             <PageStrip />
-            {!dock.chatDocked.edit && <ChatPanel />}
+            {!chatCol && !chatUnder && <ChatPanel />}
           </main>
-          {!rightOff && <PropertiesPanel />}
+          {chatUnder ? (
+            <div className="right-stack">
+              <PropertiesPanel />
+              <PanelChat />
+            </div>
+          ) : (
+            !rightOff && <PropertiesPanel />
+          )}
           <TimeStrip />
         </>
       )}
