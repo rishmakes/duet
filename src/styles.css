@@ -10822,37 +10822,3 @@ button.ctx-item.store-make-option:hover {
 .panel-chat-grip:hover {
   background: linear-gradient(transparent 3px, var(--accent) 3px, var(--accent) 5px, transparent 5px);
 }
-.chat-place {
-  position: relative;
-  flex: none;
-}
-.chat-place-pop {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  z-index: 30;
-  display: flex;
-  flex-direction: column;
-  min-width: 200px;
-  padding: 4px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  box-shadow: 0 12px 32px var(--shadow-strong);
-}
-.chat-place-pop > button {
-  text-align: left;
-  padding: 7px 10px;
-  border: none;
-  border-radius: 6px;
-  background: none;
-  color: var(--text);
-  font: inherit;
-  cursor: pointer;
-}
-.chat-place-pop > button:hover {
-  background: var(--panel-2);
-}
-.chat-place-pop > button.on {
-  color: var(--accent);
-}

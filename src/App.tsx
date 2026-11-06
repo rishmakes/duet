@@ -303,7 +303,7 @@ export default function App() {
   const win = useWindowWidth();
   const { lw, rw } = fitStudio(win, {
     projectsOpen: dock.projectsOpen.edit,
-    chatCol: dock.chatDocked.edit && !dock.chatInPanel ? 340 : 0,
+    chatCol: 0,
     lw: dock.leftHidden ? 0 : dock.leftW,
     rw: dock.rightHidden ? 0 : dock.rightW,
   });
@@ -317,7 +317,8 @@ export default function App() {
   const recipeFull = cooking && dock.recipeFull && !!dock.recipeOn;
   const hist = dock.historyLine && !recipeFull ? "48px" : "0";
   // the chat has a column of its own on the left, or floats over the canvas
-  const chatCol = dock.chatDocked.edit && !dock.chatInPanel ? 340 : 0;
+  // the chat floats over the canvas, or sits under the right panel
+  const chatCol = 0;
   const timeMax = dock.timeMax && !cooking && dock.mode === "motion";
   const appStyle = cooking
     ? { gridTemplateColumns: "auto minmax(0, 1fr)", gridTemplateRows: `44px minmax(0, 1fr) ${hist}`, gridTemplateAreas: '"top top" "projects kitchen" "projects hist"' }
@@ -425,12 +426,6 @@ export default function App() {
             <PageFlipButton className="studio-flip" />
             {rightOff && <KindSwitch />}
           </div>
-          {/* the chat's own column, always in the same place, unless it floats over the canvas */}
-          {chatCol > 0 && (
-            <section className="studio-chat">
-              <ChatPanel docked />
-            </section>
-          )}
           {!leftOff && <LayersPanel />}
           <main className="canvas">
             <CanvasView />
@@ -438,7 +433,7 @@ export default function App() {
             <Grip side="r" lw={lw} rw={rw} />
             {isColorOpen(dock) && <BeforeAfter />}
             <PageStrip />
-            {!chatCol && !chatUnder && <ChatPanel />}
+            {!chatUnder && <ChatPanel />}
           </main>
           {chatUnder ? (
             <div className="right-stack">
