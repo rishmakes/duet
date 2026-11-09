@@ -37,6 +37,18 @@ watchForFreezes();
 
 for (const ev of ["dragover", "drop"]) window.addEventListener(ev, (e) => e.preventDefault());
 
+// Dragging over selected text (in the chat, say) or a picture must not lift a see-through copy of it
+// that follows the pointer across the canvas (#313). Only things Duet made draggable may be dragged.
+window.addEventListener(
+  "dragstart",
+  (e) => {
+    const t = e.target;
+    const el = t instanceof Element ? t : t instanceof Node ? t.parentElement : null;
+    if (!el?.closest('[draggable="true"]')) e.preventDefault();
+  },
+  true,
+);
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <App />
