@@ -1843,10 +1843,10 @@ async function answerTool(name: string, raw: unknown, by?: string): Promise<Tool
     if ("error" in made) return fail(made.error);
     // a recipe steers later work, so the designer always says yes first, whatever the mode
     void invoke("bring_back").catch(() => undefined);
-    const ok = await askDesigner(`${had ? "Update" : "Save"} the recipe "${nm}" (${made.steps.length} steps)`);
+    const ok = await askDesigner(`${had ? "Update" : "Save"} the recipe "${nm}" (${made.steps.length} ${made.steps.length === 1 ? "step" : "steps"})`);
     if (!ok) return fail("The designer said not now. Do not save this recipe.");
     keepRecipe(made);
-    return { text: `${had ? "Updated" : "Saved"} the recipe "${nm}" with ${made.steps.length} steps. The designer can open it in Recipes, change any step, and cook it in Kitchen.` };
+    return { text: `${had ? "Updated" : "Saved"} the recipe "${nm}" with ${made.steps.length} ${made.steps.length === 1 ? "step" : "steps"}. The designer can open it in Recipes, change any step, and cook it in Kitchen.` };
   }
   if (name === "save_script") {
     if (typeof a.name !== "string" || !a.name.trim() || typeof a.code !== "string" || !a.code.trim()) return fail("Give a name and the code.");
