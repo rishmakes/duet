@@ -265,7 +265,7 @@ describe("a recipe an AI writes (save_recipe)", () => {
     if ("error" in r) throw new Error(r.error);
     expect(r.name).toBe("Carousel");
     expect(r.steps.map((s) => s.kind)).toEqual(["ask", "ai", "review"]);
-    expect(r.steps[1].title).toBe("Step 2");
+    expect(r.steps[1].title).toBe("Make five slides.");
     expect(new Set(r.steps.map((s) => `${s.x},${s.y}`)).size).toBe(3);
   });
   it("keeps the id it is given, so saving again updates the same recipe", async () => {

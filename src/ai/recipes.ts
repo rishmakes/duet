@@ -202,7 +202,7 @@ export function recipeFrom(name: string, about: string, steps: { title?: unknown
     .filter((s) => s && typeof s === "object" && typeof s.does === "string" && s.does.trim())
     .map((s, i) => ({
       id: newId(),
-      title: typeof s.title === "string" && s.title.trim() ? s.title.trim() : `Step ${i + 1}`,
+      title: typeof s.title === "string" && s.title.trim() ? s.title.trim() : (s.does as string).trim().split(/\s+/).slice(0, 3).join(" ") || `Step ${i + 1}`,
       kind: (s.kind === "ask" || s.kind === "review" ? s.kind : "ai") as StepKind,
       does: (s.does as string).trim(),
     }));

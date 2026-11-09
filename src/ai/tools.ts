@@ -440,7 +440,7 @@ export const TOOLS: ToolDef[] = [
               kind: { type: "string", enum: ["ai", "ask", "review"] },
               does: { type: "string", description: "What the AI does, the question to ask, or what to look at." },
             },
-            required: ["kind", "does"],
+            required: ["title", "kind", "does"],
           },
         },
       },
