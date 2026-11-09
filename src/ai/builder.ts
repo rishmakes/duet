@@ -1,4 +1,5 @@
 import { toPng } from "html-to-image";
+import { agentIsDriving } from "../ui/dialog";
 import { runCommand } from "../commands";
 import { emptyDoc } from "../document/types";
 import { inTestDesign, keepTestDesign, leaveTestDesign, startTestDesign } from "../project/project";
@@ -393,6 +394,7 @@ export function sampleDoc() {
 
 /** Run one builder tool. */
 export async function callBuilderTool(name: string, raw: unknown, by?: string): Promise<ToolResult> {
+  agentIsDriving();
   const a = (raw && typeof raw === "object" ? raw : {}) as Args;
   if (name === "dev_guide") return { text: GUIDE };
   if (name === "dev_test_design") {

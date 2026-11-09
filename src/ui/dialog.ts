@@ -1,12 +1,17 @@
 import * as native from "@tauri-apps/plugin-dialog";
 
 /**
- * Duet's questions and file windows. In Duet dev they show inside the window as plain buttons and a
- * box, so a helper agent can read and answer them with its own tools, the way a designer would.
- * Everywhere else they are the system's own.
+ * Duet's questions and file windows. In Duet dev, while a helper agent is driving it with the dev
+ * tools, they show inside the window as plain buttons and a box, so the agent can answer them with
+ * its own tools. A person using Duet dev, and everyone everywhere else, gets the system's own windows.
  */
-let inWindow = false;
-export const showDialogsInWindow = () => void (inWindow = true);
+let checkCopy = false;
+let agentAt = 0;
+const AGENT_QUIET_MS = 5 * 60_000;
+export const showDialogsInWindow = () => void (checkCopy = true);
+/** A helper agent just used a dev tool: answer the next questions inside the window for a while. */
+export const agentIsDriving = () => void (agentAt = Date.now());
+const inWindowNow = () => checkCopy && Date.now() - agentAt < AGENT_QUIET_MS;
 
 type Choice = { label: string; value: unknown };
 
@@ -55,7 +60,7 @@ function sheet(title: string, text: string, choices: Choice[], box?: string): Pr
 const titleOf = (o: unknown, fallback: string) => (o && typeof o === "object" && "title" in o && typeof o.title === "string" ? o.title : fallback);
 
 export const ask: typeof native.ask = async (text, o) => {
-  if (!inWindow) return native.ask(text, o);
+  if (!inWindowNow()) return native.ask(text, o);
   const opts = typeof o === "string" ? { title: o } : (o ?? {});
   const { value } = await sheet(opts.title ?? "Duet", text, [
     { label: opts.cancelLabel ?? "No", value: false },
@@ -65,14 +70,14 @@ export const ask: typeof native.ask = async (text, o) => {
 };
 
 export const message: typeof native.message = async (text, o) => {
-  if (!inWindow) return native.message(text, o);
+  if (!inWindowNow()) return native.message(text, o);
   const opts = typeof o === "string" ? { title: o } : (o ?? {});
   await sheet(opts.title ?? "Duet", text, [{ label: "OK", value: true }]);
   return "Ok" as Awaited<ReturnType<typeof native.message>>;
 };
 
 export const open: typeof native.open = (async (o?: native.OpenDialogOptions) => {
-  if (!inWindow) return native.open(o);
+  if (!inWindowNow()) return native.open(o);
   const many = !!o?.multiple;
   const { value, typed } = await sheet(titleOf(o, "Open"), many ? "Type the full paths, one per line or split by |." : "Type the full path.", [
     { label: "Cancel", value: false },
@@ -83,7 +88,7 @@ export const open: typeof native.open = (async (o?: native.OpenDialogOptions) =>
 }) as typeof native.open;
 
 export const save: typeof native.save = async (o) => {
-  if (!inWindow) return native.save(o);
+  if (!inWindowNow()) return native.save(o);
   const { value, typed } = await sheet(titleOf(o, "Save"), "Type the full path to save to.", [
     { label: "Cancel", value: false },
     { label: "Save", value: true },
