@@ -423,6 +423,31 @@ export const TOOLS: ToolDef[] = [
     },
   },
   {
+    name: "save_recipe",
+    description:
+      "Save a recipe for the designer: the way a piece of work is made, step by step, which Duet then cooks one step at a time in Kitchen, handing each step to the AI and stopping where the designer must answer or comment. Use it when the designer asks you to make, add, write or change a recipe, or to keep the way you just worked so it can be done again. Each step has a short title, a kind and what it does: \"ai\" means the AI does the work (say exactly what to make or check), \"ask\" means the designer answers a question (write the question), \"review\" means the designer looks and comments (say what to look at). Start with an ask step for the brief, and put a review step after the big pieces of work. Saving under a name the designer already has brings that recipe up to date, so send every step, not only the changed ones. The designer is always asked first.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "A short name, like Instagram carousel." },
+        about: { type: "string", description: "One line on what the recipe makes." },
+        steps: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string", description: "A few words, like Wireframe." },
+              kind: { type: "string", enum: ["ai", "ask", "review"] },
+              does: { type: "string", description: "What the AI does, the question to ask, or what to look at." },
+            },
+            required: ["kind", "does"],
+          },
+        },
+      },
+      required: ["name", "steps"],
+    },
+  },
+  {
     name: "save_script",
     description:
       "Save a script for the designer: a small piece of JavaScript they can run again and again from the Store, with no AI and no internet. Use it when the designer asks you to make or write a script, or when they repeat the same job by hand and say yes to keeping it. The code is the body of an async function given `duet`: `await duet.call(tool, args)` calls the same tools you have, with the same arguments, and returns what the tool made (a new element's id, or the ids changed); `duet.items` is what it runs on (ids of the picked things, ids of every frame, or the lines of a list the designer types); `duet.log(text)` notes a line for the designer. A script can use only get_document, get_outline and the design tools that change the design (create_element, create_elements, set_props, move_elements, resize_element, reparent_elements, delete_elements, animate, set_grade and the like); it cannot place files, export, trace, duplicate or reach the internet. get_document returns {rootIds, elements}. A whole run is one step in history, and if the script throws, nothing changes. runsOn is selection, each-frame, file or list. Saving under a name the designer already has brings that script up to date. The designer is always asked first.",
@@ -1807,6 +1832,21 @@ async function answerTool(name: string, raw: unknown, by?: string): Promise<Tool
     const saved = await keepTaughtSkill(a.name, summary, a.rules);
     if ("error" in saved) return fail(saved.error);
     return { text: saved.updated ? `Updated the skill "${a.name.trim()}". It is on, and every later conversation follows it.` : `Saved the skill "${a.name.trim()}". It is on, and every later conversation follows it. The designer can see it in Skills.` };
+  }
+  if (name === "save_recipe") {
+    if (typeof a.name !== "string" || !Array.isArray(a.steps)) return fail("Give a name and the steps.");
+    // loaded here, not at the top: the recipes module itself sends work through the agent
+    const { allRecipes, keepRecipe, recipeFrom } = await import("./recipes");
+    const nm = a.name.trim();
+    const had = allRecipes().find((r) => r.name.trim().toLowerCase() === nm.toLowerCase());
+    const made = recipeFrom(nm, typeof a.about === "string" ? a.about : had?.about ?? "", a.steps as { title?: unknown; kind?: unknown; does?: unknown }[], had?.id);
+    if ("error" in made) return fail(made.error);
+    // a recipe steers later work, so the designer always says yes first, whatever the mode
+    void invoke("bring_back").catch(() => undefined);
+    const ok = await askDesigner(`${had ? "Update" : "Save"} the recipe "${nm}" (${made.steps.length} steps)`);
+    if (!ok) return fail("The designer said not now. Do not save this recipe.");
+    keepRecipe(made);
+    return { text: `${had ? "Updated" : "Saved"} the recipe "${nm}" with ${made.steps.length} steps. The designer can open it in Recipes, change any step, and cook it in Kitchen.` };
   }
   if (name === "save_script") {
     if (typeof a.name !== "string" || !a.name.trim() || typeof a.code !== "string" || !a.code.trim()) return fail("Give a name and the code.");

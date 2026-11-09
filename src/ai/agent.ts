@@ -58,6 +58,7 @@ const WORKING: Record<string, string> = {
   duplicate_elements: "Making a copy",
   save_skill: "Saving your rules as a skill",
   save_script: "Writing a script",
+  save_recipe: "Writing a recipe",
   make_brand_kit: "Reading your brand",
   change_brand_kit: "Tidying the brand kit",
   make_design_system: "Reading your design system",

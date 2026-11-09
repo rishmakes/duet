@@ -253,3 +253,29 @@ describe("the built-in recipes", () => {
     expect(new Set(SCREEN.steps.map((x) => x.id)).size).toBe(SCREEN.steps.length);
   });
 });
+
+describe("a recipe an AI writes (save_recipe)", () => {
+  it("keeps the steps in order with their kinds, and lays them out", async () => {
+    const { recipeFrom } = await import("./recipes");
+    const r = recipeFrom(" Carousel ", "Five slides", [
+      { title: "Brief", kind: "ask", does: "What is it selling?" },
+      { kind: "ai", does: "Make five slides." },
+      { title: "Look", kind: "review", does: "Check the slides." },
+    ]);
+    if ("error" in r) throw new Error(r.error);
+    expect(r.name).toBe("Carousel");
+    expect(r.steps.map((s) => s.kind)).toEqual(["ask", "ai", "review"]);
+    expect(r.steps[1].title).toBe("Step 2");
+    expect(new Set(r.steps.map((s) => `${s.x},${s.y}`)).size).toBe(3);
+  });
+  it("keeps the id it is given, so saving again updates the same recipe", async () => {
+    const { recipeFrom } = await import("./recipes");
+    const r = recipeFrom("A", "", [{ kind: "ai", does: "x" }], "keep-me");
+    expect("error" in r ? null : r.id).toBe("keep-me");
+  });
+  it("refuses a recipe with no name or no real steps", async () => {
+    const { recipeFrom } = await import("./recipes");
+    expect("error" in recipeFrom(" ", "", [{ kind: "ai", does: "x" }])).toBe(true);
+    expect("error" in recipeFrom("A", "", [{ kind: "ai", does: "  " }])).toBe(true);
+  });
+});

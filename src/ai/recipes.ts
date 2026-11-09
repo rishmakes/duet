@@ -190,6 +190,26 @@ export function blankRecipe(name = "New recipe"): Recipe {
   return { id: newId(), name, about: "", steps: place([{ id: newId(), title: "Brief", kind: "ask", does: "What is this for?" }]) };
 }
 
+/**
+ * A recipe an AI wrote (save_recipe): a name, a line on what it is for, and steps in order.
+ * A step's kind is "ai" (the AI does it), "ask" (the designer answers) or "review" (the designer comments).
+ * Keeping the id of a recipe the designer already has brings that one up to date.
+ */
+export function recipeFrom(name: string, about: string, steps: { title?: unknown; kind?: unknown; does?: unknown }[], id?: string): Recipe | { error: string } {
+  const nm = name.trim();
+  if (!nm) return { error: "Give the recipe a name." };
+  const clean = steps
+    .filter((s) => s && typeof s === "object" && typeof s.does === "string" && s.does.trim())
+    .map((s, i) => ({
+      id: newId(),
+      title: typeof s.title === "string" && s.title.trim() ? s.title.trim() : `Step ${i + 1}`,
+      kind: (s.kind === "ask" || s.kind === "review" ? s.kind : "ai") as StepKind,
+      does: (s.does as string).trim(),
+    }));
+  if (!clean.length) return { error: "Give at least one step, each with what it does." };
+  return { id: id ?? newId(), name: nm, about: about.trim(), steps: place(clean) };
+}
+
 /** A recipe read from a file someone shared, or null if it is not one. */
 export function readRecipe(text: string): Recipe | null {
   try {
