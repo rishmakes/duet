@@ -4,22 +4,37 @@ export interface CreateTile {
   id: string;
   title: string;
   dims: string;
-  kind: "sized" | "screens" | "canvas" | "custom" | "file";
+  kind: "sized" | "screens" | "canvas" | "custom" | "file" | "video" | "photo";
+  /** Which row of Home it sits in: one row for each thing Duet makes. */
+  group: TileGroup;
   width?: number;
   height?: number;
-  shape: "square" | "story" | "video" | "slide" | "a4" | "screens" | "canvas" | "custom" | "file";
+  shape: "square" | "story" | "video" | "slide" | "a4" | "screens" | "canvas" | "custom" | "file" | "reel" | "film" | "photo";
 }
 
+export type TileGroup = "design" | "video" | "photo" | "more";
+
+/** Home's rows, in order, with the words above each. */
+export const TILE_GROUPS: { id: TileGroup; label: string }[] = [
+  { id: "design", label: "Design" },
+  { id: "video", label: "Video" },
+  { id: "photo", label: "Photo" },
+  { id: "more", label: "More ways to start" },
+];
+
 export const CREATE_TILES: CreateTile[] = [
-  { id: "ig-post", title: "Instagram post", dims: "1080 × 1080", kind: "sized", width: 1080, height: 1080, shape: "square" },
-  { id: "story", title: "Story", dims: "1080 × 1920", kind: "sized", width: 1080, height: 1920, shape: "story" },
-  { id: "yt-thumb", title: "YouTube thumbnail", dims: "1280 × 720", kind: "sized", width: 1280, height: 720, shape: "video" },
-  { id: "presentation", title: "Presentation", dims: "1920 × 1080", kind: "sized", width: 1920, height: 1080, shape: "slide" },
-  { id: "a4", title: "A4 print", dims: "A4", kind: "sized", width: 2480, height: 3508, shape: "a4" },
-  { id: "screens", title: "App screens", dims: "Mobile & desktop", kind: "screens", shape: "screens" },
-  { id: "canvas", title: "Open canvas", dims: "Blank", kind: "canvas", shape: "canvas" },
-  { id: "custom", title: "Custom size", dims: "Width & height", kind: "custom", shape: "custom" },
-  { id: "file", title: "Open a file", dims: ".duet, image", kind: "file", shape: "file" },
+  { id: "ig-post", group: "design", title: "Instagram post", dims: "1080 × 1080", kind: "sized", width: 1080, height: 1080, shape: "square" },
+  { id: "story", group: "design", title: "Story", dims: "1080 × 1920", kind: "sized", width: 1080, height: 1920, shape: "story" },
+  { id: "yt-thumb", group: "design", title: "YouTube thumbnail", dims: "1280 × 720", kind: "sized", width: 1280, height: 720, shape: "video" },
+  { id: "presentation", group: "design", title: "Presentation", dims: "1920 × 1080", kind: "sized", width: 1920, height: 1080, shape: "slide" },
+  { id: "a4", group: "design", title: "A4 print", dims: "A4", kind: "sized", width: 2480, height: 3508, shape: "a4" },
+  { id: "screens", group: "design", title: "App screens", dims: "Mobile & desktop", kind: "screens", shape: "screens" },
+  { id: "reel", group: "video", title: "Reel or Short", dims: "1080 × 1920, add clips", kind: "video", width: 1080, height: 1920, shape: "reel" },
+  { id: "yt-video", group: "video", title: "YouTube video", dims: "1920 × 1080, add clips", kind: "video", width: 1920, height: 1080, shape: "film" },
+  { id: "photo", group: "photo", title: "Edit a photo", dims: "Colour, masks, paint", kind: "photo", shape: "photo" },
+  { id: "canvas", group: "more", title: "Open canvas", dims: "Blank", kind: "canvas", shape: "canvas" },
+  { id: "custom", group: "more", title: "Custom size", dims: "Width & height", kind: "custom", shape: "custom" },
+  { id: "file", group: "more", title: "Open a file", dims: ".duet, image", kind: "file", shape: "file" },
 ];
 
 export interface CustomPreset {

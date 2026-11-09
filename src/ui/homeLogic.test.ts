@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { ago, clampDim, CREATE_TILES, CUSTOM_PRESETS, editedAgo } from "./homeLogic";
+import { ago, clampDim, CREATE_TILES, CUSTOM_PRESETS, editedAgo, TILE_GROUPS } from "./homeLogic";
 
 describe("homeLogic pure helpers", () => {
-  it("defines the 9 create format tiles with correct shapes and dimensions", () => {
-    expect(CREATE_TILES).toHaveLength(9);
+  it("defines the 12 create format tiles with correct shapes and dimensions", () => {
+    expect(CREATE_TILES).toHaveLength(12);
     const byId = Object.fromEntries(CREATE_TILES.map((t) => [t.id, t]));
 
     expect(byId["ig-post"]).toMatchObject({ width: 1080, height: 1080, dims: "1080 × 1080", shape: "square" });
@@ -15,6 +15,15 @@ describe("homeLogic pure helpers", () => {
     expect(byId["canvas"]).toMatchObject({ kind: "canvas", shape: "canvas" });
     expect(byId["custom"]).toMatchObject({ kind: "custom", shape: "custom" });
     expect(byId["file"]).toMatchObject({ kind: "file", shape: "file" });
+    expect(byId["reel"]).toMatchObject({ kind: "video", width: 1080, height: 1920, group: "video" });
+    expect(byId["yt-video"]).toMatchObject({ kind: "video", width: 1920, height: 1080, group: "video" });
+    expect(byId["photo"]).toMatchObject({ kind: "photo", group: "photo" });
+  });
+
+  it("puts every tile in a row Home shows, and every row has tiles", () => {
+    const rows = TILE_GROUPS.map((g) => g.id);
+    for (const t of CREATE_TILES) expect(rows).toContain(t.group);
+    for (const g of rows) expect(CREATE_TILES.some((t) => t.group === g)).toBe(true);
   });
 
   it("defines the 5 custom presets", () => {

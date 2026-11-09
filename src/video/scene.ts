@@ -135,8 +135,17 @@ export async function placeClips(sceneId: string, paths: string[], from?: number
 /** Ask for sound files, such as music or a voice, and put them in the frame from the moment the clock is on. They are only heard. */
 /** Bring in video and sound with one choice of files. Each goes where its kind belongs. Returns what could not be read. */
 export async function addMedia(sceneId: string): Promise<string[]> {
-  const picked = await open({ multiple: true, title: "Add to this scene", filters: [{ name: "Video and sound", extensions: [...KINDS, ...SOUNDS] }] });
-  const paths = picked === null ? [] : Array.isArray(picked) ? picked : [picked];
+  return placeMedia(sceneId, await pickMedia());
+}
+
+/** Ask for video and sound files. Returns their paths, or none if the designer backed out. */
+export async function pickMedia(title = "Add to this scene"): Promise<string[]> {
+  const picked = await open({ multiple: true, title, filters: [{ name: "Video and sound", extensions: [...KINDS, ...SOUNDS] }] });
+  return picked === null ? [] : Array.isArray(picked) ? picked : [picked];
+}
+
+/** Put chosen video and sound files in the frame. Each goes where its kind belongs. Returns what could not be read. */
+export async function placeMedia(sceneId: string, paths: string[]): Promise<string[]> {
   const isSound = (p: string) => SOUNDS.includes(p.split(".").pop()?.toLowerCase() ?? "");
   const clips = await placeClips(sceneId, paths.filter((p) => !isSound(p)));
   return clips.concat(await placeSounds(sceneId, paths.filter(isSound)));

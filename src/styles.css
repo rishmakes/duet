@@ -10883,3 +10883,19 @@ button.ctx-item.store-make-option:hover {
   background: var(--panel-3);
   color: var(--text);
 }
+
+/* Home: a play mark on the video tiles */
+.shape-play {
+  position: relative;
+}
+.shape-play::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-35%, -50%);
+  border-left: 9px solid var(--text);
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  opacity: 0.7;
+}

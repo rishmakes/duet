@@ -7,7 +7,9 @@ import { setLayout } from "./layout";
 import { getChat, newTask } from "../ai/chat";
 import { sendToTask } from "../ai/agent";
 import Icon from "./Icons";
-import { clampDim, CREATE_TILES, CUSTOM_PRESETS, editedAgo } from "./homeLogic";
+import { clampDim, CREATE_TILES, CUSTOM_PRESETS, editedAgo, TILE_GROUPS } from "./homeLogic";
+import { pickMedia, placeMedia } from "../video/scene";
+import { pickPhoto, placePhoto } from "../project/imageImport";
 import type { CreateTile } from "./homeLogic";
 import { resetPageFocus } from "./pageFocus";
 import { isProjectOpen, ProjectMenu, TrashView, usePreview } from "./ChatHome";
@@ -77,6 +79,34 @@ export default function Home({ onClose }: HomeProps) {
     }
     if (tile.kind === "file") {
       await openProject();
+      onClose();
+      return;
+    }
+    if (tile.kind === "video" && tile.width && tile.height) {
+      // pick the clips first, so backing out leaves no empty project behind
+      const paths = await pickMedia("Choose clips for your video");
+      if (!paths.length) return;
+      resetPageFocus();
+      await newDesignTab();
+      setPagesView(true);
+      const id = newId("frame");
+      dispatch("create_preset_frame", { preset: { name: tile.title, width: tile.width, height: tile.height }, x: 0, y: 0, id });
+      select([id]);
+      setLayout({ space: "edit", mode: "motion", timeLook: "cut" });
+      onClose();
+      await placeMedia(id, paths);
+      setTimeout(() => window.dispatchEvent(new Event("duet:fit")), 50);
+      return;
+    }
+    if (tile.kind === "photo") {
+      const path = await pickPhoto();
+      if (!path) return;
+      resetPageFocus();
+      await newDesignTab();
+      setPagesView(true);
+      await placePhoto(path);
+      setLayout({ space: "edit", mode: "photo" });
+      setTimeout(() => window.dispatchEvent(new Event("duet:fit")), 50);
       onClose();
       return;
     }
@@ -174,6 +204,16 @@ export default function Home({ onClose }: HomeProps) {
             <Icon name="plus" size={18} />
           </div>
         );
+      case "reel":
+        return <div className="shape-story shape-play" />;
+      case "film":
+        return <div className="shape-slide shape-play" />;
+      case "photo":
+        return (
+          <div className="shape-file">
+            <Icon name="image" size={18} />
+          </div>
+        );
       case "file":
         return (
           <div className="shape-file">
@@ -199,14 +239,15 @@ export default function Home({ onClose }: HomeProps) {
         {/* Title */}
         <div className="home-hero">
           <h2 className="home-headline">What would you like to make?</h2>
-          <p className="home-sub">Pick a format to start designing, open an existing project, or tell Duet what you want.</p>
+          <p className="home-sub">Design, photo and video, with your AI beside you on one canvas.</p>
         </div>
 
         {/* Create row */}
-        <section className="create-section">
-          <div className="section-label">Create new</div>
+        {TILE_GROUPS.map((group) => (
+        <section className="create-section" key={group.id} data-name={`create-row-${group.id}`}>
+          <div className="section-label">{group.label}</div>
           <div className="create-grid">
-            {CREATE_TILES.map((tile) => {
+            {CREATE_TILES.filter((t) => t.group === group.id).map((tile) => {
               const isCustom = tile.kind === "custom";
               return (
                 <div
@@ -313,6 +354,7 @@ export default function Home({ onClose }: HomeProps) {
             })}
           </div>
         </section>
+        ))}
 
         {/* Quiet Ask Box */}
         <div className="home-chat-banner">

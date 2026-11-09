@@ -82,3 +82,29 @@ export async function pickImages() {
     await fail(e);
   }
 }
+
+/** Ask for one picture to edit. Returns its path, or null if the designer backed out. */
+export async function pickPhoto(): Promise<string | null> {
+  const picked = await open({ multiple: false, title: "Choose a photo", filters: [{ name: "Pictures", extensions: IMAGE_EXTENSIONS }] });
+  return Array.isArray(picked) ? (picked[0] ?? null) : picked;
+}
+
+/** Put a photo on the page at its full size, in a frame of the same size, and pick the photo. */
+export async function placePhoto(path: string) {
+  try {
+    const b64 = await invoke<string>("read_binary_file", { path });
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let j = 0; j < bin.length; j++) bytes[j] = bin.charCodeAt(j);
+    const name = path.split(/[\\/]/).pop() ?? "Photo";
+    const { src, width, height } = await addPicture(name, bytes);
+    const frameId = newId("frame");
+    const title = name.replace(/\.[^.]+$/, "") || "Photo";
+    dispatch("create_preset_frame", { preset: { name: title, width, height }, x: 0, y: 0, id: frameId });
+    const id = newId("image");
+    dispatch("create_element", { type: "image", id, parentId: frameId, x: 0, y: 0, width, height, props: { src, name: title } });
+    select([id]);
+  } catch (e) {
+    await fail(e);
+  }
+}
