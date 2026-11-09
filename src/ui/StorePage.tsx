@@ -516,8 +516,8 @@ export default function StorePage({ onClose }: StorePageProps) {
             <button className="pill" onClick={cancelEditSkill}>
               ← Back
             </button>
-            <button className="pill" onClick={onClose}>
-              Close
+            <button className="page-close" title="Close" aria-label="Close" onClick={onClose}>
+              <Icon name="close" size={16} />
             </button>
           </div>
 
@@ -605,8 +605,8 @@ export default function StorePage({ onClose }: StorePageProps) {
             <button className="pill" onClick={cancelEditScript}>
               ← Back
             </button>
-            <button className="pill" onClick={onClose}>
-              Close
+            <button className="page-close" title="Close" aria-label="Close" onClick={onClose}>
+              <Icon name="close" size={16} />
             </button>
           </div>
 
@@ -753,8 +753,8 @@ export default function StorePage({ onClose }: StorePageProps) {
               <button className="pill" onClick={handleBack}>
                 ← Back
               </button>
-              <button className="pill" onClick={onClose}>
-                Close
+              <button className="page-close" title="Close" aria-label="Close" onClick={onClose}>
+                <Icon name="close" size={16} />
               </button>
             </div>
 
@@ -856,8 +856,8 @@ export default function StorePage({ onClose }: StorePageProps) {
               <button className="pill" onClick={handleBack}>
                 ← Back
               </button>
-              <button className="pill" onClick={onClose}>
-                Close
+              <button className="page-close" title="Close" aria-label="Close" onClick={onClose}>
+                <Icon name="close" size={16} />
               </button>
             </div>
 
@@ -941,8 +941,8 @@ export default function StorePage({ onClose }: StorePageProps) {
             <button className="pill" onClick={handleBack}>
               ← Back
             </button>
-            <button className="pill" onClick={onClose}>
-              Close
+            <button className="page-close" title="Close" aria-label="Close" onClick={onClose}>
+              <Icon name="close" size={16} />
             </button>
           </div>
 
@@ -994,8 +994,8 @@ export default function StorePage({ onClose }: StorePageProps) {
               <p className="store-page-about">Skills, scripts and plugins that teach Duet and its AI new things</p>
             </div>
             <div className="store-head-actions">
-              <button className="pill" onClick={onClose}>
-                Close
+              <button className="page-close" title="Close" aria-label="Close" onClick={onClose}>
+                <Icon name="close" size={16} />
               </button>
             </div>
           </div>

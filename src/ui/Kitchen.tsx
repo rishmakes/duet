@@ -678,8 +678,8 @@ export function RecipesPage({ onClose }: { onClose: () => void }) {
           >
             New recipe
           </button>
-          <button className="pill" onClick={onClose}>
-            Close
+          <button className="page-close" title="Close" aria-label="Close" onClick={onClose}>
+            <Icon name="close" size={16} />
           </button>
         </div>
       </div>

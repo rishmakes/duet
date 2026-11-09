@@ -10865,3 +10865,21 @@ button.ctx-item.store-make-option:hover {
 .panel-chat-grip:hover {
   background: linear-gradient(transparent 3px, var(--accent) 3px, var(--accent) 5px, transparent 5px);
 }
+
+/* the cross that closes a page (Store, Recipes): quiet like the cross on an open project, not a button with words (#318) */
+.page-close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.page-close:hover {
+  background: var(--panel-3);
+  color: var(--text);
+}
