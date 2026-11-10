@@ -11544,8 +11544,9 @@ button.ctx-item.store-make-option:hover {
 .media-tile:hover .media-tile-bin {
   display: grid;
 }
-/* Media picking. Picked things show the soft highlight (.sel). A box to tick shows only while the pointer is
-   on its spot, at the left of a row or the top left of a tile, so several can be picked without Cmd. */
+/* Media picking. The box and the highlight always agree: a picked thing glows and shows its box ticked.
+   A thing not picked shows an empty box only while the pointer is on its spot (left of a row, top left of a tile);
+   clicking it adds that thing without Cmd. */
 .media-check {
   flex: none;
   width: 13px;
@@ -11583,7 +11584,8 @@ button.ctx-item.store-make-option:hover {
   opacity: 0;
 }
 .media-tick:hover .media-check,
-.media-tile-tick:hover .media-check {
+.media-tile-tick:hover .media-check,
+.media-check.on {
   opacity: 1;
 }
 .media-select,
