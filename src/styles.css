@@ -11659,3 +11659,11 @@ button.ctx-item.store-make-option:hover {
 .media-tick + .fold-arrow-gap {
   pointer-events: none;
 }
+/* an empty box is quiet: a faint edge, firmer under the pointer */
+.media-check:not(.on) {
+  border-color: var(--line);
+}
+.media-tick:hover .media-check:not(.on),
+.media-tile-tick:hover .media-check:not(.on) {
+  border-color: var(--muted);
+}
