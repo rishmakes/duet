@@ -102,6 +102,16 @@ export default function TimeStrip() {
   const [snap, setSnap] = useState<number | null>(null);
   // footage from Media on its way in: the row under the pointer, whether it tips onto a new track above, and when it lands
   const [ghost, setGhost] = useState<{ ri: number | null; above: boolean; at: number } | null>(null);
+  // a drag that ends anywhere, or is called off, takes the ghost and the snap line with it
+  useEffect(() => {
+    const clear = () => (setGhost(null), setSnap(null));
+    window.addEventListener("dragend", clear);
+    window.addEventListener("drop", clear);
+    return () => {
+      window.removeEventListener("dragend", clear);
+      window.removeEventListener("drop", clear);
+    };
+  }, []);
   // the stretch tool (R): pulling the end of a clip changes its speed instead of cutting it shorter
   const [stretchTool, setStretchTool] = useState(false);
   const stretching = useRef(false);

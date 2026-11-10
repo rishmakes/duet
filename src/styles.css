@@ -4149,9 +4149,9 @@ option {
   position: absolute;
   top: 2px;
   bottom: 2px;
-  border: 1px dashed var(--duet);
+  border: 1px dashed var(--accent);
   border-radius: 4px;
-  background: var(--duet-soft);
+  background: var(--accent-soft);
   pointer-events: none;
   z-index: 3;
 }
