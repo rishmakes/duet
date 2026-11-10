@@ -355,23 +355,24 @@ export default function App() {
             {check && <i className="checkmark" title="Duet dev, used only to build and check Duet itself. It never opens your projects by itself.">dev</i>}
             <i className="early-tag" title="Duet is in early access. Some things are unfinished and you may meet bugs. Save versions of work that matters.">Early access</i>
           </span>
+          {/* Home, Kitchen or Studio: where you are, beside the name on the left, so the middle belongs to the tools alone */}
+          <div className="pill mode-switch space-switch inline">
+            <button data-name="space-home" onClick={() => (setLayout({ space: "edit" }), setHomeFromProject(true), setHomeOpen(true))} className="home-btn" title="Home: start something new, or open your recent work">
+              <Icon name="home" size={14} />
+            </button>
+            <button className={cooking ? "active" : ""} data-name="space-kitchen" onClick={() => (setHomeOpen(false), setLayout({ space: "kitchen" }))} title="Work with AI agents: chat, mark what to change, or follow a recipe step by step">
+              Kitchen
+            </button>
+            <button className={cooking ? "" : "active"} data-name="space-edit" onClick={() => (setHomeOpen(false), setLayout({ space: "edit" }))} title="Every tool, to work on the design yourself">
+              Studio
+            </button>
+          </div>
           <FileName />
           <span data-tauri-drag-region className={`status ${project.status}`} title={project.error ?? undefined}>
             {project.path ? STATUS[project.status] : "Not saved yet"}
           </span>
         </div>
-        {/* Home, Kitchen or Studio: where you are, in the middle so it stays put whatever the sides hold */}
-        <div className="pill mode-switch space-switch">
-          <button data-name="space-home" onClick={() => (setLayout({ space: "edit" }), setHomeFromProject(true), setHomeOpen(true))} className="home-btn" title="Home: start something new, or open your recent work">
-            <Icon name="home" size={14} />
-          </button>
-          <button className={cooking ? "active" : ""} data-name="space-kitchen" onClick={() => (setHomeOpen(false), setLayout({ space: "kitchen" }))} title="Work with AI agents: chat, mark what to change, or follow a recipe step by step">
-            Kitchen
-          </button>
-          <button className={cooking ? "" : "active"} data-name="space-edit" onClick={() => (setHomeOpen(false), setLayout({ space: "edit" }))} title="Every tool, to work on the design yourself">
-            Studio
-          </button>
-        </div>
+        <span data-tauri-drag-region />
         <div className="top-side end" data-tauri-drag-region>
           <button
             className="pill icon theme-toggle"
@@ -477,7 +478,7 @@ export default function App() {
       <Update />
       <Feedback />
       {settings && <Settings check={check} onClose={() => setSettings(false)} />}
-      {homeOpen && !cooking && <Home fromProject={homeFromProject} onClose={() => setHomeOpen(false)} />}
+      {homeOpen && !cooking && <Home dev={check} fromProject={homeFromProject} onClose={() => setHomeOpen(false)} />}
     </div>
   );
 }

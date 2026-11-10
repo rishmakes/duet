@@ -17,6 +17,8 @@ interface HomeProps {
   onClose: () => void;
   /** True when Home was opened from a project: only then is there somewhere to go back to. */
   fromProject: boolean;
+  /** True in Duet dev, which wears its DEV tag here too so the top row matches a project's. */
+  dev?: boolean;
 }
 
 // what Home remembers between visits, on this computer
@@ -47,7 +49,7 @@ const keep = (key: string, value: string) => {
 
 const MAC = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
 
-export default function Home({ onClose, fromProject }: HomeProps) {
+export default function Home({ onClose, fromProject, dev }: HomeProps) {
   // where the box for your own size hangs: under the Custom size button, or under the tile in the open kind
   const [customAt, setCustomAt] = useState<"top" | "tray" | null>(null);
   const customOpen = customAt !== null;
@@ -268,10 +270,11 @@ export default function Home({ onClose, fromProject }: HomeProps) {
       <header className={`home-bar ${MAC ? "mac" : ""}`} data-tauri-drag-region>
         <span className="logo home-logo" data-tauri-drag-region>
           Du<b>et</b>
+          {dev && <i className="checkmark">dev</i>}
           <i className="early-tag" title="Duet is in early access. Some things are unfinished and you may meet bugs. Save versions of work that matters.">Early access</i>
         </span>
         {/* the same switch as the top of a project, in the same place, so you always know where you are */}
-        <div className="pill mode-switch space-switch">
+        <div className="pill mode-switch space-switch inline">
           <button className="active home-btn" data-name="home-space-home" title="Home">
             <Icon name="home" size={14} />
           </button>

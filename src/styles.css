@@ -11154,3 +11154,29 @@ button.ctx-item.store-make-option:hover {
   opacity: 0.45;
   cursor: default;
 }
+/* where you are (Home, Kitchen, Studio) sits on the left by the name and stays quiet, so it does not fight the tools in the middle */
+.mode-switch.pill.inline {
+  position: static;
+  transform: none;
+  flex: none;
+}
+.space-switch button {
+  transition: color 0.15s ease;
+}
+.space-switch button.active,
+.space-switch button.active:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.mode-switch .home-btn {
+  padding: 4px 7px;
+}
+.home-bar {
+  justify-content: flex-start;
+}
+.home-bar > * {
+  flex: none;
+}
+.home-bar .home-bar-end {
+  flex: 1;
+}
