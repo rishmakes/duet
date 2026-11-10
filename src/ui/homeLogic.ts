@@ -15,12 +15,12 @@ export interface CreateTile {
 export type HomeKind = "social" | "video" | "print" | "photo" | "screens";
 
 /** The kinds of work on Home, in order. Each one opens its sizes below. */
-export const HOME_KINDS: { id: HomeKind; label: string }[] = [
-  { id: "social", label: "Social media" },
-  { id: "video", label: "Video" },
-  { id: "print", label: "Print" },
-  { id: "photo", label: "Photo" },
-  { id: "screens", label: "UI screens" },
+export const HOME_KINDS: { id: HomeKind; label: string; icon: "heart" | "film" | "printer" | "image" | "screens" }[] = [
+  { id: "social", label: "Social media", icon: "heart" },
+  { id: "video", label: "Video", icon: "film" },
+  { id: "print", label: "Print", icon: "printer" },
+  { id: "photo", label: "Photo", icon: "image" },
+  { id: "screens", label: "UI screens", icon: "screens" },
 ];
 
 export const CREATE_TILES: CreateTile[] = [
@@ -42,6 +42,16 @@ export const CREATE_TILES: CreateTile[] = [
   { id: "screens", group: "screens", title: "App screens", dims: "Phone & desktop", kind: "screens", shape: "screens" },
   { id: "canvas", group: "screens", title: "Open canvas", dims: "Blank", kind: "canvas", shape: "canvas" },
 ];
+
+/** The shape of a size in small whole numbers, like 9:16. Empty when it has no simple one (A4, a phone screen). */
+export function ratioOf(width?: number, height?: number): string {
+  if (!width || !height) return "";
+  const gcd = (a: number, b: number): number => (b ? gcd(b, a % b) : a);
+  const g = gcd(width, height);
+  const w = width / g;
+  const h = height / g;
+  return w <= 21 && h <= 21 ? `${w}:${h}` : "";
+}
 
 /** True when a size starts a video: it opens the editor with a timeline. */
 export const startsVideo = (t: CreateTile) => t.kind === "video";

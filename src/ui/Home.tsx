@@ -7,7 +7,7 @@ import { keepMode, setLayout } from "./layout";
 import { getChat, newTask } from "../ai/chat";
 import { sendToTask } from "../ai/agent";
 import Icon from "./Icons";
-import { clampDim, CREATE_TILES, CUSTOM_PRESETS, editedAgo, hideKind, HOME_KINDS, openKind, shownKinds, startsVideo } from "./homeLogic";
+import { clampDim, CREATE_TILES, CUSTOM_PRESETS, editedAgo, hideKind, HOME_KINDS, openKind, ratioOf, shownKinds, startsVideo } from "./homeLogic";
 import { pickPhoto, placePhoto } from "../project/imageImport";
 import type { CreateTile, HomeKind } from "./homeLogic";
 import { resetPageFocus } from "./pageFocus";
@@ -290,7 +290,9 @@ export default function Home({ onClose, fromProject }: HomeProps) {
           <div className="kinds-row" data-name="home-kinds">
             {kinds.map((id) => (
               <button key={id} type="button" className={`kind-btn ${id === kind ? "on" : ""}`} data-name={`home-kind-${id}`} onClick={() => pickKind(id)}>
-                <span className={`kind-swatch kind-${id}`} />
+                <span className={`kind-swatch kind-${id}`}>
+                  <Icon name={HOME_KINDS.find((k) => k.id === id)!.icon} size={28} />
+                </span>
                 <span className="kind-name">{HOME_KINDS.find((k) => k.id === id)?.label}</span>
               </button>
             ))}
@@ -331,13 +333,14 @@ export default function Home({ onClose, fromProject }: HomeProps) {
                 {CREATE_TILES.filter((t) => t.group === kind).map((tile) => (
                   <div key={tile.id} data-name={`create-tile-${tile.id}`} className="size-card" onClick={() => void handleTileClick(tile)}>
                     {tile.kind !== "photo" && (
-                      <span className="size-medium" title={startsVideo(tile) ? "A video" : "A still design"}>
-                        <Icon name={startsVideo(tile) ? "film" : "image"} size={13} />
+                      <span className={`size-medium ${startsVideo(tile) ? "video" : ""}`} title={startsVideo(tile) ? "Opens as a video, with a timeline" : "Opens as a still design"}>
+                        <Icon name={startsVideo(tile) ? "film" : "image"} size={14} />
+                        {startsVideo(tile) ? "Video" : "Still"}
                       </span>
                     )}
                     <div className="ratio-box">{renderShape(tile)}</div>
                     <div className="create-title">{tile.title}</div>
-                    <div className="create-dims">{tile.dims}</div>
+                    <div className="create-dims">{[ratioOf(tile.width, tile.height), tile.dims].filter(Boolean).join(" · ")}</div>
                   </div>
                 ))}
                 {kind !== "photo" && (

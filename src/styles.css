@@ -11059,10 +11059,21 @@ button.ctx-item.store-make-option:hover {
 }
 .size-medium {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px 2px 5px;
+  border-radius: 999px;
+  background: var(--panel-2);
   color: var(--muted);
-  display: grid;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.size-medium.video {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 .size-card.own {
   background: var(--panel-2);
@@ -11102,4 +11113,20 @@ button.ctx-item.store-make-option:hover {
 .home-logo {
   display: flex;
   align-items: center;
+}
+.home-bar .home-title {
+  font-size: 13px;
+  margin: 0;
+}
+.kind-swatch {
+  color: #fff;
+}
+.kind-btn .kind-swatch svg {
+  stroke-width: 1.7;
+}
+.size-card {
+  padding-top: 30px;
+}
+.section-label .section-subcount {
+  margin: 0 auto 0 8px;
 }

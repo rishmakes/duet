@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ago, clampDim, CREATE_TILES, CUSTOM_PRESETS, editedAgo, hideKind, HOME_KINDS, openKind, shownKinds, startsVideo } from "./homeLogic";
+import { ago, clampDim, CREATE_TILES, CUSTOM_PRESETS, editedAgo, hideKind, HOME_KINDS, openKind, ratioOf, shownKinds, startsVideo } from "./homeLogic";
 
 describe("homeLogic pure helpers", () => {
   it("gives every kind its sizes, with real numbers", () => {
@@ -12,6 +12,15 @@ describe("homeLogic pure helpers", () => {
     expect(byId["photo"]).toMatchObject({ kind: "photo", group: "photo" });
     for (const k of HOME_KINDS) expect(CREATE_TILES.some((t) => t.group === k.id)).toBe(true);
     for (const t of CREATE_TILES) if (t.kind === "sized" || t.kind === "video") expect(t.width! > 0 && t.height! > 0).toBe(true);
+  });
+
+  it("writes the shape of a size as a simple ratio, or nothing", () => {
+    expect(ratioOf(1080, 1920)).toBe("9:16");
+    expect(ratioOf(1080, 1080)).toBe("1:1");
+    expect(ratioOf(1080, 1350)).toBe("4:5");
+    expect(ratioOf(1584, 396)).toBe("4:1");
+    expect(ratioOf(2480, 3508)).toBe("");
+    expect(ratioOf(undefined, 10)).toBe("");
   });
 
   it("knows which sizes start a video", () => {
