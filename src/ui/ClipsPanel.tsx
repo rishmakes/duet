@@ -114,6 +114,8 @@ export default function ClipsPanel() {
   const ticking = picked.size > 1;
   // where Shift-click picks from
   const anchor = useRef<string | null>(null);
+  // the thing a press just added, so the click that ends that press does not take it away again
+  const justAdded = useRef<string | null>(null);
   // the order things show in, for Shift-click and Cmd-A
   const order_ = useRef<string[]>([]);
   // the box answers the press itself: a row can be dragged, and a click that moves a hair would start a drag instead
@@ -225,22 +227,27 @@ export default function ClipsPanel() {
       },
       onDragLeave: () => setOver((o) => (o === m.id ? null : o)),
       onDrop: (e: React.DragEvent) => folder && onDropHere(e, m.id),
-      // picking happens on the press, so a press that moves a hair and turns into a drag still picks
+      // a plain click adds or takes away, like a box to tick, so anyone can pick several;
+      // Cmd-click does the same for those used to it, Shift-click picks a run, Escape lets go.
+      // Adding happens on the press, so a press that moves a hair and turns into a drag still picks.
       onMouseDown: (e: React.MouseEvent) => {
         if (e.button !== 0 || renaming === m.id) return;
+        justAdded.current = null;
         if (e.shiftKey) return pickRange(m.id);
-        if (e.metaKey || e.ctrlKey) return tick(m.id);
-        // pressing one of several picked keeps them all, so they can be dragged together; the click narrows it
-        if (picked.has(m.id)) return;
-        anchor.current = m.id;
-        setPicked(new Set([m.id]));
+        // a scene opens and a folder in the list opens or closes on a plain click; Cmd-click picks them
+        if (!(e.metaKey || e.ctrlKey) && (isScene(m) || (folder && view === "list"))) return;
+        if (picked.has(m.id)) return; // pressing a picked one keeps all, so they drag together; the click takes it away
+        justAdded.current = m.id;
+        tick(m.id);
       },
       onClick: (e: React.MouseEvent) => {
-        if (e.shiftKey || e.metaKey || e.ctrlKey) return;
-        anchor.current = m.id;
-        setPicked(new Set([m.id]));
-        if (isScene(m)) openSceneOf(m);
-        else if (folder && view === "list") setShut((s) => toggled(s, m.id));
+        if (e.shiftKey) return;
+        const added = justAdded.current === m.id;
+        justAdded.current = null;
+        const cmd = e.metaKey || e.ctrlKey;
+        if (!cmd && isScene(m)) return openSceneOf(m);
+        if (!cmd && folder && view === "list") return setShut((s) => toggled(s, m.id));
+        if (!added) tick(m.id);
       },
       onDoubleClick: () => {
         if (folder && view === "grid") return (setAt(m.id), setFind(""));
