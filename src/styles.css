@@ -11646,3 +11646,16 @@ button.ctx-item.store-make-option:hover {
 .clips.several .clip-row:hover .clip-length {
   visibility: visible;
 }
+/* the box sits snug: a smaller spot, and on a row with no folder arrow it takes the arrow's empty place,
+   so the box sits right beside the kind icon */
+.media-tick {
+  width: 18px;
+  margin-left: -5px;
+  margin-right: -10px;
+}
+.media-tick:has(+ .fold-arrow-gap) {
+  margin-right: -22px;
+}
+.media-tick + .fold-arrow-gap {
+  pointer-events: none;
+}
