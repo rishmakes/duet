@@ -68,6 +68,21 @@ describe("place_media", () => {
     expect(trackRows(doc, doc.elements.f).flatMap((r) => r.items.map((el) => el.id)).sort()).toEqual(["a", "b", "c", "d"]);
   });
 
+  it("a drop inside a title that runs to the end goes to its nearer edge, and nothing is drawn over", () => {
+    let doc = runCommand(blank(), "set_duration", { id: "f", seconds: 13 });
+    doc = runCommand(doc, "create_element", { type: "text", id: "sun", parentId: "f", x: 0, y: 0, width: 10, height: 10, props: { start: 0, end: 0 } });
+    doc = runCommand(doc, "add_track", { id: "f", index: 1 });
+    const pic = { ...clip("p", 3), type: "image" as const };
+    doc = runCommand(doc, "place_media", { id: "f", items: [pic, clip("s", 6)], at: 4.7, track: { index: 0 } });
+    expect(time(doc, "p")).toEqual([0, 3]);
+    expect(time(doc, "s")).toEqual([3, 9]);
+    expect(doc.elements.sun.start).toBe(9);
+    for (const row of trackRows(doc, doc.elements.f)) {
+      const spans = row.items.map((el) => [el.start, el.end > el.start ? el.end : doc.elements.f.duration]);
+      for (const [i, a] of spans.entries()) for (const b of spans.slice(i + 1)) expect(a[0] < b[1] && b[0] < a[1]).toBe(false);
+    }
+  });
+
   it("is one step, and does nothing with nothing to place", () => {
     const doc = blank();
     expect(runCommand(doc, "place_media", { id: "f", items: [], at: 0 })).toBe(doc);

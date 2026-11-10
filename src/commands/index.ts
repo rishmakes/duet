@@ -1088,11 +1088,11 @@ const placeMedia: CommandDef<PlaceMediaArgs> = {
         trackId = target.id;
         const f = next.elements[a.id];
         const on = f.childIds.map((id) => next.elements[id]).filter((el) => el.track === trackId && el.type !== "sound");
-        // a drop inside a clip goes to its nearer edge, so no clip is cut in two
-        const inside = on.find((el) => el.start < at - 0.001 && at < el.end - 0.001);
+        // a drop inside a clip goes to its nearer edge, so no clip is cut in two; a title with no end runs to the scene's end
+        const inside = on.map((el) => spanOf(el, f)).find((s) => s.start < at - 0.001 && at < s.end - 0.001);
         if (inside) at = at - inside.start < inside.end - at ? inside.start : inside.end;
         const total = pictures.reduce((sum, it) => sum + it.seconds, 0);
-        for (const el of on) if (el.start >= at - 0.001) shiftTime(el, total);
+        for (const el of on) if (spanOf(el, f).start >= at - 0.001) shiftTime(el, total);
       }
     }
 
@@ -1144,7 +1144,7 @@ const placeMedia: CommandDef<PlaceMediaArgs> = {
       put(it, t, end, trackId);
       t = end;
     }
-    const longest = Math.max(t, ...next.elements[a.id].childIds.map((id) => next.elements[id]).filter((el) => el.type !== "sound" && !made.includes(el.id)).map((el) => el.end));
+    const longest = Math.max(t, ...next.elements[a.id].childIds.map((id) => next.elements[id]).filter((el) => el.type !== "sound" && !made.includes(el.id) && el.end > el.start).map((el) => el.end));
     if (empty) next.elements[a.id].duration = round(Math.max(1, pictures.length ? t : at + sounds.reduce((sum, it) => sum + it.seconds, 0)));
     else if (longest > next.elements[a.id].duration) next.elements[a.id].duration = round(longest);
     // music is usually longer than the video: it stops where the video stops

@@ -39,12 +39,12 @@ export function packRows(list: El[], frame: El): El[][] {
 
 /**
  * What a saved track can show, from its things front first: the ones that do not play at the same time as
- * one of the same kind behind them (a sound may sit under a clip). The rest are bumped, to go on another row, so a clip is never drawn over and hidden.
+ * one behind them that is seen too. A sound may sit under a clip or a title, since it is only heard. The rest are bumped, to go on another row, so a clip is never drawn over and hidden.
  */
 function keepApart(list: El[], frame: El): { kept: El[]; bumped: El[] } {
   const kept: El[] = [];
   const bumped: El[] = [];
-  for (const el of [...list].reverse()) (kept.some((other) => trackKind(other) === trackKind(el) && overlap(el, other, frame)) ? bumped : kept).push(el);
+  for (const el of [...list].reverse()) (kept.some((other) => (other.type === "sound") === (el.type === "sound") && overlap(el, other, frame)) ? bumped : kept).push(el);
   return { kept: kept.reverse(), bumped: bumped.reverse() };
 }
 
