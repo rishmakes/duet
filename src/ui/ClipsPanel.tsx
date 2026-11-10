@@ -77,6 +77,10 @@ export function shown(media: Entry[], show: Show, find: string): Set<string> {
   return out;
 }
 
+/** A copy with the id switched in or out. Never changes the set it is given. */
+const toggled = (set: Set<string>, id: string) => (set.has(id) ? without(set, id) : new Set([...set, id]));
+const without = (set: Set<string>, id: string) => new Set([...set].filter((x) => x !== id));
+
 type View = "list" | "grid";
 const VIEW_KEY = "duet.media.view";
 const savedView = (): View => {
@@ -107,7 +111,14 @@ export default function ClipsPanel() {
   // a box on each thing, shown under the pointer, to tick several and remove them together
   const [ticked, setTicked] = useState<Set<string>>(() => new Set());
   const ticking = ticked.size > 0;
-  const tick = (id: string) => setTicked((t) => (t.has(id) ? (t.delete(id), new Set(t)) : new Set(t.add(id))));
+  // the box answers the press itself: a row can be dragged, and a click that moves a hair would start a drag instead
+  const tickPress = (id: string) => ({
+    onPointerDown: (e: React.PointerEvent) => (e.stopPropagation(), e.preventDefault(), tick(id)),
+    onMouseDown: (e: React.MouseEvent) => e.stopPropagation(),
+    onClick: (e: React.MouseEvent) => e.stopPropagation(),
+    onDoubleClick: (e: React.MouseEvent) => e.stopPropagation(),
+  });
+  const tick = (id: string) => setTicked((t) => toggled(t, id));
   const [over, setOver] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [showMenu, setShowMenu] = useState<{ x: number; y: number } | null>(null);
@@ -151,7 +162,7 @@ export default function ClipsPanel() {
       if (!m || isScene(m)) return;
       if (isUsed(m)) dispatch("add_media", { items: [{ ...(m as MediaItem), id: newId("clip"), ...(into ? { folderId: into } : {}) }] });
       else dispatch("move_media", { ids: [moving], folderId: into });
-      if (into) setShut((s) => (s.delete(into), new Set(s)));
+      if (into) setShut((s) => without(s, into));
       return;
     }
     if (!Array.from(e.dataTransfer.types).includes("Files")) return;
@@ -203,11 +214,11 @@ export default function ClipsPanel() {
       onDragLeave: () => setOver((o) => (o === m.id ? null : o)),
       onDrop: (e: React.DragEvent) => folder && onDropHere(e, m.id),
       onClick: (e: React.MouseEvent) => {
-        if (ticking && isKept(m)) return tick(m.id);
-        setPicked((p) => (e.metaKey || e.ctrlKey ? (p.has(m.id) ? (p.delete(m.id), new Set(p)) : new Set(p.add(m.id))) : new Set([m.id])));
+        if (ticking) return tick(m.id);
+        setPicked((p) => (e.metaKey || e.ctrlKey ? toggled(p, m.id) : new Set([m.id])));
         if (e.metaKey || e.ctrlKey) return;
         if (isScene(m)) openSceneOf(m);
-        else if (folder && view === "list") setShut((s) => (s.has(m.id) ? s.delete(m.id) : s.add(m.id), new Set(s)));
+        else if (folder && view === "list") setShut((s) => toggled(s, m.id));
       },
       onDoubleClick: () => {
         if (folder && view === "grid") return (setAt(m.id), setFind(""));
@@ -260,8 +271,8 @@ export default function ClipsPanel() {
           data-name={isScene(m) ? "media-scene" : "clip"}
           {...handlers(m)}
         >
-          <span className="media-tick" onClick={(e) => (e.stopPropagation(), isKept(m) && tick(m.id))}>
-            {isKept(m) && <span className={`media-check ${ticked.has(m.id) ? "on" : ""}`} title="Tick to pick several" />}
+          <span className="media-tick" draggable={false} title="Tick to pick several" {...tickPress(m.id)}>
+            <span className={`media-check ${ticked.has(m.id) ? "on" : ""}`} />
           </span>
           {folder ? (
             <span className={`fold-arrow ${open ? "" : "folded"}`}>
@@ -296,6 +307,7 @@ export default function ClipsPanel() {
   const nothing = view === "list" ? !rows.length : !tiles.length;
 
   const menuOn = menu ? byId.get(menu.id) : undefined;
+  const removable = [...ticked].filter((id) => byId.get(id) && isKept(byId.get(id)!));
   const current = SHOWS.find(([k]) => k === show)!;
 
   return (
@@ -404,7 +416,7 @@ export default function ClipsPanel() {
                     {...handlers(m)}
                   >
                     <div className={`media-tile-face kind-${m.kind}`}>
-                      {isKept(m) && <span className={`media-check media-tile-check ${ticked.has(m.id) ? "on" : ""}`} title="Tick to pick several" onClick={(e) => (e.stopPropagation(), tick(m.id))} />}
+                      <span className={`media-check media-tile-check ${ticked.has(m.id) ? "on" : ""}`} draggable={false} title="Tick to pick several" {...tickPress(m.id)} />
                       {!ticking && isKept(m) && (
                         <button className="media-row-bin media-tile-bin" title="Remove from Media. The file stays on your computer." onClick={(e) => (e.stopPropagation(), dispatch("remove_media", { ids: [m.id] }))}>
                           <Icon name="trash" size={12} />
@@ -425,9 +437,15 @@ export default function ClipsPanel() {
           <div className="media-foot">
             {ticking && (
               <>
-                <button className="media-remove" data-name="media-remove" title="Remove from Media. The files stay on your computer." onClick={() => (dispatch("remove_media", { ids: [...ticked] }), setTicked(new Set()))}>
+                <button
+                  className="media-remove"
+                  data-name="media-remove"
+                  disabled={!removable.length}
+                  title={removable.length ? "Remove from Media. The files stay on your computer." : "Scenes, and clips the timeline plays, stay in Media while the video uses them"}
+                  onClick={() => (dispatch("remove_media", { ids: removable }), setTicked(new Set()))}
+                >
                   <Icon name="trash" size={12} />
-                  Remove {ticked.size}
+                  Remove {removable.length || ""}
                 </button>
                 <button className="media-select" title="Untick everything" onClick={() => setTicked(new Set())}>
                   Cancel

@@ -11668,3 +11668,11 @@ button.ctx-item.store-make-option:hover {
 .media-check {
   background-color: var(--panel);
 }
+.media-remove:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.media-tile-check {
+  width: 15px;
+  height: 15px;
+}
