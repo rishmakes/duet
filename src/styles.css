@@ -11347,3 +11347,11 @@ button.ctx-item.store-make-option:hover {
     height: 26px;
   }
 }
+.clips-head {
+  padding: 8px 14px 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
