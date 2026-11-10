@@ -161,6 +161,8 @@ export default function App() {
   const [homeOpen, setHomeOpen] = useState(true);
   // Home at launch has nowhere to go back to; Home opened from a project does
   const [homeFromProject, setHomeFromProject] = useState(false);
+  // a project loaded behind Home at launch counts too: the switch can go back to it
+  const projectBehind = useStore((s) => !!s.project.file);
   // the skills open as a page of their own, beside your projects, in any space
   const [skillsOpen, setSkillsOpen] = useState(false);
   const [recipesOpen, setRecipesOpen] = useState(false);
@@ -477,7 +479,7 @@ export default function App() {
       <Update />
       <Feedback />
       {settings && <Settings check={check} onClose={() => setSettings(false)} />}
-      {homeOpen && !cooking && <Home dev={check} fromProject={homeFromProject} onClose={() => setHomeOpen(false)} />}
+      {homeOpen && !cooking && <Home dev={check} fromProject={homeFromProject || projectBehind} onClose={() => setHomeOpen(false)} />}
     </div>
   );
 }
