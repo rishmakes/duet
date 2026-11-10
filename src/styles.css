@@ -11544,25 +11544,47 @@ button.ctx-item.store-make-option:hover {
 .media-tile:hover .media-tile-bin {
   display: grid;
 }
+/* Media picking. Picked things show the soft highlight (.sel). A box to tick shows only while the pointer is
+   on its spot, at the left of a row or the top left of a tile, so several can be picked without Cmd. */
 .media-check {
   flex: none;
   width: 13px;
   height: 13px;
   border: 1.5px solid var(--muted);
   border-radius: 3px;
+  background-color: var(--panel);
 }
 .media-check.on {
   border-color: var(--accent);
   background: var(--accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2l2.3 2.3 4.7-5' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 10px no-repeat;
 }
-.media-check.off {
-  visibility: hidden;
+.media-tick,
+.media-tile-tick {
+  display: grid;
+  place-items: center;
+  flex: none;
+  cursor: pointer;
 }
-.media-tile-check {
+.media-tick {
+  width: 22px;
+  height: 20px;
+  margin-left: -4px;
+  margin-right: -6px;
+}
+.media-tile-tick {
   position: absolute;
-  top: 5px;
-  left: 5px;
-  background-color: var(--panel);
+  top: 0;
+  left: 0;
+  width: 26px;
+  height: 26px;
+}
+.media-tick .media-check,
+.media-tile-tick .media-check {
+  opacity: 0;
+}
+.media-tick:hover .media-check,
+.media-tile-tick:hover .media-check {
+  opacity: 1;
 }
 .media-select,
 .media-remove {
@@ -11578,8 +11600,7 @@ button.ctx-item.store-make-option:hover {
   font-size: 12px;
   cursor: pointer;
 }
-.media-select:hover,
-.media-select.on {
+.media-select:hover {
   color: var(--text);
 }
 .media-remove {
@@ -11587,35 +11608,9 @@ button.ctx-item.store-make-option:hover {
   background: var(--danger, #e5484d);
   color: #fff;
 }
-/* the kind icon turns into a box to tick under the pointer, and stays a box for all while any is ticked */
-.media-ico {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 14px;
-  height: 14px;
-  flex: none;
-}
-.media-ico .media-check {
-  position: absolute;
-  inset: 0;
-  display: none;
-  cursor: pointer;
-  background-color: var(--panel);
-}
-.clip-row:hover .media-ico .media-check,
-.clip-row.ticking .media-ico .media-check,
-.media-ico .media-check.on {
-  display: block;
-}
-.media-tile-check {
-  display: none;
-  cursor: pointer;
-}
-.media-tile:hover .media-tile-check,
-.media-tile.ticking .media-tile-check,
-.media-tile-check.on {
-  display: block;
+.media-foot-count {
+  color: var(--muted);
+  font-size: 12px;
 }
 /* the length and the bin share one spot of a set width, so nothing moves under the pointer */
 .media-end {
@@ -11636,74 +11631,11 @@ button.ctx-item.store-make-option:hover {
   display: inline;
   visibility: hidden;
 }
-.clip-row.ticking:hover .clip-length {
-  visibility: visible;
-}
 /* a firmer edge under Media, so it reads apart from the timeline below */
 .media-foot {
   border-bottom: 3px solid var(--line);
 }
-/* the box to tick has its own spot left of the kind icon: the icon always says what the thing is */
-.media-tick {
-  display: grid;
-  place-items: center;
-  width: 16px;
-  height: 20px;
-  margin-right: -4px;
-  flex: none;
-  cursor: pointer;
-}
-.media-tick .media-check {
-  visibility: hidden;
-}
-.clip-row:hover .media-tick .media-check,
-.clip-row.ticking .media-tick .media-check,
-.media-tick .media-check.on {
+/* with several picked, the bin is off and the length stays */
+.clips.several .clip-row:hover .clip-length {
   visibility: visible;
-}
-.media-check.on,
-.media-tile-check.on {
-  background-color: var(--accent);
-}
-.media-check {
-  background-color: var(--panel);
-}
-.media-remove:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-.media-tile-check {
-  width: 15px;
-  height: 15px;
-}
-/* the box to tick keeps its own spot, so nothing moves; it shows under the pointer and on what is picked,
-   so a click on it picks several without Cmd */
-.media-tick {
-  width: 16px;
-  margin-right: -4px;
-}
-.media-tick .media-check {
-  visibility: hidden;
-}
-.clip-row:hover .media-tick .media-check,
-.clips.ticking-all .media-tick .media-check {
-  visibility: visible;
-}
-/* one picked thing shows as picked, not ticked; ticks show once two or more are picked */
-.clips:not(.ticking-all) .media-check.on {
-  border-color: var(--muted);
-  background: var(--panel);
-}
-/* a wider spot to hit: the box reaches to the kind icon */
-.media-tick {
-  width: 22px;
-  margin-left: -4px;
-  margin-right: -6px;
-}
-.media-tile-check {
-  display: none;
-}
-.media-tile:hover .media-tile-check,
-.media-tile.ticking .media-tile-check {
-  display: block;
 }

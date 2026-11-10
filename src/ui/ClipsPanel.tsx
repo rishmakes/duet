@@ -12,6 +12,7 @@ import { openScene as openOnTimeline } from "../video/play";
 import { keepDropped } from "../video/scene";
 import { CLIP_DRAG, lengthOf, mediaFrom, mediaKind, pickFolderIntoClips, pickIntoClips, placeFromClips } from "../video/media";
 import { useDismiss } from "./useDismiss";
+import { noPicks, pick, type PickAct } from "./mediaPick";
 
 /** One thing in Media: a scene of this video, a clip, a sound, a picture, or a folder. */
 export type Entry = Omit<MediaItem, "kind"> & { kind: MediaItem["kind"] | "scene" };
@@ -106,32 +107,24 @@ export default function ClipsPanel() {
   const [at, setAt] = useState<string | null>(null);
   const [shut, setShut] = useState<Set<string>>(() => new Set());
   const [renaming, setRenaming] = useState<string | null>(null);
-  // what is picked in Media: its own selection, apart from the canvas
-  const [picked, setPicked] = useState<Set<string>>(() => new Set());
-  // picking and ticking are one: two or more picked shows a box on every thing
-  const ticked = picked;
-  const setTicked = setPicked;
-  const ticking = picked.size > 1;
-  // where Shift-click picks from
-  const anchor = useRef<string | null>(null);
+  // what is picked in Media: its own selection, apart from the canvas. The rules live in mediaPick.ts.
+  const [picks, setPicks] = useState(noPicks);
   // the order things show in, for Shift-click and Cmd-A
   const order_ = useRef<string[]>([]);
-  // the box answers the press itself: a row can be dragged, and a click that moves a hair would start a drag instead
+  const act = (a: PickAct) => setPicks((s) => pick(s, a, order_.current));
+  const picked = useMemo(() => new Set(picks.ids), [picks.ids]);
+  const several = picks.ids.length > 1;
+  // the box to tick answers its own press, before the row can start a drag
   const tickPress = (id: string) => ({
-    onPointerDown: (e: React.PointerEvent) => (e.stopPropagation(), e.preventDefault(), tick(id)),
-    onMouseDown: (e: React.MouseEvent) => e.stopPropagation(),
-    onMouseUp: (e: React.MouseEvent) => e.stopPropagation(),
+    draggable: false,
+    onPointerDown: (e: React.PointerEvent) => {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      act({ type: "tick", id });
+    },
     onClick: (e: React.MouseEvent) => e.stopPropagation(),
     onDoubleClick: (e: React.MouseEvent) => e.stopPropagation(),
   });
-  const tick = (id: string) => ((anchor.current = id), setTicked((t) => toggled(t, id)));
-  const pickRange = (id: string) => {
-    const list = order_.current;
-    const a = list.indexOf(anchor.current ?? id);
-    const b = list.indexOf(id);
-    if (a < 0 || b < 0) return setPicked(new Set([id]));
-    setPicked(new Set(list.slice(Math.min(a, b), Math.max(a, b) + 1)));
-  };
   const [over, setOver] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [showMenu, setShowMenu] = useState<{ x: number; y: number } | null>(null);
@@ -226,23 +219,15 @@ export default function ClipsPanel() {
       },
       onDragLeave: () => setOver((o) => (o === m.id ? null : o)),
       onDrop: (e: React.DragEvent) => folder && onDropHere(e, m.id),
-      // picking happens on the press, so a press that moves a hair and turns into a drag still picks
-      onMouseDown: (e: React.MouseEvent) => {
+      // the press picks, so a press that turns into a drag drags what is picked
+      onPointerDown: (e: React.PointerEvent) => {
         if (e.button !== 0 || renaming === m.id) return;
-        if (e.shiftKey) return pickRange(m.id);
-        if (e.metaKey || e.ctrlKey) return tick(m.id);
-        // pressing one of several picked keeps them all, so they can be dragged together; the click narrows it
-        if (picked.has(m.id)) return;
-        anchor.current = m.id;
-        setPicked(new Set([m.id]));
+        act({ type: "press", id: m.id, shift: e.shiftKey, toggle: e.metaKey || e.ctrlKey });
       },
-      // the release narrows to this one, so a hand that drifts a little still lands the click
-      onMouseUp: (e: React.MouseEvent) => {
-        if (e.button !== 0 || e.shiftKey || e.metaKey || e.ctrlKey || renaming === m.id) return;
-        anchor.current = m.id;
-        setPicked(new Set([m.id]));
-      },
+      onDragEnd: () => (act({ type: "dragEnd" }), setOver(null)),
       onClick: (e: React.MouseEvent) => {
+        if (renaming === m.id) return;
+        act({ type: "click", id: m.id });
         if (e.shiftKey || e.metaKey || e.ctrlKey) return;
         if (isScene(m)) openSceneOf(m);
         else if (folder && view === "list") setShut((s) => toggled(s, m.id));
@@ -252,7 +237,7 @@ export default function ClipsPanel() {
       },
       onContextMenu: (e: React.MouseEvent) => {
         e.preventDefault();
-        setPicked((p) => (p.has(m.id) ? p : new Set([m.id])));
+        act({ type: "menu", id: m.id });
         setMenu({ id: m.id, x: e.clientX, y: e.clientY });
       },
       title: isScene(m) ? `${m.name}. Click to open it on the timeline.` : folder ? (view === "grid" ? `${m.name}. Double-click to go inside.` : undefined) : `${m.name}. Drag onto the timeline to use it.`,
@@ -295,13 +280,13 @@ export default function ClipsPanel() {
       rows.push(
         <div
           key={m.id}
-          className={`row clip-row ${ticking ? "ticking" : ""} ${folder ? "clip-folder" : ""} ${over === m.id ? "drop-inside" : ""} ${picked.has(m.id) ? "sel" : ""}`}
+          className={`row clip-row ${folder ? "clip-folder" : ""} ${over === m.id ? "drop-inside" : ""} ${picked.has(m.id) ? "sel" : ""}`}
           style={{ paddingLeft: 8 + depth * 14 }}
           data-name={isScene(m) ? "media-scene" : "clip"}
           {...handlers(m)}
         >
-          <span className="media-tick" draggable={false} title="Tick to pick several" {...tickPress(m.id)}>
-            <span className={`media-check ${ticked.has(m.id) ? "on" : ""}`} />
+          <span className="media-tick" title="Tick to pick several" {...tickPress(m.id)}>
+            <span className={`media-check ${picked.has(m.id) ? "on" : ""}`} />
           </span>
           {folder ? (
             <span className={`fold-arrow ${open ? "" : "folded"}`}>
@@ -315,7 +300,7 @@ export default function ClipsPanel() {
           {isScene(m) && m.id === SCENE + openScene && <i className="media-open" title="Open on the timeline">▶</i>}
           <span className="media-end">
             {length !== null && <span className="clip-length">{lengthText(length)}</span>}
-            {!ticking && isKept(m) && (
+            {!several && isKept(m) && (
               <button className="media-row-bin" title={folder ? "Remove this folder and what is in it from Media. The files stay on your computer." : "Remove from Media. The file stays on your computer."} onClick={(e) => (e.stopPropagation(), dispatch("remove_media", { ids: [m.id] }))}>
                 <Icon name="trash" size={12} />
               </button>
@@ -336,6 +321,9 @@ export default function ClipsPanel() {
   if (view === "list") walk(undefined, 0);
   const nothing = view === "list" ? !rows.length : !tiles.length;
   order_.current = view === "list" ? listOrder : tiles.map((m) => m.id);
+  // what is no longer shown (another view, a filter, a closed folder, removed) is no longer picked
+  const shownKey = order_.current.join("\n");
+  useEffect(() => act({ type: "shown" }), [shownKey]);
 
   // Cmd-A picks everything in Media, and Escape lets go, once you have clicked in Media; a click anywhere else hands the keys back
   const panel = useRef<HTMLDivElement | null>(null);
@@ -351,12 +339,12 @@ export default function ClipsPanel() {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a") {
         e.preventDefault();
         e.stopImmediatePropagation();
-        setPicked(new Set(order_.current));
+        act({ type: "all" });
       } else if (e.key === "Escape") {
         // an open menu closes first; the picks stay
         if (menuOpen.current) return;
         e.stopImmediatePropagation();
-        setPicked(new Set());
+        act({ type: "none" });
       }
     };
     window.addEventListener("pointerdown", down, true);
@@ -365,14 +353,18 @@ export default function ClipsPanel() {
   }, []);
 
   const menuOn = menu ? byId.get(menu.id) : undefined;
-  const removable = [...ticked].filter((id) => byId.get(id) && isKept(byId.get(id)!));
+  const removable = picks.ids.filter((id) => byId.get(id) && isKept(byId.get(id)!));
   const current = SHOWS.find(([k]) => k === show)!;
 
   return (
     <div
       ref={panel}
-      className={`clips ${ticking ? "ticking-all" : ""} ${over === "top" ? "drop-top" : ""}`}
+      className={`clips ${several ? "several" : ""} ${over === "top" ? "drop-top" : ""}`}
       data-name="media-panel"
+      // a press on any empty part of Media lets go of what is picked
+      onPointerDown={(e) => {
+        if (e.button === 0 && !(e.target as HTMLElement).closest(".clip-row, .media-tile, button, input, label, .ctx, .media-foot")) act({ type: "none" });
+      }}
       onDragOver={(e) => {
         if (!canTake(e)) return;
         e.preventDefault();
@@ -462,23 +454,25 @@ export default function ClipsPanel() {
             </div>
           )}
           {view === "list" ? (
-            <div className="clips-list" onMouseDown={(e) => e.target === e.currentTarget && setPicked(new Set())}>
+            <div className="clips-list">
               {rows}
             </div>
           ) : (
-            <div className="media-grid" onMouseDown={(e) => e.target === e.currentTarget && setPicked(new Set())}>
+            <div className="media-grid">
               {tiles.map((m) => {
                 const length = lengthOfEntry(m);
                 return (
                   <div
                     key={m.id}
-                    className={`media-tile ${ticking ? "ticking" : ""} ${over === m.id ? "drop-inside" : ""} ${picked.has(m.id) ? "sel" : ""}`}
+                    className={`media-tile ${over === m.id ? "drop-inside" : ""} ${picked.has(m.id) ? "sel" : ""}`}
                     data-name={isScene(m) ? "media-scene" : "clip"}
                     {...handlers(m)}
                   >
                     <div className={`media-tile-face kind-${m.kind}`}>
-                      <span className={`media-check media-tile-check ${ticked.has(m.id) ? "on" : ""}`} draggable={false} title="Tick to pick several" {...tickPress(m.id)} />
-                      {!ticking && isKept(m) && (
+                      <span className="media-tile-tick" title="Tick to pick several" {...tickPress(m.id)}>
+                        <span className={`media-check ${picked.has(m.id) ? "on" : ""}`} />
+                      </span>
+                      {!several && isKept(m) && (
                         <button className="media-row-bin media-tile-bin" title="Remove from Media. The file stays on your computer." onClick={(e) => (e.stopPropagation(), dispatch("remove_media", { ids: [m.id] }))}>
                           <Icon name="trash" size={12} />
                         </button>
@@ -493,22 +487,24 @@ export default function ClipsPanel() {
               })}
             </div>
           )}
-          {!nothing && <div className="media-hint" onMouseDown={() => setPicked(new Set())}>Drag a clip onto the timeline to use it.</div>}
+          {!nothing && <div className="media-hint">Drag a clip onto the timeline to use it.</div>}
           {nothing && <div className="empty pad">{filtering ? "Nothing here matches." : "This folder is empty. Drop clips here."}</div>}
           <div className="media-foot">
-            {ticking && (
+            {several && (
               <>
-                <button
-                  className="media-remove"
-                  data-name="media-remove"
-                  disabled={!removable.length}
-                  title={removable.length ? "Remove from Media. The files stay on your computer." : "Scenes, and clips the timeline plays, stay in Media while the video uses them"}
-                  onClick={() => (dispatch("remove_media", { ids: removable }), setTicked(new Set()))}
-                >
-                  <Icon name="trash" size={12} />
-                  Remove {removable.length || ""}
-                </button>
-                <button className="media-select" title="Let go of everything (Esc)" onClick={() => setTicked(new Set())}>
+                <span className="media-foot-count">{picks.ids.length} picked</span>
+                {removable.length > 0 && (
+                  <button
+                    className="media-remove"
+                    data-name="media-remove"
+                    title={removable.length < picks.ids.length ? "Remove from Media. The files stay on your computer. Scenes, and clips the timeline plays, stay." : "Remove from Media. The files stay on your computer."}
+                    onClick={() => (dispatch("remove_media", { ids: removable }), act({ type: "none" }))}
+                  >
+                    <Icon name="trash" size={12} />
+                    Remove
+                  </button>
+                )}
+                <button className="media-select" title="Let go of everything (Esc)" onClick={() => act({ type: "none" })}>
                   Cancel
                 </button>
               </>
