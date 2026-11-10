@@ -260,6 +260,9 @@ export default function ClipsPanel() {
           data-name={isScene(m) ? "media-scene" : "clip"}
           {...handlers(m)}
         >
+          <span className="media-tick" onClick={(e) => (e.stopPropagation(), isKept(m) && tick(m.id))}>
+            {isKept(m) && <span className={`media-check ${ticked.has(m.id) ? "on" : ""}`} title="Tick to pick several" />}
+          </span>
           {folder ? (
             <span className={`fold-arrow ${open ? "" : "folded"}`}>
               <Icon name="arrow" size={10} />
@@ -267,10 +270,7 @@ export default function ClipsPanel() {
           ) : (
             <span className="fold-arrow-gap" />
           )}
-          <span className="media-ico">
-            <Icon name={ICON[m.kind]} size={14} className="ico" />
-            {isKept(m) && <span className={`media-check ${ticked.has(m.id) ? "on" : ""}`} title="Tick to pick several" onClick={(e) => (e.stopPropagation(), tick(m.id))} />}
-          </span>
+          <Icon name={ICON[m.kind]} size={14} className="ico" />
           {nameOrBox(m)}
           {isScene(m) && m.id === SCENE + openScene && <i className="media-open" title="Open on the timeline">▶</i>}
           <span className="media-end">

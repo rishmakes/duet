@@ -11643,3 +11643,28 @@ button.ctx-item.store-make-option:hover {
 .media-foot {
   border-bottom: 3px solid var(--line);
 }
+/* the box to tick has its own spot left of the kind icon: the icon always says what the thing is */
+.media-tick {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 20px;
+  margin-right: -4px;
+  flex: none;
+  cursor: pointer;
+}
+.media-tick .media-check {
+  visibility: hidden;
+}
+.clip-row:hover .media-tick .media-check,
+.clip-row.ticking .media-tick .media-check,
+.media-tick .media-check.on {
+  visibility: visible;
+}
+.media-check.on,
+.media-tile-check.on {
+  background-color: var(--accent);
+}
+.media-check {
+  background-color: var(--panel);
+}
