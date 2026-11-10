@@ -1301,6 +1301,10 @@ export default function TimeStrip() {
         <button className="pill" data-name="play" onClick={togglePlay} title={clock.playing ? "Pause" : "Play"}>
           {clock.playing ? "Pause" : "Play"}
         </button>
+        {/* the scene this timeline shows, so it is always clear where dropped clips land */}
+        <span className="time-scene" data-name="time-scene" title={`This timeline shows "${frame.name}". Clicking something in another scene shows that one instead.`}>
+          {frame.name}
+        </span>
         <span className="time-now" data-name="time-now">
           {clockText(clock.t)} / {clockText(length)}
         </span>

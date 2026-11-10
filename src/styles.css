@@ -2977,6 +2977,13 @@ option {
   color: var(--muted);
   font-size: 11px;
 }
+.time-scene {
+  font-weight: 600;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .time-now {
   font-variant-numeric: tabular-nums;
   min-width: 92px;
