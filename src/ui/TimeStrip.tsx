@@ -20,6 +20,7 @@ import { lastChoice, rememberExport, shortFolder } from "../video/exportPrefs";
 import { open as openDialog } from "./dialog";
 import { droppedPaths } from "../canvas/CanvasView";
 import { CLIP_DRAG, placeFromClips } from "../video/media";
+import { CutTools } from "./Toolbar";
 import type { ExportChoice } from "../video/scene";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { DEFAULT_TRACK_H, NO_HEIGHTS, TIME_MIN_H, TRACK_MAX_H, TRACK_MIN_H, getLayout, isColorOpen, setLayout, useLayout } from "./layout";
@@ -1352,6 +1353,7 @@ export default function TimeStrip() {
             Edit
           </button>
         </div>
+        <CutTools />
         <button className="pill" data-name="add-media" onClick={() => void bring()} title="Bring in video, music or a voice, at the moment the clock is on">
           Add
         </button>

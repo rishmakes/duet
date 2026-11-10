@@ -11300,3 +11300,50 @@ button.ctx-item.store-make-option:hover {
   font-size: 12px;
   cursor: pointer;
 }
+/* Video's cutting tools sit in the timeline's own bar, beside Add: they work on the timeline */
+.time-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-2);
+}
+.time-tool {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 24px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.time-tool:hover:not(:disabled) {
+  background: var(--panel);
+  color: var(--text);
+}
+.time-tool:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+/* the tool pill stays one line on any screen: the Comment tool keeps only its flag first, then the tools get a little smaller */
+.app:not(.time-max) .studio-bar .toolbar.row {
+  flex-wrap: nowrap;
+}
+@container (max-width: 760px) {
+  .app:not(.time-max) .studio-bar .toolbar.row .tool.wide {
+    width: 30px;
+    padding: 0;
+    gap: 0;
+    font-size: 0;
+  }
+}
+@container (max-width: 520px) {
+  .app:not(.time-max) .studio-bar .toolbar.row .tool {
+    width: 26px;
+    height: 26px;
+  }
+}

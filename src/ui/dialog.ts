@@ -7,10 +7,18 @@ import * as native from "@tauri-apps/plugin-dialog";
  */
 let checkCopy = false;
 let agentAt = 0;
-const AGENT_QUIET_MS = 5 * 60_000;
+const AGENT_QUIET_MS = 60_000;
 export const showDialogsInWindow = () => void (checkCopy = true);
 /** A helper agent just used a dev tool: answer the next questions inside the window for a while. */
 export const agentIsDriving = () => void (agentAt = Date.now());
+// a real click or key from a person ends it at once: they get the system's own windows
+if (typeof window !== "undefined") {
+  const person = (e: Event) => {
+    if (e.isTrusted) agentAt = 0;
+  };
+  window.addEventListener("pointerdown", person, true);
+  window.addEventListener("keydown", person, true);
+}
 const inWindowNow = () => checkCopy && Date.now() - agentAt < AGENT_QUIET_MS;
 
 type Choice = { label: string; value: unknown };

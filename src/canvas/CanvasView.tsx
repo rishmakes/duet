@@ -901,8 +901,9 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
       canvas.style.width = `${w}px`;
       canvas.style.height = `${h}px`;
       sizeRef.current = { w, h, dpr };
-      const open = motion ? getState().clock.scene : activePageId;
-      if ((lockedRef.current || pageShownRef.current) && open) zoomToElements([open], w, h);
+      // read fresh each time: this runs long after the canvas first appeared
+      const open = lockedRef.current ? getState().clock.scene : shownPageRef.current;
+      if (open) zoomToElements([open], w, h);
       schedule();
     };
     resize();

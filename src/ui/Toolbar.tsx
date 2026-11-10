@@ -57,11 +57,39 @@ export function presetFrameBounds(preset: FramePreset, center: { x: number; y: n
   };
 }
 
+/** Video's cutting tools and the marker, in the timeline's own bar: they work on the timeline, so they sit on it. */
+export function CutTools() {
+  const scene = useStore((s) => s.clock.scene);
+  return (
+    <div className="time-tools" data-name="cut-tools">
+      {CUTS.map((c) => (
+        <button
+          key={c.kind}
+          className="time-tool"
+          data-name={`cut-${c.kind}`}
+          disabled={!scene}
+          title={scene ? (c.key ? `${c.label} (${c.key})` : c.label) : `${c.label}. Select a scene first`}
+          onClick={() => cutNow(c.kind)}
+        >
+          <Icon name={c.icon} size={15} />
+        </button>
+      ))}
+      <button
+        className="time-tool"
+        data-name="add-marker"
+        disabled={!scene}
+        title={scene ? "Add a marker at the playhead (M)" : "Add a marker. Select a scene first"}
+        onClick={() => scene && dispatch("add_marker", { id: scene, t: getState().clock.t })}
+      >
+        <Icon name="marker" size={15} />
+      </button>
+    </div>
+  );
+}
+
 /** `row` lays the same tools out in a line, for the thin bar over the canvas beside the chat. */
 export default function Toolbar({ row = false }: { row?: boolean }) {
   const tool = useStore((s) => s.tool);
-  const scene = useStore((s) => s.clock.scene);
-  const motion = useLayout((d) => d.mode === "motion");
   const photo = useLayout((d) => d.mode === "photo");
   const toolsList = photo ? [...TOOLS, ...PHOTO_TOOLS] : TOOLS;
 
@@ -135,35 +163,6 @@ export default function Toolbar({ row = false }: { row?: boolean }) {
       <button className="tool" title="Image (Shift Cmd K)" onClick={() => void pickImages()}>
         <Icon name="image" />
       </button>
-      <div className="tool-bottom">
-      {motion && (
-        <>
-          <span className="tool-gap" />
-          {CUTS.map((c) => (
-            <button
-              key={c.kind}
-              className="tool"
-              data-name={`cut-${c.kind}`}
-              disabled={!scene}
-              title={scene ? (c.key ? `${c.label} (${c.key})` : c.label) : `${c.label}. Select a scene first`}
-              onClick={() => cutNow(c.kind)}
-            >
-              <Icon name={c.icon} />
-            </button>
-          ))}
-          <button
-            className="tool"
-            data-name="add-marker"
-            disabled={!scene}
-            title={scene ? "Add a marker at the playhead (M)" : "Add a marker. Select a scene first"}
-            onClick={() => scene && dispatch("add_marker", { id: scene, t: getState().clock.t })}
-          >
-            <Icon name="marker" />
-          </button>
-        </>
-      )}
-      </div>
-
       {menuOpen && (
         <div
           className="ctx frame-presets"
