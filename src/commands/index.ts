@@ -15,6 +15,8 @@ import { freshName, keepTracks, newTrackId, stackByTrack } from "../document/tra
 import type { CreatePresetFrameArgs } from "./presets";
 import { setPages, addPage, reorderPages } from "./pages";
 import { openBoard } from "../document/boards";
+import { addMedia, moveMedia, newFolder, removeMedia, renameMedia } from "./media";
+import type { AddMediaArgs, MoveMediaArgs, NewFolderArgs, RemoveMediaArgs, RenameMediaArgs } from "./media";
 import { addBoard, deleteBoard, moveBoard, moveToBoard, openBoardCmd, renameBoard } from "./boards";
 import type { AddBoardArgs, DeleteBoardArgs, MoveBoardArgs, MoveToBoardArgs, OpenBoardArgs, RenameBoardArgs } from "./boards";
 import { addBrandColour, changeBrandColour, makeBrandKit, removeBrandColour, setBrand } from "./brand";
@@ -2375,6 +2377,32 @@ const reorderPagesDef: CommandDef<ReorderPagesArgs> = {
   run: (doc, a) => reorderPages(doc, a),
 };
 
+// ---- Clips: the clips, sounds, pictures and folders a video is made from ----
+const addMediaDef: CommandDef<AddMediaArgs> = {
+  label: (a) => (a.items.length === 1 ? `Add ${a.items[0].name} to Clips` : "Add to Clips"),
+  run: (doc, a) => addMedia(doc, a),
+};
+
+const removeMediaDef: CommandDef<RemoveMediaArgs> = {
+  label: () => "Remove from Clips",
+  run: (doc, a) => removeMedia(doc, a),
+};
+
+const newFolderDef: CommandDef<NewFolderArgs> = {
+  label: () => "New folder in Clips",
+  run: (doc, a) => newFolder(doc, a),
+};
+
+const renameMediaDef: CommandDef<RenameMediaArgs> = {
+  label: (a) => `Rename to ${a.name}`,
+  run: (doc, a) => renameMedia(doc, a),
+};
+
+const moveMediaDef: CommandDef<MoveMediaArgs> = {
+  label: () => "Move in Clips",
+  run: (doc, a) => moveMedia(doc, a),
+};
+
 // ---- boards: separate canvases in one file ----
 const addBoardDef: CommandDef<AddBoardArgs> = {
   label: () => "New board",
@@ -2463,6 +2491,11 @@ export const commands = {
   change_brand_colour: changeBrandColourDef,
   remove_brand_colour: removeBrandColourDef,
   make_brand_kit: makeBrandKitDef,
+  add_media: addMediaDef,
+  remove_media: removeMediaDef,
+  new_folder: newFolderDef,
+  rename_media: renameMediaDef,
+  move_media: moveMediaDef,
   add_board: addBoardDef,
   open_board: openBoardDef,
   rename_board: renameBoardDef,

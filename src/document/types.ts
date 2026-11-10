@@ -299,6 +299,19 @@ export interface DesignSystem {
   components?: string[];
 }
 
+/** A thing in the Clips panel: a clip, a sound, a picture, or a folder that holds them. */
+export interface MediaItem {
+  id: string;
+  name: string;
+  kind: "video" | "sound" | "image" | "folder";
+  /** Where the file is on the computer. Left out for a folder. */
+  src?: string;
+  /** How long it plays, in seconds, when known. */
+  length?: number;
+  /** The folder it sits in. Left out at the top. */
+  folderId?: string;
+}
+
 export interface Doc {
   version: 1;
   /** The colour of the canvas behind the design, like #141417. Left out means the standard dark one. */
@@ -319,6 +332,8 @@ export interface Doc {
   boards?: Board[];
   /** The board that is open. Its things are in rootIds. */
   board?: string;
+  /** The clips, sounds, pictures and folders in the Clips panel, in order. Left out when there are none. */
+  media?: MediaItem[];
   /** What sits at the top of the open board, back to front. */
   rootIds: string[];
   elements: Record<string, El>;

@@ -19,6 +19,7 @@ import { QUALITIES, SIZES, addMedia, clipKind, dropClips, exportScene, exportSiz
 import { lastChoice, rememberExport, shortFolder } from "../video/exportPrefs";
 import { open as openDialog } from "./dialog";
 import { droppedPaths } from "../canvas/CanvasView";
+import { CLIP_DRAG, placeFromClips } from "../video/media";
 import type { ExportChoice } from "../video/scene";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { DEFAULT_TRACK_H, NO_HEIGHTS, TIME_MIN_H, TRACK_MAX_H, TRACK_MIN_H, getLayout, isColorOpen, setLayout, useLayout } from "./layout";
@@ -1574,14 +1575,27 @@ export default function TimeStrip() {
         }}
         // video and sound dropped from the computer land at the moment under the pointer
         onDragOver={(e) => {
-          if (!Array.from(e.dataTransfer.types).includes("Files")) return;
+          const types = Array.from(e.dataTransfer.types);
+          if (!types.includes("Files") && !types.includes(CLIP_DRAG)) return;
           e.preventDefault();
+          e.dataTransfer.dropEffect = "copy";
           setSnap(dropTime(e.clientX));
         }}
         onDragLeave={(e) => {
           if (!e.currentTarget.contains(e.relatedTarget as Node)) setSnap(null);
         }}
         onDrop={(e) => {
+          // a clip, sound or picture dragged from Clips lands at the moment under the pointer
+          const fromClips = e.dataTransfer.getData(CLIP_DRAG);
+          if (fromClips) {
+            e.preventDefault();
+            e.stopPropagation();
+            setSnap(null);
+            const at = dropTime(e.clientX);
+            seek(at);
+            void placeFromClips(frame.id, JSON.parse(fromClips), at).then((problems) => problems.length && setNote(problems.join(" ")));
+            return;
+          }
           const files = Array.from(e.dataTransfer.files).filter((f) => clipKind(f.name));
           if (!files.length) return;
           e.preventDefault();

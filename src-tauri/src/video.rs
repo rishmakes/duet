@@ -985,3 +985,57 @@ pub fn clip_preview(path: String) -> Result<String, String> {
     std::fs::rename(&part, &out).map_err(|e| e.to_string())?;
     Ok(out.to_string_lossy().to_string())
 }
+
+/// One thing found in a folder brought into Clips.
+#[derive(Serialize)]
+pub struct Found {
+    path: String,
+    name: String,
+    /// The folder it sits in, as a path inside the brought-in folder; empty for the top.
+    folder: String,
+    dir: bool,
+}
+
+const MEDIA: [&str; 22] = [
+    "mp4", "mov", "m4v", "webm", "mkv", "avi", "mp3", "wav", "m4a", "aac", "aiff", "aif", "ogg", "flac", "png", "jpg", "jpeg", "gif", "webp", "heic", "bmp", "tif",
+];
+
+fn scan(dir: &std::path::Path, folder: &str, out: &mut Vec<Found>, depth: usize) {
+    if depth > 12 || out.len() > 5000 {
+        return;
+    }
+    let Ok(read) = std::fs::read_dir(dir) else { return };
+    let mut entries: Vec<_> = read.flatten().collect();
+    entries.sort_by_key(|e| e.file_name().to_string_lossy().to_lowercase());
+    for e in entries {
+        let name = e.file_name().to_string_lossy().to_string();
+        if name.starts_with('.') {
+            continue;
+        }
+        let path = e.path();
+        let Ok(kind) = e.file_type() else { continue };
+        if kind.is_dir() {
+            out.push(Found { path: path.to_string_lossy().to_string(), name: name.clone(), folder: folder.to_string(), dir: true });
+            let inner = if folder.is_empty() { name } else { format!("{folder}/{name}") };
+            scan(&path, &inner, out, depth + 1);
+        } else if name.rsplit_once('.').map(|(_, x)| MEDIA.contains(&x.to_lowercase().as_str())).unwrap_or(false) {
+            out.push(Found { path: path.to_string_lossy().to_string(), name, folder: folder.to_string(), dir: false });
+        }
+    }
+}
+
+/// Everything Clips can hold inside a folder, every subfolder kept, in name order. The files stay where they are.
+#[tauri::command]
+pub async fn media_scan(path: String) -> Result<Vec<Found>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let p = PathBuf::from(&path);
+        if !p.is_dir() {
+            return Err("That is not a folder.".to_string());
+        }
+        let mut out = Vec::new();
+        scan(&p, "", &mut out, 0);
+        Ok(out)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}

@@ -842,6 +842,7 @@ pub fn run() {
             video::clip_keep_begin,
             video::clip_keep_part,
             video::clip_keep_end,
+            video::media_scan,
             video::scene_export_begin,
             video::scene_export_frame,
             video::scene_export_clip,

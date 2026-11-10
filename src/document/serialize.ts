@@ -2,7 +2,7 @@ import { isDerived, syncInstances } from "./components";
 import { relayout } from "./layout";
 import { keepTracks, oldTracks } from "./tracks";
 import { playsFile } from "./types";
-import type { Board, Comment, Doc, El } from "./types";
+import type { Board, Comment, Doc, El, MediaItem } from "./types";
 
 /** Property order inside each element, so Git diffs stay small and stable. */
 const EL_KEYS: (keyof El)[] = [
@@ -165,6 +165,7 @@ export function serializeDoc(doc: Doc): string {
   if (doc.guides && (doc.guides.x.length || doc.guides.y.length)) out.guides = { x: [...doc.guides.x].sort((a, b) => a - b), y: [...doc.guides.y].sort((a, b) => a - b) };
   if (doc.comments?.length) out.comments = doc.comments;
   if (doc.pages) out.pages = true;
+  if (doc.media?.length) out.media = doc.media;
   if (doc.boards && doc.boards.length > 1) {
     // the open board's things are the rootIds above, so they are not written twice
     out.boards = doc.boards.map((b) => (b.id === doc.board ? { id: b.id, name: b.name } : { id: b.id, name: b.name, rootIds: b.rootIds ?? [] }));
@@ -174,6 +175,32 @@ export function serializeDoc(doc: Doc): string {
 }
 
 export class DesignFileError extends Error {}
+
+const MEDIA_KINDS = new Set(["video", "sound", "image", "folder"]);
+
+/** The Clips list as saved. Anything unreadable is left out, and a thing whose folder is gone sits at the top. */
+function readMedia(raw: unknown): MediaItem[] {
+  if (!Array.isArray(raw)) return [];
+  const list = raw.filter((m): m is MediaItem => !!m && typeof m.id === "string" && typeof m.name === "string" && MEDIA_KINDS.has(m.kind) && (m.kind === "folder" || typeof m.src === "string"));
+  const folders = new Set(list.filter((m) => m.kind === "folder").map((m) => m.id));
+  const byId = new Map(list.map((m) => [m.id, m]));
+  // a folder that ends up inside itself would never show: it goes back to the top
+  const loops = (m: MediaItem) => {
+    const seen = new Set([m.id]);
+    for (let f = m.folderId; f; f = byId.get(f)?.folderId) {
+      if (seen.has(f)) return true;
+      seen.add(f);
+    }
+    return false;
+  };
+  return list.map((m) => {
+    const out: MediaItem = { id: m.id, name: m.name, kind: m.kind };
+    if (m.kind !== "folder") out.src = m.src;
+    if (typeof m.length === "number" && Number.isFinite(m.length)) out.length = m.length;
+    if (typeof m.folderId === "string" && folders.has(m.folderId) && !loops(m)) out.folderId = m.folderId;
+    return out;
+  });
+}
 
 const TYPES = new Set(["frame", "rect", "ellipse", "text", "image", "path", "group", "instance", "video", "sound"]);
 
@@ -217,6 +244,7 @@ export function parseDoc(text: string): Doc {
     });
   }
   const styles = r.styles && typeof r.styles === "object" ? (r.styles as Doc["styles"]) : undefined;
+  const media = readMedia(r.media);
   const brand = readBrand(r.brand);
   const system = readSystem(r.system);
   const background = typeof r.background === "string" && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(r.background) ? r.background : undefined;
@@ -233,7 +261,7 @@ export function parseDoc(text: string): Doc {
     const saved = new Set((el.tracks ?? []).map((t) => t.id));
     if (oldTracks(el) || el.childIds.some((c) => elements[c] && !saved.has(elements[c].track ?? ""))) keepTracks({ version: 1, rootIds: [], elements }, el.id);
   }
-  return relayout(syncInstances({ version: 1, rootIds: r.rootIds as string[], elements, ...(background ? { background } : {}), ...(styles ? { styles } : {}), ...(brand ? { brand } : {}), ...(system ? { system } : {}), ...(guides ? { guides } : {}), ...(comments.length ? { comments } : {}), ...(r.pages === true ? { pages: true as const } : {}), ...(boards ? { boards, board } : {}) }));
+  return relayout(syncInstances({ version: 1, rootIds: r.rootIds as string[], elements, ...(background ? { background } : {}), ...(styles ? { styles } : {}), ...(brand ? { brand } : {}), ...(system ? { system } : {}), ...(guides ? { guides } : {}), ...(comments.length ? { comments } : {}), ...(r.pages === true ? { pages: true as const } : {}), ...(media.length ? { media } : {}), ...(boards ? { boards, board } : {}) }));
 }
 
 /** A brand kit read from a file, keeping only what makes sense. */

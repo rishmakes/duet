@@ -1,5 +1,7 @@
 import { lengthText } from "../canvas/render";
 import AssetsPanel from "./AssetsPanel";
+import ClipsPanel from "./ClipsPanel";
+import { useLayout } from "./layout";
 import Icon from "./Icons";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -395,7 +397,10 @@ export default function LayersPanel() {
   const selection = useStore((s) => s.selection);
   const doc = currentDoc();
   const [drop, setDrop] = useState<Drop | null>(null);
-  const [tab, setTab] = useState<"layers" | "assets">("layers");
+  const video = useLayout((d) => d.mode === "motion");
+  const [tab, setTab] = useState<"clips" | "layers" | "assets">(() => (video ? "clips" : "layers"));
+  // a video opens on its clips; Clips is only there in Video
+  useEffect(() => setTab(video ? "clips" : "layers"), [video]);
   const [folded, setFolded] = useState<Set<string>>(() => new Set());
   const dragging = useRef<string[]>([]);
 
@@ -481,6 +486,11 @@ export default function LayersPanel() {
       {/* the tabs and the hint stay put while the list under them scrolls */}
       <div className="left-head">
       <div className="tabs">
+        {video && (
+          <div className={`tab ${tab === "clips" ? "on" : ""}`} data-name="tab-clips" onClick={() => setTab("clips")}>
+            Clips
+          </div>
+        )}
         <div className={`tab ${tab === "layers" ? "on" : ""}`} onClick={() => setTab("layers")}>
           Layers
         </div>
@@ -492,6 +502,7 @@ export default function LayersPanel() {
       {tab === "layers" && <div className="tip-line">Click a layer to find it. Cmd or Ctrl click to zoom to it.</div>}
       </div>
       {tab === "assets" && <AssetsPanel />}
+      {tab === "clips" && video && <ClipsPanel />}
       <div
         className="layers"
         hidden={tab !== "layers"}

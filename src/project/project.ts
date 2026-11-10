@@ -1358,9 +1358,10 @@ async function sendCopyDialog(choice: CopyChoice): Promise<{ saved: string } | {
 /** On launch, nothing opens by itself: quitting closed every project, and Duet starts on Home. Kept for a reload of the page, which goes back to the project on screen. */
 export async function restoreLast() {
   if (!inTauri()) return;
-  if (!sessionStorage.getItem(TABS_KEY)) return;
+  // learnt on every start, fresh or reloaded, so Duet dev always knows it is Duet dev
   // Duet dev never opens a designer's project by itself: two Duets on one project would fight over it
   if (await learnCheckCopy()) return;
+  if (!sessionStorage.getItem(TABS_KEY)) return;
   let path: string | null = null;
   try {
     path = kept().getItem(LAST_KEY);
