@@ -112,7 +112,7 @@ export function lengthOf(item: MediaItem, then: () => void): number | null {
 }
 
 /** How long a picture stays on the timeline when it is dropped there. */
-const PICTURE_SECONDS = 3;
+export const PICTURE_SECONDS = 3;
 
 /** Where footage from Media goes: a track in Edit (with Cmd, a new one above it), or above a layer in Motion. */
 export interface PlaceWhere {
@@ -127,7 +127,14 @@ export interface ToPlace {
   src: string;
   kind: MediaItem["kind"];
   name: string;
+  /** How long it runs, when Media knows: for the ghost on the timeline while it is dragged. */
+  seconds?: number;
 }
+
+/** What is being dragged from Media right now, so the timeline can show where it will land before it is let go. */
+let dragging: ToPlace[] = [];
+export const draggedFootage = () => dragging;
+export const setDraggedFootage = (list: ToPlace[]) => (dragging = list);
 
 /**
  * Clips, sounds and pictures from Media put in a scene from a moment, one after another, in one step that one

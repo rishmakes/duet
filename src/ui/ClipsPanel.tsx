@@ -10,7 +10,7 @@ import type { Doc, MediaItem } from "../document/types";
 import { currentDoc, dispatch, getState, select, useStore } from "../state/store";
 import { openScene as openOnTimeline } from "../video/play";
 import { keepDropped } from "../video/scene";
-import { CLIP_DRAG, lengthOf, mediaFrom, mediaKind, pickFolderIntoClips, pickIntoClips, placeFromClips } from "../video/media";
+import { CLIP_DRAG, lengthOf, mediaFrom, mediaKind, pickFolderIntoClips, pickIntoClips, placeFromClips, PICTURE_SECONDS, setDraggedFootage } from "../video/media";
 import type { ToPlace } from "../video/media";
 import { useDismiss } from "./useDismiss";
 import { noPicks, pick, type PickAct } from "./mediaPick";
@@ -192,7 +192,9 @@ export default function ClipsPanel() {
       if (e.kind === "folder") for (const c of order(media.filter((x) => x.folderId === e.id))) take(c);
       else if (e.src && !isScene(e) && !seen.has(e.src)) {
         seen.add(e.src);
-        out.push({ src: e.src, kind: e.kind as MediaItem["kind"], name: e.name });
+        const kind = e.kind as MediaItem["kind"];
+        const seconds = kind === "image" ? PICTURE_SECONDS : (lengthOf({ ...e, kind }, () => {}) ?? 0);
+        out.push({ src: e.src, kind, name: e.name, seconds });
       }
     };
     const walk = (folderId: string | undefined) => {
@@ -237,6 +239,7 @@ export default function ClipsPanel() {
         act({ type: "drag", id: m.id });
         e.dataTransfer.setData(MOVE, m.id);
         const list = footageFor(m);
+        setDraggedFootage(list);
         if (list.length) e.dataTransfer.setData(CLIP_DRAG, JSON.stringify(list));
         e.dataTransfer.effectAllowed = "copyMove";
       },
@@ -253,7 +256,7 @@ export default function ClipsPanel() {
         if (e.button !== 0 || renaming === m.id) return;
         act({ type: "press", id: m.id, shift: e.shiftKey, toggle: e.metaKey || e.ctrlKey });
       },
-      onDragEnd: () => (act({ type: "dragEnd" }), setOver(null)),
+      onDragEnd: () => (act({ type: "dragEnd" }), setOver(null), setDraggedFootage([])),
       onClick: (e: React.MouseEvent) => {
         if (renaming === m.id) return;
         act({ type: "click", id: m.id });

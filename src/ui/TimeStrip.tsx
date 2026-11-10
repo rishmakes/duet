@@ -19,7 +19,7 @@ import { QUALITIES, SIZES, addMedia, clipKind, dropClips, exportScene, exportSiz
 import { lastChoice, rememberExport, shortFolder } from "../video/exportPrefs";
 import { open as openDialog } from "./dialog";
 import { droppedPaths } from "../canvas/CanvasView";
-import { CLIP_DRAG, placeFromClips } from "../video/media";
+import { CLIP_DRAG, draggedFootage, placeFromClips } from "../video/media";
 import { CutTools } from "./Toolbar";
 import type { ExportChoice } from "../video/scene";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
@@ -100,6 +100,8 @@ export default function TimeStrip() {
   // set while a keyframe mark is being dragged, so letting go is not taken for a click
   const draggedMark = useRef(false);
   const [snap, setSnap] = useState<number | null>(null);
+  // footage from Media on its way in: the row under the pointer, whether it tips onto a new track above, and when it lands
+  const [ghost, setGhost] = useState<{ ri: number | null; above: boolean; at: number } | null>(null);
   // the stretch tool (R): pulling the end of a clip changes its speed instead of cutting it shorter
   const [stretchTool, setStretchTool] = useState(false);
   const stretching = useRef(false);
@@ -386,6 +388,14 @@ export default function TimeStrip() {
   const length = frame?.duration ?? 0;
   const laneWidth = wide * zoom;
   const pps = length > 0 ? laneWidth / length : 1;
+  // a second keeps its width when the video grows or shrinks, so nothing on the timeline seems to jump
+  const lastLength = useRef<{ id: string; length: number } | null>(null);
+  useLayoutEffect(() => {
+    const was = lastLength.current;
+    lastLength.current = frame ? { id: frame.id, length } : null;
+    if (!frame || !was || was.id !== frame.id || !(was.length > 0) || !(length > 0) || was.length === length) return;
+    setZoom((z) => Math.max(1, Math.min(200, (z * length) / was.length)));
+  }, [frame?.id, length]);
 
   useEffect(() => {
     if (!clock.playing || zoom <= 1) return;
@@ -626,6 +636,29 @@ export default function TimeStrip() {
     const box = lanes.current?.getBoundingClientRect();
     if (!box || !lanes.current) return 0;
     return Math.max(0, Math.min(length, (clientX - box.left + lanes.current.scrollLeft - NAMES) / pps));
+  };
+
+  /**
+   * Where something dragged in lands: the moment under the pointer, caught by the playhead or a clip's edge when
+   * it is close; the row under it; and whether it sits at that row's top edge, which puts it on a new track above.
+   */
+  const dropPlace = (e: React.DragEvent): { ri: number | null; above: boolean; at: number } => {
+    const raw = dropTime(e.clientX);
+    const at = Math.round((findSnap(raw, getSnapTargets())?.time ?? raw) * 1000) / 1000;
+    const rowEl = (e.target as HTMLElement).closest<HTMLElement>("[data-row]");
+    const ri = rowEl ? Number(rowEl.dataset.row) : NaN;
+    if (!rowEl || !Number.isFinite(ri)) return { ri: null, above: false, at };
+    const b = rowEl.getBoundingClientRect();
+    return { ri, above: e.clientY < b.top + Math.max(8, b.height * 0.3), at };
+  };
+
+  /** What the ghost of footage on its way in looks like on a row: where it sits, and how far later things move. */
+  const ghostOn = (ri: number) => {
+    if (!ghost || ghost.ri !== ri || look !== "cut") return null;
+    const list = draggedFootage();
+    const seen = list.filter((it) => it.kind !== "sound");
+    const total = (seen.length ? seen : list).reduce((sum, it) => sum + (it.seconds ?? 0), 0);
+    return { at: ghost.at, total: Math.max(total, 0.5), above: ghost.above, push: !ghost.above && seen.length > 0 ? total : 0 };
   };
 
   /** Ctrl or Cmd adds one or takes it away; Shift picks every row from the last one clicked to this one. */
@@ -1125,8 +1158,10 @@ export default function TimeStrip() {
     window.addEventListener("pointerup", up);
   };
 
-  const renderBar = (el: El, rowH?: number) => {
-    const span = spanOf(el, frame);
+  const renderBar = (el: El, rowH?: number, push?: { at: number; by: number }) => {
+    const whole = spanOf(el, frame);
+    // footage on its way in: things after it slide right, and one it lands inside shows cut there
+    const span = !push || el.type === "sound" || whole.end <= push.at + 0.001 ? whole : whole.start >= push.at - 0.001 ? { start: whole.start + push.by, end: whole.end + push.by } : { start: whole.start, end: push.at };
     // in Cut the bars stay clean: a thing's marks are listed in the panel on the right
     const keyTimes = look === "cut" ? [] : [...new Set(MOVING.flatMap((p) => (el.keys[p] ?? []).map((k) => k.t)))];
     const isSelected = selection.includes(el.id);
@@ -1581,10 +1616,12 @@ export default function TimeStrip() {
           if (!types.includes("Files") && !types.includes(CLIP_DRAG)) return;
           e.preventDefault();
           e.dataTransfer.dropEffect = "copy";
-          setSnap(dropTime(e.clientX));
+          const place = dropPlace(e);
+          setSnap(place.at);
+          if (types.includes(CLIP_DRAG) && look === "cut") setGhost((g) => (g && g.ri === place.ri && g.above === place.above && g.at === place.at ? g : place));
         }}
         onDragLeave={(e) => {
-          if (!e.currentTarget.contains(e.relatedTarget as Node)) setSnap(null);
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) (setSnap(null), setGhost(null));
         }}
         onDrop={(e) => {
           // a clip, sound or picture dragged from Clips lands at the moment under the pointer
@@ -1593,15 +1630,16 @@ export default function TimeStrip() {
             e.preventDefault();
             e.stopPropagation();
             setSnap(null);
-            const at = dropTime(e.clientX);
+            setGhost(null);
+            const place = dropPlace(e);
+            const at = place.at;
             seek(at);
-            // Edit: the track under the pointer, or a new one on top; Cmd puts it on a new track above that one.
+            // Edit: the track under the pointer, or a new one on top; at the top edge of a track, a new track above it.
             // Motion: just above the picked layer, or on top.
-            const ri = Number((e.target as HTMLElement).closest<HTMLElement>("[data-row]")?.dataset.row ?? NaN);
-            const row = Number.isFinite(ri) ? rowsRef.current[ri] : undefined;
+            const row = place.ri !== null ? rowsRef.current[place.ri] : undefined;
             const picked = getState().selection.filter((id) => currentDoc().elements[id]?.parentId === frame.id);
             const top = frame.childIds.filter((id) => picked.includes(id)).pop();
-            const where = look === "cut" ? { track: row?.track, aside: e.metaKey || e.ctrlKey } : top ? { above: top } : { layers: true };
+            const where = look === "cut" ? { track: row?.track, aside: place.above } : top ? { above: top } : { layers: true };
             void placeFromClips(frame.id, JSON.parse(fromClips), at, where).then((problems) => problems.length && setNote(problems.join(" ")));
             return;
           }
@@ -1857,7 +1895,26 @@ export default function TimeStrip() {
                 <i className="names-grip" onPointerDown={pullNames} title="Pull to make the names wider or narrower" />
               </span>
               <div className="time-lane" style={{ width: laneWidth }} onPointerDown={look === "layers" ? sweep : scrub}>
-                {row.items.map((el) => renderBar(el, rowH))}
+                {(() => {
+                  const g = ghostOn(ri);
+                  const push = g && g.push ? { at: g.at, by: g.push } : undefined;
+                  return (
+                    <>
+                      {row.items.map((el) => renderBar(el, rowH, push))}
+                      {push &&
+                        row.items
+                          .filter((el) => el.type !== "sound")
+                          .map((el) => spanOf(el, frame))
+                          .filter((sp) => sp.start < g!.at - 0.001 && sp.end > g!.at + 0.001)
+                          .map((sp, i) => <div key={`tail-${i}`} className="time-ghost tail" style={{ left: (g!.at + g!.push) * pps, width: (sp.end - g!.at) * pps }} />)}
+                      {g && (
+                        <div className={`time-ghost ${g.above ? "above" : ""}`} style={{ left: g.at * pps, width: g.total * pps }}>
+                          <span>{g.above ? "above" : "push"}</span>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
               {look === "cut" && (
                 <div

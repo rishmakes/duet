@@ -23,17 +23,20 @@ describe("place_media", () => {
     expect(rows(doc)).toEqual(["b 4-7, a 0-4"]);
   });
 
-  it("a drop inside a clip goes to its nearer edge and pushes what is later on that track", () => {
+  it("a drop in the middle of a clip cuts it there and pushes what is later on that track", () => {
     let doc = runCommand(blank(), "place_media", { id: "f", items: [clip("a", 4), clip("b", 3)], at: 0 });
     doc = runCommand(doc, "place_media", { id: "f", items: [clip("c", 2)], at: 3, track: { index: 0 } });
-    expect(time(doc, "a")).toEqual([0, 4]);
-    expect(time(doc, "c")).toEqual([4, 6]);
+    expect(time(doc, "a")).toEqual([0, 3]);
+    expect(time(doc, "c")).toEqual([3, 5]);
+    const rest = doc.elements.f.childIds.find((id) => !["a", "b", "c"].includes(id))!;
+    expect(time(doc, rest)).toEqual([5, 6]);
+    expect(doc.elements[rest].clipFrom).toBe(3);
     expect(time(doc, "b")).toEqual([6, 9]);
     expect(doc.elements.f.duration).toBe(9);
     expect(trackRows(doc, doc.elements.f)).toHaveLength(1);
   });
 
-  it("with Cmd it goes on a new track above and nothing moves", () => {
+  it("aside, it goes on a new track above and nothing moves", () => {
     let doc = runCommand(blank(), "place_media", { id: "f", items: [clip("a", 4)], at: 0 });
     doc = runCommand(doc, "place_media", { id: "f", items: [clip("c", 2)], at: 1, track: { index: 0 }, aside: true });
     expect(time(doc, "a")).toEqual([0, 4]);
@@ -68,15 +71,18 @@ describe("place_media", () => {
     expect(trackRows(doc, doc.elements.f).flatMap((r) => r.items.map((el) => el.id)).sort()).toEqual(["a", "b", "c", "d"]);
   });
 
-  it("a drop inside a title that runs to the end goes to its nearer edge, and nothing is drawn over", () => {
+  it("a drop in a title that runs to the end cuts it; its second part keeps its length, and nothing is drawn over", () => {
     let doc = runCommand(blank(), "set_duration", { id: "f", seconds: 13 });
     doc = runCommand(doc, "create_element", { type: "text", id: "sun", parentId: "f", x: 0, y: 0, width: 10, height: 10, props: { start: 0, end: 0 } });
     doc = runCommand(doc, "add_track", { id: "f", index: 1 });
     const pic = { ...clip("p", 3), type: "image" as const };
     doc = runCommand(doc, "place_media", { id: "f", items: [pic, clip("s", 6)], at: 4.7, track: { index: 0 } });
-    expect(time(doc, "p")).toEqual([0, 3]);
-    expect(time(doc, "s")).toEqual([3, 9]);
-    expect(doc.elements.sun.start).toBe(9);
+    expect(time(doc, "sun")).toEqual([0, 4.7]);
+    expect(time(doc, "p")).toEqual([4.7, 7.7]);
+    expect(time(doc, "s")).toEqual([7.7, 13.7]);
+    const rest = doc.elements.f.childIds.find((id) => !["sun", "p", "s"].includes(id))!;
+    expect(time(doc, rest)).toEqual([13.7, 22]);
+    expect(doc.elements.f.duration).toBe(22);
     for (const row of trackRows(doc, doc.elements.f)) {
       const spans = row.items.map((el) => [el.start, el.end > el.start ? el.end : doc.elements.f.duration]);
       for (const [i, a] of spans.entries()) for (const b of spans.slice(i + 1)) expect(a[0] < b[1] && b[0] < a[1]).toBe(false);

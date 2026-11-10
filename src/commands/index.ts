@@ -1056,8 +1056,8 @@ function shiftTime(el: El, by: number) {
 
 /**
  * Clips, sounds and pictures put in a scene in one step, one after another from a moment.
- * In Edit, pictures and clips go on the track dropped on: a drop inside a clip moves to its nearer edge, and
- * what comes later on that track is pushed right, so nothing is covered or lost. Sounds go on a sound track
+ * In Edit, pictures and clips go on the track dropped on, at the moment dropped: a drop in the middle of a clip
+ * cuts it there, and what comes later on that track is pushed right, so nothing is covered or lost. Sounds go on a sound track
  * of their own. In Motion each one is a layer, above the picked layer or on top. An empty scene takes the
  * length of what comes in; otherwise the scene grows to hold the pictures and clips, and sounds stop at its end.
  */
@@ -1086,13 +1086,20 @@ const placeMedia: CommandDef<PlaceMediaArgs> = {
         trackId = made.id;
       } else {
         trackId = target.id;
+        const seen = (id: string) => next.elements[id].track === trackId && next.elements[id].type !== "sound";
+        // a drop in the middle of a clip cuts it there, and its second part moves on with the rest
+        const cut = cuttable(next, a.id, at).filter(seen);
+        if (cut.length) next = splitAt.run(next, { sceneId: a.id, t: at, ids: cut });
         const f = next.elements[a.id];
-        const on = f.childIds.map((id) => next.elements[id]).filter((el) => el.track === trackId && el.type !== "sound");
-        // a drop inside a clip goes to its nearer edge, so no clip is cut in two; a title with no end runs to the scene's end
-        const inside = on.map((el) => spanOf(el, f)).find((s) => s.start < at - 0.001 && at < s.end - 0.001);
-        if (inside) at = at - inside.start < inside.end - at ? inside.start : inside.end;
         const total = pictures.reduce((sum, it) => sum + it.seconds, 0);
-        for (const el of on) if (spanOf(el, f).start >= at - 0.001) shiftTime(el, total);
+        for (const id of f.childIds) {
+          const el = next.elements[id];
+          const span = spanOf(el, f);
+          if (!seen(id) || span.start < at - 0.001) continue;
+          // one that ran to the end keeps its length as it moves on
+          if (!el.end) el.end = span.end;
+          shiftTime(el, total);
+        }
       }
     }
 
