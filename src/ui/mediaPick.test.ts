@@ -33,6 +33,13 @@ describe("Picking in Media", () => {
     expect(ids([{ type: "press", id: "a" }, { type: "dragEnd" }, { type: "click", id: "a" }], two)).toEqual(["a", "b"]);
   });
 
+  it("grabbing a thing that is not picked picks just it, even if the press never reached it", () => {
+    const one = run([{ type: "press", id: "b" }]);
+    expect(ids([{ type: "drag", id: "c" }], one)).toEqual(["c"]);
+    const two = run([{ type: "tick", id: "a" }, { type: "tick", id: "b" }]);
+    expect(ids([{ type: "drag", id: "b" }], two)).toEqual(["a", "b"]);
+  });
+
   it("letting go always lets go, and picking works again right after", () => {
     const s = run([{ type: "all" }, { type: "none" }]);
     expect(s).toEqual(noPicks);

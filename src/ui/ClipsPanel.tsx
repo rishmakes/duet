@@ -207,6 +207,7 @@ export default function ClipsPanel() {
     return {
       draggable: renaming !== m.id && !isScene(m),
       onDragStart: (e: React.DragEvent) => {
+        act({ type: "drag", id: m.id });
         e.dataTransfer.setData(MOVE, m.id);
         if (!folder && m.src) e.dataTransfer.setData(CLIP_DRAG, JSON.stringify({ src: m.src, kind: m.kind, name: m.name }));
         e.dataTransfer.effectAllowed = "copyMove";
@@ -359,7 +360,7 @@ export default function ClipsPanel() {
   return (
     <div
       ref={panel}
-      className={`clips ${several ? "several" : ""} ${over === "top" ? "drop-top" : ""}`}
+      className={`clips ${picks.ids.length ? "picking" : ""} ${several ? "several" : ""} ${over === "top" ? "drop-top" : ""}`}
       data-name="media-panel"
       // a press on any empty part of Media lets go of what is picked
       onPointerDown={(e) => {

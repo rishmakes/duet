@@ -18,6 +18,7 @@ export type PickAct =
   | { type: "menu"; id: string }
   | { type: "all" }
   | { type: "none" }
+  | { type: "drag"; id: string }
   | { type: "dragEnd" }
   | { type: "shown" };
 
@@ -55,6 +56,9 @@ export function pick(s: Picks, a: PickAct, order: string[]): Picks {
       return { ids: [...order], anchor: s.anchor, narrow: null };
     case "none":
       return s.ids.length || s.narrow ? noPicks : s;
+    // grabbing a thing that is not picked drags just it, and lets go of the rest
+    case "drag":
+      return s.ids.includes(a.id) ? { ...s, narrow: null } : { ids: [a.id], anchor: a.id, narrow: null };
     case "dragEnd":
       return s.narrow ? { ...s, narrow: null } : s;
     case "shown": {

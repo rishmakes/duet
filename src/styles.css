@@ -11545,8 +11545,7 @@ button.ctx-item.store-make-option:hover {
   display: grid;
 }
 /* Media picking. The box and the highlight always agree: a picked thing glows and shows its box ticked.
-   A thing not picked shows an empty box only while the pointer is on its spot (left of a row, top left of a tile);
-   clicking it adds that thing without Cmd. */
+   Once anything is picked, every thing shows a box; clicking a box adds or takes away without Cmd. */
 .media-check {
   flex: none;
   width: 13px;
@@ -11585,8 +11584,14 @@ button.ctx-item.store-make-option:hover {
 }
 .media-tick:hover .media-check,
 .media-tile-tick:hover .media-check,
-.media-check.on {
+.clips.picking .media-check {
   opacity: 1;
+}
+/* nothing picked: no boxes and no gap for them. Once something is picked the boxes come out and the rows
+   make room; the kind icon stays where it was relative to the name */
+.clips:not(.picking) .media-tick,
+.clips:not(.picking) .media-tile-tick {
+  display: none;
 }
 .media-select,
 .media-remove {
