@@ -11,6 +11,7 @@ import { currentDoc, dispatch, getState, select, useStore } from "../state/store
 import { openScene as openOnTimeline } from "../video/play";
 import { keepDropped } from "../video/scene";
 import { CLIP_DRAG, lengthOf, mediaFrom, mediaKind, pickFolderIntoClips, pickIntoClips, placeFromClips } from "../video/media";
+import type { ToPlace } from "../video/media";
 import { useDismiss } from "./useDismiss";
 import { noPicks, pick, type PickAct } from "./mediaPick";
 
@@ -179,11 +180,37 @@ export default function ClipsPanel() {
 
   const canTake = (e: React.DragEvent) => Array.from(e.dataTransfer.types).some((t) => t === "Files" || t === MOVE);
 
+  /**
+   * What goes onto the timeline for a drag or the menu on one thing: everything picked if it is picked, else
+   * just it. In Media's order; a folder brings everything inside it, folders inside it too. Scenes stay out.
+   */
+  const footageFor = (m: Entry): ToPlace[] => {
+    const ids = picked.has(m.id) ? picks.ids : [m.id];
+    const out: ToPlace[] = [];
+    const seen = new Set<string>();
+    const take = (e: Entry) => {
+      if (e.kind === "folder") for (const c of order(media.filter((x) => x.folderId === e.id))) take(c);
+      else if (e.src && !isScene(e) && !seen.has(e.src)) {
+        seen.add(e.src);
+        out.push({ src: e.src, kind: e.kind as MediaItem["kind"], name: e.name });
+      }
+    };
+    const walk = (folderId: string | undefined) => {
+      for (const e of order(media.filter((x) => x.folderId === folderId))) {
+        if (ids.includes(e.id)) take(e);
+        else if (e.kind === "folder") walk(e.id);
+      }
+    };
+    walk(undefined);
+    return out;
+  };
+
   // at the playhead of the scene that is open
   const toTimeline = async (m: Entry) => {
     const { scene, t } = getState().clock;
-    if (!scene || !m.src || isScene(m)) return setNote("Open a scene first, then add clips to its timeline.");
-    const problems = await placeFromClips(scene, { src: m.src, kind: m.kind as MediaItem["kind"], name: m.name }, t);
+    const list = footageFor(m);
+    if (!scene || !list.length) return setNote("Open a scene first, then add clips to its timeline.");
+    const problems = await placeFromClips(scene, list, t);
     if (problems.length) setNote(problems.join(" "));
   };
 
@@ -209,7 +236,8 @@ export default function ClipsPanel() {
       onDragStart: (e: React.DragEvent) => {
         act({ type: "drag", id: m.id });
         e.dataTransfer.setData(MOVE, m.id);
-        if (!folder && m.src) e.dataTransfer.setData(CLIP_DRAG, JSON.stringify({ src: m.src, kind: m.kind, name: m.name }));
+        const list = footageFor(m);
+        if (list.length) e.dataTransfer.setData(CLIP_DRAG, JSON.stringify(list));
         e.dataTransfer.effectAllowed = "copyMove";
       },
       onDragOver: (e: React.DragEvent) => {
@@ -553,7 +581,7 @@ export default function ClipsPanel() {
                 <span>Rename</span>
               </div>
             )}
-            {menuOn.src && (
+            {!isScene(menuOn) && (menuOn.src || menuOn.kind === "folder") && (
               <div className="ctx-item" onClick={() => (setMenu(null), void toTimeline(menuOn))}>
                 <span>Add to the timeline</span>
               </div>

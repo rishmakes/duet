@@ -11,7 +11,7 @@ import { canGrade, mergeGrade } from "../document/grade";
 import type { GradeChange } from "../document/grade";
 import { EFFECT_DEFS, canHaveEffects, defaultEffectValues, newEffectId } from "../document/effects";
 import type { Effect, EffectKind } from "../document/effects";
-import { freshName, keepTracks, newTrackId, stackByTrack } from "../document/tracks";
+import { freshName, keepTracks, newTrackId, stackByTrack, trackRows } from "../document/tracks";
 import type { CreatePresetFrameArgs } from "./presets";
 import { setPages, addPage, reorderPages } from "./pages";
 import { openBoard } from "../document/boards";
@@ -1012,6 +1012,150 @@ const setTrack: CommandDef<SetTrackArgs> = {
     }
     if (!moved.length) return doc;
     stackByTrack(next, frameId, moved);
+    return next;
+  },
+};
+
+// ---- footage onto the timeline ----
+/** One clip, sound or picture to put in a scene, already read: how long it runs and how big it is. */
+export interface PlaceItem {
+  id: string;
+  type: "video" | "sound" | "image";
+  src: string;
+  name: string;
+  /** How long it runs. A picture gets its own set length. */
+  seconds: number;
+  width: number;
+  height: number;
+}
+
+export interface PlaceMediaArgs {
+  /** The scene. */
+  id: string;
+  /** In the order they go, one after another. */
+  items: PlaceItem[];
+  /** Where the first one starts. */
+  at: number;
+  /** Edit: the track dropped on. Left out: a new track on top. */
+  track?: TrackRef;
+  /** Edit with Cmd: a new track just above the one dropped on, so nothing is pushed. */
+  aside?: boolean;
+  /** Motion: the new layers go just above this one. Set, there are no tracks to pick or push. */
+  above?: string | null;
+  /** Motion with nothing picked: the new layers go on top. */
+  layers?: boolean;
+}
+
+/** Move a thing later or earlier in time, with its moving points. Changes the thing it is given. */
+function shiftTime(el: El, by: number) {
+  el.start = round(el.start + by);
+  if (el.end) el.end = round(el.end + by);
+  for (const prop of MOVING) if (el.keys[prop]) el.keys[prop] = el.keys[prop]!.map((k) => ({ ...k, t: round(k.t + by) }));
+  el.shapeKeys = el.shapeKeys.map((k) => ({ ...k, t: round(k.t + by) }));
+}
+
+/**
+ * Clips, sounds and pictures put in a scene in one step, one after another from a moment.
+ * In Edit, pictures and clips go on the track dropped on: a drop inside a clip moves to its nearer edge, and
+ * what comes later on that track is pushed right, so nothing is covered or lost. Sounds go on a sound track
+ * of their own. In Motion each one is a layer, above the picked layer or on top. An empty scene takes the
+ * length of what comes in; otherwise the scene grows to hold the pictures and clips, and sounds stop at its end.
+ */
+const placeMedia: CommandDef<PlaceMediaArgs> = {
+  label: (a) => (a.items.length > 1 ? `Add ${a.items.length} clips` : "Add a clip"),
+  run: (doc, a) => {
+    const frame0 = scene(doc, a.id);
+    const items = (a.items ?? []).filter((it) => it.seconds > 0 && !doc.elements[it.id]);
+    if (!frame0 || !items.length) return doc;
+    const empty = frame0.childIds.length === 0;
+    const pictures = items.filter((it) => it.type !== "sound");
+    const sounds = items.filter((it) => it.type === "sound");
+    const motion = a.layers || a.above !== undefined;
+    let next = clone(doc);
+    let at = round(Math.max(0, a.at || 0));
+
+    // Edit: the track the pictures and clips go on, and the moment they start
+    let trackId: string | null = null;
+    if (!motion && pictures.length) {
+      const tracks = keepTracks(next, a.id);
+      const target = a.track ? tracks[a.track.index] : undefined;
+      if (!target || a.aside) {
+        const made = { id: newTrackId(), name: freshName(tracks) };
+        const index = target ? tracks.indexOf(target) : 0;
+        next.elements[a.id].tracks = [...tracks.slice(0, index), made, ...tracks.slice(index)];
+        trackId = made.id;
+      } else {
+        trackId = target.id;
+        const f = next.elements[a.id];
+        const on = f.childIds.map((id) => next.elements[id]).filter((el) => el.track === trackId && el.type !== "sound");
+        // a drop inside a clip goes to its nearer edge, so no clip is cut in two
+        const inside = on.find((el) => el.start < at - 0.001 && at < el.end - 0.001);
+        if (inside) at = at - inside.start < inside.end - at ? inside.start : inside.end;
+        const total = pictures.reduce((sum, it) => sum + it.seconds, 0);
+        for (const el of on) if (el.start >= at - 0.001) shiftTime(el, total);
+      }
+    }
+
+    // the sound track: the lowest one that holds only sound, or a new one at the bottom
+    let soundTrack: string | null = null;
+    if (!motion && sounds.length) {
+      const rows = trackRows(next, next.elements[a.id]);
+      const tracks = keepTracks(next, a.id);
+      const dropped = a.track && !pictures.length ? tracks[a.track.index] : undefined;
+      const own = [...rows].reverse().find((r) => r.items.length && r.items.every((el) => el.type === "sound"));
+      soundTrack = dropped?.id ?? (own ? tracks[own.index]?.id : undefined) ?? null;
+      if (!soundTrack) {
+        const made = { id: newTrackId(), name: freshName(tracks) };
+        next.elements[a.id].tracks = [...tracks, made];
+        soundTrack = made.id;
+      }
+    }
+
+    // where the new layers go in the stack, back to front
+    const f = next.elements[a.id];
+    let slot = a.above && f.childIds.includes(a.above) ? f.childIds.indexOf(a.above) + 1 : f.childIds.length;
+    const made: string[] = [];
+    const put = (it: PlaceItem, start: number, end: number, track: string | null) => {
+      const s = next.elements[a.id];
+      const k = it.type === "sound" ? 0 : Math.min(s.width / it.width, s.height / it.height);
+      const width = it.type === "sound" ? 1 : Math.max(1, Math.round(it.width * k));
+      const height = it.type === "sound" ? 1 : Math.max(1, Math.round(it.height * k));
+      next = createElement.run(next, {
+        type: it.type,
+        id: it.id,
+        parentId: a.id,
+        x: it.type === "sound" ? 0 : Math.round((s.width - width) / 2),
+        y: it.type === "sound" ? 0 : Math.round((s.height - height) / 2),
+        width,
+        height,
+        keepOrder: true,
+        props: { src: it.src, name: it.name.replace(/\.[^.]+$/, ""), start, end, ...(track ? { track } : {}) },
+      });
+      const list = next.elements[a.id].childIds.filter((c) => c !== it.id);
+      list.splice(Math.min(slot, list.length), 0, it.id);
+      next.elements[a.id].childIds = list;
+      slot++;
+      made.push(it.id);
+    };
+
+    let t = at;
+    for (const it of pictures) {
+      const end = round(t + it.seconds);
+      put(it, t, end, trackId);
+      t = end;
+    }
+    const longest = Math.max(t, ...next.elements[a.id].childIds.map((id) => next.elements[id]).filter((el) => el.type !== "sound" && !made.includes(el.id)).map((el) => el.end));
+    if (empty) next.elements[a.id].duration = round(Math.max(1, pictures.length ? t : at + sounds.reduce((sum, it) => sum + it.seconds, 0)));
+    else if (longest > next.elements[a.id].duration) next.elements[a.id].duration = round(longest);
+    // music is usually longer than the video: it stops where the video stops
+    let u = at;
+    for (const it of sounds) {
+      const end = round(Math.min(next.elements[a.id].duration, u + it.seconds));
+      if (end - u < 0.01) break;
+      put(it, u, end, soundTrack);
+      u = end;
+    }
+    if (!motion) stackByTrack(next, a.id, made);
     return next;
   },
 };
@@ -2572,6 +2716,7 @@ export const commands = {
   rename_track: renameTrack,
   delete_track: deleteTrack,
   set_track: setTrack,
+  place_media: placeMedia,
   set_track_switch: setTrackSwitch,
 } as const;
 

@@ -1,10 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "../ui/dialog";
 import { newId } from "../commands";
+import type { PlaceItem } from "../commands";
 import type { MediaItem } from "../document/types";
 import { currentDoc, dispatch, select } from "../state/store";
 import { addPicture } from "../project/assets";
-import { dropClips } from "./scene";
 import { fileLength } from "./clips";
 
 /** Bringing clips, sounds, pictures and whole folders into Clips, and from Clips onto the timeline. */
@@ -114,36 +114,49 @@ export function lengthOf(item: MediaItem, then: () => void): number | null {
 /** How long a picture stays on the timeline when it is dropped there. */
 const PICTURE_SECONDS = 3;
 
-/** A clip, sound or picture from Clips, dropped on the timeline of a scene at a moment. Returns what went wrong. */
-export async function placeFromClips(sceneId: string, item: { src: string; kind: MediaItem["kind"]; name: string }, at: number): Promise<string[]> {
-  if (item.kind === "video" || item.kind === "sound") return dropClips(sceneId, [item.src], at);
-  if (item.kind !== "image") return [];
-  try {
-    const bin = atob(await invoke<string>("read_binary_file", { path: item.src }));
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    const pic = await addPicture(item.name, bytes);
-    const scene = currentDoc().elements[sceneId];
-    if (!scene) return [];
-    const k = Math.min(scene.width / pic.width, scene.height / pic.height);
-    const width = Math.round(pic.width * k);
-    const height = Math.round(pic.height * k);
-    const end = Math.round((at + PICTURE_SECONDS) * 1000) / 1000;
-    if (end > scene.duration) dispatch("set_duration", { id: sceneId, seconds: end });
-    const id = newId("image");
-    dispatch("create_element", {
-      type: "image",
-      id,
-      parentId: sceneId,
-      x: Math.round((scene.width - width) / 2),
-      y: Math.round((scene.height - height) / 2),
-      width,
-      height,
-      props: { src: pic.src, name: item.name.replace(/\.[^.]+$/, ""), start: at, end },
-    });
-    select([id]);
-    return [];
-  } catch (e) {
-    return [`${item.name}: ${String(e instanceof Error ? e.message : e)}`];
+/** Where footage from Media goes: a track in Edit (with Cmd, a new one above it), or above a layer in Motion. */
+export interface PlaceWhere {
+  track?: { index: number };
+  aside?: boolean;
+  above?: string | null;
+  layers?: boolean;
+}
+
+/** One thing from Media on its way to the timeline. */
+export interface ToPlace {
+  src: string;
+  kind: MediaItem["kind"];
+  name: string;
+}
+
+/**
+ * Clips, sounds and pictures from Media put in a scene from a moment, one after another, in one step that one
+ * undo takes back. Each file is read first for its length and size. Returns what could not be read.
+ */
+export async function placeFromClips(sceneId: string, list: ToPlace | ToPlace[], at: number, where: PlaceWhere = {}): Promise<string[]> {
+  const problems: string[] = [];
+  const items: PlaceItem[] = [];
+  for (const item of Array.isArray(list) ? list : [list]) {
+    try {
+      if (item.kind === "video") {
+        const info = await invoke<{ duration: number; width: number; height: number }>("video_info", { path: item.src });
+        items.push({ id: newId("video"), type: "video", src: item.src, name: item.name, seconds: info.duration, width: info.width, height: info.height });
+      } else if (item.kind === "sound") {
+        items.push({ id: newId("sound"), type: "sound", src: item.src, name: item.name, seconds: await fileLength(item.src), width: 1, height: 1 });
+      } else if (item.kind === "image") {
+        const bin = atob(await invoke<string>("read_binary_file", { path: item.src }));
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        const pic = await addPicture(item.name, bytes);
+        items.push({ id: newId("image"), type: "image", src: pic.src, name: item.name, seconds: PICTURE_SECONDS, width: pic.width, height: pic.height });
+      }
+    } catch (e) {
+      problems.push(`${item.name}: ${String(e instanceof Error ? e.message : e)}`);
+    }
   }
+  if (!items.length || !currentDoc().elements[sceneId]) return problems;
+  dispatch("place_media", { id: sceneId, items, at, ...where });
+  const placed = items.map((it) => it.id).filter((id) => currentDoc().elements[id]);
+  if (placed.length) select(placed);
+  return problems;
 }

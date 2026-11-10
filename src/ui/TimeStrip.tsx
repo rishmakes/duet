@@ -1595,7 +1595,14 @@ export default function TimeStrip() {
             setSnap(null);
             const at = dropTime(e.clientX);
             seek(at);
-            void placeFromClips(frame.id, JSON.parse(fromClips), at).then((problems) => problems.length && setNote(problems.join(" ")));
+            // Edit: the track under the pointer, or a new one on top; Cmd puts it on a new track above that one.
+            // Motion: just above the picked layer, or on top.
+            const ri = Number((e.target as HTMLElement).closest<HTMLElement>("[data-row]")?.dataset.row ?? NaN);
+            const row = Number.isFinite(ri) ? rowsRef.current[ri] : undefined;
+            const picked = getState().selection.filter((id) => currentDoc().elements[id]?.parentId === frame.id);
+            const top = frame.childIds.filter((id) => picked.includes(id)).pop();
+            const where = look === "cut" ? { track: row?.track, aside: e.metaKey || e.ctrlKey } : top ? { above: top } : { layers: true };
+            void placeFromClips(frame.id, JSON.parse(fromClips), at, where).then((problems) => problems.length && setNote(problems.join(" ")));
             return;
           }
           const files = Array.from(e.dataTransfer.files).filter((f) => clipKind(f.name));
