@@ -11692,3 +11692,30 @@ button.ctx-item.store-make-option:hover {
 .media-tick .media-check {
   visibility: visible;
 }
+/* no sliding under the pointer: boxes show only once two or more are picked (Cmd or Shift click) */
+.media-tick {
+  transition: none;
+}
+.clip-row:hover .media-tick {
+  width: 0;
+  margin-right: -8px;
+}
+.clips.ticking-all .media-tick,
+.clips.ticking-all .clip-row:hover .media-tick {
+  width: 16px;
+  margin-right: -4px;
+}
+.clip-row.sel .media-tick {
+  width: 0;
+  margin-right: -8px;
+}
+.media-tile:hover .media-tile-check {
+  display: none;
+}
+.media-tile.ticking .media-tile-check {
+  display: block;
+}
+.clips.ticking-all .clip-row.sel .media-tick {
+  width: 16px;
+  margin-right: -4px;
+}
