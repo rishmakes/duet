@@ -11661,7 +11661,7 @@ button.ctx-item.store-make-option:hover {
 }
 /* an empty box is quiet: a faint edge, firmer under the pointer */
 .media-check:not(.on) {
-  border-color: var(--line);
+  border-color: color-mix(in srgb, var(--muted) 55%, var(--line));
 }
 .media-tick:hover .media-check:not(.on),
 .media-tile-tick:hover .media-check:not(.on) {
