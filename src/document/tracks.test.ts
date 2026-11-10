@@ -37,6 +37,18 @@ describe("tracks", () => {
     expect(names(doc)).toEqual(["Track 4: ", "Clips 1: c b", "Clips 2: a", "Sound 1: s"]);
   });
 
+  it("never hides a clip: one moved over another on its track shows on a row above", () => {
+    let doc = runCommand(scene(), "add_track", { id: "f" });
+    // c is in front of b and now plays at the same time on the same saved track
+    doc = runCommand(doc, "set_timing", { ids: ["c"], start: 3, end: 5 });
+    const rows = trackRows(doc, doc.elements.f);
+    for (const row of rows) for (const el of row.items) for (const other of row.items) if (el !== other) expect(el.start < other.end && other.start < el.end).toBe(false);
+    expect(rows.flatMap((r) => r.items.map((el) => el.id)).sort()).toEqual(["a", "b", "c", "s"]);
+    // the front one goes up, the one behind stays
+    expect(rows.find((r) => r.items.some((el) => el.id === "b"))!.name).toBe("Clips 1");
+    expect(rows.findIndex((r) => r.items.some((el) => el.id === "c"))).toBeLessThan(rows.findIndex((r) => r.name === "Clips 1"));
+  });
+
   it("any track holds clips and sounds alike, and a higher track is in front", () => {
     let doc = runCommand(scene(), "add_track", { id: "f" });
     doc = runCommand(doc, "set_track", { ids: ["a", "s"], track: { index: 0 } });

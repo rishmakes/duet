@@ -37,6 +37,17 @@ export function packRows(list: El[], frame: El): El[][] {
   return rows;
 }
 
+/**
+ * What a saved track can show, from its things front first: the ones that do not play at the same time as
+ * one of the same kind behind them (a sound may sit under a clip). The rest are bumped, to go on another row, so a clip is never drawn over and hidden.
+ */
+function keepApart(list: El[], frame: El): { kept: El[]; bumped: El[] } {
+  const kept: El[] = [];
+  const bumped: El[] = [];
+  for (const el of [...list].reverse()) (kept.some((other) => trackKind(other) === trackKind(el) && overlap(el, other, frame)) ? bumped : kept).push(el);
+  return { kept: kept.reverse(), bumped: bumped.reverse() };
+}
+
 /** One row on a frame's timeline in Edit. A row with no track is one Duet made by itself and has not saved. */
 export interface TrackRow {
   /** Its place among the rows, top first. */
@@ -68,8 +79,13 @@ function rowsByKind(doc: Doc, frame: El): TrackRow[] {
     // front first, the way the timeline lists things
     const items = frame.childIds.map((id) => doc.elements[id]).filter((el): el is El => !!el && trackKind(el) === kind).reverse();
     const saved = ((frame.tracks ?? []) as KindTrack[]).filter((t) => (t.kind ?? "clips") === kind);
-    const rows: TrackRow[] = saved.map((track, index) => ({ index, name: track.name, track, items: items.filter((el) => el.track === track.id) }));
-    const loose = items.filter((el) => !saved.some((t) => t.id === el.track));
+    const bumped: El[] = [];
+    const rows: TrackRow[] = saved.map((track, index) => {
+      const split = keepApart(items.filter((el) => el.track === track.id), frame);
+      bumped.push(...split.bumped);
+      return { index, name: track.name, track, items: split.kept };
+    });
+    const loose = items.filter((el) => !saved.some((t) => t.id === el.track) || bumped.includes(el));
     const extra: El[][] = [];
     for (const el of loose) {
       const fits = (list: El[]) => !list.some((other) => overlap(el, other, frame));
@@ -107,11 +123,16 @@ export function trackRows(doc: Doc, frame: El): TrackRow[] {
   if (!frame.tracks?.length || oldTracks(frame)) return rowsByKind(doc, frame);
   // front first, the way the timeline lists things
   const items = frame.childIds.map((id) => doc.elements[id]).filter((el): el is El => !!el).reverse();
-  const rows: TrackRow[] = frame.tracks.map((track, index) => ({ index, name: track.name, track, items: items.filter((el) => el.track === track.id) }));
+  const bumped = new Set<El>();
+  const rows: TrackRow[] = frame.tracks.map((track, index) => {
+    const split = keepApart(items.filter((el) => el.track === track.id), frame);
+    split.bumped.forEach((el) => bumped.add(el));
+    return { index, name: track.name, track, items: split.kept };
+  });
   const ids = new Set(frame.tracks.map((t) => t.id));
   const extra: El[][] = [];
   // the oldest first, so a thing put in later never pushes an earlier one off its row
-  for (const el of items.filter((el) => !ids.has(el.track ?? "")).reverse()) {
+  for (const el of items.filter((el) => !ids.has(el.track ?? "") || bumped.has(el)).reverse()) {
     const fits = (list: El[]) => !list.some((other) => overlap(el, other, frame));
     const row = rows.find((r) => fits(r.items));
     if (row) row.items.push(el);
