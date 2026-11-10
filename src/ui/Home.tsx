@@ -115,10 +115,11 @@ export default function Home({ onClose, fromProject }: HomeProps) {
   }, [customOpen]);
 
   /** A new project with one frame of this size. A video opens in the editor with its timeline, empty and ready for clips. */
-  const startSized = async (name: string, width: number, height: number, video: boolean) => {
+  const startSized = async (name: string, width: number, height: number, video: boolean, pages = true) => {
     resetPageFocus();
     await newDesignTab();
-    setPagesView(true);
+    // screens for an app sit side by side on the open canvas; everything else is one page at a time
+    setPagesView(pages);
     const id = newId("frame");
     dispatch("create_preset_frame", { preset: { name, width, height }, x: 0, y: 0, id });
     if (video) dispatch("set_duration", { id, seconds: 10 });
@@ -151,17 +152,19 @@ export default function Home({ onClose, fromProject }: HomeProps) {
     }
     if (tile.kind === "screens" || tile.kind === "canvas") {
       await newDesignTab();
+      setPagesView(false);
       setLayout({ space: "edit", mode: "design" });
       onClose();
       return;
     }
-    if (tile.width && tile.height) await startSized(tile.title, tile.width, tile.height, startsVideo(tile));
+    if (tile.width && tile.height) await startSized(tile.title, tile.width, tile.height, startsVideo(tile), tile.group !== "screens");
   };
 
   const handleCreateCustom = async () => {
     const video = customAt === "tray" && kind === "video";
+    const pages = !(customAt === "tray" && kind === "screens");
     setCustomAt(null);
-    await startSized(video ? "Video" : "Custom", clampDim(customW, 1080), clampDim(customH, 1350), video);
+    await startSized(video ? "Video" : "Custom", clampDim(customW, 1080), clampDim(customH, 1350), video, pages);
   };
 
   const handleAsk = (textToSend?: string) => {
@@ -267,16 +270,26 @@ export default function Home({ onClose, fromProject }: HomeProps) {
           Du<b>et</b>
           <i className="early-tag" title="Duet is in early access. Some things are unfinished and you may meet bugs. Save versions of work that matters.">Early access</i>
         </span>
-        <span className="home-title" data-tauri-drag-region>
-          <Icon name="home" size={14} /> Home
-        </span>
-        <span className="home-bar-end">
-          {fromProject && (
-            <button className="pill" data-name="home-back" onClick={onClose} title="Back to your project (Esc)">
-              Back →
+        {/* the same switch as the top of a project, so you always know where you are: Home, Kitchen or Studio */}
+        <span className="home-where">
+          <div className="pill mode-switch space-switch">
+            <button className="active" data-name="home-space-home">
+              Home
             </button>
-          )}
+            {(["kitchen", "edit"] as const).map((space) => (
+              <button
+                key={space}
+                data-name={`home-space-${space}`}
+                disabled={!fromProject}
+                title={fromProject ? (space === "kitchen" ? "Back to your project, in Kitchen" : "Back to your project, in Studio (Esc)") : "Start or open a project first"}
+                onClick={() => (setLayout({ space }), onClose())}
+              >
+                {space === "kitchen" ? "Kitchen" : "Studio"}
+              </button>
+            ))}
+          </div>
         </span>
+        <span className="home-bar-end" />
       </header>
 
       <main className="home-content">
@@ -332,10 +345,10 @@ export default function Home({ onClose, fromProject }: HomeProps) {
               <div className="sizes-row">
                 {CREATE_TILES.filter((t) => t.group === kind).map((tile) => (
                   <div key={tile.id} data-name={`create-tile-${tile.id}`} className="size-card" onClick={() => void handleTileClick(tile)}>
-                    {tile.kind !== "photo" && (
-                      <span className={`size-medium ${startsVideo(tile) ? "video" : ""}`} title={startsVideo(tile) ? "Opens as a video, with a timeline" : "Opens as a still design"}>
-                        <Icon name={startsVideo(tile) ? "film" : "image"} size={14} />
-                        {startsVideo(tile) ? "Video" : "Still"}
+                    {startsVideo(tile) && kind !== "video" && (
+                      <span className="size-medium video" title="Opens as a video, with a timeline">
+                        <Icon name="film" size={14} />
+                        Video
                       </span>
                     )}
                     <div className="ratio-box">{renderShape(tile)}</div>

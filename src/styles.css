@@ -11130,3 +11130,14 @@ button.ctx-item.store-make-option:hover {
 .section-label .section-subcount {
   margin: 0 auto 0 8px;
 }
+.home-where {
+  display: flex;
+  justify-content: center;
+}
+.home-where .space-switch button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.size-card {
+  padding-top: 22px;
+}

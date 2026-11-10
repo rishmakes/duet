@@ -360,8 +360,11 @@ export default function App() {
             {project.path ? STATUS[project.status] : "Not saved yet"}
           </span>
         </div>
-        {/* Kitchen or Studio, the two ways to work, in the middle so it stays put whatever the sides hold */}
+        {/* Home, Kitchen or Studio: where you are, in the middle so it stays put whatever the sides hold */}
         <div className="pill mode-switch space-switch">
+          <button data-name="space-home" onClick={() => (setLayout({ space: "edit" }), setHomeFromProject(true), setHomeOpen(true))} title="Home: start something new, or open your recent work">
+            Home
+          </button>
           <button className={cooking ? "active" : ""} data-name="space-kitchen" onClick={() => (setHomeOpen(false), setLayout({ space: "kitchen" }))} title="Work with AI agents: chat, mark what to change, or follow a recipe step by step">
             Kitchen
           </button>
