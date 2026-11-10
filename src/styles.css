@@ -11510,3 +11510,6 @@ button.ctx-item.store-make-option:hover {
 .media-hint {
   flex: 1;
 }
+.media-hint {
+  opacity: 0.55;
+}
