@@ -1,5 +1,5 @@
 import PageFlipButton from "./ui/PageFlip";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useDismiss } from "./ui/useDismiss";
 import { detectAgent, startAgentListeners, stopAll, workingNow } from "./ai/agent";
 import { ask } from "./ui/dialog";
@@ -139,9 +139,15 @@ export default function App() {
   const project = useStore((s) => s.project);
   // a project opens in the space it was left in, and another tab keeps its own
   const spaceMode = useLayout((d) => d.mode);
+  const pathBefore = useRef<string | null>(null);
   useEffect(() => {
+    const before = pathBefore.current;
+    pathBefore.current = project.path ?? null;
     if (!project.path) return;
-    const m = modeOf(project.path) ?? "design";
+    const kept = modeOf(project.path);
+    // a new project being saved for the first time stays in the space it is in: a video started from Home stays in Video
+    if (!kept && !before) return keepMode(project.path, getLayout().mode);
+    const m = kept ?? "design";
     if (m !== getLayout().mode) setLayout({ mode: m });
   }, [project.path]);
   useEffect(() => {
@@ -153,6 +159,8 @@ export default function App() {
   const [presenting, setPresenting] = useState(false);
   // Home shows from the first moment, so the studio never flashes up empty while the last design loads behind it
   const [homeOpen, setHomeOpen] = useState(true);
+  // Home at launch has nowhere to go back to; Home opened from a project does
+  const [homeFromProject, setHomeFromProject] = useState(false);
   // the skills open as a page of their own, beside your projects, in any space
   const [skillsOpen, setSkillsOpen] = useState(false);
   const [recipesOpen, setRecipesOpen] = useState(false);
@@ -238,7 +246,7 @@ export default function App() {
       startAgentListeners().then((f) => (alive ? stops.push(f) : f()));
     }
     // the menu bar and other parts of the app ask for these
-    const openHome = () => setHomeOpen(true);
+    const openHome = () => (setHomeFromProject(true), setHomeOpen(true));
     const openPresent = () => setPresenting(true);
     const openSend = () => setSending(true);
     const openSettings = () => setSettings(true);
@@ -466,7 +474,7 @@ export default function App() {
       <Update />
       <Feedback />
       {settings && <Settings check={check} onClose={() => setSettings(false)} />}
-      {homeOpen && !cooking && <Home onClose={() => setHomeOpen(false)} />}
+      {homeOpen && !cooking && <Home fromProject={homeFromProject} onClose={() => setHomeOpen(false)} />}
     </div>
   );
 }

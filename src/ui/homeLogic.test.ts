@@ -1,29 +1,43 @@
 import { describe, expect, it } from "vitest";
-import { ago, clampDim, CREATE_TILES, CUSTOM_PRESETS, editedAgo, TILE_GROUPS } from "./homeLogic";
+import { ago, clampDim, CREATE_TILES, CUSTOM_PRESETS, editedAgo, hideKind, HOME_KINDS, openKind, shownKinds, startsVideo } from "./homeLogic";
 
 describe("homeLogic pure helpers", () => {
-  it("defines the 12 create format tiles with correct shapes and dimensions", () => {
-    expect(CREATE_TILES).toHaveLength(12);
+  it("gives every kind its sizes, with real numbers", () => {
     const byId = Object.fromEntries(CREATE_TILES.map((t) => [t.id, t]));
-
-    expect(byId["ig-post"]).toMatchObject({ width: 1080, height: 1080, dims: "1080 × 1080", shape: "square" });
-    expect(byId["story"]).toMatchObject({ width: 1080, height: 1920, dims: "1080 × 1920", shape: "story" });
-    expect(byId["yt-thumb"]).toMatchObject({ width: 1280, height: 720, dims: "1280 × 720", shape: "video" });
-    expect(byId["presentation"]).toMatchObject({ width: 1920, height: 1080, dims: "1920 × 1080", shape: "slide" });
-    expect(byId["a4"]).toMatchObject({ width: 2480, height: 3508, dims: "A4", shape: "a4" });
-    expect(byId["screens"]).toMatchObject({ kind: "screens", shape: "screens" });
-    expect(byId["canvas"]).toMatchObject({ kind: "canvas", shape: "canvas" });
-    expect(byId["custom"]).toMatchObject({ kind: "custom", shape: "custom" });
-    expect(byId["file"]).toMatchObject({ kind: "file", shape: "file" });
-    expect(byId["reel"]).toMatchObject({ kind: "video", width: 1080, height: 1920, group: "video" });
-    expect(byId["yt-video"]).toMatchObject({ kind: "video", width: 1920, height: 1080, group: "video" });
+    expect(new Set(CREATE_TILES.map((t) => t.id)).size).toBe(CREATE_TILES.length);
+    expect(byId["ig-post"]).toMatchObject({ width: 1080, height: 1080, group: "social" });
+    expect(byId["portrait-post"]).toMatchObject({ width: 1080, height: 1350, group: "social" });
+    expect(byId["linkedin-banner"]).toMatchObject({ width: 1584, height: 396, group: "social" });
+    expect(byId["a4"]).toMatchObject({ width: 2480, height: 3508, group: "print" });
     expect(byId["photo"]).toMatchObject({ kind: "photo", group: "photo" });
+    for (const k of HOME_KINDS) expect(CREATE_TILES.some((t) => t.group === k.id)).toBe(true);
+    for (const t of CREATE_TILES) if (t.kind === "sized" || t.kind === "video") expect(t.width! > 0 && t.height! > 0).toBe(true);
   });
 
-  it("puts every tile in a row Home shows, and every row has tiles", () => {
-    const rows = TILE_GROUPS.map((g) => g.id);
-    for (const t of CREATE_TILES) expect(rows).toContain(t.group);
-    for (const g of rows) expect(CREATE_TILES.some((t) => t.group === g)).toBe(true);
+  it("knows which sizes start a video", () => {
+    const byId = Object.fromEntries(CREATE_TILES.map((t) => [t.id, t]));
+    expect(startsVideo(byId["reel"])).toBe(true);
+    expect(startsVideo(byId["social-reel"])).toBe(true);
+    expect(startsVideo(byId["story"])).toBe(false);
+    expect(CREATE_TILES.filter((t) => t.group === "video").every(startsVideo)).toBe(true);
+  });
+
+  it("opens the last kind picked, or the first one showing", () => {
+    expect(openKind(null, [])).toBe("social");
+    expect(openKind("video", [])).toBe("video");
+    expect(openKind("video", ["video"])).toBe("social");
+    expect(openKind("nonsense", ["social"])).toBe("video");
+    expect(openKind(null, HOME_KINDS.map((k) => k.id))).toBe(null);
+  });
+
+  it("hides a kind without changing the list it was given, and never the last one", () => {
+    const none: string[] = [];
+    expect(hideKind(none, "print")).toEqual(["print"]);
+    expect(none).toEqual([]);
+    expect(shownKinds(["print"])).toEqual(["social", "video", "photo", "screens"]);
+    const four = ["social", "video", "print", "photo"];
+    expect(hideKind(four, "screens")).toBe(four);
+    expect(hideKind(["print"], "print")).toEqual(["print"]);
   });
 
   it("defines the 5 custom presets", () => {

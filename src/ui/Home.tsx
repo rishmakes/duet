@@ -1,27 +1,69 @@
 import { useEffect, useRef, useState } from "react";
 import { newId } from "../commands";
-import { dispatch, select, setPagesView } from "../state/store";
+import { dispatch, getState, select, setPagesView } from "../state/store";
 import { listedProjects, newDesignTab, openProject, openProjectAt } from "../project/project";
 import type { Recent } from "../project/project";
-import { setLayout } from "./layout";
+import { keepMode, setLayout } from "./layout";
 import { getChat, newTask } from "../ai/chat";
 import { sendToTask } from "../ai/agent";
 import Icon from "./Icons";
-import { clampDim, CREATE_TILES, CUSTOM_PRESETS, editedAgo, TILE_GROUPS } from "./homeLogic";
-import { pickMedia, placeMedia } from "../video/scene";
+import { clampDim, CREATE_TILES, CUSTOM_PRESETS, editedAgo, hideKind, HOME_KINDS, openKind, shownKinds, startsVideo } from "./homeLogic";
 import { pickPhoto, placePhoto } from "../project/imageImport";
-import type { CreateTile } from "./homeLogic";
+import type { CreateTile, HomeKind } from "./homeLogic";
 import { resetPageFocus } from "./pageFocus";
 import { isProjectOpen, ProjectMenu, TrashView, usePreview } from "./ChatHome";
 
 interface HomeProps {
   onClose: () => void;
+  /** True when Home was opened from a project: only then is there somewhere to go back to. */
+  fromProject: boolean;
 }
+
+// what Home remembers between visits, on this computer
+const LAST_KIND = "duet.home.kind";
+const HIDDEN_KINDS = "duet.home.hidden";
+const readHidden = (): string[] => {
+  try {
+    const v = JSON.parse(localStorage.getItem(HIDDEN_KINDS) ?? "[]");
+    return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+};
+const readLast = (): string | null => {
+  try {
+    return localStorage.getItem(LAST_KIND);
+  } catch {
+    return null;
+  }
+};
+const keep = (key: string, value: string) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Home still works, it only forgets
+  }
+};
 
 const MAC = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
 
-export default function Home({ onClose }: HomeProps) {
-  const [customOpen, setCustomOpen] = useState(false);
+export default function Home({ onClose, fromProject }: HomeProps) {
+  // where the box for your own size hangs: under the Custom size button, or under the tile in the open kind
+  const [customAt, setCustomAt] = useState<"top" | "tray" | null>(null);
+  const customOpen = customAt !== null;
+  const setCustomOpen = (on: boolean) => setCustomAt(on ? "top" : null);
+  const [hidden, setHidden] = useState<string[]>(readHidden);
+  const [last, setLast] = useState<string | null>(readLast);
+  const kind = openKind(last, hidden);
+  const pickKind = (id: HomeKind) => {
+    setLast(id);
+    keep(LAST_KIND, id);
+    setCustomAt(null);
+  };
+  const setHiddenKinds = (next: string[]) => {
+    setHidden(next);
+    keep(HIDDEN_KINDS, JSON.stringify(next));
+  };
   const [customW, setCustomW] = useState(1080);
   const [customH, setCustomH] = useState(1350);
   const [askText, setAskText] = useState("");
@@ -38,12 +80,12 @@ export default function Home({ onClose }: HomeProps) {
           setCustomOpen(false);
           return;
         }
-        onClose();
+        if (fromProject) onClose();
       }
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [customOpen, onClose]);
+  }, [customOpen, onClose, fromProject]);
 
   const [trash, setTrash] = useState(false);
   const [menu, setMenu] = useState<{ x: number; y: number; r: Recent } | null>(null);
@@ -64,7 +106,7 @@ export default function Home({ onClose }: HomeProps) {
     if (!customOpen) return;
     const onPointer = (e: PointerEvent) => {
       const target = e.target as HTMLElement | null;
-      if (popoverRef.current && !popoverRef.current.contains(target) && !target?.closest(".create-card.custom-anchor")) {
+      if (popoverRef.current && !popoverRef.current.contains(target) && !target?.closest(".custom-anchor")) {
         setCustomOpen(false);
       }
     };
@@ -72,32 +114,29 @@ export default function Home({ onClose }: HomeProps) {
     return () => window.removeEventListener("pointerdown", onPointer);
   }, [customOpen]);
 
+  /** A new project with one frame of this size. A video opens in the editor with its timeline, empty and ready for clips. */
+  const startSized = async (name: string, width: number, height: number, video: boolean) => {
+    resetPageFocus();
+    await newDesignTab();
+    setPagesView(true);
+    const id = newId("frame");
+    dispatch("create_preset_frame", { preset: { name, width, height }, x: 0, y: 0, id });
+    if (video) dispatch("set_duration", { id, seconds: 10 });
+    select([id]);
+    // a new project opens in Design unless it is told its space first
+    const path = getState().project.path;
+    if (video && path) keepMode(path, "motion");
+    setLayout(video ? { space: "edit", mode: "motion", timeLook: "cut" } : { space: "edit", mode: "design" });
+    setTimeout(() => window.dispatchEvent(new Event("duet:fit")), 50);
+    onClose();
+  };
+
+  const openFile = async () => {
+    await openProject();
+    onClose();
+  };
+
   const handleTileClick = async (tile: CreateTile) => {
-    if (tile.kind === "custom") {
-      setCustomOpen((o) => !o);
-      return;
-    }
-    if (tile.kind === "file") {
-      await openProject();
-      onClose();
-      return;
-    }
-    if (tile.kind === "video" && tile.width && tile.height) {
-      // pick the clips first, so backing out leaves no empty project behind
-      const paths = await pickMedia("Choose clips for your video");
-      if (!paths.length) return;
-      resetPageFocus();
-      await newDesignTab();
-      setPagesView(true);
-      const id = newId("frame");
-      dispatch("create_preset_frame", { preset: { name: tile.title, width: tile.width, height: tile.height }, x: 0, y: 0, id });
-      select([id]);
-      setLayout({ space: "edit", mode: "motion", timeLook: "cut" });
-      onClose();
-      await placeMedia(id, paths);
-      setTimeout(() => window.dispatchEvent(new Event("duet:fit")), 50);
-      return;
-    }
     if (tile.kind === "photo") {
       const path = await pickPhoto();
       if (!path) return;
@@ -116,42 +155,13 @@ export default function Home({ onClose }: HomeProps) {
       onClose();
       return;
     }
-    if (tile.kind === "sized" && tile.width && tile.height) {
-      resetPageFocus();
-      await newDesignTab();
-      setPagesView(true);
-      const id = newId("frame");
-      dispatch("create_preset_frame", {
-        preset: { name: tile.title, width: tile.width, height: tile.height },
-        x: 0,
-        y: 0,
-        id,
-      });
-      select([id]);
-      setLayout({ space: "edit", mode: "design" });
-      setTimeout(() => window.dispatchEvent(new Event("duet:fit")), 50);
-      onClose();
-    }
+    if (tile.width && tile.height) await startSized(tile.title, tile.width, tile.height, startsVideo(tile));
   };
 
   const handleCreateCustom = async () => {
-    resetPageFocus();
-    const w = clampDim(customW, 1080);
-    const h = clampDim(customH, 1350);
-    await newDesignTab();
-    setPagesView(true);
-    const id = newId("frame");
-    dispatch("create_preset_frame", {
-      preset: { name: "Custom", width: w, height: h },
-      x: 0,
-      y: 0,
-      id,
-    });
-    select([id]);
-    setLayout({ space: "edit", mode: "design" });
-    setTimeout(() => window.dispatchEvent(new Event("duet:fit")), 50);
-    setCustomOpen(false);
-    onClose();
+    const video = customAt === "tray" && kind === "video";
+    setCustomAt(null);
+    await startSized(video ? "Video" : "Custom", clampDim(customW, 1080), clampDim(customH, 1350), video);
   };
 
   const handleAsk = (textToSend?: string) => {
@@ -178,183 +188,169 @@ export default function Home({ onClose }: HomeProps) {
   };
 
   const renderShape = (tile: CreateTile) => {
-    switch (tile.shape) {
-      case "square":
-        return <div className="shape-square" />;
-      case "story":
-        return <div className="shape-story" />;
-      case "video":
-        return <div className="shape-video" />;
-      case "slide":
-        return <div className="shape-slide" />;
-      case "a4":
-        return <div className="shape-a4" />;
-      case "screens":
-        return (
-          <div className="shape-screens">
-            <span className="screen-phone" />
-            <span className="screen-desk" />
-          </div>
-        );
-      case "canvas":
-        return <div className="shape-canvas" />;
-      case "custom":
-        return (
-          <div className="shape-custom">
-            <Icon name="plus" size={18} />
-          </div>
-        );
-      case "reel":
-        return <div className="shape-story shape-play" />;
-      case "film":
-        return <div className="shape-slide shape-play" />;
-      case "photo":
-        return (
-          <div className="shape-file">
-            <Icon name="image" size={18} />
-          </div>
-        );
-      case "file":
-        return (
-          <div className="shape-file">
-            <Icon name="folder" size={18} />
-          </div>
-        );
-    }
+    if (tile.shape === "screens")
+      return (
+        <div className="shape-screens">
+          <span className="screen-phone" />
+          <span className="screen-desk" />
+        </div>
+      );
+    if (tile.shape === "photo")
+      return (
+        <div className="shape-file">
+          <Icon name="image" size={18} />
+        </div>
+      );
+    return <div className={`shape-${tile.shape}`} />;
   };
+
+  const customBox = () => (
+    <div ref={popoverRef} className="custom-popover" data-name="custom-size-popover" onClick={(e) => e.stopPropagation()}>
+      <div className="popover-head">
+        <span className="popover-title">{customAt === "tray" && kind === "video" ? "Your own video size" : "Your own size"}</span>
+        <button type="button" className="popover-close" title="Close" onClick={() => setCustomAt(null)}>
+          ×
+        </button>
+      </div>
+      <div className="dimension-fields">
+        <div className="dim-field">
+          <label className="field-label">Width</label>
+          <div className="field-input-box">
+            <input type="number" min={10} max={20000} value={customW} onChange={(e) => setCustomW(Number(e.target.value) || 0)} onKeyDown={(e) => e.key === "Enter" && void handleCreateCustom()} />
+          </div>
+        </div>
+        <div className="dim-field">
+          <label className="field-label">Height</label>
+          <div className="field-input-box">
+            <input type="number" min={10} max={20000} value={customH} onChange={(e) => setCustomH(Number(e.target.value) || 0)} onKeyDown={(e) => e.key === "Enter" && void handleCreateCustom()} />
+          </div>
+        </div>
+      </div>
+      <div className="popover-presets">
+        <div className="preset-list-title">Presets</div>
+        <div className="preset-pills">
+          {CUSTOM_PRESETS.map((p) => (
+            <button
+              key={p.label}
+              type="button"
+              className={`preset-pill ${customW === p.width && customH === p.height ? "active" : ""}`}
+              onClick={() => {
+                setCustomW(p.width);
+                setCustomH(p.height);
+              }}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="popover-actions">
+        <button type="button" className="pill" onClick={() => setCustomAt(null)}>
+          Cancel
+        </button>
+        <button type="button" className="pill primary" onClick={() => void handleCreateCustom()}>
+          Create
+        </button>
+      </div>
+    </div>
+  );
+
+  const kinds = shownKinds(hidden);
+  const kindLabel = HOME_KINDS.find((k) => k.id === kind)?.label ?? "";
 
   const visibleRecents = recents.slice(0, 12);
 
   return (
-    <div className="home-screen" data-name="home-screen" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
-      <header className={`home-bar ${MAC ? "mac" : ""}`}>
-        <button className="pill" onClick={onClose} title="Back (Esc)">
-          ← Back
-        </button>
-        <span className="home-title">Home</span>
-        <div />
+    <div className="home-screen" data-name="home-screen">
+      <header className={`home-bar ${MAC ? "mac" : ""}`} data-tauri-drag-region>
+        <span className="logo home-logo" data-tauri-drag-region>
+          Du<b>et</b>
+          <i className="early-tag" title="Duet is in early access. Some things are unfinished and you may meet bugs. Save versions of work that matters.">Early access</i>
+        </span>
+        <span className="home-title" data-tauri-drag-region>
+          <Icon name="home" size={14} /> Home
+        </span>
+        <span className="home-bar-end">
+          {fromProject && (
+            <button className="pill" data-name="home-back" onClick={onClose} title="Back to your project (Esc)">
+              Back →
+            </button>
+          )}
+        </span>
       </header>
 
       <main className="home-content">
-        {/* Title */}
         <div className="home-hero">
-          <h2 className="home-headline">What would you like to make?</h2>
-          <p className="home-sub">Design, photo and video, with your AI beside you on one canvas.</p>
+          <h2 className="home-headline">What will you make today?</h2>
+          <p className="home-sub">Pick a kind and its sizes open below. Duet remembers your last pick.</p>
         </div>
 
-        {/* Create row */}
-        {TILE_GROUPS.map((group) => (
-        <section className="create-section" key={group.id} data-name={`create-row-${group.id}`}>
-          <div className="section-label">{group.label}</div>
-          <div className="create-grid">
-            {CREATE_TILES.filter((t) => t.group === group.id).map((tile) => {
-              const isCustom = tile.kind === "custom";
-              return (
-                <div
-                  key={tile.id}
-                  data-name={`create-tile-${tile.id}`}
-                  className={`create-card ${isCustom ? "custom-anchor" : ""} ${isCustom && customOpen ? "highlight" : ""}`}
-                  onClick={() => void handleTileClick(tile)}
-                >
-                  <div className="ratio-box">{renderShape(tile)}</div>
-                  <div className="create-title">{tile.title}</div>
-                  <div className="create-dims">{tile.dims}</div>
-
-                  {/* Custom size popover */}
-                  {isCustom && customOpen && (
-                    <div
-                      ref={popoverRef}
-                      className="custom-popover"
-                      data-name="custom-size-popover"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <div className="popover-head">
-                        <span className="popover-title">Custom size</span>
-                        <button
-                          type="button"
-                          className="popover-close"
-                          title="Close"
-                          onClick={() => setCustomOpen(false)}
-                        >
-                          ×
-                        </button>
-                      </div>
-
-                      <div className="dimension-fields">
-                        <div className="dim-field">
-                          <label className="field-label">Width</label>
-                          <div className="field-input-box">
-                            <input
-                              type="number"
-                              min={10}
-                              max={20000}
-                              value={customW}
-                              onChange={(e) => setCustomW(Number(e.target.value) || 0)}
-                              onKeyDown={(e) => e.key === "Enter" && void handleCreateCustom()}
-                            />
-                          </div>
-                        </div>
-                        <div className="dim-field">
-                          <label className="field-label">Height</label>
-                          <div className="field-input-box">
-                            <input
-                              type="number"
-                              min={10}
-                              max={20000}
-                              value={customH}
-                              onChange={(e) => setCustomH(Number(e.target.value) || 0)}
-                              onKeyDown={(e) => e.key === "Enter" && void handleCreateCustom()}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="popover-presets">
-                        <div className="preset-list-title">Presets</div>
-                        <div className="preset-pills">
-                          {CUSTOM_PRESETS.map((p) => {
-                            const active = customW === p.width && customH === p.height;
-                            return (
-                              <button
-                                key={p.label}
-                                type="button"
-                                className={`preset-pill ${active ? "active" : ""}`}
-                                onClick={() => {
-                                  setCustomW(p.width);
-                                  setCustomH(p.height);
-                                }}
-                              >
-                                {p.label}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      <div className="popover-actions">
-                        <button
-                          type="button"
-                          className="pill"
-                          onClick={() => setCustomOpen(false)}
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="button"
-                          className="pill primary"
-                          onClick={() => void handleCreateCustom()}
-                        >
-                          Create
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+        {/* Kinds in a row; the open one shows its sizes below */}
+        <section className="kinds-section">
+          <div className="kinds-row" data-name="home-kinds">
+            {kinds.map((id) => (
+              <button key={id} type="button" className={`kind-btn ${id === kind ? "on" : ""}`} data-name={`home-kind-${id}`} onClick={() => pickKind(id)}>
+                <span className={`kind-swatch kind-${id}`} />
+                <span className="kind-name">{HOME_KINDS.find((k) => k.id === id)?.label}</span>
+              </button>
+            ))}
+            <span className="kinds-gap" />
+            <div className="kind-btn-wrap custom-anchor">
+              <button type="button" className={`kind-btn plain ${customAt === "top" ? "on" : ""}`} data-name="home-custom-size" onClick={() => setCustomAt(customAt === "top" ? null : "top")}>
+                <span className="kind-swatch">
+                  <Icon name="plus" size={20} />
+                </span>
+                <span className="kind-name">Custom size</span>
+              </button>
+              {customAt === "top" && customBox()}
+            </div>
+            <button type="button" className="kind-btn plain" data-name="home-open-file" onClick={() => void openFile()}>
+              <span className="kind-swatch">
+                <Icon name="folder" size={20} />
+              </span>
+              <span className="kind-name">Open a file</span>
+            </button>
+            {hidden.length > 0 && (
+              <button type="button" className="kinds-all" data-name="home-show-kinds" title="Bring back the kinds you hid" onClick={() => setHiddenKinds([])}>
+                Show all kinds
+              </button>
+            )}
           </div>
+
+          {kind && (
+            <div className="sizes-tray" data-name={`home-sizes-${kind}`}>
+              <div className="section-label">
+                <span>{kindLabel}</span>
+                {kinds.length > 1 && (
+                  <button type="button" className="home-trash" data-name="home-hide-kind" title={`Take ${kindLabel} off Home. You can bring it back.`} onClick={() => setHiddenKinds(hideKind(hidden, kind))}>
+                    Hide this kind
+                  </button>
+                )}
+              </div>
+              <div className="sizes-row">
+                {CREATE_TILES.filter((t) => t.group === kind).map((tile) => (
+                  <div key={tile.id} data-name={`create-tile-${tile.id}`} className="size-card" onClick={() => void handleTileClick(tile)}>
+                    {tile.kind !== "photo" && (
+                      <span className="size-medium" title={startsVideo(tile) ? "A video" : "A still design"}>
+                        <Icon name={startsVideo(tile) ? "film" : "image"} size={13} />
+                      </span>
+                    )}
+                    <div className="ratio-box">{renderShape(tile)}</div>
+                    <div className="create-title">{tile.title}</div>
+                    <div className="create-dims">{tile.dims}</div>
+                  </div>
+                ))}
+                {kind !== "photo" && (
+                  <div className={`size-card own custom-anchor ${customAt === "tray" ? "highlight" : ""}`} data-name="create-tile-own-size" onClick={() => setCustomAt(customAt === "tray" ? null : "tray")}>
+                    <div className="own-title">+ Your own size</div>
+                    <div className="create-dims">width &amp; height</div>
+                    {customAt === "tray" && customBox()}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </section>
-        ))}
 
         {/* Quiet Ask Box */}
         <div className="home-chat-banner">
@@ -418,7 +414,7 @@ export default function Home({ onClose }: HomeProps) {
           {trash ? (
             <TrashView cards onBack={() => setTrash(false)} />
           ) : visibleRecents.length === 0 ? (
-            <div className="recents-empty">No projects yet. Pick a format above or tell Duet what to make.</div>
+            <div className="recents-empty">No projects yet. Pick a size above or tell Duet what to make.</div>
           ) : (
             <div className="recents-grid">
               {visibleRecents.map((r) => (
