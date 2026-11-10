@@ -104,9 +104,9 @@ export default function ClipsPanel() {
   const [renaming, setRenaming] = useState<string | null>(null);
   // what is picked in Media: its own selection, apart from the canvas
   const [picked, setPicked] = useState<Set<string>>(() => new Set());
-  // Select: a box on each thing, to tick several and remove them together
-  const [ticking, setTicking] = useState(false);
+  // a box on each thing, shown under the pointer, to tick several and remove them together
   const [ticked, setTicked] = useState<Set<string>>(() => new Set());
+  const ticking = ticked.size > 0;
   const tick = (id: string) => setTicked((t) => (t.has(id) ? (t.delete(id), new Set(t)) : new Set(t.add(id))));
   const [over, setOver] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -255,12 +255,11 @@ export default function ClipsPanel() {
       rows.push(
         <div
           key={m.id}
-          className={`row clip-row ${folder ? "clip-folder" : ""} ${over === m.id ? "drop-inside" : ""} ${picked.has(m.id) ? "sel" : ""}`}
+          className={`row clip-row ${ticking ? "ticking" : ""} ${folder ? "clip-folder" : ""} ${over === m.id ? "drop-inside" : ""} ${picked.has(m.id) ? "sel" : ""}`}
           style={{ paddingLeft: 8 + depth * 14 }}
           data-name={isScene(m) ? "media-scene" : "clip"}
           {...handlers(m)}
         >
-          {ticking && <span className={`media-check ${ticked.has(m.id) ? "on" : ""} ${isKept(m) ? "" : "off"}`} />}
           {folder ? (
             <span className={`fold-arrow ${open ? "" : "folded"}`}>
               <Icon name="arrow" size={10} />
@@ -268,15 +267,20 @@ export default function ClipsPanel() {
           ) : (
             <span className="fold-arrow-gap" />
           )}
-          <Icon name={ICON[m.kind]} size={14} className="ico" />
+          <span className="media-ico">
+            <Icon name={ICON[m.kind]} size={14} className="ico" />
+            {isKept(m) && <span className={`media-check ${ticked.has(m.id) ? "on" : ""}`} title="Tick to pick several" onClick={(e) => (e.stopPropagation(), tick(m.id))} />}
+          </span>
           {nameOrBox(m)}
           {isScene(m) && m.id === SCENE + openScene && <i className="media-open" title="Open on the timeline">▶</i>}
-          {length !== null && <span className="clip-length">{lengthText(length)}</span>}
-          {!ticking && isKept(m) && (
-            <button className="media-row-bin" title={folder ? "Remove this folder and what is in it from Media. The files stay on your computer." : "Remove from Media. The file stays on your computer."} onClick={(e) => (e.stopPropagation(), dispatch("remove_media", { ids: [m.id] }))}>
-              <Icon name="trash" size={12} />
-            </button>
-          )}
+          <span className="media-end">
+            {length !== null && <span className="clip-length">{lengthText(length)}</span>}
+            {!ticking && isKept(m) && (
+              <button className="media-row-bin" title={folder ? "Remove this folder and what is in it from Media. The files stay on your computer." : "Remove from Media. The file stays on your computer."} onClick={(e) => (e.stopPropagation(), dispatch("remove_media", { ids: [m.id] }))}>
+                <Icon name="trash" size={12} />
+              </button>
+            )}
+          </span>
         </div>,
       );
       if (open) walk(m.id, depth + 1);
@@ -395,12 +399,12 @@ export default function ClipsPanel() {
                 return (
                   <div
                     key={m.id}
-                    className={`media-tile ${over === m.id ? "drop-inside" : ""} ${picked.has(m.id) ? "sel" : ""}`}
+                    className={`media-tile ${ticking ? "ticking" : ""} ${over === m.id ? "drop-inside" : ""} ${picked.has(m.id) ? "sel" : ""}`}
                     data-name={isScene(m) ? "media-scene" : "clip"}
                     {...handlers(m)}
                   >
                     <div className={`media-tile-face kind-${m.kind}`}>
-                      {ticking && isKept(m) && <span className={`media-check media-tile-check ${ticked.has(m.id) ? "on" : ""}`} />}
+                      {isKept(m) && <span className={`media-check media-tile-check ${ticked.has(m.id) ? "on" : ""}`} title="Tick to pick several" onClick={(e) => (e.stopPropagation(), tick(m.id))} />}
                       {!ticking && isKept(m) && (
                         <button className="media-row-bin media-tile-bin" title="Remove from Media. The file stays on your computer." onClick={(e) => (e.stopPropagation(), dispatch("remove_media", { ids: [m.id] }))}>
                           <Icon name="trash" size={12} />
@@ -419,14 +423,16 @@ export default function ClipsPanel() {
           {!nothing && <div className="media-hint">Drag a clip onto the timeline to use it.</div>}
           {nothing && <div className="empty pad">{filtering ? "Nothing here matches." : "This folder is empty. Drop clips here."}</div>}
           <div className="media-foot">
-            <button className={`media-select ${ticking ? "on" : ""}`} data-name="media-select" title={ticking ? "Stop selecting" : "Tick several things to remove them together"} onClick={() => (setTicking(!ticking), setTicked(new Set()))}>
-              {ticking ? "Done" : "Select"}
-            </button>
-            {ticking && ticked.size > 0 && (
-              <button className="media-remove" data-name="media-remove" title="Remove from Media. The files stay on your computer." onClick={() => (dispatch("remove_media", { ids: [...ticked] }), setTicked(new Set()), setTicking(false))}>
-                <Icon name="trash" size={12} />
-                Remove {ticked.size}
-              </button>
+            {ticking && (
+              <>
+                <button className="media-remove" data-name="media-remove" title="Remove from Media. The files stay on your computer." onClick={() => (dispatch("remove_media", { ids: [...ticked] }), setTicked(new Set()))}>
+                  <Icon name="trash" size={12} />
+                  Remove {ticked.size}
+                </button>
+                <button className="media-select" title="Untick everything" onClick={() => setTicked(new Set())}>
+                  Cancel
+                </button>
+              </>
             )}
             <span className="media-foot-gap" />
             <div className="media-views">

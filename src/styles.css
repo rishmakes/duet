@@ -11587,3 +11587,59 @@ button.ctx-item.store-make-option:hover {
   background: var(--danger, #e5484d);
   color: #fff;
 }
+/* the kind icon turns into a box to tick under the pointer, and stays a box for all while any is ticked */
+.media-ico {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+.media-ico .media-check {
+  position: absolute;
+  inset: 0;
+  display: none;
+  cursor: pointer;
+  background-color: var(--panel);
+}
+.clip-row:hover .media-ico .media-check,
+.clip-row.ticking .media-ico .media-check,
+.media-ico .media-check.on {
+  display: block;
+}
+.media-tile-check {
+  display: none;
+  cursor: pointer;
+}
+.media-tile:hover .media-tile-check,
+.media-tile.ticking .media-tile-check,
+.media-tile-check.on {
+  display: block;
+}
+/* the length and the bin share one spot of a set width, so nothing moves under the pointer */
+.media-end {
+  position: relative;
+  flex: none;
+  width: 34px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+.media-end .media-row-bin {
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+.clip-row:hover .clip-length {
+  display: inline;
+  visibility: hidden;
+}
+.clip-row.ticking:hover .clip-length {
+  visibility: visible;
+}
+/* a firmer edge under Media, so it reads apart from the timeline below */
+.media-foot {
+  border-bottom: 3px solid var(--line);
+}
