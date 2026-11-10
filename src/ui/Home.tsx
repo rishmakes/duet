@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { newId } from "../commands";
 import { dispatch, getState, select, setPagesView } from "../state/store";
-import { listedProjects, newDesignTab, openProject, openProjectAt } from "../project/project";
+import { getTabs, getUntitled, listedProjects, newDesignTab, openProject, openProjectAt } from "../project/project";
 import type { Recent } from "../project/project";
 import { keepMode, setLayout } from "./layout";
 import { getChat, newTask } from "../ai/chat";
@@ -50,6 +50,8 @@ const keep = (key: string, value: string) => {
 const MAC = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
 
 export default function Home({ onClose, fromProject, dev }: HomeProps) {
+  // any project open behind Home, saved or not, is somewhere the switch can go back to
+  const canGoBack = fromProject || !!getState().project.file || getTabs().length > 0 || getUntitled().length > 0;
   // where the box for your own size hangs: under the Custom size button, or under the tile in the open kind
   const [customAt, setCustomAt] = useState<"top" | "tray" | null>(null);
   const customOpen = customAt !== null;
@@ -282,8 +284,8 @@ export default function Home({ onClose, fromProject, dev }: HomeProps) {
             <button
               key={space}
               data-name={`home-space-${space}`}
-              disabled={!fromProject}
-              title={fromProject ? (space === "kitchen" ? "Back to your project, in Kitchen" : "Back to your project, in Studio (Esc)") : "Start or open a project first"}
+              disabled={!canGoBack}
+              title={canGoBack ? (space === "kitchen" ? "Back to your project, in Kitchen" : "Back to your project, in Studio (Esc)") : "Start or open a project first"}
               onClick={() => (setLayout({ space }), onClose())}
             >
               {space === "kitchen" ? "Kitchen" : "Studio"}
