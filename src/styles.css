@@ -11513,3 +11513,77 @@ button.ctx-item.store-make-option:hover {
 .media-hint {
   opacity: 0.55;
 }
+/* Media: a bin on the thing under the pointer, and boxes to tick several while selecting */
+.media-row-bin {
+  display: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.clip-row:hover .media-row-bin {
+  display: grid;
+}
+.clip-row:hover .clip-length {
+  display: none;
+}
+.media-row-bin:hover {
+  background: var(--panel);
+  color: var(--danger, #e5484d);
+}
+.media-tile-bin {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  background: var(--panel);
+}
+.media-tile:hover .media-tile-bin {
+  display: grid;
+}
+.media-check {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  border: 1.5px solid var(--muted);
+  border-radius: 3px;
+}
+.media-check.on {
+  border-color: var(--accent);
+  background: var(--accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2l2.3 2.3 4.7-5' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 10px no-repeat;
+}
+.media-check.off {
+  visibility: hidden;
+}
+.media-tile-check {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  background-color: var(--panel);
+}
+.media-select,
+.media-remove {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.media-select:hover,
+.media-select.on {
+  color: var(--text);
+}
+.media-remove {
+  border-color: transparent;
+  background: var(--danger, #e5484d);
+  color: #fff;
+}
