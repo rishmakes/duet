@@ -11686,15 +11686,24 @@ button.ctx-item.store-make-option:hover {
   visibility: hidden;
 }
 .clip-row:hover .media-tick .media-check,
-.clips.ticking-all .media-tick .media-check,
-.media-tick .media-check.on {
+.clips.ticking-all .media-tick .media-check {
   visibility: visible;
+}
+/* one picked thing shows as picked, not ticked; ticks show once two or more are picked */
+.clips:not(.ticking-all) .media-check.on {
+  border-color: var(--muted);
+  background: var(--panel);
+}
+/* a wider spot to hit: the box reaches to the kind icon */
+.media-tick {
+  width: 22px;
+  margin-left: -4px;
+  margin-right: -6px;
 }
 .media-tile-check {
   display: none;
 }
 .media-tile:hover .media-tile-check,
-.media-tile.ticking .media-tile-check,
-.media-tile-check.on {
+.media-tile.ticking .media-tile-check {
   display: block;
 }

@@ -120,6 +120,7 @@ export default function ClipsPanel() {
   const tickPress = (id: string) => ({
     onPointerDown: (e: React.PointerEvent) => (e.stopPropagation(), e.preventDefault(), tick(id)),
     onMouseDown: (e: React.MouseEvent) => e.stopPropagation(),
+    onMouseUp: (e: React.MouseEvent) => e.stopPropagation(),
     onClick: (e: React.MouseEvent) => e.stopPropagation(),
     onDoubleClick: (e: React.MouseEvent) => e.stopPropagation(),
   });
@@ -235,16 +236,19 @@ export default function ClipsPanel() {
         anchor.current = m.id;
         setPicked(new Set([m.id]));
       },
-      onClick: (e: React.MouseEvent) => {
-        if (e.shiftKey || e.metaKey || e.ctrlKey) return;
+      // the release narrows to this one, so a hand that drifts a little still lands the click
+      onMouseUp: (e: React.MouseEvent) => {
+        if (e.button !== 0 || e.shiftKey || e.metaKey || e.ctrlKey || renaming === m.id) return;
         anchor.current = m.id;
         setPicked(new Set([m.id]));
+      },
+      onClick: (e: React.MouseEvent) => {
+        if (e.shiftKey || e.metaKey || e.ctrlKey) return;
         if (isScene(m)) openSceneOf(m);
         else if (folder && view === "list") setShut((s) => toggled(s, m.id));
       },
       onDoubleClick: () => {
         if (folder && view === "grid") return (setAt(m.id), setFind(""));
-        if (!isUsed(m)) setRenaming(m.id);
       },
       onContextMenu: (e: React.MouseEvent) => {
         e.preventDefault();
@@ -271,7 +275,9 @@ export default function ClipsPanel() {
         }}
       />
     ) : (
-      <span className="name">{m.name}</span>
+      <span className="name" onDoubleClick={() => !isScene(m) && !isUsed(m) && setRenaming(m.id)}>
+        {m.name}
+      </span>
     );
 
   const lengthOfEntry = (m: Entry) => (isScene(m) ? (m.length ?? null) : lengthOf(m as MediaItem, () => redraw((n) => n + 1)));
@@ -456,9 +462,11 @@ export default function ClipsPanel() {
             </div>
           )}
           {view === "list" ? (
-            <div className="clips-list">{rows}</div>
+            <div className="clips-list" onMouseDown={(e) => e.target === e.currentTarget && setPicked(new Set())}>
+              {rows}
+            </div>
           ) : (
-            <div className="media-grid">
+            <div className="media-grid" onMouseDown={(e) => e.target === e.currentTarget && setPicked(new Set())}>
               {tiles.map((m) => {
                 const length = lengthOfEntry(m);
                 return (
