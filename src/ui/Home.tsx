@@ -270,25 +270,23 @@ export default function Home({ onClose, fromProject }: HomeProps) {
           Du<b>et</b>
           <i className="early-tag" title="Duet is in early access. Some things are unfinished and you may meet bugs. Save versions of work that matters.">Early access</i>
         </span>
-        {/* the same switch as the top of a project, so you always know where you are: Home, Kitchen or Studio */}
-        <span className="home-where">
-          <div className="pill mode-switch space-switch">
-            <button className="active" data-name="home-space-home">
-              Home
+        {/* the same switch as the top of a project, in the same place, so you always know where you are */}
+        <div className="pill mode-switch space-switch">
+          <button className="active home-btn" data-name="home-space-home" title="Home">
+            <Icon name="home" size={14} />
+          </button>
+          {(["kitchen", "edit"] as const).map((space) => (
+            <button
+              key={space}
+              data-name={`home-space-${space}`}
+              disabled={!fromProject}
+              title={fromProject ? (space === "kitchen" ? "Back to your project, in Kitchen" : "Back to your project, in Studio (Esc)") : "Start or open a project first"}
+              onClick={() => (setLayout({ space }), onClose())}
+            >
+              {space === "kitchen" ? "Kitchen" : "Studio"}
             </button>
-            {(["kitchen", "edit"] as const).map((space) => (
-              <button
-                key={space}
-                data-name={`home-space-${space}`}
-                disabled={!fromProject}
-                title={fromProject ? (space === "kitchen" ? "Back to your project, in Kitchen" : "Back to your project, in Studio (Esc)") : "Start or open a project first"}
-                onClick={() => (setLayout({ space }), onClose())}
-              >
-                {space === "kitchen" ? "Kitchen" : "Studio"}
-              </button>
-            ))}
-          </div>
-        </span>
+          ))}
+        </div>
         <span className="home-bar-end" />
       </header>
 
@@ -345,12 +343,10 @@ export default function Home({ onClose, fromProject }: HomeProps) {
               <div className="sizes-row">
                 {CREATE_TILES.filter((t) => t.group === kind).map((tile) => (
                   <div key={tile.id} data-name={`create-tile-${tile.id}`} className="size-card" onClick={() => void handleTileClick(tile)}>
-                    {startsVideo(tile) && kind !== "video" && (
-                      <span className="size-medium video" title="Opens as a video, with a timeline">
-                        <Icon name="film" size={14} />
-                        Video
-                      </span>
-                    )}
+                    {/* a small mark of what it opens as: a design, a video, a photo, or screens */}
+                    <span className={`size-medium ${startsVideo(tile) ? "video" : ""}`} title={startsVideo(tile) ? "Opens as a video, with a timeline" : tile.kind === "photo" ? "Opens your photo to edit" : tile.group === "screens" ? "Opens on the open canvas, for screens" : "Opens as a design"}>
+                      <Icon name={startsVideo(tile) ? "film" : tile.kind === "photo" ? "image" : tile.group === "screens" ? "screens" : "pen"} size={15} />
+                    </span>
                     <div className="ratio-box">{renderShape(tile)}</div>
                     <div className="create-title">{tile.title}</div>
                     <div className="create-dims">{[ratioOf(tile.width, tile.height), tile.dims].filter(Boolean).join(" · ")}</div>
