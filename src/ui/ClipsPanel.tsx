@@ -493,7 +493,7 @@ export default function ClipsPanel() {
               })}
             </div>
           )}
-          {!nothing && <div className="media-hint">Drag a clip onto the timeline to use it.</div>}
+          {!nothing && <div className="media-hint" onMouseDown={() => setPicked(new Set())}>Drag a clip onto the timeline to use it.</div>}
           {nothing && <div className="empty pad">{filtering ? "Nothing here matches." : "This folder is empty. Drop clips here."}</div>}
           <div className="media-foot">
             {ticking && (
