@@ -400,6 +400,7 @@ export default function ClipsPanel() {
               })}
             </div>
           )}
+          {!nothing && <div className="media-hint">Drag a clip onto the timeline to use it.</div>}
           {nothing && <div className="empty pad">{filtering ? "Nothing here matches." : "This folder is empty. Drop clips here."}</div>}
           <div className="media-foot">
             <button
@@ -411,7 +412,7 @@ export default function ClipsPanel() {
             >
               <Icon name="trash" size={13} />
             </button>
-            <span className="media-foot-tip">Drag a clip onto the timeline</span>
+            <span className="media-foot-gap" />
             <div className="media-views">
               <button className={`clips-btn ${view === "list" ? "on" : ""}`} data-name="media-view-list" title="List: folders open in place" onClick={() => setView("list")}>
                 <Icon name="list" size={13} />

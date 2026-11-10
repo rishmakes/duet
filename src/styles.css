@@ -11494,3 +11494,19 @@ button.ctx-item.store-make-option:hover {
   opacity: 0.35;
   cursor: default;
 }
+.media-foot-gap {
+  flex: 1;
+}
+/* the hint sits right under the clips it is about, never beside the bin */
+.media-hint {
+  padding: 8px 14px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.clips-list,
+.media-grid {
+  flex: none;
+}
+.media-hint {
+  flex: 1;
+}
