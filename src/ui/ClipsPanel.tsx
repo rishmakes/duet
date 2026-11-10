@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import Icon from "./Icons";
+import type { IconName } from "./Icons";
 import { lengthText } from "../canvas/render";
 import { droppedPaths } from "../canvas/CanvasView";
 import { newId } from "../commands";
@@ -12,22 +13,30 @@ import { keepDropped } from "../video/scene";
 import { CLIP_DRAG, lengthOf, mediaFrom, mediaKind, pickFolderIntoClips, pickIntoClips, placeFromClips } from "../video/media";
 import { useDismiss } from "./useDismiss";
 
-type Show = "all" | "video" | "sound" | "image";
-const SHOWS: [Show, string][] = [
-  ["all", "All"],
-  ["video", "Video"],
-  ["sound", "Sound"],
-  ["image", "Pictures"],
-];
-const ICON: Record<MediaItem["kind"], "film" | "sound" | "image" | "folder"> = { video: "film", sound: "sound", image: "image", folder: "folder" };
+/** One thing in Media: a scene of this video, a clip, a sound, a picture, or a folder. */
+export type Entry = Omit<MediaItem, "kind"> & { kind: MediaItem["kind"] | "scene" };
 
-/** The type an item being moved inside Clips carries. */
+type Show = "all" | "scene" | "video" | "sound" | "image";
+const SHOWS: [Show, string, IconName][] = [
+  ["all", "Everything", "list"],
+  ["scene", "Scenes", "scene"],
+  ["video", "Video", "film"],
+  ["sound", "Sound", "sound"],
+  ["image", "Pictures", "image"],
+];
+const ICON: Record<Entry["kind"], IconName> = { scene: "scene", video: "film", sound: "sound", image: "image", folder: "folder" };
+
+/** The type an item being moved inside Media carries. */
 const MOVE = "application/x-duet-clips-move";
 
 const USED = "used:";
-const isUsed = (m: MediaItem) => m.id.startsWith(USED);
+const SCENE = "scene:";
+const isUsed = (m: Entry) => m.id.startsWith(USED);
+const isScene = (m: Entry) => m.kind === "scene";
+/** Kept in the file, so it can be renamed, moved and removed here. */
+const isKept = (m: Entry) => !isUsed(m) && !isScene(m);
 
-/** Clips and sounds the video already plays that are not in Clips yet, one row per file, named as on the timeline. */
+/** Clips and sounds the video already plays that are not in Media yet, one row per file, named as on the timeline. */
 export function usedIn(doc: Doc, kept: MediaItem[]): MediaItem[] {
   const listed = new Set(kept.map((m) => m.src).filter(Boolean));
   const out = new Map<string, MediaItem>();
@@ -38,8 +47,18 @@ export function usedIn(doc: Doc, kept: MediaItem[]): MediaItem[] {
   return [...out.values()];
 }
 
+/** Everything Media lists: the scenes of this video first, then what is kept, then what the video plays. */
+export function entriesOf(doc: Doc): Entry[] {
+  const kept = doc.media ?? [];
+  const scenes: Entry[] = doc.rootIds
+    .map((id) => doc.elements[id])
+    .filter((e) => e && e.type === "frame" && e.duration > 0)
+    .map((e) => ({ id: SCENE + e.id, name: e.name, kind: "scene", length: e.duration }));
+  return [...scenes, ...kept, ...usedIn(doc, kept)];
+}
+
 /** What shows: each thing that matches, and every folder on the way to one. Folders and order are never changed. */
-export function shown(media: MediaItem[], show: Show, find: string): Set<string> {
+export function shown(media: Entry[], show: Show, find: string): Set<string> {
   const words = find.trim().toLowerCase();
   const byId = new Map(media.map((m) => [m.id, m]));
   const out = new Set<string>();
@@ -58,29 +77,53 @@ export function shown(media: MediaItem[], show: Show, find: string): Set<string>
   return out;
 }
 
-/** Clips, sounds and pictures for a video, in folders you keep. Drag one onto the timeline to use it. */
+type View = "list" | "grid";
+const VIEW_KEY = "duet.media.view";
+const savedView = (): View => {
+  try {
+    return localStorage.getItem(VIEW_KEY) === "grid" ? "grid" : "list";
+  } catch {
+    return "list";
+  }
+};
+
+/**
+ * Media: the scenes of this video, and the clips, sounds and pictures it is made from, in folders you keep.
+ * As a list, folders open in place. As a grid, double-click a folder to go inside it, and Back to come out.
+ */
 export default function ClipsPanel() {
   useStore((s) => s.timeline[s.cursor]);
   const openScene = useStore((s) => s.clock.scene);
   const doc = currentDoc();
-  const kept = doc.media ?? [];
-  // what the video already uses shows too, even if it never went through Clips
-  const media = useMemo(() => [...kept, ...usedIn(doc, kept)], [doc, kept]);
-  const scenes = doc.rootIds.map((id) => doc.elements[id]).filter((e) => e && e.type === "frame" && e.duration > 0);
+  const media = useMemo(() => entriesOf(doc), [doc]);
   const [show, setShow] = useState<Show>("all");
   const [find, setFind] = useState("");
+  const [view, setViewState] = useState<View>(savedView);
+  const [at, setAt] = useState<string | null>(null);
   const [shut, setShut] = useState<Set<string>>(() => new Set());
   const [renaming, setRenaming] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [showMenu, setShowMenu] = useState<{ x: number; y: number } | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [, redraw] = useState(0);
   useDismiss(!!menu, () => setMenu(null), ".ctx");
+  useDismiss(!!showMenu, () => setShowMenu(null), ".ctx");
 
+  const setView = (v: View) => {
+    setViewState(v);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      // only a convenience
+    }
+  };
+
+  const byId = useMemo(() => new Map(media.map((m) => [m.id, m])), [media]);
   const visible = useMemo(() => shown(media, show, find), [media, show, find]);
-  const words = find.trim().toLowerCase();
-  const shownScenes = show === "all" || show === "video" ? scenes.filter((sc) => !words || sc.name.toLowerCase().includes(words)) : [];
   const filtering = show !== "all" || !!find.trim();
+  // the folder the grid is inside; gone if the folder was removed
+  const inside = at && byId.get(at)?.kind === "folder" ? at : null;
 
   const bring = async (e: React.DragEvent, into?: string) => {
     const files = Array.from(e.dataTransfer.files);
@@ -89,7 +132,7 @@ export default function ClipsPanel() {
     if (!paths.length && files.length) paths = await keepDropped(files.filter((f) => mediaKind(f.name)));
     const items = await mediaFrom(paths, into);
     if (items.length) dispatch("add_media", { items });
-    else if (paths.length || files.length) setNote("Clips holds video, sound and pictures. Those files are none of these.");
+    else if (paths.length || files.length) setNote("Media holds video, sound and pictures. Those files are none of these.");
   };
 
   const onDropHere = (e: React.DragEvent, into: string | null) => {
@@ -98,8 +141,9 @@ export default function ClipsPanel() {
     if (moving) {
       e.preventDefault();
       e.stopPropagation();
-      const used = media.find((m) => m.id === moving && isUsed(m));
-      if (used) dispatch("add_media", { items: [{ ...used, id: newId("clip"), ...(into ? { folderId: into } : {}) }] });
+      const m = byId.get(moving);
+      if (!m || isScene(m)) return;
+      if (isUsed(m)) dispatch("add_media", { items: [{ ...(m as MediaItem), id: newId("clip"), ...(into ? { folderId: into } : {}) }] });
       else dispatch("move_media", { ids: [moving], folderId: into });
       if (into) setShut((s) => (s.delete(into), new Set(s)));
       return;
@@ -113,87 +157,130 @@ export default function ClipsPanel() {
   const canTake = (e: React.DragEvent) => Array.from(e.dataTransfer.types).some((t) => t === "Files" || t === MOVE);
 
   // at the playhead of the scene that is open
-  const toTimeline = async (m: MediaItem) => {
+  const toTimeline = async (m: Entry) => {
     const { scene, t } = getState().clock;
-    if (!scene || !m.src) return setNote("Open a video first, then add clips to its timeline.");
-    const problems = await placeFromClips(scene, { src: m.src, kind: m.kind, name: m.name }, t);
+    if (!scene || !m.src || isScene(m)) return setNote("Open a scene first, then add clips to its timeline.");
+    const problems = await placeFromClips(scene, { src: m.src, kind: m.kind as MediaItem["kind"], name: m.name }, t);
     if (problems.length) setNote(problems.join(" "));
   };
 
-  const rename = (id: string, value: string) => {
+  const rename = (m: Entry, value: string) => {
     setRenaming(null);
-    dispatch("rename_media", { id, name: value });
+    if (isScene(m)) {
+      const name = value.trim();
+      if (name) dispatch("set_props", { ids: [m.id.slice(SCENE.length)], props: { name }, label: "Rename scene" });
+    } else dispatch("rename_media", { id: m.id, name: value });
   };
 
+  const openSceneOf = (m: Entry) => {
+    const id = m.id.slice(SCENE.length);
+    select([id]);
+    openOnTimeline(id);
+  };
+
+  /** What a click, a double-click and a drag do on one thing. */
+  const handlers = (m: Entry) => {
+    const folder = m.kind === "folder";
+    return {
+      draggable: renaming !== m.id && !isScene(m),
+      onDragStart: (e: React.DragEvent) => {
+        e.dataTransfer.setData(MOVE, m.id);
+        if (!folder && m.src) e.dataTransfer.setData(CLIP_DRAG, JSON.stringify({ src: m.src, kind: m.kind, name: m.name }));
+        e.dataTransfer.effectAllowed = "copyMove";
+      },
+      onDragOver: (e: React.DragEvent) => {
+        if (!folder || !canTake(e)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setOver(m.id);
+      },
+      onDragLeave: () => setOver((o) => (o === m.id ? null : o)),
+      onDrop: (e: React.DragEvent) => folder && onDropHere(e, m.id),
+      onClick: () => {
+        if (isScene(m)) openSceneOf(m);
+        else if (folder && view === "list") setShut((s) => (s.has(m.id) ? s.delete(m.id) : s.add(m.id), new Set(s)));
+      },
+      onDoubleClick: () => {
+        if (folder && view === "grid") return (setAt(m.id), setFind(""));
+        if (!isUsed(m)) setRenaming(m.id);
+      },
+      onContextMenu: (e: React.MouseEvent) => {
+        e.preventDefault();
+        setMenu({ id: m.id, x: e.clientX, y: e.clientY });
+      },
+      title: isScene(m) ? `${m.name}. Click to open it on the timeline.` : folder ? (view === "grid" ? `${m.name}. Double-click to go inside.` : undefined) : `${m.name}. Drag onto the timeline to use it.`,
+    };
+  };
+
+  const nameOrBox = (m: Entry) =>
+    renaming === m.id ? (
+      <input
+        className="rename"
+        autoFocus
+        defaultValue={m.name}
+        onClick={(e) => e.stopPropagation()}
+        onFocus={(e) => e.currentTarget.select()}
+        onBlur={(e) => rename(m, e.currentTarget.value)}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          if (e.key === "Enter") e.currentTarget.blur();
+          if (e.key === "Escape") setRenaming(null);
+        }}
+      />
+    ) : (
+      <span className="name">{m.name}</span>
+    );
+
+  const lengthOfEntry = (m: Entry) => (isScene(m) ? (m.length ?? null) : lengthOf(m as MediaItem, () => redraw((n) => n + 1)));
+  const order = (list: Entry[]) => [...list.filter((x) => x.kind === "scene"), ...list.filter((x) => x.kind === "folder"), ...list.filter((x) => x.kind !== "folder" && x.kind !== "scene")];
+
+  // the list: folders open in place
   const rows: React.ReactNode[] = [];
   const walk = (folderId: string | undefined, depth: number) => {
-    const here = media.filter((m) => m.folderId === folderId && visible.has(m.id));
-    // folders first, then the rest, each in the order they came in
-    for (const m of [...here.filter((x) => x.kind === "folder"), ...here.filter((x) => x.kind !== "folder")]) {
+    const here = order(media.filter((m) => m.folderId === folderId && visible.has(m.id)));
+    for (const m of here) {
       const folder = m.kind === "folder";
       const open = folder && (filtering || !shut.has(m.id));
-      const length = lengthOf(m, () => redraw((n) => n + 1));
+      const length = lengthOfEntry(m);
       rows.push(
         <div
           key={m.id}
-          className={`row clip-row ${folder ? "clip-folder" : ""} ${over === m.id ? "drop-inside" : ""}`}
+          className={`row clip-row ${folder ? "clip-folder" : ""} ${over === m.id ? "drop-inside" : ""} ${isScene(m) && m.id === SCENE + openScene ? "sel" : ""}`}
           style={{ paddingLeft: 8 + depth * 14 }}
-          draggable={renaming !== m.id}
-          data-name="clip"
-          title={folder ? undefined : `${m.name}. Drag onto the timeline to use it.`}
-          onDragStart={(e) => {
-            e.dataTransfer.setData(MOVE, m.id);
-            if (!folder && m.src) e.dataTransfer.setData(CLIP_DRAG, JSON.stringify({ src: m.src, kind: m.kind, name: m.name }));
-            e.dataTransfer.effectAllowed = "copyMove";
-          }}
-          onDragOver={(e) => {
-            if (!folder || !canTake(e)) return;
-            e.preventDefault();
-            e.stopPropagation();
-            setOver(m.id);
-          }}
-          onDragLeave={() => setOver((o) => (o === m.id ? null : o))}
-          onDrop={(e) => folder && onDropHere(e, m.id)}
-          onClick={() => folder && setShut((s) => (s.has(m.id) ? s.delete(m.id) : s.add(m.id), new Set(s)))}
-          onDoubleClick={() => !isUsed(m) && setRenaming(m.id)}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            setMenu({ id: m.id, x: e.clientX, y: e.clientY });
-          }}
+          data-name={isScene(m) ? "media-scene" : "clip"}
+          {...handlers(m)}
         >
-          {folder ? <span className={`fold-arrow ${open ? "" : "folded"}`}><Icon name="arrow" size={10} /></span> : <span className="fold-arrow-gap" />}
-          <Icon name={ICON[m.kind]} size={14} className="ico" />
-          {renaming === m.id ? (
-            <input
-              className="rename"
-              autoFocus
-              defaultValue={m.name}
-              onClick={(e) => e.stopPropagation()}
-              onFocus={(e) => e.currentTarget.select()}
-              onBlur={(e) => rename(m.id, e.currentTarget.value)}
-              onKeyDown={(e) => {
-                e.stopPropagation();
-                if (e.key === "Enter") e.currentTarget.blur();
-                if (e.key === "Escape") setRenaming(null);
-              }}
-            />
+          {folder ? (
+            <span className={`fold-arrow ${open ? "" : "folded"}`}>
+              <Icon name="arrow" size={10} />
+            </span>
           ) : (
-            <span className="name">{m.name}</span>
+            <span className="fold-arrow-gap" />
           )}
+          <Icon name={ICON[m.kind]} size={14} className="ico" />
+          {nameOrBox(m)}
           {length !== null && <span className="clip-length">{lengthText(length)}</span>}
         </div>,
       );
       if (open) walk(m.id, depth + 1);
     }
   };
-  walk(undefined, 0);
 
-  const picked = menu ? media.find((m) => m.id === menu.id) : undefined;
+  // the grid: one folder at a time; while finding, everything that matches
+  const tiles = filtering ? order(media.filter((m) => m.kind !== "folder" && visible.has(m.id))) : order(media.filter((m) => (m.folderId ?? null) === inside));
+  const trail: Entry[] = [];
+  for (let f = inside ? byId.get(inside) : undefined; f; f = f.folderId ? byId.get(f.folderId) : undefined) trail.unshift(f);
+
+  if (view === "list") walk(undefined, 0);
+  const nothing = view === "list" ? !rows.length : !tiles.length;
+
+  const picked = menu ? byId.get(menu.id) : undefined;
+  const current = SHOWS.find(([k]) => k === show)!;
 
   return (
     <div
       className={`clips ${over === "top" ? "drop-top" : ""}`}
-      data-name="clips-panel"
+      data-name="media-panel"
       onDragOver={(e) => {
         if (!canTake(e)) return;
         e.preventDefault();
@@ -202,9 +289,9 @@ export default function ClipsPanel() {
       onDragLeave={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node)) setOver(null);
       }}
-      onDrop={(e) => onDropHere(e, null)}
+      onDrop={(e) => onDropHere(e, view === "grid" ? inside : null)}
     >
-      {media.length === 0 && scenes.length === 0 ? (
+      {media.length === 0 ? (
         <div className="clips-welcome">
           <Icon name="film" size={26} />
           <button className="clips-add-big" data-name="clips-add" onClick={() => void pickIntoClips()}>
@@ -217,54 +304,97 @@ export default function ClipsPanel() {
         </div>
       ) : (
         <>
-          <div className="clips-tools">
-            <div className="clips-shows">
-              {SHOWS.map(([k, label]) => (
-                <button key={k} className={show === k ? "on" : ""} onClick={() => setShow(k)}>
-                  {label}
-                </button>
-              ))}
-            </div>
-            <div className="clips-actions">
-              <label className="clips-find">
-                <Icon name="search" size={12} />
-                <input value={find} placeholder="Find clips" onChange={(e) => setFind(e.target.value)} onKeyDown={(e) => (e.stopPropagation(), e.key === "Escape" && setFind(""))} />
-              </label>
-              <button className="clips-btn" title="Add clips, music, pictures" onClick={() => void pickIntoClips()}>
-                <Icon name="plus" size={13} />
-              </button>
-              <button className="clips-btn" title="New folder" onClick={() => {
+          <div className="clips-actions">
+            <label className="clips-find">
+              <Icon name="search" size={12} />
+              <input value={find} placeholder="Find" onChange={(e) => setFind(e.target.value)} onKeyDown={(e) => (e.stopPropagation(), e.key === "Escape" && setFind(""))} />
+            </label>
+            <button
+              className={`clips-btn ${show !== "all" ? "on" : ""}`}
+              data-name="media-show"
+              title={`Showing: ${current[1]}. Click to choose what to show.`}
+              onClick={(e) => {
+                const r = e.currentTarget.getBoundingClientRect();
+                setShowMenu({ x: r.left, y: r.bottom + 4 });
+              }}
+            >
+              <Icon name={current[2]} size={13} />
+            </button>
+            <button className="clips-btn" data-name="media-view" title={view === "list" ? "Show as a grid: double-click a folder to go inside" : "Show as a list: folders open in place"} onClick={() => setView(view === "list" ? "grid" : "list")}>
+              <Icon name={view === "list" ? "grid" : "list"} size={13} />
+            </button>
+            <button className="clips-btn" title="Add clips, music, pictures" onClick={() => void pickIntoClips(view === "grid" ? (inside ?? undefined) : undefined)}>
+              <Icon name="plus" size={13} />
+            </button>
+            <button
+              className="clips-btn"
+              title="New folder"
+              onClick={() => {
                 const id = newId("folder");
-                dispatch("new_folder", { id });
+                dispatch("new_folder", { id, folderId: view === "grid" ? inside : null });
                 setRenaming(id);
-              }}>
-                <Icon name="folder" size={13} />
-              </button>
-            </div>
+              }}
+            >
+              <Icon name="folder" size={13} />
+            </button>
           </div>
-          <div className="clips-list">
-            {shownScenes.length > 0 && (
-              <>
-                <div className="clips-head">Scenes</div>
-                {shownScenes.map((sc) => (
-                  <div
-                    key={sc.id}
-                    className={`row clip-row ${sc.id === openScene ? "sel" : ""}`}
-                    data-name="clips-scene"
-                    title={`${sc.name}. Click to open it on the timeline.`}
-                    onClick={() => (select([sc.id]), openOnTimeline(sc.id))}
-                  >
-                    <span className="fold-arrow-gap" />
-                    <Icon name="scene" size={14} className="ico" />
-                    <span className="name">{sc.name}</span>
-                    <span className="clip-length">{lengthText(sc.duration)}</span>
-                  </div>
+          {view === "grid" && inside && !filtering && (
+            <div
+              className={`row clip-row media-back ${over === "back" ? "drop-inside" : ""}`}
+              data-name="media-back"
+              title="Back out of this folder. Drop here to move a thing out."
+              onClick={() => setAt(byId.get(inside)?.folderId ?? null)}
+              onDragOver={(e) => {
+                if (!canTake(e)) return;
+                e.preventDefault();
+                e.stopPropagation();
+                setOver("back");
+              }}
+              onDragLeave={() => setOver((o) => (o === "back" ? null : o))}
+              onDrop={(e) => onDropHere(e, byId.get(inside)?.folderId ?? null)}
+            >
+              <span className="media-back-arrow">
+                <Icon name="arrow" size={10} />
+              </span>
+              <span className="name">
+                <span className="media-trail" onClick={(e) => (e.stopPropagation(), setAt(null))}>
+                  Media
+                </span>
+                {trail.map((f) => (
+                  <span key={f.id}>
+                    {" / "}
+                    <span className="media-trail" onClick={(e) => (e.stopPropagation(), setAt(f.id))}>
+                      {f.name}
+                    </span>
+                  </span>
                 ))}
-                {rows.length > 0 && <div className="clips-head">Clips</div>}
-              </>
-            )}
-            {rows.length ? rows : !shownScenes.length && <div className="empty pad">Nothing here matches.</div>}
-          </div>
+              </span>
+            </div>
+          )}
+          {view === "list" ? (
+            <div className="clips-list">{rows}</div>
+          ) : (
+            <div className="media-grid">
+              {tiles.map((m) => {
+                const length = lengthOfEntry(m);
+                return (
+                  <div
+                    key={m.id}
+                    className={`media-tile ${over === m.id ? "drop-inside" : ""} ${isScene(m) && m.id === SCENE + openScene ? "sel" : ""}`}
+                    data-name={isScene(m) ? "media-scene" : "clip"}
+                    {...handlers(m)}
+                  >
+                    <div className={`media-tile-face kind-${m.kind}`}>
+                      <Icon name={ICON[m.kind]} size={22} />
+                      {length !== null && <span className="media-tile-length">{lengthText(length)}</span>}
+                    </div>
+                    {nameOrBox(m)}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {nothing && <div className="empty pad">{filtering ? "Nothing here matches." : "This folder is empty. Drop clips here."}</div>}
           <div className="tip-line">Drag a clip onto the timeline. Drop files or folders here; folders keep their insides.</div>
         </>
       )}
@@ -273,10 +403,27 @@ export default function ClipsPanel() {
           {note}
         </div>
       )}
+      {showMenu &&
+        createPortal(
+          <div className="ctx" style={{ left: Math.min(showMenu.x, window.innerWidth - 200), top: showMenu.y }}>
+            {SHOWS.map(([k, label, icon]) => (
+              <div key={k} className={`ctx-item ${show === k ? "on" : ""}`} onClick={() => (setShowMenu(null), setShow(k))}>
+                <Icon name={icon} size={13} />
+                <span>{label}</span>
+              </div>
+            ))}
+          </div>,
+          document.body,
+        )}
       {menu &&
         picked &&
         createPortal(
           <div className="ctx" style={{ left: Math.min(menu.x, window.innerWidth - 230), top: Math.min(menu.y, window.innerHeight - 200) }}>
+            {isScene(picked) && (
+              <div className="ctx-item" onClick={() => (setMenu(null), openSceneOf(picked))}>
+                <span>Open on the timeline</span>
+              </div>
+            )}
             {!isUsed(picked) && (
               <div className="ctx-item" onClick={() => (setMenu(null), setRenaming(picked.id))}>
                 <span>Rename</span>
@@ -297,16 +444,16 @@ export default function ClipsPanel() {
                 <span>Show in Finder</span>
               </div>
             )}
-            {picked.folderId && !isUsed(picked) && (
+            {picked.folderId && isKept(picked) && (
               <div className="ctx-item" onClick={() => (setMenu(null), dispatch("move_media", { ids: [picked.id], folderId: null }))}>
                 <span>Move to the top</span>
               </div>
             )}
-            {!isUsed(picked) && (
+            {isKept(picked) && (
               <>
                 <div className="ctx-line" />
                 <div className="ctx-item danger" onClick={() => (setMenu(null), dispatch("remove_media", { ids: [picked.id] }))}>
-                  <span>{picked.kind === "folder" ? "Remove folder from Clips" : "Remove from Clips"}</span>
+                  <span>{picked.kind === "folder" ? "Remove folder from Media" : "Remove from Media"}</span>
                 </div>
               </>
             )}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { runCommand } from "../commands";
 import { emptyDoc } from "../document/types";
-import { shown, usedIn } from "./ClipsPanel";
+import { entriesOf, shown, usedIn } from "./ClipsPanel";
 
 describe("Clips list", () => {
   it("shows the clips and sounds a video already plays, once per file, unless Clips has them", () => {
@@ -25,5 +25,20 @@ describe("Clips list", () => {
     expect([...shown(media, "sound", "")]).toEqual(["b"]);
     expect([...shown(media, "all", "wide")].sort()).toEqual(["a", "f"]);
     expect(shown(media, "all", "").size).toBe(3);
+  });
+});
+
+describe("Media", () => {
+  it("lists the scenes first, then what is kept, then what the video plays", () => {
+    let d = runCommand(emptyDoc(), "create_element", { id: "f", type: "frame", x: 0, y: 0, width: 100, height: 100 });
+    d = runCommand(d, "set_duration", { id: "f", seconds: 8 });
+    d = runCommand(d, "create_element", { id: "v", type: "video", parentId: "f", x: 0, y: 0, width: 10, height: 10, props: { src: "/a.mp4", name: "Swirl" } });
+    d = runCommand(d, "add_media", { items: [{ id: "k", name: "logo.png", kind: "image", src: "/l.png" }] });
+    expect(entriesOf(d).map((m) => [m.name, m.kind])).toEqual([
+      ["Frame 1", "scene"],
+      ["logo.png", "image"],
+      ["Swirl", "video"],
+    ]);
+    expect([...shown(entriesOf(d), "scene", "")]).toEqual(["scene:f"]);
   });
 });

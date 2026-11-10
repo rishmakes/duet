@@ -487,8 +487,8 @@ export default function LayersPanel() {
       <div className="left-head">
       <div className="tabs">
         {video && (
-          <div className={`tab ${tab === "clips" ? "on" : ""}`} data-name="tab-clips" onClick={() => setTab("clips")}>
-            Clips
+          <div className={`tab ${tab === "clips" ? "on" : ""}`} data-name="tab-media" onClick={() => setTab("clips")}>
+            Media
           </div>
         )}
         <div className={`tab ${tab === "layers" ? "on" : ""}`} onClick={() => setTab("layers")}>

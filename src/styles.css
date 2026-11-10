@@ -11355,3 +11355,89 @@ button.ctx-item.store-make-option:hover {
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
+/* Media: the filter and view buttons, the way back out of a folder, and the grid */
+.clips-actions {
+  padding: 8px 8px 4px;
+}
+.clips-btn.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.ctx-item.on {
+  color: var(--accent);
+}
+.media-back {
+  margin: 2px 6px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.media-back-arrow {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  transform: rotate(180deg);
+}
+.media-trail {
+  cursor: pointer;
+}
+.media-trail:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+.media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 10px;
+  padding: 6px 10px;
+}
+.media-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  padding: 4px;
+  border-radius: var(--r-sm);
+  cursor: default;
+}
+.media-tile:hover {
+  background: var(--panel-2);
+}
+.media-tile.sel,
+.media-tile.drop-inside {
+  background: var(--accent-soft);
+}
+.media-tile[draggable="true"] {
+  cursor: grab;
+}
+.media-tile .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.media-tile .rename {
+  width: 100%;
+}
+.media-tile-face {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 10;
+  border-radius: var(--r-sm);
+  background: var(--panel-2);
+  color: var(--muted);
+}
+.media-tile-face.kind-scene {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.media-tile-length {
+  position: absolute;
+  right: 4px;
+  bottom: 3px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--panel);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
