@@ -102,6 +102,8 @@ export default function ClipsPanel() {
   const [at, setAt] = useState<string | null>(null);
   const [shut, setShut] = useState<Set<string>>(() => new Set());
   const [renaming, setRenaming] = useState<string | null>(null);
+  // what is picked in Media: its own selection, apart from the canvas
+  const [picked, setPicked] = useState<Set<string>>(() => new Set());
   const [over, setOver] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [showMenu, setShowMenu] = useState<{ x: number; y: number } | null>(null);
@@ -196,7 +198,9 @@ export default function ClipsPanel() {
       },
       onDragLeave: () => setOver((o) => (o === m.id ? null : o)),
       onDrop: (e: React.DragEvent) => folder && onDropHere(e, m.id),
-      onClick: () => {
+      onClick: (e: React.MouseEvent) => {
+        setPicked((p) => (e.metaKey || e.ctrlKey ? (p.has(m.id) ? (p.delete(m.id), new Set(p)) : new Set(p.add(m.id))) : new Set([m.id])));
+        if (e.metaKey || e.ctrlKey) return;
         if (isScene(m)) openSceneOf(m);
         else if (folder && view === "list") setShut((s) => (s.has(m.id) ? s.delete(m.id) : s.add(m.id), new Set(s)));
       },
@@ -206,6 +210,7 @@ export default function ClipsPanel() {
       },
       onContextMenu: (e: React.MouseEvent) => {
         e.preventDefault();
+        setPicked((p) => (p.has(m.id) ? p : new Set([m.id])));
         setMenu({ id: m.id, x: e.clientX, y: e.clientY });
       },
       title: isScene(m) ? `${m.name}. Click to open it on the timeline.` : folder ? (view === "grid" ? `${m.name}. Double-click to go inside.` : undefined) : `${m.name}. Drag onto the timeline to use it.`,
@@ -245,7 +250,7 @@ export default function ClipsPanel() {
       rows.push(
         <div
           key={m.id}
-          className={`row clip-row ${folder ? "clip-folder" : ""} ${over === m.id ? "drop-inside" : ""} ${isScene(m) && m.id === SCENE + openScene ? "sel" : ""}`}
+          className={`row clip-row ${folder ? "clip-folder" : ""} ${over === m.id ? "drop-inside" : ""} ${picked.has(m.id) ? "sel" : ""}`}
           style={{ paddingLeft: 8 + depth * 14 }}
           data-name={isScene(m) ? "media-scene" : "clip"}
           {...handlers(m)}
@@ -259,6 +264,7 @@ export default function ClipsPanel() {
           )}
           <Icon name={ICON[m.kind]} size={14} className="ico" />
           {nameOrBox(m)}
+          {isScene(m) && m.id === SCENE + openScene && <i className="media-open" title="Open on the timeline">▶</i>}
           {length !== null && <span className="clip-length">{lengthText(length)}</span>}
         </div>,
       );
@@ -274,7 +280,8 @@ export default function ClipsPanel() {
   if (view === "list") walk(undefined, 0);
   const nothing = view === "list" ? !rows.length : !tiles.length;
 
-  const picked = menu ? byId.get(menu.id) : undefined;
+  const removable = [...picked].filter((id) => byId.get(id) && isKept(byId.get(id)!));
+  const menuOn = menu ? byId.get(menu.id) : undefined;
   const current = SHOWS.find(([k]) => k === show)!;
 
   return (
@@ -310,7 +317,7 @@ export default function ClipsPanel() {
               <input value={find} placeholder="Find" onChange={(e) => setFind(e.target.value)} onKeyDown={(e) => (e.stopPropagation(), e.key === "Escape" && setFind(""))} />
             </label>
             <button
-              className={`clips-btn ${show !== "all" ? "on" : ""}`}
+              className={`clips-btn media-show ${show !== "all" ? "on" : ""}`}
               data-name="media-show"
               title={`Showing: ${current[1]}. Click to choose what to show.`}
               onClick={(e) => {
@@ -318,10 +325,8 @@ export default function ClipsPanel() {
                 setShowMenu({ x: r.left, y: r.bottom + 4 });
               }}
             >
-              <Icon name={current[2]} size={13} />
-            </button>
-            <button className="clips-btn" data-name="media-view" title={view === "list" ? "Show as a grid: double-click a folder to go inside" : "Show as a list: folders open in place"} onClick={() => setView(view === "list" ? "grid" : "list")}>
-              <Icon name={view === "list" ? "grid" : "list"} size={13} />
+              {show === "all" ? "All" : current[1]}
+              <Icon name="arrow" size={9} className="media-show-caret" />
             </button>
             <button className="clips-btn" title="Add clips, music, pictures" onClick={() => void pickIntoClips(view === "grid" ? (inside ?? undefined) : undefined)}>
               <Icon name="plus" size={13} />
@@ -380,12 +385,13 @@ export default function ClipsPanel() {
                 return (
                   <div
                     key={m.id}
-                    className={`media-tile ${over === m.id ? "drop-inside" : ""} ${isScene(m) && m.id === SCENE + openScene ? "sel" : ""}`}
+                    className={`media-tile ${over === m.id ? "drop-inside" : ""} ${picked.has(m.id) ? "sel" : ""}`}
                     data-name={isScene(m) ? "media-scene" : "clip"}
                     {...handlers(m)}
                   >
                     <div className={`media-tile-face kind-${m.kind}`}>
                       <Icon name={ICON[m.kind]} size={22} />
+                      {isScene(m) && m.id === SCENE + openScene && <i className="media-open media-tile-open" title="Open on the timeline">▶</i>}
                       {length !== null && <span className="media-tile-length">{lengthText(length)}</span>}
                     </div>
                     {nameOrBox(m)}
@@ -395,7 +401,26 @@ export default function ClipsPanel() {
             </div>
           )}
           {nothing && <div className="empty pad">{filtering ? "Nothing here matches." : "This folder is empty. Drop clips here."}</div>}
-          <div className="tip-line">Drag a clip onto the timeline. Drop files or folders here; folders keep their insides.</div>
+          <div className="media-foot">
+            <button
+              className="clips-btn"
+              data-name="media-remove"
+              disabled={!removable.length}
+              title={removable.length ? `Remove ${removable.length === 1 ? "it" : `these ${removable.length}`} from Media. The files stay on your computer.` : picked.size ? "Scenes and clips on the timeline stay in Media while the video uses them" : "Pick something to remove it from Media"}
+              onClick={() => (dispatch("remove_media", { ids: removable }), setPicked(new Set()))}
+            >
+              <Icon name="trash" size={13} />
+            </button>
+            <span className="media-foot-tip">Drag a clip onto the timeline</span>
+            <div className="media-views">
+              <button className={`clips-btn ${view === "list" ? "on" : ""}`} data-name="media-view-list" title="List: folders open in place" onClick={() => setView("list")}>
+                <Icon name="list" size={13} />
+              </button>
+              <button className={`clips-btn ${view === "grid" ? "on" : ""}`} data-name="media-view-grid" title="Grid: double-click a folder to go inside" onClick={() => setView("grid")}>
+                <Icon name="grid" size={13} />
+              </button>
+            </div>
+          </div>
         </>
       )}
       {note && (
@@ -416,44 +441,44 @@ export default function ClipsPanel() {
           document.body,
         )}
       {menu &&
-        picked &&
+        menuOn &&
         createPortal(
           <div className="ctx" style={{ left: Math.min(menu.x, window.innerWidth - 230), top: Math.min(menu.y, window.innerHeight - 200) }}>
-            {isScene(picked) && (
-              <div className="ctx-item" onClick={() => (setMenu(null), openSceneOf(picked))}>
+            {isScene(menuOn) && (
+              <div className="ctx-item" onClick={() => (setMenu(null), openSceneOf(menuOn))}>
                 <span>Open on the timeline</span>
               </div>
             )}
-            {!isUsed(picked) && (
-              <div className="ctx-item" onClick={() => (setMenu(null), setRenaming(picked.id))}>
+            {!isUsed(menuOn) && (
+              <div className="ctx-item" onClick={() => (setMenu(null), setRenaming(menuOn.id))}>
                 <span>Rename</span>
               </div>
             )}
-            {picked.src && (
-              <div className="ctx-item" onClick={() => (setMenu(null), void toTimeline(picked))}>
+            {menuOn.src && (
+              <div className="ctx-item" onClick={() => (setMenu(null), void toTimeline(menuOn))}>
                 <span>Add to the timeline</span>
               </div>
             )}
-            {picked.kind === "folder" && (
-              <div className="ctx-item" onClick={() => (setMenu(null), void pickIntoClips(picked.id))}>
+            {menuOn.kind === "folder" && (
+              <div className="ctx-item" onClick={() => (setMenu(null), void pickIntoClips(menuOn.id))}>
                 <span>Add clips into this folder</span>
               </div>
             )}
-            {picked.src && (
-              <div className="ctx-item" onClick={() => (setMenu(null), void revealItemInDir(picked.src!))}>
+            {menuOn.src && (
+              <div className="ctx-item" onClick={() => (setMenu(null), void revealItemInDir(menuOn.src!))}>
                 <span>Show in Finder</span>
               </div>
             )}
-            {picked.folderId && isKept(picked) && (
-              <div className="ctx-item" onClick={() => (setMenu(null), dispatch("move_media", { ids: [picked.id], folderId: null }))}>
+            {menuOn.folderId && isKept(menuOn) && (
+              <div className="ctx-item" onClick={() => (setMenu(null), dispatch("move_media", { ids: [menuOn.id], folderId: null }))}>
                 <span>Move to the top</span>
               </div>
             )}
-            {isKept(picked) && (
+            {isKept(menuOn) && (
               <>
                 <div className="ctx-line" />
-                <div className="ctx-item danger" onClick={() => (setMenu(null), dispatch("remove_media", { ids: [picked.id] }))}>
-                  <span>{picked.kind === "folder" ? "Remove folder from Media" : "Remove from Media"}</span>
+                <div className="ctx-item danger" onClick={() => (setMenu(null), dispatch("remove_media", { ids: [menuOn.id] }))}>
+                  <span>{menuOn.kind === "folder" ? "Remove folder from Media" : "Remove from Media"}</span>
                 </div>
               </>
             )}

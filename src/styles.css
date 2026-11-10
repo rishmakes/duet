@@ -11441,3 +11441,56 @@ button.ctx-item.store-make-option:hover {
   font-size: 10px;
   font-variant-numeric: tabular-nums;
 }
+.media-grid {
+  flex: 1;
+  align-content: start;
+}
+.media-show {
+  width: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+.media-show-caret {
+  transform: rotate(90deg);
+}
+.media-open {
+  color: var(--accent);
+  font-style: normal;
+  font-size: 9px;
+}
+.media-tile-open {
+  position: absolute;
+  left: 5px;
+  top: 3px;
+}
+/* the foot of Media: remove what is picked on the left, list or grid on the right */
+.media-foot {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+}
+.media-foot-tip {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 11px;
+}
+.media-views {
+  display: flex;
+  gap: 2px;
+}
+.clips-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
