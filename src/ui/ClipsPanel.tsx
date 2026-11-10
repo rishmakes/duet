@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import Icon from "./Icons";
@@ -108,9 +108,14 @@ export default function ClipsPanel() {
   const [renaming, setRenaming] = useState<string | null>(null);
   // what is picked in Media: its own selection, apart from the canvas
   const [picked, setPicked] = useState<Set<string>>(() => new Set());
-  // a box on each thing, shown under the pointer, to tick several and remove them together
-  const [ticked, setTicked] = useState<Set<string>>(() => new Set());
-  const ticking = ticked.size > 0;
+  // picking and ticking are one: two or more picked shows a box on every thing
+  const ticked = picked;
+  const setTicked = setPicked;
+  const ticking = picked.size > 1;
+  // where Shift-click picks from
+  const anchor = useRef<string | null>(null);
+  // the order things show in, for Shift-click and Cmd-A
+  const order_ = useRef<string[]>([]);
   // the box answers the press itself: a row can be dragged, and a click that moves a hair would start a drag instead
   const tickPress = (id: string) => ({
     onPointerDown: (e: React.PointerEvent) => (e.stopPropagation(), e.preventDefault(), tick(id)),
@@ -118,7 +123,14 @@ export default function ClipsPanel() {
     onClick: (e: React.MouseEvent) => e.stopPropagation(),
     onDoubleClick: (e: React.MouseEvent) => e.stopPropagation(),
   });
-  const tick = (id: string) => setTicked((t) => toggled(t, id));
+  const tick = (id: string) => ((anchor.current = id), setTicked((t) => toggled(t, id)));
+  const pickRange = (id: string) => {
+    const list = order_.current;
+    const a = list.indexOf(anchor.current ?? id);
+    const b = list.indexOf(id);
+    if (a < 0 || b < 0) return setPicked(new Set([id]));
+    setPicked(new Set(list.slice(Math.min(a, b), Math.max(a, b) + 1)));
+  };
   const [over, setOver] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [showMenu, setShowMenu] = useState<{ x: number; y: number } | null>(null);
@@ -214,9 +226,10 @@ export default function ClipsPanel() {
       onDragLeave: () => setOver((o) => (o === m.id ? null : o)),
       onDrop: (e: React.DragEvent) => folder && onDropHere(e, m.id),
       onClick: (e: React.MouseEvent) => {
-        if (ticking) return tick(m.id);
-        setPicked((p) => (e.metaKey || e.ctrlKey ? toggled(p, m.id) : new Set([m.id])));
-        if (e.metaKey || e.ctrlKey) return;
+        if (e.shiftKey) return pickRange(m.id);
+        if (e.metaKey || e.ctrlKey || ticking) return tick(m.id);
+        anchor.current = m.id;
+        setPicked(new Set([m.id]));
         if (isScene(m)) openSceneOf(m);
         else if (folder && view === "list") setShut((s) => toggled(s, m.id));
       },
@@ -260,6 +273,7 @@ export default function ClipsPanel() {
   const walk = (folderId: string | undefined, depth: number) => {
     const here = order(media.filter((m) => m.folderId === folderId && visible.has(m.id)));
     for (const m of here) {
+      listOrder.push(m.id);
       const folder = m.kind === "folder";
       const open = folder && (filtering || !shut.has(m.id));
       const length = lengthOfEntry(m);
@@ -303,8 +317,33 @@ export default function ClipsPanel() {
   const trail: Entry[] = [];
   for (let f = inside ? byId.get(inside) : undefined; f; f = f.folderId ? byId.get(f.folderId) : undefined) trail.unshift(f);
 
+  const listOrder: string[] = [];
   if (view === "list") walk(undefined, 0);
   const nothing = view === "list" ? !rows.length : !tiles.length;
+  order_.current = view === "list" ? listOrder : tiles.map((m) => m.id);
+
+  // Cmd-A picks everything in Media, and Escape lets go, once you have clicked in Media; a click anywhere else hands the keys back
+  const panel = useRef<HTMLDivElement | null>(null);
+  const active = useRef(false);
+  useEffect(() => {
+    const down = (e: PointerEvent) => (active.current = !!panel.current?.contains(e.target as Node));
+    const key = (e: KeyboardEvent) => {
+      if (!active.current) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        setPicked(new Set(order_.current));
+      } else if (e.key === "Escape") {
+        e.stopImmediatePropagation();
+        setPicked(new Set());
+      }
+    };
+    window.addEventListener("pointerdown", down, true);
+    window.addEventListener("keydown", key, true);
+    return () => (window.removeEventListener("pointerdown", down, true), window.removeEventListener("keydown", key, true));
+  }, []);
 
   const menuOn = menu ? byId.get(menu.id) : undefined;
   const removable = [...ticked].filter((id) => byId.get(id) && isKept(byId.get(id)!));
@@ -312,7 +351,8 @@ export default function ClipsPanel() {
 
   return (
     <div
-      className={`clips ${over === "top" ? "drop-top" : ""}`}
+      ref={panel}
+      className={`clips ${ticking ? "ticking-all" : ""} ${over === "top" ? "drop-top" : ""}`}
       data-name="media-panel"
       onDragOver={(e) => {
         if (!canTake(e)) return;
@@ -447,7 +487,7 @@ export default function ClipsPanel() {
                   <Icon name="trash" size={12} />
                   Remove {removable.length || ""}
                 </button>
-                <button className="media-select" title="Untick everything" onClick={() => setTicked(new Set())}>
+                <button className="media-select" title="Let go of everything (Esc)" onClick={() => setTicked(new Set())}>
                   Cancel
                 </button>
               </>

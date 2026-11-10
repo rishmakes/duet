@@ -11676,3 +11676,19 @@ button.ctx-item.store-make-option:hover {
   width: 15px;
   height: 15px;
 }
+/* the box slides in from the left under the pointer; rows sit flush while nothing is ticked */
+.media-tick {
+  width: 0;
+  margin-right: -8px;
+  overflow: hidden;
+  transition: width 0.12s ease, margin 0.12s ease;
+}
+.clip-row:hover .media-tick,
+.clips.ticking-all .media-tick,
+.clip-row.sel .media-tick {
+  width: 16px;
+  margin-right: -4px;
+}
+.media-tick .media-check {
+  visibility: visible;
+}
