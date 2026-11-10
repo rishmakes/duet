@@ -274,7 +274,7 @@ export default function Home({ onClose, fromProject, dev }: HomeProps) {
           <i className="early-tag" title="Duet is in early access. Some things are unfinished and you may meet bugs. Save versions of work that matters.">Early access</i>
         </span>
         {/* the same switch as the top of a project, in the same place, so you always know where you are */}
-        <div className="pill mode-switch space-switch inline">
+        <div className="pill mode-switch space-switch">
           <button className="active home-btn" data-name="home-space-home" title="Home">
             <Icon name="home" size={14} />
           </button>
