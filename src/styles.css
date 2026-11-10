@@ -11676,46 +11676,23 @@ button.ctx-item.store-make-option:hover {
   width: 15px;
   height: 15px;
 }
-/* the box slides in from the left under the pointer; rows sit flush while nothing is ticked */
+/* the box to tick shows only once two or more are picked; no sliding, rows sit flush otherwise */
 .media-tick {
   width: 0;
   margin-right: -8px;
   overflow: hidden;
-  transition: width 0.12s ease, margin 0.12s ease;
 }
-.clip-row:hover .media-tick,
-.clips.ticking-all .media-tick,
-.clip-row.sel .media-tick {
+.clips.ticking-all .media-tick {
   width: 16px;
   margin-right: -4px;
 }
 .media-tick .media-check {
   visibility: visible;
 }
-/* no sliding under the pointer: boxes show only once two or more are picked (Cmd or Shift click) */
-.media-tick {
-  transition: none;
-}
-.clip-row:hover .media-tick {
-  width: 0;
-  margin-right: -8px;
-}
-.clips.ticking-all .media-tick,
-.clips.ticking-all .clip-row:hover .media-tick {
-  width: 16px;
-  margin-right: -4px;
-}
-.clip-row.sel .media-tick {
-  width: 0;
-  margin-right: -8px;
-}
+.media-tile-check,
 .media-tile:hover .media-tile-check {
   display: none;
 }
 .media-tile.ticking .media-tile-check {
   display: block;
-}
-.clips.ticking-all .clip-row.sel .media-tick {
-  width: 16px;
-  margin-right: -4px;
 }

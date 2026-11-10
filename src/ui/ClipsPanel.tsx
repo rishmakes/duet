@@ -225,9 +225,18 @@ export default function ClipsPanel() {
       },
       onDragLeave: () => setOver((o) => (o === m.id ? null : o)),
       onDrop: (e: React.DragEvent) => folder && onDropHere(e, m.id),
-      onClick: (e: React.MouseEvent) => {
+      // picking happens on the press, so a press that moves a hair and turns into a drag still picks
+      onMouseDown: (e: React.MouseEvent) => {
+        if (e.button !== 0 || renaming === m.id) return;
         if (e.shiftKey) return pickRange(m.id);
-        if (e.metaKey || e.ctrlKey || ticking) return tick(m.id);
+        if (e.metaKey || e.ctrlKey) return tick(m.id);
+        // pressing one of several picked keeps them all, so they can be dragged together; the click narrows it
+        if (picked.has(m.id)) return;
+        anchor.current = m.id;
+        setPicked(new Set([m.id]));
+      },
+      onClick: (e: React.MouseEvent) => {
+        if (e.shiftKey || e.metaKey || e.ctrlKey) return;
         anchor.current = m.id;
         setPicked(new Set([m.id]));
         if (isScene(m)) openSceneOf(m);
