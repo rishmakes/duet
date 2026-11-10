@@ -334,6 +334,8 @@ export default function ClipsPanel() {
   // Cmd-A picks everything in Media, and Escape lets go, once you have clicked in Media; a click anywhere else hands the keys back
   const panel = useRef<HTMLDivElement | null>(null);
   const active = useRef(false);
+  const menuOpen = useRef(false);
+  menuOpen.current = !!menu || !!showMenu;
   useEffect(() => {
     const down = (e: PointerEvent) => (active.current = !!panel.current?.contains(e.target as Node));
     const key = (e: KeyboardEvent) => {
@@ -345,6 +347,8 @@ export default function ClipsPanel() {
         e.stopImmediatePropagation();
         setPicked(new Set(order_.current));
       } else if (e.key === "Escape") {
+        // an open menu closes first; the picks stay
+        if (menuOpen.current) return;
         e.stopImmediatePropagation();
         setPicked(new Set());
       }
