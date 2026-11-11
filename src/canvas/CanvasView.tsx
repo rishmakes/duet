@@ -76,7 +76,8 @@ import { logError } from "../errorLog";
 import { newPaintLayer } from "../ui/actions";
 import { defaultLayout } from "../document/layout";
 import { penActive, penBack, penCancel, penDown, penDrag, penFinish, penHover } from "./pen";
-import { addPicture, pictureOf, pictureSize, setLivePicture } from "../project/assets";
+import { addPicture, assetUrl, pictureOf, pictureSize, setLivePicture } from "../project/assets";
+import { placeLayerPictures } from "../video/media";
 import { PAINT_TILE } from "../document/types";
 import {
   expandBox,
@@ -454,7 +455,8 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
   const isPageView = designing && !!doc.pages && !viewOnly;
   const isPageLocked = isPageView && !!activePageId && !isAllPages;
 
-  // in Motion the frame sits still in the middle: no scrolling, panning or zooming away from it.
+  // in Motion the frame is framed in the middle when a scene opens. After that you zoom (around the pointer)
+  // and move freely, as in After Effects, to see references around it. Nothing moves by itself; Fit brings it back.
   // Page View frames the page on show but lets you move and zoom freely, and Fit brings the page back.
   const lockedRef = useRef(false);
   lockedRef.current = motion && !!scene && !viewOnly;
@@ -517,6 +519,9 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
   const [draft, setDraft] = useState<{ x: number; y: number; on: string | null; mark?: CommentMark } | null>(null);
   // a mark being drawn live as the designer drags with the comment tool
   const [drawingMark, setDrawingMark] = useState<CommentMark | null>(null);
+  // Motion and Edit: a picture picked in Layers that is not in the open scene shows in a small window, to look at and to bring in
+  const picked = useStore((s) => s.selection);
+  const [peekClosed, setPeekClosed] = useState<string | null>(null);
   // a comment picked in the list comes to the middle of the canvas, its pins shown
   useEffect(() => {
     const go = (e: Event) => {
@@ -1767,11 +1772,38 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     // A pinch on a Mac trackpad arrives as gesture events. While one is running, ignore wheel zoom,
     // so the same pinch is never counted twice.
     let pinch: { zoom: number; wx: number; wy: number } | null = null;
+    // In Motion: while any edge of the scene is off screen you are free. Once all four edges are in view,
+    // every step of the zoom or move eases the scene a little toward the middle. The zoom level is never changed.
+    // Zoomed in, it can be moved only until an edge of the scene meets the edge of the view.
+    const settleSoon = () => {
+      if (!lockedRef.current) return;
+      const id = getState().clock.scene;
+      const doc = workDoc(getState());
+      if (!id || !doc.elements[id]) return;
+      const b = worldBounds(doc, id);
+      const { w, h } = sizeRef.current;
+      const vp = getState().viewport;
+      const sw = b.width * vp.zoom;
+      const sh = b.height * vp.zoom;
+      const left = b.x * vp.zoom + vp.x;
+      const top = b.y * vp.zoom + vp.y;
+      if (left < 0 || top < 0 || left + sw > w || top + sh > h) {
+        // zoomed in: panning stops when an edge of the scene reaches the edge of the view, so you never get lost
+        const x = sw > w ? Math.min(-b.x * vp.zoom, Math.max(w - sw - b.x * vp.zoom, vp.x)) : vp.x;
+        const y = sh > h ? Math.min(-b.y * vp.zoom, Math.max(h - sh - b.y * vp.zoom, vp.y)) : vp.y;
+        if (x !== vp.x || y !== vp.y) setViewport({ ...vp, x, y });
+        return;
+      }
+      const pull = 0.22;
+      const x = vp.x + ((w - sw) / 2 - b.x * vp.zoom - vp.x) * pull;
+      const y = vp.y + ((h - sh) / 2 - b.y * vp.zoom - vp.y) * pull;
+      if (Math.abs(x - vp.x) > 0.01 || Math.abs(y - vp.y) > 0.01) setViewport({ ...vp, x, y });
+    };
     const onWheel = (e: WheelEvent) => {
       // words being typed scroll their own box
       if ((e.target as Element).closest?.("textarea, input")) return;
       e.preventDefault();
-      if (getState().editingId || lockedRef.current) return;
+      if (getState().editingId) return;
       stopGlide();
       const p = point(e);
       // A mouse wheel turns in whole notches of 120 (or by lines); a trackpad slides in small steps.
@@ -1789,11 +1821,11 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
         const dy = notched && e.shiftKey && !e.deltaX ? 0 : e.deltaY;
         setViewport({ ...vp, x: vp.x - dx, y: vp.y - dy });
       }
+      settleSoon();
     };
     type GestureEvent = Event & { scale: number; clientX: number; clientY: number };
     const onGestureStart = (e: Event) => {
       e.preventDefault();
-      if (lockedRef.current) return;
       stopGlide();
       const vp = getState().viewport;
       const p = point(e as GestureEvent);
@@ -1807,6 +1839,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
       const p = point(g);
       const zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, pinch.zoom * g.scale));
       setViewport({ zoom, x: p.sx - pinch.wx * zoom, y: p.sy - pinch.wy * zoom });
+      settleSoon();
     };
     const onGestureEnd = (e: Event) => {
       e.preventDefault();
@@ -2044,7 +2077,10 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
       if (mod) return;
 
       if (e.shiftKey && e.key === "!") {
-        zoomToFit(sizeRef.current.w, sizeRef.current.h);
+        // in Motion, back to the scene in the middle; elsewhere, everything
+        const open = lockedRef.current ? s.clock.scene : null;
+        if (open) zoomToElements([open], sizeRef.current.w, sizeRef.current.h);
+        else zoomToFit(sizeRef.current.w, sizeRef.current.h);
         return;
       }
       if (e.shiftKey && e.key === "@") {
@@ -2162,7 +2198,11 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
 
   // the top bar and the layers panel can ask the canvas to move
   useEffect(() => {
-    const fit = () => (shownPageRef.current ? zoomToElements([shownPageRef.current], sizeRef.current.w, sizeRef.current.h) : zoomToFit(sizeRef.current.w, sizeRef.current.h));
+    const fit = () => {
+      const open = lockedRef.current ? getState().clock.scene : shownPageRef.current;
+      if (open) zoomToElements([open], sizeRef.current.w, sizeRef.current.h);
+      else zoomToFit(sizeRef.current.w, sizeRef.current.h);
+    };
     const fitSelection = (e: Event) => {
       const ids = (e as CustomEvent<string[] | undefined>).detail ?? getState().selection;
       zoomToElements(ids, sizeRef.current.w, sizeRef.current.h);
@@ -2300,6 +2340,47 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
               zIndex: 10,
             }}
           />
+        );
+      })()}
+      {motion && scene && !viewOnly && doc.elements[scene] && picked.length === 1 && (() => {
+        const ref = doc.elements[picked[0]];
+        if (!ref || ref.type !== "image" || peekClosed === ref.id) return null;
+        // only references outside the open scene: a picture already in it is just a clip
+        for (let at: string | null = ref.parentId; at; at = doc.elements[at]?.parentId ?? null) if (at === scene) return null;
+        const url = assetUrl(ref.src);
+        if (!url) return null;
+        return (
+          <div className="ref-peek" onPointerDown={(e) => e.stopPropagation()}>
+            <div className="ref-peek-head">
+              <span>{ref.name}</span>
+              <button title="Close" onClick={() => setPeekClosed(ref.id)}>×</button>
+            </div>
+            <img src={url} alt={ref.name} draggable={false} />
+            <button className="ref-peek-use" onClick={() => placeLayerPictures(scene, [ref.id], getState().clock.t)}>
+              Use in video
+            </button>
+          </div>
+        );
+      })()}
+      {motion && scene && !viewOnly && doc.elements[scene] && (() => {
+        // Fit: one click brings the scene back to the middle, sitting at the end of its own title row
+        const b = worldBounds(doc, scene);
+        const left = b.x * viewport.zoom + viewport.x;
+        const top = b.y * viewport.zoom + viewport.y;
+        const x = Math.max(8, Math.min(sizeRef.current.w - 34, left + b.width * viewport.zoom - 26));
+        const y = Math.max(8, Math.min(sizeRef.current.h - 34, top - 30));
+        return (
+          <button
+            className="scene-fit"
+            style={{ left: x, top: y }}
+            title="Fit the scene in the middle"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => zoomToElements([scene], sizeRef.current.w, sizeRef.current.h)}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+            </svg>
+          </button>
         );
       })()}
       {lost && (

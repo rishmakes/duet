@@ -1665,6 +1665,23 @@ body.eyedropping * {
 .find:hover {
   background: var(--accent);
 }
+.scene-fit {
+  position: absolute;
+  z-index: 6;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid var(--border, rgba(127, 127, 127, 0.3));
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+}
+.scene-fit:hover {
+  background: var(--accent);
+}
 /* the top of the left panel: its tabs and hint, pinned while the list scrolls under them */
 .left-head {
   position: sticky;
@@ -11704,4 +11721,57 @@ button.ctx-item.store-make-option:hover {
 .media-tick:hover .media-check:not(.on),
 .media-tile-tick:hover .media-check:not(.on) {
   border-color: var(--muted);
+}
+
+/* a reference picked in Layers, shown over the corner of the video to look at and bring in */
+.ref-peek {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 7;
+  width: 220px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--accent);
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 8px 24px var(--shadow);
+}
+.ref-peek-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+.ref-peek-head span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ref-peek-head button {
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+.ref-peek img {
+  width: 100%;
+  max-height: 200px;
+  object-fit: contain;
+  border-radius: 8px;
+  background: rgba(127, 127, 127, 0.15);
+}
+.ref-peek-use {
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
 }

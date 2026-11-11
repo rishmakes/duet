@@ -10,6 +10,7 @@ import type { Doc, El } from "../document/types";
 import { currentDoc, dispatch, getState, select, useStore } from "../state/store";
 import { boardsOf, openBoard } from "../document/boards";
 import { newId } from "../commands";
+import { LAYER_DRAG, layerPictures, setDraggedFootage } from "../video/media";
 import { ask } from "./dialog";
 import { useDismiss } from "./useDismiss";
 
@@ -273,9 +274,16 @@ function Row({ doc, id, depth, dnd, folded, onToggleFold }: RowProps) {
         style={{ paddingLeft: 8 + depth * 14 }}
         draggable={!renaming}
         onDragStart={(e) => {
-          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.effectAllowed = "copyMove";
           e.dataTransfer.setData("text/plain", id);
           dnd.onStart(id);
+          // pictures can also be let go on the timeline, where they become clips
+          const picked = getState().selection.includes(id) ? getState().selection : [id];
+          const pictures = layerPictures(picked);
+          if (pictures.length) {
+            e.dataTransfer.setData(LAYER_DRAG, JSON.stringify(picked));
+            setDraggedFootage(pictures);
+          }
         }}
         onDragOver={(e) => {
           if (!dnd.canDrop(id)) return;

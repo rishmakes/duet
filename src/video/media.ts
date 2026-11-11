@@ -24,6 +24,36 @@ const nameOf = (path: string) => path.split(/[\\/]/).filter(Boolean).pop() ?? pa
 /** The type a clip dragged out of Clips carries. */
 export const CLIP_DRAG = "application/x-duet-clip";
 
+/** The type a picture dragged out of Layers carries: the ids of the pictures. */
+export const LAYER_DRAG = "application/x-duet-layer";
+
+/** The pictures among these layers, as things that can land on the timeline. */
+export function layerPictures(ids: string[]): ToPlace[] {
+  const doc = currentDoc();
+  return ids.flatMap((id) => {
+    const el = doc.elements[id];
+    return el && el.type === "image" && el.src ? [{ src: el.src, kind: "image" as const, name: el.name, seconds: PICTURE_SECONDS }] : [];
+  });
+}
+
+/**
+ * Pictures that already sit in the design (the references in Layers) put in a scene from a moment, one after
+ * another, as new clips, in one step that one undo takes back. The originals stay where they are.
+ */
+export function placeLayerPictures(sceneId: string, ids: string[], at: number, where: PlaceWhere = {}): string[] {
+  const doc = currentDoc();
+  const items: PlaceItem[] = ids.flatMap((id) => {
+    const el = doc.elements[id];
+    if (!el || el.type !== "image" || !el.src) return [];
+    return [{ id: newId("image"), type: "image" as const, src: el.src, name: el.name, seconds: PICTURE_SECONDS, width: el.width, height: el.height }];
+  });
+  if (!items.length || !doc.elements[sceneId]) return [];
+  dispatch("place_media", { id: sceneId, items, at, ...where });
+  const placed = items.map((it) => it.id).filter((id) => currentDoc().elements[id]);
+  if (placed.length) select(placed);
+  return placed;
+}
+
 interface Found {
   path: string;
   name: string;

@@ -19,7 +19,7 @@ import { QUALITIES, SIZES, addMedia, clipKind, dropClips, exportScene, exportSiz
 import { lastChoice, rememberExport, shortFolder } from "../video/exportPrefs";
 import { open as openDialog } from "./dialog";
 import { droppedPaths } from "../canvas/CanvasView";
-import { CLIP_DRAG, draggedFootage, placeFromClips } from "../video/media";
+import { CLIP_DRAG, LAYER_DRAG, draggedFootage, placeFromClips, placeLayerPictures } from "../video/media";
 import { CutTools } from "./Toolbar";
 import type { ExportChoice } from "../video/scene";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
@@ -1627,19 +1627,35 @@ export default function TimeStrip() {
         // video and sound dropped from the computer land at the moment under the pointer
         onDragOver={(e) => {
           const types = Array.from(e.dataTransfer.types);
-          if (!types.includes("Files") && !types.includes(CLIP_DRAG)) return;
+          if (!types.includes("Files") && !types.includes(CLIP_DRAG) && !types.includes(LAYER_DRAG)) return;
           e.preventDefault();
           e.dataTransfer.dropEffect = "copy";
           const place = dropPlace(e);
           setSnap(place.at);
-          if (types.includes(CLIP_DRAG) && look === "cut") setGhost((g) => (g && g.ri === place.ri && g.above === place.above && g.at === place.at ? g : place));
+          if ((types.includes(CLIP_DRAG) || types.includes(LAYER_DRAG)) && look === "cut") setGhost((g) => (g && g.ri === place.ri && g.above === place.above && g.at === place.at ? g : place));
         }}
         onDragLeave={(e) => {
           if (!e.currentTarget.contains(e.relatedTarget as Node)) (setSnap(null), setGhost(null));
         }}
         onDrop={(e) => {
           // a clip, sound or picture dragged from Clips lands at the moment under the pointer
-          const fromClips = e.dataTransfer.getData(CLIP_DRAG);
+          const fromLayers = e.dataTransfer.getData(LAYER_DRAG);
+          const fromClips = fromLayers ? "" : e.dataTransfer.getData(CLIP_DRAG);
+          if (fromLayers) {
+            e.preventDefault();
+            e.stopPropagation();
+            setSnap(null);
+            setGhost(null);
+            const place = dropPlace(e);
+            seek(place.at);
+            const row = place.ri !== null ? rowsRef.current[place.ri] : undefined;
+            const picked = getState().selection.filter((id) => currentDoc().elements[id]?.parentId === frame.id);
+            const top = frame.childIds.filter((id) => picked.includes(id)).pop();
+            const where = look === "cut" ? { track: row?.track, aside: place.above } : top ? { above: top } : { layers: true };
+            const ids: string[] = JSON.parse(fromLayers);
+            if (!placeLayerPictures(frame.id, ids, place.at, where).length) setNote("Only pictures can be dropped here from Layers.");
+            return;
+          }
           if (fromClips) {
             e.preventDefault();
             e.stopPropagation();
