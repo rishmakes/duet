@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { message, open } from "../ui/dialog";
+import { ask, message, open } from "../ui/dialog";
 import { newId } from "../commands";
 import type { SvgLayer } from "../commands";
 import { unionRect, worldRect } from "../document/geometry";
@@ -10,7 +10,8 @@ import { currentDoc, dispatch, select } from "../state/store";
 import type { Doc } from "../document/types";
 import type { ImportSvgArgs } from "../commands";
 import { addPicture } from "./assets";
-import { fetchedFamilies } from "./fonts";
+import { fetchedFamilies, fetchFont, matchOnline, onlineFonts } from "./fonts";
+import type { OnlineFont } from "./fonts";
 
 /** An SVG file brought in as separate layers: shapes, words, pictures and groups, so it can be edited like anything drawn in Duet. */
 
@@ -103,6 +104,72 @@ export async function importSvgPath(path: string, at?: { x: number; y: number },
   return importSvgText(text, path.split(/[\\/]/).pop() ?? "SVG.svg", at, parentId, home);
 }
 
+export interface FontsFound {
+  /** Fonts now ready, under the name the design used. */
+  got: string[];
+  /** Fonts that were not there by that name: the design's name and the closest free one now used instead. */
+  swapped: Array<[string, string]>;
+  /** Fonts nothing close could be found for. */
+  none: string[];
+}
+
+/** The free font that is the same name, or failing that the one whose name is closest. */
+export function closest(all: OnlineFont[], family: string): OnlineFont | null {
+  const low = family.toLowerCase();
+  const exact = all.find((f) => f.family.toLowerCase() === low);
+  if (exact) return exact;
+  // "Oxygen Mono Bold" -> try the shorter names too, longest first
+  const words = family.split(/\s+/);
+  for (let n = words.length; n >= 1; n--) {
+    const hit = matchOnline(all, words.slice(0, n).join(" "), new Set())[0];
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/** Find the missing fonts online and use them. Words in a font that is not the same name are switched to the closest one. */
+export async function findFonts(frameId: string, missing: string[], home: Pick<SvgHome, "doc"> = here): Promise<FontsFound> {
+  const out: FontsFound = { got: [], swapped: [], none: [] };
+  const all = await onlineFonts();
+  for (const family of missing) {
+    const hit = all.length ? closest(all, family) : null;
+    if (!hit) {
+      out.none.push(family);
+      continue;
+    }
+    try {
+      await fetchFont(hit);
+    } catch {
+      out.none.push(family);
+      continue;
+    }
+    if (hit.family.toLowerCase() === family.toLowerCase()) {
+      // the design already names it, so the words simply start drawing in it
+      out.got.push(family);
+      continue;
+    }
+    const doc = home.doc();
+    const inFrame = (id: string): boolean => {
+      for (let at: string | null = id; at; at = doc.elements[at]?.parentId ?? null) if (at === frameId) return true;
+      return false;
+    };
+    const ids = Object.values(doc.elements)
+      .filter((e) => e.type === "text" && e.fontFamily === family && inFrame(e.id))
+      .map((e) => e.id);
+    if (ids.length) dispatch("set_props", { ids, props: { fontFamily: hit.family }, label: `Use ${hit.family} for ${family}` });
+    out.swapped.push([family, hit.family]);
+  }
+  return out;
+}
+
+export function fontsReport(f: FontsFound): string {
+  const parts: string[] = [];
+  if (f.got.length) parts.push(`Found online: ${f.got.join(", ")}.`);
+  if (f.swapped.length) parts.push(`Used the closest instead: ${f.swapped.map(([a, b]) => `${b} for ${a}`).join(", ")}.`);
+  if (f.none.length) parts.push(`Nothing close found for: ${f.none.join(", ")}. They stay in a stand-in font.`);
+  return parts.join(" ");
+}
+
 /** What the designer is told after an import, in plain words. */
 export function importReport(r: SvgImported): string {
   const parts = [`${r.layers} layers came in.`];
@@ -122,7 +189,11 @@ export async function openSvgFile(source?: string | File, at?: { x: number; y: n
         : await importSvgText(await picked.text(), picked.name, at ? { x: Math.round(at.x), y: Math.round(at.y) } : undefined);
     select([done.id]);
     requestAnimationFrame(() => window.dispatchEvent(new Event("duet:show-selection")));
-    const text = importReport(done);
+    let text = importReport(done);
+    if (done.missing.length && (await ask(`These fonts are not on this computer: ${done.missing.join(", ")}.\n\nFind them online and use them? Where a font is not there by that name, Duet uses the closest one.`, { title: "Missing fonts", okLabel: "Find fonts", cancelLabel: "Not now" }))) {
+      const found = await findFonts(done.id, done.missing);
+      text = [`${done.layers} layers came in.`, fontsReport(found), done.notes.join("\n")].filter(Boolean).join("\n\n");
+    }
     if (done.missing.length || done.notes.length) await message(text, { title: "The design is open", kind: "info" });
     return true;
   } catch (e) {
