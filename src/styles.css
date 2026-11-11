@@ -3220,7 +3220,7 @@ option {
 .time-row-grip {
   position: absolute;
   left: 0;
-  right: 0;
+  width: var(--names);
   bottom: -3px;
   height: 6px;
   cursor: row-resize;
