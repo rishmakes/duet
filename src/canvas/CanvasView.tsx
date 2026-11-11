@@ -72,7 +72,7 @@ import {
 } from "./nodes";
 import type { NodeHit } from "./nodes";
 import type { AbsNode } from "../document/path";
-import { logError } from "../errorLog";
+import { logError, noteSlow } from "../errorLog";
 import { newPaintLayer } from "../ui/actions";
 import { defaultLayout } from "../document/layout";
 import { penActive, penBack, penCancel, penDown, penDrag, penFinish, penHover } from "./pen";
@@ -881,7 +881,9 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
       if (!c || !ctx) return;
       const { w, h, dpr } = sizeRef.current;
       try {
+        const began = performance.now();
         draw(ctx, getState(), w, h, dpr);
+        noteSlow("drawing the canvas", began, 200, `${Object.keys(workDoc(getState()).elements).length} things, zoom ${getState().viewport.zoom.toFixed(2)}`);
         // the light running round an AI's working area keeps moving, at an easy pace
         if (getState().aiWork) setTimeout(schedule, 33);
       } catch (e) {

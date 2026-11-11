@@ -18,3 +18,10 @@ export function logError(where: string, e: unknown) {
     .then((home) => invoke("write_text_file", { path: `${home}/errors.log`, contents: recent.join("\n") }))
     .catch(() => undefined);
 }
+
+/** Notes in errors.log that a step took long, with the time it took, so a freeze can be traced to what ran in it. */
+export function noteSlow(what: string, started: number, over = 250, detail = "") {
+  const ms = Math.round(performance.now() - started);
+  if (ms < over) return;
+  logError(`slow: ${what}`, new Error(`${what} took ${ms} ms${detail ? `. ${detail}` : ""}`));
+}

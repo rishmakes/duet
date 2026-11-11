@@ -11,7 +11,7 @@ import { AGENTS, conversationProject, forgetSteps, forgetTasks, getChat, moveCon
 import type { AgentId } from "../ai/chat";
 import { loadThread, saveThread } from "../memory/files";
 import { stepsLine } from "../memory/steps";
-import { logError } from "../errorLog";
+import { logError, noteSlow } from "../errorLog";
 import { isUntitledName, nameFromWork } from "./naming";
 import { lineTo } from "../state/directions";
 import { keepable, packThread, readThread } from "../memory/thread";
@@ -406,7 +406,9 @@ function previewLater(path: string, doc: Doc) {
 /** A small picture of the first screen, kept with the project in the list of projects. */
 async function writePreview(path: string, doc: Doc) {
   try {
+    const began = performance.now();
     const b64 = await previewPng(doc);
+    noteSlow("drawing the project's small picture", began);
     if (!b64) return;
     await invoke("write_binary_file", { path: join(path, "preview.png"), dataBase64: b64 });
     const key = getState().project.file ?? path;
@@ -647,8 +649,15 @@ async function bringBackThread(dir: string) {
 }
 
 async function writeDesign(path: string, doc: Doc) {
+  let began = performance.now();
   await flushPictures(path, doc);
-  await invoke("write_text_file", { path: join(path, FILE), contents: serializeDoc(doc) });
+  noteSlow("saving the pictures", began);
+  began = performance.now();
+  const contents = serializeDoc(doc);
+  noteSlow("writing the design to text", began);
+  began = performance.now();
+  await invoke("write_text_file", { path: join(path, FILE), contents });
+  noteSlow("saving the design file", began);
   previewLater(path, doc);
 }
 
@@ -831,7 +840,10 @@ export function saveNow(): Promise<void> {
     try {
       await writeDesign(path, doc);
       const names = stepsToKeep(s.timeline, s.cursor, stepsKept);
-      if (await recordStep(path, stepMessage(wentBackTo(entry, wentBack), wentBack, names))) for (const n of names) stepsKept.add(n);
+      const recording = performance.now();
+      const kept = await recordStep(path, stepMessage(wentBackTo(entry, wentBack), wentBack, names));
+      noteSlow("keeping a step in history", recording);
+      if (kept) for (const n of names) stepsKept.add(n);
       schedulePack();
       setProject({ status: committed() === doc ? "saved" : "unsaved" });
     } catch (e) {

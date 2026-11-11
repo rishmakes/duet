@@ -3,7 +3,7 @@ import { PAINT_TILE } from "../document/types";
 import type { Doc, El } from "../document/types";
 import { getState } from "../state/store";
 import { flushFonts } from "./fonts";
-import { logError } from "../errorLog";
+import { logError, noteSlow } from "../errorLog";
 
 /**
  * Pictures placed on the canvas. Each one is stored once, under a name made from its contents
@@ -207,6 +207,7 @@ export async function addPicture(
   bytes: Uint8Array,
   mimeHint?: string,
 ): Promise<{ src: string; width: number; height: number }> {
+  const began = performance.now();
   const mime = mimeHint && EXT[mimeHint] ? mimeHint : (mimeFor(name) ?? "image/png");
   const digest = await crypto.subtle.digest("SHA-256", bytes as unknown as BufferSource);
   const hash = Array.from(new Uint8Array(digest))
@@ -227,6 +228,7 @@ export async function addPicture(
   });
   const dir = getState().project.path;
   if (dir) await writePicture(src, dir);
+  noteSlow("adding a picture", began, 250, `${Math.round(bytes.length / 1024)} KB, ${size.width} by ${size.height}`);
   return { src, ...size };
 }
 
