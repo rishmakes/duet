@@ -118,7 +118,9 @@ export function toSvg(doc: Doc, id: string): string {
         );
         pfilter = ` filter="url(#${fid})"`;
       }
-      return `<path d="${pathData(nodes, el.closed)}" ${pfill}${stroke}${pfilter}${op}/>`;
+      const holes = el.closed ? (el.holes ?? []) : [];
+      const d = pathData(nodes, el.closed) + holes.map((h) => pathData(toAbs({ ...el, nodes: h }, x, y), true)).join("");
+      return `<path d="${d}" ${pfill}${holes.length ? ' fill-rule="evenodd"' : ""}${stroke}${pfilter}${op}/>`;
     }
 
     let fill = paint("fill", el.fill);

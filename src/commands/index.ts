@@ -1665,6 +1665,52 @@ const placeLayers: CommandDef<PlaceLayersArgs> = {
   },
 };
 
+// ---- import_svg_layers ----
+/** One layer from an SVG file: a shape, words, a picture, or a group (bottom first). Positions are from the frame's top left. */
+export interface SvgLayer {
+  id: string;
+  type: "rect" | "ellipse" | "path" | "text" | "image" | "group";
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  props: Partial<El>;
+  children?: SvgLayer[];
+  mask?: boolean;
+}
+
+export interface ImportSvgArgs {
+  frame: { id: string; name: string; x: number; y: number; width: number; height: number; parentId?: string | null };
+  layers: SvgLayer[];
+}
+
+/** An SVG file as one frame with its shapes, words and pictures inside as separate layers, groups kept. One step. */
+const importSvgLayers: CommandDef<ImportSvgArgs> = {
+  label: (a) => `Bring in ${a.frame.name}`,
+  run: (doc, a) => {
+    const f = a.frame;
+    let next = createElement.run(doc, { type: "frame", id: f.id, parentId: f.parentId ?? null, x: f.x, y: f.y, width: f.width, height: f.height, props: { name: f.name, fill: "#ffffff00" }, keepOrder: true });
+    if (!next.elements[f.id]) return doc;
+    const place = (layers: SvgLayer[]): string[] =>
+      layers.flatMap((l) => {
+        if (l.type !== "group") {
+          next = createElement.run(next, { type: l.type, id: l.id, parentId: f.id, x: l.x, y: l.y, width: l.width, height: l.height, props: { ...l.props, name: l.name }, keepOrder: true });
+          return next.elements[l.id] ? [l.id] : [];
+        }
+        const inside = place(l.children ?? []);
+        if (inside.length === 0) return [];
+        next = groupElements.run(next, { ids: inside, groupId: l.id });
+        if (!next.elements[l.id]) return [];
+        next = clone(next);
+        Object.assign(next.elements[l.id], { ...l.props, name: l.name, ...(l.mask && inside.length > 1 ? { mask: true } : {}) });
+        return [l.id];
+      });
+    place(a.layers);
+    return next;
+  },
+};
+
 /** Every id in the order it is painted, bottom first. */
 function paintOrder(doc: Doc): string[] {
   const out: string[] = [];
@@ -2633,6 +2679,7 @@ const useKitDef: CommandDef<UseKitArgs> = {
 
 // ---- registry ----
 export const commands = {
+  import_svg_layers: importSvgLayers,
   use_kit: useKitDef,
   change_brand_kit: changeBrandKitDef,
   set_design_system: setDesignSystemDef,

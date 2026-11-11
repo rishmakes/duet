@@ -28,6 +28,7 @@ import { renderPng } from "../project/exporter";
 import { clipPicture, clipPictureOf, fileLength, letGoOfOriginals, seekClips } from "../video/clips";
 import { QUALITIES, defaultChoice, exportScene } from "../video/scene";
 import { saveNow, saveVersion, tabName } from "../project/project";
+import { importSvgPath } from "../project/svgImport";
 import { setLayout } from "../ui/layout";
 import { tracePicture } from "../project/trace";
 import { getState, goTo, keepAiWorkWhile, liveRoom, parkedFiles, roomFor } from "../state/store";
@@ -235,6 +236,21 @@ export const TOOLS: ToolDef[] = [
         height: num,
         parentId: { ...str, description: "A frame to put it in. Leave out for the page." },
         name: { ...str, description: "What to call it in the layers list. Leave out to use the file name." },
+      },
+      required: ["path", "x", "y"],
+    },
+  },
+  {
+    name: "import_svg",
+    description:
+      "Bring an SVG file from this computer in as real layers: a frame with its shapes, words and pictures as separate things, groups kept, so they can be edited and animated. Use this instead of place_image whenever the designer wants to edit the design in the file, for example a resume or a logo exported from Figma. path is the full path to the .svg file (~ for the home folder works). x and y are where the new frame's top left goes. The designer may be asked to allow it. The reply says how many layers came in, which fonts this computer is missing, and what could not be kept.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: str,
+        x: num,
+        y: num,
+        parentId: { ...str, description: "A frame to put it in. Leave out for the page." },
       },
       required: ["path", "x", "y"],
     },
@@ -592,7 +608,7 @@ export const TOOLS: ToolDef[] = [
 const KIT_TOOLS = new Set(["make_brand_kit", "change_brand_kit", "make_design_system", "change_design_system", "use_kit"]);
 const EDITS = new Set(["apply_text_style", "add_board", "open_board", "rename_board", "move_to_board", "resolve_comment", "add_comment", "set_grade", "copy_grade", "create_instance", "create_element", "create_elements", "set_props", "duplicate_elements", "move_elements", "resize_element", "reparent_elements", "make_mask", "trace_image", "set_duration", "set_work_area", "set_timing", "set_entrance", "animate", "change_volume_between", "set_curve"]);
 /** Things the designer is asked about first in Ask first mode: losing work, and reading or writing a file on the computer. */
-const RISKY = new Set(["load_look", "delete_elements", "delete_board", "place_image", "place_video", "place_sound", "export_frame", "export_video"]);
+const RISKY = new Set(["load_look", "delete_elements", "delete_board", "place_image", "import_svg", "place_video", "place_sound", "export_frame", "export_video"]);
 
 type Args = Record<string, unknown>;
 
@@ -681,6 +697,8 @@ export function summarise(tool: string, a: Args): string {
       return `Place a copy of ${nameOf(a.componentId)}`;
     case "place_image":
       return `Bring in the picture at ${String(a.path)}`;
+    case "import_svg":
+      return `Bring in the design at ${String(a.path)} as layers`;
     case "export_frame":
       return `Save ${nameOf(a.id)} as a picture at ${String(a.path)}`;
     case "picture_of_duet":
@@ -913,6 +931,17 @@ function prepare(tool: string, raw: Args, doc = R.currentDoc()): { args: Args } 
       a.path = path;
       a.parentId = a.parentId ?? null;
       a.id = newId("image");
+      return { args: a };
+    }
+    case "import_svg": {
+      const path = typeof a.path === "string" ? a.path.trim() : "";
+      if (!path) return { error: "path must be the full path to an SVG file." };
+      if (!/^(~[\\/]|[\\/]|[a-zA-Z]:[\\/])/.test(path)) return { error: "Give the full path to the file, starting from the top folder or from ~ for the home folder." };
+      if (!/\.svg$/i.test(path)) return { error: "That is not an SVG file. For other pictures use place_image." };
+      if (typeof a.x !== "number" || typeof a.y !== "number") return { error: "x and y must be numbers." };
+      if (a.parentId != null && doc.elements[String(a.parentId)]?.type !== "frame") return { error: `parentId ${String(a.parentId)} is not a frame.` };
+      a.path = path;
+      a.parentId = a.parentId ?? null;
       return { args: a };
     }
     case "export_video": {
@@ -1337,6 +1366,25 @@ async function placeImage(args: Args, by?: string): Promise<ToolResult> {
   return { text: `Placed the picture as ${String(args.id)} named "${name}", ${width} by ${height} (the file is ${pic.width} by ${pic.height}). Call look_at_image to see it.` };
 }
 
+/** Read an SVG file from the computer and bring it in as a frame of separate layers. */
+async function importSvg(args: Args, by?: string): Promise<ToolResult> {
+  let path = String(args.path);
+  if (path.startsWith("~")) path = (await invoke<string>("duet_home")).replace(/[\\/]\.duet[^\\/]*[\\/]?$/, "") + path.slice(1);
+  await ensureSaved();
+  let done: Awaited<ReturnType<typeof importSvgPath>>;
+  try {
+    done = await importSvgPath(path, { x: Number(args.x), y: Number(args.y) }, args.parentId as string | null, { doc: () => R.currentDoc(), dispatch: (a) => R.dispatch("import_svg_layers", a, "ai", by) });
+  } catch (e) {
+    return fail(e instanceof Error ? e.message : `The design at ${String(args.path)} could not be read. Check the path, and that the file is an SVG.`);
+  }
+  addMsg({ role: "note", text: `Brought in ${path.split(/[\\/]/).pop() ?? "the design"} as layers`, ...stepNow() }, said());
+  saveIfHome();
+  const lines = [`Brought it in as the frame ${done.id}, with ${done.layers} layers inside. Use get_outline to see them.`];
+  if (done.missing.length) lines.push(`These fonts are not on this computer, so the words look different until they are added: ${done.missing.join(", ")}.`);
+  if (done.notes.length) lines.push(`Could not keep: ${done.notes.join(" ")}`);
+  return { text: lines.join(" ") };
+}
+
 /** Put a video file from the computer into a frame that plays. The file stays where it is. */
 async function loadLook(args: Args, by?: string): Promise<ToolResult> {
   let path = String(args.path);
@@ -1580,6 +1628,7 @@ async function apply(tool: string, args: Args, by?: string): Promise<ToolResult>
   if (tool === "export_frame") return exportFrame(args);
   if (tool === "export_video") return exportVideo(args);
   if (tool === "place_image") return placeImage(args, by);
+  if (tool === "import_svg") return importSvg(args, by);
   if (tool === "place_video") return placeVideo(args, by);
   if (tool === "place_sound") return placeSound(args, by);
   if (tool === "trace_image") return traceImage(args, by);
@@ -1933,7 +1982,7 @@ async function answerTool(name: string, raw: unknown, by?: string): Promise<Tool
   }
   if (RISKY.has(name) && mode === "ask") {
     const ok = await askDesigner(R.live || !R.file ? summary : `In "${tabName(R.file)}": ${summary}`);
-    if (!ok) return fail(name === "export_frame" ? "The designer said not now. Do not save this file." : name === "place_image" || name === "place_video" || name === "place_sound" ? "The designer said not now. Do not bring this file in." : "The designer said not now. Do not delete this.");
+    if (!ok) return fail(name === "export_frame" ? "The designer said not now. Do not save this file." : name === "place_image" || name === "import_svg" || name === "place_video" || name === "place_sound" ? "The designer said not now. Do not bring this file in." : "The designer said not now. Do not delete this.");
   }
   // where the AI changed things shows on the canvas for a moment, in its colour
   const before = R.currentDoc();

@@ -3,6 +3,7 @@ import { Menu, MenuItem, PredefinedMenuItem, Submenu } from "@tauri-apps/api/men
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { exportDesign } from "../project/exporter";
 import { openPhotoshopFile, savePhotoshopFile } from "../project/photoshop";
+import { openSvgFile } from "../project/svgImport";
 import { exportDesignData, getRecents, inTauri, newProject, openProject, openProjectAt, saveNow } from "../project/project";
 import { currentDoc, getState, redo, undo } from "../state/store";
 import { getLayout, resetLayout, setLayout } from "./layout";
@@ -57,6 +58,7 @@ export async function installMenu() {
       await item("New project…", () => void newProject(), "CmdOrCtrl+N"),
       await item("Open…", () => void openProject(), "CmdOrCtrl+O"),
       await item("Open a Photoshop file…", () => void openPhotoshopFile()),
+      await item("Import an SVG as layers…", () => void openSvgFile()),
       await Submenu.new({ text: "Open recent", items: recentItems }),
       await item(
         "Find a project",

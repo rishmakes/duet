@@ -44,6 +44,7 @@ const WORKING: Record<string, string> = {
   look_at_attachment: "Looking at your picture",
   create_instance: "Placing a copy",
   place_image: "Bringing in a picture",
+  import_svg: "Bringing in a design as layers",
   make_mask: "Cutting something to a shape",
   trace_image: "Tracing a picture",
   select_elements: "Pointing at things",

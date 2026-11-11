@@ -1924,6 +1924,13 @@ describe("what the AI can ask for", () => {
     expect((await callTool("place_image", { path: "~/Desktop/leaf.png", x: 0, y: 0, parentId: "nope" })).text).toContain("not a frame");
   });
 
+  it("can ask to bring in an SVG as layers, but only an SVG file with a full path", async () => {
+    expect(TOOLS.some((t) => t.name === "import_svg")).toBe(true);
+    expect((await callTool("import_svg", { path: "logo.svg", x: 0, y: 0 })).text).toContain("full path");
+    expect((await callTool("import_svg", { path: "/Users/someone/leaf.png", x: 0, y: 0 })).text).toContain("not an SVG");
+    expect((await callTool("import_svg", { path: "~/Desktop/logo.svg", x: 0, y: 0, parentId: "nope" })).text).toContain("not a frame");
+  });
+
   it("only suggests bringing in a picture when the designer chose Suggest", async () => {
     setMode("suggest");
     const res = await callTool("place_image", { path: "~/Desktop/leaf.png", x: 0, y: 0 });

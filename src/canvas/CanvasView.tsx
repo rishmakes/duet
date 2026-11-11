@@ -105,6 +105,7 @@ import { fontCss, layoutText, lineStep, textLift } from "./text";
 import { getPickedTrack } from "../ui/pickedTrack";
 import { maskSelection } from "../ui/actions";
 import { isPhotoshopFile, openPhotoshopFile } from "../project/photoshop";
+import { isSvgFile, openSvgFile } from "../project/svgImport";
 
 let atNow: { doc: Doc; scene: string; t: number; out: Doc } | null = null;
 /** The design with only what plays at the moment the clock is on, so a click finds what is seen. */
@@ -2256,7 +2257,9 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
         const all = Array.from(e.dataTransfer.files);
         // a Photoshop file comes in as a frame with its layers, and Duet moves to Photo
         for (const f of all.filter((f) => isPhotoshopFile(f.name))) void openPhotoshopFile(f, at);
-        const files = all.filter((f) => !isPhotoshopFile(f.name));
+        // an SVG always comes in as layers
+        for (const f of all.filter((f) => isSvgFile(f.name))) void openSvgFile(f, at);
+        const files = all.filter((f) => !isPhotoshopFile(f.name) && !isSvgFile(f.name));
         // a video or a sound is not read into Duet: it is played from where it is, so its place on the computer is needed
         if (files.some((f) => clipKind(f.name))) {
           const known = droppedPaths(e.dataTransfer).filter((p) => clipKind(p));

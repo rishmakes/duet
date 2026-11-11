@@ -176,6 +176,8 @@ export interface El {
   /** For drawn lines: the points, and whether the line joins back to its start. */
   nodes: PathNode[];
   closed: boolean;
+  /** A closed path only: more outlines cut out of it (the hole in a ring), points as fractions of the same box. Left out when there are none. */
+  holes?: PathNode[][];
   /** In Present mode, clicking this takes you to the frame with this id. */
   link: string | null;
   /** What a click does: go to the screen (empty), open it on top as an overlay, or go back. */

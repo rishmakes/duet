@@ -57,6 +57,20 @@ export function textLift(f: TextFace): number {
   return -fromTop - (lineStep(f) - rise - fall) / 2;
 }
 
+/** How far the baseline of a line sits below the top of that line on the canvas, in design pixels. */
+export function baselineDrop(f: TextFace): number {
+  const c = ctx2d();
+  if (!c) return f.fontSize * 0.8;
+  c.font = fontCss(f);
+  c.textBaseline = "alphabetic";
+  const rise = c.measureText("Hg").fontBoundingBoxAscent;
+  c.textBaseline = "top";
+  const fromTop = c.measureText("Hg").fontBoundingBoxAscent;
+  c.textBaseline = "alphabetic";
+  if (![rise, fromTop].every(Number.isFinite)) return f.fontSize * 0.8;
+  return rise - fromTop;
+}
+
 /** How wide one line is, with the letter spacing added. */
 export function lineWidth(text: string, f: TextFace): number {
   const c = ctx2d();

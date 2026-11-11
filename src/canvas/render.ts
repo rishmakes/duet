@@ -132,6 +132,9 @@ function drawLine(ctx: CanvasRenderingContext2D, el: El, x: number, y: number) {
   if (nodes.length < 2) return;
   ctx.beginPath();
   trace(ctx, nodes, el.closed);
+  const holes = el.closed ? (el.holes ?? []) : [];
+  // the outlines cut out of it are traced in the same path and filled with the even-odd rule
+  for (const h of holes) trace(ctx, toAbs({ ...el, nodes: h }, x, y), true);
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
   const shadow = () => {
@@ -146,7 +149,8 @@ function drawLine(ctx: CanvasRenderingContext2D, el: El, x: number, y: number) {
   if (el.closed) {
     ctx.fillStyle = el.gradient ? makeGradient(ctx, el.gradient, x, y, el.width, el.height) : el.fill;
     shadow();
-    ctx.fill();
+    if (holes.length) ctx.fill("evenodd");
+    else ctx.fill();
     noShadow();
   }
   if (el.stroke && el.strokeWidth > 0) {
