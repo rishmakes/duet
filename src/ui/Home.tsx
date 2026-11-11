@@ -280,13 +280,24 @@ export default function Home({ onClose, fromProject, dev }: HomeProps) {
           <button className="active home-btn" data-name="home-space-home" title="Home">
             <Icon name="home" size={14} />
           </button>
+          {/* never locked: with a project behind Home they go back to it; with none they start a new one there */}
           {(["kitchen", "edit"] as const).map((space) => (
             <button
               key={space}
               data-name={`home-space-${space}`}
-              disabled={!canGoBack}
-              title={canGoBack ? (space === "kitchen" ? "Back to your project, in Kitchen" : "Back to your project, in Studio (Esc)") : "Start or open a project first"}
-              onClick={() => (setLayout({ space }), onClose())}
+              title={
+                canGoBack
+                  ? space === "kitchen" ? "Back to your project, in Kitchen" : "Back to your project, in Studio (Esc)"
+                  : space === "kitchen" ? "Start a new project in Kitchen" : "Start a new project in Studio"
+              }
+              onClick={async () => {
+                if (!canGoBack) {
+                  resetPageFocus();
+                  await newDesignTab();
+                }
+                setLayout({ space });
+                onClose();
+              }}
             >
               {space === "kitchen" ? "Kitchen" : "Studio"}
             </button>
