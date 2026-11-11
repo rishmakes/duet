@@ -583,6 +583,43 @@ export default function TimeStrip() {
   const trackPicked = (row: DisplayRow) => !!row.track && trackPick?.frameId === frame.id && trackPick.index === row.track.index;
 
 
+  /**
+   * In Edit: pulling across empty room draws a box and picks every clip it touches. Shift, Cmd or Ctrl
+   * keeps what was picked. A plain click still puts the playhead there.
+   */
+  const sweepClips = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    const lane = e.currentTarget.getBoundingClientRect();
+    const keep = e.shiftKey || e.metaKey || e.ctrlKey ? getState().selection : [];
+    let moved = false;
+    const move = (ev: PointerEvent) => {
+      if (!moved && Math.abs(ev.clientX - x0) < 4 && Math.abs(ev.clientY - y0) < 4) return;
+      moved = true;
+      const box = { x: Math.min(x0, ev.clientX), y: Math.min(y0, ev.clientY), w: Math.abs(ev.clientX - x0), h: Math.abs(ev.clientY - y0) };
+      setSweepBox(box);
+      const hits = [...keep];
+      lanes.current?.querySelectorAll<HTMLElement>("[data-clip-id]").forEach((n) => {
+        const r = n.getBoundingClientRect();
+        if (r.right < box.x || r.left > box.x + box.w || r.bottom < box.y || r.top > box.y + box.h) return;
+        if (!hits.includes(n.dataset.clipId!)) hits.push(n.dataset.clipId!);
+      });
+      select(hits);
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      setSweepBox(null);
+      if (!moved) {
+        pause();
+        seek(Math.max(0, (x0 - lane.left) / pps));
+      }
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+
   const scrub = (e: React.PointerEvent) => {
     // only the left button moves the playhead: the middle one drags the timeline and the right one opens the menu
     if (e.button !== 0) return;
@@ -1182,6 +1219,7 @@ export default function TimeStrip() {
       <div
         key={el.id}
         className={`time-span ${el.type} ${isSelected ? "on" : ""}`}
+        data-clip-id={el.id}
         data-name={`span-${el.name}`}
         style={{
           left: span.start * pps,
@@ -1924,7 +1962,7 @@ export default function TimeStrip() {
                 )}
                 <i className="names-grip" onPointerDown={pullNames} title="Pull to make the names wider or narrower" />
               </span>
-              <div className="time-lane" style={{ width: laneWidth }} onPointerDown={look === "layers" ? sweep : scrub}>
+              <div className="time-lane" style={{ width: laneWidth }} onPointerDown={look === "layers" ? sweep : sweepClips}>
                 {(() => {
                   const g = ghostOn(ri);
                   const push = g && g.push ? { at: g.at, by: g.push } : undefined;
