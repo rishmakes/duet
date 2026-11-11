@@ -598,6 +598,23 @@ export function readSvg(source: string, fileName = "SVG", options: SvgOptions = 
           // an open line has no fill; a closed shape with no fill and no line would be invisible
           if (!closed) props.fill = "#00000000";
           if (closed && (props.fill === "#00000000" || props.fill == null) && !props.gradient && !props.stroke) props.stroke = null;
+          // a closed shape with holes stays one layer; separate lines or shapes each become their own layer, kept together in a group
+          if (parts.length > 1 && !(closed && pieces.slice(1).every((p) => p.closed))) {
+            const base = nameOf(child, "Shape");
+            const pieceItems: SvgItem[] = flat.map((nodes, k) => {
+              const own = fromAbs(nodes);
+              const pc = pieces[k].closed;
+              const pp: Partial<El> = { ...props, nodes: own.nodes, closed: pc };
+              if (!pc) pp.fill = "#00000000";
+              if (!pc && !pp.stroke) {
+                pp.stroke = colour(here.fill) ?? "#000000";
+                pp.strokeWidth = 1;
+              }
+              return { type: "path", id: makeId("path"), name: `${base} ${k + 1}`, x: own.x, y: own.y, width: own.width, height: own.height, props: pp };
+            });
+            out.push({ type: "group", id: makeId("group"), name: base, x: 0, y: 0, width: 1, height: 1, props: {}, children: pieceItems });
+            continue;
+          }
           const item: SvgItem = {
             type: "path",
             id: makeId("path"),
@@ -608,10 +625,7 @@ export function readSvg(source: string, fileName = "SVG", options: SvgOptions = 
             height: all.height,
             props: { ...props, nodes: parts[0], closed },
           };
-          if (parts.length > 1) {
-            if (closed && pieces.slice(1).every((p) => p.closed)) item.props.holes = parts.slice(1);
-            else note("A shape made of several separate lines kept only its first line.");
-          }
+          if (parts.length > 1) item.props.holes = parts.slice(1);
           if (!closed && !props.stroke) {
             // a line with nothing to show: keep it thin and grey so it can be found
             item.props.stroke = colour(here.fill) ?? "#000000";

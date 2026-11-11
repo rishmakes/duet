@@ -130,3 +130,14 @@ describe("making an SVG into a frame of layers", () => {
     expect(text.match(/"holes"/g)).toHaveLength(1);
   });
 });
+
+describe("a shape of several separate lines", () => {
+  it("keeps every line as its own layer inside a group", () => {
+    const svg = `<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="white"/><path id="Rules" d="M10 10H50M10 30H60M10 50H70" stroke="#000"/></svg>`;
+    const plan = readSvg(svg, "Lines.svg");
+    const group = plan.items.find((i) => i.name === "Rules")!;
+    expect(group.type).toBe("group");
+    expect(group.children?.map((c) => c.name)).toEqual(["Rules 1", "Rules 2", "Rules 3"]);
+    expect(plan.notes.join(" ")).not.toContain("kept only its first line");
+  });
+});
