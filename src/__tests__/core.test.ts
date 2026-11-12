@@ -1928,6 +1928,8 @@ describe("what the AI can ask for", () => {
     expect(TOOLS.some((t) => t.name === "import_svg")).toBe(true);
     expect(TOOLS.some((t) => t.name === "find_fonts")).toBe(true);
     expect((await callTool("find_fonts", { families: [] })).text).toContain("list of font names");
+    expect(TOOLS.some((t) => t.name === "find_icons" && TOOLS.some((u) => u.name === "place_icon"))).toBe(true);
+    expect((await callTool("place_icon", { icon: "fa6-solid:house", x: 0, y: 0 })).text).toContain("Only these sets");
     expect((await callTool("import_svg", { path: "logo.svg", x: 0, y: 0 })).text).toContain("full path");
     expect((await callTool("import_svg", { path: "/Users/someone/leaf.png", x: 0, y: 0 })).text).toContain("not an SVG");
     expect((await callTool("import_svg", { path: "~/Desktop/logo.svg", x: 0, y: 0, parentId: "nope" })).text).toContain("not a frame");

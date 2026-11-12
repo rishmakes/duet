@@ -46,6 +46,8 @@ const WORKING: Record<string, string> = {
   place_image: "Bringing in a picture",
   import_svg: "Bringing in a design as layers",
   find_fonts: "Finding fonts",
+  find_icons: "Looking for icons",
+  place_icon: "Placing an icon",
   make_mask: "Cutting something to a shape",
   trace_image: "Tracing a picture",
   select_elements: "Pointing at things",

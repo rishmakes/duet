@@ -28,7 +28,8 @@ import { renderPng } from "../project/exporter";
 import { clipPicture, clipPictureOf, fileLength, letGoOfOriginals, seekClips } from "../video/clips";
 import { QUALITIES, defaultChoice, exportScene } from "../video/scene";
 import { saveNow, saveVersion, tabName } from "../project/project";
-import { findFonts, fontsReport, importSvgPath } from "../project/svgImport";
+import { findFonts, fontsReport, importSvgPath, importSvgText } from "../project/svgImport";
+import { ICON_SETS, iconSvg, parseIcon, searchIcons } from "../project/icons";
 import { setLayout } from "../ui/layout";
 import { tracePicture } from "../project/trace";
 import { getState, goTo, keepAiWorkWhile, liveRoom, parkedFiles, roomFor } from "../state/store";
@@ -260,6 +261,29 @@ export const TOOLS: ToolDef[] = [
     description:
       "Find free fonts online and add them, so text can use them. Use it when import_svg says fonts are missing, or the designer wants a font that is not on this computer. families is the font names, for example [\"Roboto\", \"Open Sans\"]. A font that is not there by that name is swapped for the closest one, and the words that used it switch too. The reply says which were found, which were swapped and which had nothing close. The designer may be asked to allow it.",
     inputSchema: { type: "object", properties: { families: { type: "array", items: str, description: "Font names." } }, required: ["families"] },
+  },
+  {
+    name: "find_icons",
+    description:
+      "Search free icons online by a word, such as \"home\", \"arrow\" or \"credit card\". Use it before drawing an icon by hand: a clean icon is better than one you draw. Each result is a name like lucide:house, its set and its licence. Only sets that are free for any use, with no credit, are searched. Then call place_icon with the name. The typed word is sent to Iconify, so the designer may be asked to allow it.",
+    inputSchema: { type: "object", properties: { query: { ...str, description: "What the icon shows, in one or two words." }, limit: { ...num, description: "How many results, up to 48. Default 24." } }, required: ["query"] },
+  },
+  {
+    name: "place_icon",
+    description:
+      "Place an icon from find_icons as real layers (a frame with its shapes), so it can be edited and animated. icon is the name from find_icons, like lucide:house. x and y are where its top left goes. size is its height in pixels (default 24). color is an optional #rrggbb that replaces the icon's own colour. The reply says the new frame's id. The designer may be asked to allow it.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        icon: str,
+        x: num,
+        y: num,
+        size: num,
+        color: str,
+        parentId: { ...str, description: "A frame to put it in. Leave out for the page." },
+      },
+      required: ["icon", "x", "y"],
+    },
   },
   {
     name: "set_props",
@@ -614,7 +638,7 @@ export const TOOLS: ToolDef[] = [
 const KIT_TOOLS = new Set(["make_brand_kit", "change_brand_kit", "make_design_system", "change_design_system", "use_kit"]);
 const EDITS = new Set(["apply_text_style", "add_board", "open_board", "rename_board", "move_to_board", "resolve_comment", "add_comment", "set_grade", "copy_grade", "create_instance", "create_element", "create_elements", "set_props", "duplicate_elements", "move_elements", "resize_element", "reparent_elements", "make_mask", "trace_image", "set_duration", "set_work_area", "set_timing", "set_entrance", "animate", "change_volume_between", "set_curve"]);
 /** Things the designer is asked about first in Ask first mode: losing work, and reading or writing a file on the computer. */
-const RISKY = new Set(["load_look", "delete_elements", "delete_board", "place_image", "import_svg", "find_fonts", "place_video", "place_sound", "export_frame", "export_video"]);
+const RISKY = new Set(["load_look", "delete_elements", "delete_board", "place_image", "import_svg", "find_fonts", "find_icons", "place_icon", "place_video", "place_sound", "export_frame", "export_video"]);
 
 type Args = Record<string, unknown>;
 
@@ -705,6 +729,10 @@ export function summarise(tool: string, a: Args): string {
       return `Bring in the picture at ${String(a.path)}`;
     case "import_svg":
       return `Bring in the design at ${String(a.path)} as layers`;
+    case "find_icons":
+      return `Search free icons online for "${String(a.query)}"`;
+    case "place_icon":
+      return `Place the icon ${String(a.icon)}`;
     case "find_fonts":
       return `Find these fonts online and add them: ${Array.isArray(a.families) ? a.families.join(", ") : ""}`;
     case "export_frame":
@@ -949,6 +977,21 @@ function prepare(tool: string, raw: Args, doc = R.currentDoc()): { args: Args } 
       if (typeof a.x !== "number" || typeof a.y !== "number") return { error: "x and y must be numbers." };
       if (a.parentId != null && doc.elements[String(a.parentId)]?.type !== "frame") return { error: `parentId ${String(a.parentId)} is not a frame.` };
       a.path = path;
+      a.parentId = a.parentId ?? null;
+      return { args: a };
+    }
+    case "find_icons": {
+      const query = typeof a.query === "string" ? a.query.trim() : "";
+      if (!query) return { error: "query must be a word to search for, such as home." };
+      if (query.length > 60) return { error: "Search for one or two words." };
+      return { args: a };
+    }
+    case "place_icon": {
+      if (typeof a.icon !== "string" || !parseIcon(a.icon)) return { error: `icon must be a name from find_icons, like lucide:house. Only these sets are offered: ${Object.keys(ICON_SETS).join(", ")}.` };
+      if (typeof a.x !== "number" || typeof a.y !== "number") return { error: "x and y must be numbers." };
+      if (a.size !== undefined && !(Number(a.size) >= 8 && Number(a.size) <= 1024)) return { error: "size must be a number of pixels between 8 and 1024." };
+      if (a.color !== undefined && !/^#[0-9a-f]{6}$/i.test(String(a.color))) return { error: "color must look like #1a2b3c." };
+      if (a.parentId != null && doc.elements[String(a.parentId)]?.type !== "frame") return { error: `parentId ${String(a.parentId)} is not a frame.` };
       a.parentId = a.parentId ?? null;
       return { args: a };
     }
@@ -1400,6 +1443,34 @@ async function importSvg(args: Args, by?: string): Promise<ToolResult> {
   return { text: lines.join(" ") };
 }
 
+/** Search free icons online. Nothing on the canvas changes. */
+async function findIconsTool(args: Args): Promise<ToolResult> {
+  let hits: Awaited<ReturnType<typeof searchIcons>>;
+  try {
+    hits = await searchIcons(String(args.query), Math.min(Number(args.limit) || 24, 48));
+  } catch {
+    return fail("The icons could not be searched. The computer may be offline.");
+  }
+  if (!hits.length) return { text: `No icons matched "${String(args.query)}". Try another word.` };
+  return { text: `${hits.length} icons for "${String(args.query)}". Place one with place_icon.\n` + hits.map((h) => `${h.icon} (${h.set}, ${h.licence})`).join("\n") };
+}
+
+/** Fetch one icon and bring it in as a frame of layers. */
+async function placeIconTool(args: Args, by?: string): Promise<ToolResult> {
+  const icon = String(args.icon);
+  await ensureSaved();
+  let done: Awaited<ReturnType<typeof importSvgText>>;
+  try {
+    const svg = await iconSvg(icon, args.size === undefined ? 24 : Number(args.size), args.color as string | undefined);
+    done = await importSvgText(svg, `${icon.split(":")[1]}.svg`, { x: Number(args.x), y: Number(args.y) }, args.parentId as string | null, { doc: () => R.currentDoc(), dispatch: (a) => R.dispatch("import_svg_layers", a, "ai", by) });
+  } catch (e) {
+    return fail(e instanceof Error ? e.message : `The icon ${icon} could not be placed.`);
+  }
+  addMsg({ role: "note", text: `Placed the icon ${icon}`, ...stepNow() }, said());
+  saveIfHome();
+  return { text: `Placed ${icon} as the frame ${done.id}, with ${done.layers} layers inside. ${ICON_SETS[icon.split(":")[0]].licence}.` };
+}
+
 /** Find free fonts online and use them; text that named a font with no exact match switches to the closest. */
 async function findFontsTool(args: Args, by?: string): Promise<ToolResult> {
   const families = args.families as string[];
@@ -1656,6 +1727,8 @@ async function apply(tool: string, args: Args, by?: string): Promise<ToolResult>
   if (tool === "place_image") return placeImage(args, by);
   if (tool === "import_svg") return importSvg(args, by);
   if (tool === "find_fonts") return findFontsTool(args, by);
+  if (tool === "find_icons") return findIconsTool(args);
+  if (tool === "place_icon") return placeIconTool(args, by);
   if (tool === "place_video") return placeVideo(args, by);
   if (tool === "place_sound") return placeSound(args, by);
   if (tool === "trace_image") return traceImage(args, by);
@@ -2009,7 +2082,7 @@ async function answerTool(name: string, raw: unknown, by?: string): Promise<Tool
   }
   if (RISKY.has(name) && mode === "ask") {
     const ok = await askDesigner(R.live || !R.file ? summary : `In "${tabName(R.file)}": ${summary}`);
-    if (!ok) return fail(name === "export_frame" ? "The designer said not now. Do not save this file." : name === "find_fonts" ? "The designer said not now. Do not add fonts." : name === "place_image" || name === "import_svg" || name === "place_video" || name === "place_sound" ? "The designer said not now. Do not bring this file in." : "The designer said not now. Do not delete this.");
+    if (!ok) return fail(name === "export_frame" ? "The designer said not now. Do not save this file." : name === "find_fonts" ? "The designer said not now. Do not add fonts." : name === "find_icons" || name === "place_icon" ? "The designer said not now. Do not fetch icons; draw it by hand or ask." : name === "place_image" || name === "import_svg" || name === "place_video" || name === "place_sound" ? "The designer said not now. Do not bring this file in." : "The designer said not now. Do not delete this.");
   }
   // where the AI changed things shows on the canvas for a moment, in its colour
   const before = R.currentDoc();
