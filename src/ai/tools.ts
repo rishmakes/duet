@@ -28,7 +28,7 @@ import { renderPng } from "../project/exporter";
 import { clipPicture, clipPictureOf, fileLength, letGoOfOriginals, seekClips } from "../video/clips";
 import { QUALITIES, defaultChoice, exportScene } from "../video/scene";
 import { saveNow, saveVersion, tabName } from "../project/project";
-import { importSvgPath } from "../project/svgImport";
+import { findFonts, fontsReport, importSvgPath } from "../project/svgImport";
 import { setLayout } from "../ui/layout";
 import { tracePicture } from "../project/trace";
 import { getState, goTo, keepAiWorkWhile, liveRoom, parkedFiles, roomFor } from "../state/store";
@@ -254,6 +254,12 @@ export const TOOLS: ToolDef[] = [
       },
       required: ["path", "x", "y"],
     },
+  },
+  {
+    name: "find_fonts",
+    description:
+      "Find free fonts online and add them, so text can use them. Use it when import_svg says fonts are missing, or the designer wants a font that is not on this computer. families is the font names, for example [\"Roboto\", \"Open Sans\"]. A font that is not there by that name is swapped for the closest one, and the words that used it switch too. The reply says which were found, which were swapped and which had nothing close. The designer may be asked to allow it.",
+    inputSchema: { type: "object", properties: { families: { type: "array", items: str, description: "Font names." } }, required: ["families"] },
   },
   {
     name: "set_props",
@@ -608,7 +614,7 @@ export const TOOLS: ToolDef[] = [
 const KIT_TOOLS = new Set(["make_brand_kit", "change_brand_kit", "make_design_system", "change_design_system", "use_kit"]);
 const EDITS = new Set(["apply_text_style", "add_board", "open_board", "rename_board", "move_to_board", "resolve_comment", "add_comment", "set_grade", "copy_grade", "create_instance", "create_element", "create_elements", "set_props", "duplicate_elements", "move_elements", "resize_element", "reparent_elements", "make_mask", "trace_image", "set_duration", "set_work_area", "set_timing", "set_entrance", "animate", "change_volume_between", "set_curve"]);
 /** Things the designer is asked about first in Ask first mode: losing work, and reading or writing a file on the computer. */
-const RISKY = new Set(["load_look", "delete_elements", "delete_board", "place_image", "import_svg", "place_video", "place_sound", "export_frame", "export_video"]);
+const RISKY = new Set(["load_look", "delete_elements", "delete_board", "place_image", "import_svg", "find_fonts", "place_video", "place_sound", "export_frame", "export_video"]);
 
 type Args = Record<string, unknown>;
 
@@ -699,6 +705,8 @@ export function summarise(tool: string, a: Args): string {
       return `Bring in the picture at ${String(a.path)}`;
     case "import_svg":
       return `Bring in the design at ${String(a.path)} as layers`;
+    case "find_fonts":
+      return `Find these fonts online and add them: ${Array.isArray(a.families) ? a.families.join(", ") : ""}`;
     case "export_frame":
       return `Save ${nameOf(a.id)} as a picture at ${String(a.path)}`;
     case "picture_of_duet":
@@ -942,6 +950,13 @@ function prepare(tool: string, raw: Args, doc = R.currentDoc()): { args: Args } 
       if (a.parentId != null && doc.elements[String(a.parentId)]?.type !== "frame") return { error: `parentId ${String(a.parentId)} is not a frame.` };
       a.path = path;
       a.parentId = a.parentId ?? null;
+      return { args: a };
+    }
+    case "find_fonts": {
+      const families = Array.isArray(a.families) ? a.families.filter((f): f is string => typeof f === "string" && f.trim() !== "").map((f) => f.trim()) : [];
+      if (!families.length) return { error: "families must be a list of font names." };
+      if (families.length > 20) return { error: "Ask for at most 20 fonts at a time." };
+      a.families = families;
       return { args: a };
     }
     case "export_video": {
@@ -1385,6 +1400,17 @@ async function importSvg(args: Args, by?: string): Promise<ToolResult> {
   return { text: lines.join(" ") };
 }
 
+/** Find free fonts online and use them; text that named a font with no exact match switches to the closest. */
+async function findFontsTool(args: Args, by?: string): Promise<ToolResult> {
+  const families = args.families as string[];
+  const found = await findFonts(null, families, { doc: () => R.currentDoc() }, (ids, props, label) => R.dispatch("set_props", { ids, props, label }, "ai", by));
+  const report = fontsReport(found);
+  if (!found.got.length && !found.swapped.length) return fail(report || "No fonts could be found. The computer may be offline.");
+  addMsg({ role: "note", text: `Added fonts: ${[...found.got, ...found.swapped.map(([, b]) => b)].join(", ")}`, ...stepNow() }, said());
+  saveIfHome();
+  return { text: report };
+}
+
 /** Put a video file from the computer into a frame that plays. The file stays where it is. */
 async function loadLook(args: Args, by?: string): Promise<ToolResult> {
   let path = String(args.path);
@@ -1629,6 +1655,7 @@ async function apply(tool: string, args: Args, by?: string): Promise<ToolResult>
   if (tool === "export_video") return exportVideo(args);
   if (tool === "place_image") return placeImage(args, by);
   if (tool === "import_svg") return importSvg(args, by);
+  if (tool === "find_fonts") return findFontsTool(args, by);
   if (tool === "place_video") return placeVideo(args, by);
   if (tool === "place_sound") return placeSound(args, by);
   if (tool === "trace_image") return traceImage(args, by);
@@ -1982,7 +2009,7 @@ async function answerTool(name: string, raw: unknown, by?: string): Promise<Tool
   }
   if (RISKY.has(name) && mode === "ask") {
     const ok = await askDesigner(R.live || !R.file ? summary : `In "${tabName(R.file)}": ${summary}`);
-    if (!ok) return fail(name === "export_frame" ? "The designer said not now. Do not save this file." : name === "place_image" || name === "import_svg" || name === "place_video" || name === "place_sound" ? "The designer said not now. Do not bring this file in." : "The designer said not now. Do not delete this.");
+    if (!ok) return fail(name === "export_frame" ? "The designer said not now. Do not save this file." : name === "find_fonts" ? "The designer said not now. Do not add fonts." : name === "place_image" || name === "import_svg" || name === "place_video" || name === "place_sound" ? "The designer said not now. Do not bring this file in." : "The designer said not now. Do not delete this.");
   }
   // where the AI changed things shows on the canvas for a moment, in its colour
   const before = R.currentDoc();

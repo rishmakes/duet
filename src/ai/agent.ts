@@ -45,6 +45,7 @@ const WORKING: Record<string, string> = {
   create_instance: "Placing a copy",
   place_image: "Bringing in a picture",
   import_svg: "Bringing in a design as layers",
+  find_fonts: "Finding fonts",
   make_mask: "Cutting something to a shape",
   trace_image: "Tracing a picture",
   select_elements: "Pointing at things",

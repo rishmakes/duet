@@ -128,7 +128,12 @@ export function closest(all: OnlineFont[], family: string): OnlineFont | null {
 }
 
 /** Find the missing fonts online and use them. Words in a font that is not the same name are switched to the closest one. */
-export async function findFonts(frameId: string, missing: string[], home: Pick<SvgHome, "doc"> = here): Promise<FontsFound> {
+export async function findFonts(
+  frameId: string | null,
+  missing: string[],
+  home: Pick<SvgHome, "doc"> = here,
+  swap: (ids: string[], props: { fontFamily: string }, label: string) => void = (ids, props, label) => dispatch("set_props", { ids, props, label }),
+): Promise<FontsFound> {
   const out: FontsFound = { got: [], swapped: [], none: [] };
   const all = await onlineFonts();
   for (const family of missing) {
@@ -150,13 +155,14 @@ export async function findFonts(frameId: string, missing: string[], home: Pick<S
     }
     const doc = home.doc();
     const inFrame = (id: string): boolean => {
+      if (!frameId) return true;
       for (let at: string | null = id; at; at = doc.elements[at]?.parentId ?? null) if (at === frameId) return true;
       return false;
     };
     const ids = Object.values(doc.elements)
       .filter((e) => e.type === "text" && e.fontFamily === family && inFrame(e.id))
       .map((e) => e.id);
-    if (ids.length) dispatch("set_props", { ids, props: { fontFamily: hit.family }, label: `Use ${hit.family} for ${family}` });
+    if (ids.length) swap(ids, { fontFamily: hit.family }, `Use ${hit.family} for ${family}`);
     out.swapped.push([family, hit.family]);
   }
   return out;
