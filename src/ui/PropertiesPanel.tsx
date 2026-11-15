@@ -19,6 +19,7 @@ import type { Entrance } from "../document/time";
 import SpeedGraph from "./SpeedGraph";
 import CommentsList from "./CommentsList";
 import ColorPanel from "./ColorPanel";
+import { FoldButton } from "./PanelStrip";
 import KindSwitch from "./KindSwitch";
 import { rootOf } from "./BeforeAfter";
 import { gradablesIn } from "../document/grade";
@@ -1035,6 +1036,7 @@ export default function PropertiesPanel() {
   useStore((s) => (s.clock.playing ? -1 : s.clock.t));
   const openScene = useStore((s) => s.clock.scene);
   const every = useLayout((d) => d.gradeEvery);
+  const swapped = useLayout((d) => d.swapped);
   const doc = workDoc();
   const els = selection.map((id) => doc.elements[id]).filter(Boolean) as El[];
 
@@ -1051,7 +1053,10 @@ export default function PropertiesPanel() {
     : { name: "Colour", on: tab === "color", title: "Colour: grade the pictures and clips", set: (on: boolean) => setTab(on ? "color" : "properties") };
   const switchElement = (
     <div className="panel-kind">
-      <KindSwitch />
+      <div className="panel-kind-row">
+        <FoldButton side={swapped ? "l" : "r"} folding title="Put the design panel away" onClick={() => setLayout({ rightHidden: true })} />
+        <KindSwitch />
+      </div>
       <div className="panel-extra" role="group" aria-label="View">
         <button type="button" className={!extra.on && tab !== "chat" ? "on" : ""} aria-pressed={!extra.on && tab !== "chat"} data-name="extra-properties" title="Properties of what you picked" onClick={() => extra.set(false)}>
           Properties

@@ -15,14 +15,14 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import ContextMenu from "./ui/ContextMenu";
 import { installMenu } from "./ui/menu";
 import { setMinimized } from "./ai/chat";
-import { clampW, fitStudio, getLayout, isColorOpen, keepMode, modeOf, setLayout, useLayout, useWindowWidth } from "./ui/layout";
+import { clampW, fitStudio, getLayout, isColorOpen, keepMode, modeOf, setLayout, STRIP_W, useLayout, useWindowWidth, type Mode } from "./ui/layout";
 import { toggleTheme, useTheme } from "./ui/theme";
 import Icon from "./ui/Icons";
 import { ProjectsSidebar, ProjectMenu } from "./ui/ChatHome";
 import { renameProject } from "./project/project";
 import { message } from "./ui/dialog";
 import StorePage from "./ui/StorePage";
-import KindSwitch from "./ui/KindSwitch";
+import PanelStrip from "./ui/PanelStrip";
 import VideoCut from "./ui/VideoCut";
 import TimeStrip from "./ui/TimeStrip";
 import { wireClips } from "./video/play";
@@ -320,6 +320,11 @@ export default function App() {
   });
   const leftOff = lw === 0;
   const rightOff = rw === 0;
+  // a panel folded away leaves a thin strip with its names down the side; only the maximised canvas takes it all
+  const leftStrip = leftOff && !dock.canvasMax;
+  const rightStrip = rightOff && !dock.canvasMax;
+  const openLeft = () => setLayout(!dock.leftHidden && leftOff ? { rightHidden: true } : { leftHidden: false });
+  const openRight = () => setLayout(!dock.rightHidden && rightOff ? { leftHidden: true } : { rightHidden: false });
   // in Studio the chat sits under the right panel, and that column runs down to the history line, beside the timeline; with the panel put away the chat floats over the canvas
   const chatUnder = dock.chatInPanel && !rightOff;
   // Kitchen, like Chat, is a whole page of its own: no tools or panels around it, only your projects on the left
@@ -336,7 +341,7 @@ export default function App() {
   const appStyle = cooking
     ? { gridTemplateColumns: "auto minmax(0, 1fr)", gridTemplateRows: `44px minmax(0, 1fr) ${hist}`, gridTemplateAreas: '"top top" "projects kitchen" "projects hist"' }
     : {
-    gridTemplateColumns: dock.swapped ? `auto ${chatCol}px ${rw}px 1fr ${lw}px` : `auto ${chatCol}px ${lw}px 1fr ${rw}px`,
+    gridTemplateColumns: dock.swapped ? `auto ${chatCol}px ${rightStrip ? STRIP_W : rw}px 1fr ${leftStrip ? STRIP_W : lw}px` : `auto ${chatCol}px ${leftStrip ? STRIP_W : lw}px 1fr ${rightStrip ? STRIP_W : rw}px`,
     // the tools float over the canvas like Kitchen's, so their row takes no room, except in the maximised timeline
     gridTemplateRows: `44px ${timeMax ? "40px" : "0px"} minmax(0, 1fr) auto ${hist}`,
     gridTemplateAreas: timeMax
@@ -388,25 +393,6 @@ export default function App() {
               Present
             </button>
           )}
-          {!cooking && (
-          <>
-          {/* a panel folded away for room comes back by putting the other one away */}
-          <button
-            className={`pill icon ${leftOff ? "" : "on"}`}
-            title={!dock.leftHidden && leftOff ? "No room for the layers panel. Make the window wider, or click to put the design panel away" : "Show or hide the layers panel"}
-            onClick={() => setLayout(!dock.leftHidden && leftOff ? { rightHidden: true } : { leftHidden: !dock.leftHidden })}
-          >
-            <Icon name="panel-left" size={15} />
-          </button>
-          <button
-            className={`pill icon ${rightOff ? "" : "on"}`}
-            title={!dock.rightHidden && rightOff ? "No room for the design panel. Make the window wider, or click to put the layers panel away" : "Show or hide the design panel"}
-            onClick={() => setLayout(!dock.rightHidden && rightOff ? { leftHidden: true } : { rightHidden: !dock.rightHidden })}
-          >
-            <Icon name="panel-right" size={15} />
-          </button>
-          </>
-          )}
           <ExportMenu />
           <div className="zoomwrap zoomonly">
             <button className="pill" onClick={() => setZoomMenu(!zoomMenu)} title="Zoom">
@@ -440,9 +426,20 @@ export default function App() {
           <div className="studio-bar">
             <Toolbar row />
             <PageFlipButton className="studio-flip" />
-            {rightOff && <KindSwitch />}
           </div>
           {!leftOff && <LayersPanel />}
+          {leftStrip && (
+            <PanelStrip
+              side={dock.swapped ? "r" : "l"}
+              label="the layers panel"
+              items={(dock.mode === "motion" ? [{ key: "clips", name: "Media" }] : []).concat([{ key: "layers", name: "Layers" }, { key: "assets", name: "Assets" }]).map((t) => ({ ...t, on: (dock.leftTab ?? (dock.mode === "motion" ? "clips" : "layers")) === t.key }))}
+              onPick={(k) => {
+                setLayout({ leftTab: k as "clips" | "layers" | "assets" });
+                openLeft();
+              }}
+              onOpen={openLeft}
+            />
+          )}
           <main className="canvas">
             <CanvasView />
             <Grip side="l" lw={lw} rw={rw} />
@@ -458,6 +455,18 @@ export default function App() {
             </div>
           ) : (
             !rightOff && <PropertiesPanel />
+          )}
+          {rightStrip && (
+            <PanelStrip
+              side={dock.swapped ? "l" : "r"}
+              label="the design panel"
+              items={[{ key: "design", name: "Design" }, { key: "motion", name: "Video" }, { key: "photo", name: "Photo" }].map((t) => ({ ...t, on: dock.mode === t.key }))}
+              onPick={(k) => {
+                setLayout({ mode: k as Mode });
+                openRight();
+              }}
+              onOpen={openRight}
+            />
           )}
           {!dock.canvasMax && <TimeStrip />}
         </>

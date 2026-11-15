@@ -1,7 +1,8 @@
 import { lengthText } from "../canvas/render";
 import AssetsPanel from "./AssetsPanel";
 import ClipsPanel from "./ClipsPanel";
-import { useLayout } from "./layout";
+import { setLayout, useLayout } from "./layout";
+import { FoldButton } from "./PanelStrip";
 import Icon from "./Icons";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -406,9 +407,12 @@ export default function LayersPanel() {
   const doc = currentDoc();
   const [drop, setDrop] = useState<Drop | null>(null);
   const video = useLayout((d) => d.mode === "motion");
-  const [tab, setTab] = useState<"clips" | "layers" | "assets">(() => (video ? "clips" : "layers"));
-  // a video opens on its clips; Clips is only there in Video
-  useEffect(() => setTab(video ? "clips" : "layers"), [video]);
+  const leftTab = useLayout((d) => d.leftTab);
+  const swapped = useLayout((d) => d.swapped);
+  // a video opens on its clips; Clips is only there in Video. The tab is kept in the layout so the folded strip can pick it too.
+  const tab: "clips" | "layers" | "assets" = leftTab === "clips" && !video ? "layers" : leftTab ?? (video ? "clips" : "layers");
+  const setTab = (t: "clips" | "layers" | "assets") => setLayout({ leftTab: t });
+  useEffect(() => setLayout({ leftTab: null }), [video]);
   const [folded, setFolded] = useState<Set<string>>(() => new Set());
   const dragging = useRef<string[]>([]);
 
@@ -505,6 +509,7 @@ export default function LayersPanel() {
         <div className={`tab ${tab === "assets" ? "on" : ""}`} onClick={() => setTab("assets")}>
           Assets
         </div>
+        <FoldButton side={swapped ? "r" : "l"} folding title="Put the layers panel away" onClick={() => setLayout({ leftHidden: true })} />
       </div>
       {tab === "layers" && <Boards doc={doc} dragging={dragging} onDropped={end} />}
       {tab === "layers" && <div className="tip-line">Click a layer to find it. Cmd or Ctrl click to zoom to it.</div>}

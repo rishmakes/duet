@@ -21,6 +21,8 @@ export interface Dock {
   rightW: number;
   leftHidden: boolean;
   rightHidden: boolean;
+  /** Which tab the left panel is on; null is the first one for the kind of work. */
+  leftTab: null | "clips" | "layers" | "assets";
   /** Layers on the right and the design panel on the left. */
   swapped: boolean;
   /** Whether we are designing, making video or editing photos. */
@@ -109,6 +111,7 @@ export const defaults = (): Dock => ({
   rightW: 248,
   leftHidden: false,
   rightHidden: false,
+  leftTab: null,
   swapped: false,
   mode: "design",
   space: "edit",
@@ -269,6 +272,8 @@ export const CANVAS_MIN = 480;
 /** How wide the projects list is open, and folded to its strip of icons. */
 export const PROJECTS_OPEN_W = 276;
 export const PROJECTS_FOLDED_W = 44;
+/** The thin strip a folded panel leaves behind, with its names down the side. */
+export const STRIP_W = 36;
 
 export interface StudioFit {
   /** 0 when the panel is folded away, by the designer or for room. */
