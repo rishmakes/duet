@@ -17,6 +17,7 @@ import { ENTRANCES, sceneOf, spanOf } from "../document/time";
 import { dbText, dipKeys, loudnessMap } from "../document/sound";
 import { trackOf } from "../document/tracks";
 import { PEAK_SLICE, peaksOf } from "../video/faces";
+import { SILENCE_DEFAULT, findSilences } from "../video/silence";
 import { MOVING, emptyDoc, playsFile } from "../document/types";
 import { boardsOf, commentsHere, describeMark, onOpenBoard, openBoard } from "../document/boards";
 import { GRADE_CONTROLS, canGrade, gradeChanges } from "../document/grade";
@@ -614,6 +615,23 @@ export const TOOLS: ToolDef[] = [
     inputSchema: { type: "object", properties: { id: str, from: num, to: num, db: num }, required: ["id", "from", "to", "db"] },
   },
   {
+    name: "cut_silences",
+    description:
+      "Find the pauses in a frame that plays and cut them out in one step, the same as the Cut silences button. A moment is a pause when every clip heard then is quieter than quiet for at least shortest seconds. keep seconds of quiet stay on each side of a cut so words do not sound clipped. Everything showing during a pause is cut and what comes after moves up. ids limits the listening to those clips; leave it out to listen to every clip with sound. find true only lists the pauses, in seconds of the frame, and cuts nothing: do that first to check them. One undo brings everything back.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { ...str, description: "A frame that plays." },
+        ids: { ...ids, description: "Clips or sounds to listen to. Leave out for all." },
+        quiet: { ...num, description: `How quiet a pause is, 5 (only near silence) to 120 (also soft breathing). ${SILENCE_DEFAULT.quiet} if left out.` },
+        shortest: { ...num, description: `Seconds a pause must last at least. ${SILENCE_DEFAULT.shortest} if left out.` },
+        keep: { ...num, description: `Seconds of quiet kept on each side of a cut. ${SILENCE_DEFAULT.keep} if left out.` },
+        find: { type: "boolean", description: "true lists the pauses and cuts nothing." },
+      },
+      required: ["id"],
+    },
+  },
+  {
     name: "resolve_comment",
     description:
       "Mark a comment the designer pinned on the canvas as dealt with, once you have done what it asks. get_context lists the open ones under comments, each with where it points, the thing under it and what is near. Say in reply what you did, in a few words.",
@@ -642,7 +660,7 @@ export const TOOLS: ToolDef[] = [
 
 /** Tools that make or change the brand kit or the design system: the designer always says yes first. */
 const KIT_TOOLS = new Set(["make_brand_kit", "change_brand_kit", "make_design_system", "change_design_system", "use_kit"]);
-const EDITS = new Set(["apply_text_style", "add_board", "open_board", "rename_board", "move_to_board", "resolve_comment", "add_comment", "set_grade", "copy_grade", "create_instance", "create_element", "create_elements", "set_props", "duplicate_elements", "move_elements", "resize_element", "reparent_elements", "make_mask", "trace_image", "set_duration", "set_work_area", "set_timing", "set_speed", "set_entrance", "animate", "change_volume_between", "set_curve"]);
+const EDITS = new Set(["apply_text_style", "add_board", "open_board", "rename_board", "move_to_board", "resolve_comment", "add_comment", "set_grade", "copy_grade", "create_instance", "create_element", "create_elements", "set_props", "duplicate_elements", "move_elements", "resize_element", "reparent_elements", "make_mask", "trace_image", "set_duration", "set_work_area", "set_timing", "set_speed", "set_entrance", "animate", "change_volume_between", "cut_silences", "set_curve"]);
 /** Things the designer is asked about first in Ask first mode: losing work, and reading or writing a file on the computer. */
 const RISKY = new Set(["load_look", "delete_elements", "delete_board", "place_image", "import_svg", "find_fonts", "find_icons", "place_icon", "place_video", "place_sound", "export_frame", "export_video"]);
 
@@ -757,6 +775,10 @@ export function summarise(tool: string, a: Args): string {
       return a.clear ? `Make all of ${nameOf(a.id)} the work area` : `Mark the work area of ${nameOf(a.id)}`;
     case "set_timing":
       return `Change when ${namesOf(a.ids)} ${Array.isArray(a.ids) && a.ids.length > 1 ? "show" : "shows"}`;
+    case "cut_silences": {
+      const r = Array.isArray(a.ranges) ? (a.ranges as { start: number; end: number }[]) : [];
+      return `Cut ${r.length} ${r.length === 1 ? "pause" : "pauses"} (${Math.round(r.reduce((t, x) => t + x.end - x.start, 0) * 10) / 10} s) out of ${nameOf(a.id ?? a.sceneId)}`;
+    }
     case "set_speed":
       return `Play ${namesOf(a.ids)} at ${Math.round(Number(a.speed) * 100)}% speed`;
     case "set_entrance":
@@ -1172,6 +1194,13 @@ function prepare(tool: string, raw: Args, doc = R.currentDoc()): { args: Args } 
       }
       return { args: a };
     }
+    case "cut_silences": {
+      const el = typeof a.id === "string" ? doc.elements[a.id] : undefined;
+      if (!el || el.type !== "frame" || !(el.duration > 0)) return { error: `${String(a.id)} is not a frame that plays.` };
+      const ranges = Array.isArray(a.ranges) ? (a.ranges as { start: unknown; end: unknown }[]) : [];
+      if (!ranges.length || ranges.some((r) => typeof r?.start !== "number" || typeof r?.end !== "number" || r.end <= r.start)) return { error: "No pauses to cut." };
+      return { args: { id: el.id, ranges } };
+    }
     case "set_speed": {
       const bad = missing(a.ids);
       if (bad.length) return { error: `No element with id: ${bad.join(", ")}.` };
@@ -1570,6 +1599,36 @@ async function hearSound(a: Args): Promise<ToolResult> {
   };
 }
 
+/** The pauses Cut silences would take out of a frame that plays, with the same settings as its button. */
+async function pausesIn(a: Args): Promise<{ pauses: { start: number; end: number }[]; seconds: number } | { error: string }> {
+  const doc = R.currentDoc();
+  const scene = typeof a.id === "string" ? doc.elements[a.id] : undefined;
+  if (!scene || scene.type !== "frame" || !(scene.duration > 0)) return { error: `${String(a.id)} is not a frame that plays.` };
+  const choice = { ...SILENCE_DEFAULT };
+  for (const [k, lo, hi] of [["quiet", 5, 120], ["shortest", 0.1, 10], ["keep", 0, 1]] as const) {
+    if (a[k] == null) continue;
+    if (typeof a[k] !== "number" || (a[k] as number) < lo || (a[k] as number) > hi) return { error: `${k} must be a number from ${lo} to ${hi}.` };
+    choice[k] = a[k] as number;
+  }
+  let only: string[] | undefined;
+  if (a.ids != null) {
+    if (!Array.isArray(a.ids) || !a.ids.length) return { error: "ids must be a list of clips, or left out." };
+    only = (a.ids as unknown[]).map(String);
+    const wrong = only.filter((i) => doc.elements[i]?.parentId !== scene.id || !playsFile(doc.elements[i]));
+    if (wrong.length) return { error: `${namesOf(wrong)} is not a clip or sound in ${scene.name}.` };
+  }
+  const srcs = [...new Set(scene.childIds.map((i) => doc.elements[i]).filter((el) => el && playsFile(el) && (!only || only.includes(el.id))).map((el) => el.src))];
+  if (!srcs.length) return { error: `${scene.name} has no clips with sound to listen to.` };
+  const peaks = new Map<string, Uint8Array>();
+  for (const src of srcs) {
+    const p = await peaksOf(src);
+    if (p?.length) peaks.set(src, p);
+  }
+  if (!peaks.size) return { error: "The sound of these clips could not be read." };
+  const pauses = findSilences(doc, scene.id, peaks, choice, only);
+  return { pauses, seconds: Math.round(pauses.reduce((t, r) => t + r.end - r.start, 0) * 100) / 100 };
+}
+
 async function placeVideo(args: Args, by?: string): Promise<ToolResult> {
   let path = String(args.path);
   // Duet's own folder sits in the home folder, which is how the home folder is found
@@ -1757,7 +1816,9 @@ async function apply(tool: string, args: Args, by?: string): Promise<ToolResult>
   if (tool === "load_look") return loadLook(args, by);
   await ensureSaved();
   // changing a value over time is one tool for the AI and the set_keys command underneath, and copying a colour is setting it
-  const command = (tool === "animate" || tool === "change_volume_between" ? "set_keys" : tool === "copy_grade" ? "set_grade" : tool === "change_design_system" ? "set_design_system" : tool) as CommandName;
+  const command = (tool === "animate" || tool === "change_volume_between" ? "set_keys" : tool === "copy_grade" ? "set_grade" : tool === "change_design_system" ? "set_design_system" : tool === "cut_silences" ? "cut_ranges" : tool) as CommandName;
+  // the AI names the frame id like everywhere else; the command underneath calls it sceneId
+  if (tool === "cut_silences") args = { sceneId: args.id, ranges: args.ranges };
   const label = commandLabel(command, args as never);
   R.dispatch(command, args as never, "ai", by);
   addMsg({ role: "note", text: summarise(tool, args), ...stepNow() }, said());
@@ -1904,7 +1965,7 @@ function changedIds(a: Doc, b: Doc): string[] {
  * What a script may change: the design, through the same commands as the AI and the designer.
  * Files, pictures from the computer, exports and the internet are doors a script does not have.
  */
-const SCRIPT_EDITS = new Set([...EDITS, "delete_elements", "delete_board"].filter((t) => t !== "trace_image" && t !== "duplicate_elements"));
+const SCRIPT_EDITS = new Set([...EDITS, "delete_elements", "delete_board"].filter((t) => t !== "trace_image" && t !== "duplicate_elements" && t !== "cut_silences"));
 const SCRIPT_READS = new Set(["get_document", "get_outline"]);
 export const scriptTools = () => [...SCRIPT_READS, ...SCRIPT_EDITS];
 
@@ -2080,6 +2141,13 @@ async function answerTool(name: string, raw: unknown, by?: string): Promise<Tool
     // only saves a new picture file and never changes the design, so the designer is not asked
     const check = prepare(name, a);
     return "error" in check ? fail(check.error) : pictureOfDuet(check.args);
+  }
+  if (name === "cut_silences") {
+    const found = await pausesIn(a);
+    if ("error" in found) return fail(found.error);
+    if (a.find === true) return { text: JSON.stringify(found) };
+    if (!found.pauses.length) return fail("No pauses found, so nothing was cut. Try a higher quiet or a shorter shortest.");
+    a.ranges = found.pauses;
   }
   if (!EDITS.has(name) && !RISKY.has(name)) return fail(`Unknown tool ${name}.`);
   const check = prepare(name, a);
