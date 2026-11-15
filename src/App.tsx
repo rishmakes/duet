@@ -432,7 +432,7 @@ export default function App() {
             <PanelStrip
               side={dock.swapped ? "r" : "l"}
               label="the layers panel"
-              items={(dock.mode === "motion" ? [{ key: "clips", name: "Media" }] : []).concat([{ key: "layers", name: "Layers" }, { key: "assets", name: "Assets" }]).map((t) => ({ ...t, on: (dock.leftTab ?? (dock.mode === "motion" ? "clips" : "layers")) === t.key }))}
+              items={(dock.mode === "motion" ? [{ key: "clips", name: "Media" }] : []).concat([{ key: "layers", name: "Layers" }, { key: "assets", name: "Assets" }]).map((t) => ({ ...t, on: (dock.leftTab === "clips" && dock.mode !== "motion" ? "layers" : dock.leftTab ?? (dock.mode === "motion" ? "clips" : "layers")) === t.key }))}
               onPick={(k) => {
                 setLayout({ leftTab: k as "clips" | "layers" | "assets" });
                 openLeft();
@@ -461,10 +461,8 @@ export default function App() {
               side={dock.swapped ? "l" : "r"}
               label="the design panel"
               items={[{ key: "design", name: "Design" }, { key: "motion", name: "Video" }, { key: "photo", name: "Photo" }].map((t) => ({ ...t, on: dock.mode === t.key }))}
-              onPick={(k) => {
-                setLayout({ mode: k as Mode });
-                openRight();
-              }}
+              // the kind of work changes, and the panel stays folded: it was put away on purpose
+              onPick={(k) => setLayout({ mode: k as Mode })}
               onOpen={openRight}
             />
           )}

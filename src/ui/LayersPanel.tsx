@@ -412,7 +412,13 @@ export default function LayersPanel() {
   // a video opens on its clips; Clips is only there in Video. The tab is kept in the layout so the folded strip can pick it too.
   const tab: "clips" | "layers" | "assets" = leftTab === "clips" && !video ? "layers" : leftTab ?? (video ? "clips" : "layers");
   const setTab = (t: "clips" | "layers" | "assets") => setLayout({ leftTab: t });
-  useEffect(() => setLayout({ leftTab: null }), [video]);
+  // only when the kind of work changes after the panel is open: opening it from the strip on Assets must stay on Assets
+  const lastVideo = useRef(video);
+  useEffect(() => {
+    if (lastVideo.current === video) return;
+    lastVideo.current = video;
+    setLayout({ leftTab: null });
+  }, [video]);
   const [folded, setFolded] = useState<Set<string>>(() => new Set());
   const dragging = useRef<string[]>([]);
 
