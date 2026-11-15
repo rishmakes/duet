@@ -1,6 +1,6 @@
 /** One icon set for the whole app: 24 grid, round ends, same stroke weight everywhere. */
 
-export type IconName = "cut-here" | "cut-close" | "cut-before" | "cut-after" | "move" | "frame" | "rect" | "ellipse" | "text" | "hand" | "zoom" | "image" | "film" | "scene" | "heart" | "printer" | "screens" | "plus" | "pen" | "brush" | "eraser" | "mask" | "group" | "lock" | "unlock" | "eye" | "eye-off" | "sound" | "sound-off" | "component" | "instance" | "panel-left" | "panel-right" | "arrow" | "search" | "settings" | "skills" | "new-chat" | "folder" | "trash" | "close" | "unlist" | "restore" | "dots" | "grid" | "list" | "copy" | "move-to" | "marker" | "comment" | "sun" | "moon" | "home" | "feedback" | "fold" | "skill-auto-layout" | "skill-mobile-screens" | "skill-spacing" | "skill-type-scale" | "skill-contrast" | "skill-plain-words" | "skill-bold-blocks" | "skill-bento" | "skill-calm-and-trusted" | "skill-friendly-and-modern" | "skill-prototypes" | "skill-custom" | "plugin-connect";
+export type IconName = "speed" | "blade" | "stretch" | "silence" | "cut-here" | "cut-close" | "cut-before" | "cut-after" | "move" | "frame" | "rect" | "ellipse" | "text" | "hand" | "zoom" | "image" | "film" | "scene" | "heart" | "printer" | "screens" | "plus" | "pen" | "brush" | "eraser" | "mask" | "group" | "lock" | "unlock" | "eye" | "eye-off" | "sound" | "sound-off" | "component" | "instance" | "panel-left" | "panel-right" | "arrow" | "search" | "settings" | "skills" | "new-chat" | "folder" | "trash" | "close" | "unlist" | "restore" | "dots" | "grid" | "list" | "copy" | "move-to" | "marker" | "comment" | "sun" | "moon" | "home" | "feedback" | "fold" | "skill-auto-layout" | "skill-mobile-screens" | "skill-spacing" | "skill-type-scale" | "skill-contrast" | "skill-plain-words" | "skill-bold-blocks" | "skill-bento" | "skill-calm-and-trusted" | "skill-friendly-and-modern" | "skill-prototypes" | "skill-custom" | "plugin-connect";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   move: <path d="M5.5 3.5l13 6.3-5.7 1.8-1.8 5.9z" />,
@@ -159,6 +159,31 @@ const PATHS: Record<IconName, React.ReactNode> = {
       <rect x="3.5" y="8.5" width="5" height="7" rx="1.5" />
       <rect x="15.5" y="8.5" width="5" height="7" rx="1.5" />
       <path d="M13.5 12h-3M12 10.25 10.25 12 12 13.75" />
+    </>
+  ),
+  speed: (
+    <>
+      <path d="M4.5 16.5a8 8 0 1 1 15 0" />
+      <path d="M12 13.5l4-4.5" />
+      <circle cx="12" cy="14" r="1.2" />
+    </>
+  ),
+  blade: (
+    <g transform="rotate(-40 12 12)">
+      <path d="M4 8.5h16v2a1.5 1.5 0 0 0 0 3v2H4v-2a1.5 1.5 0 0 0 0-3z" />
+      <rect x="8.5" y="11.25" width="7" height="1.5" rx=".75" />
+    </g>
+  ),
+  stretch: (
+    <>
+      <rect x="6.5" y="8.5" width="11" height="7" rx="1.5" />
+      <path d="M3.5 12h-1M21.5 12h-1M4.5 10l-2 2 2 2M19.5 10l2 2-2 2" />
+    </>
+  ),
+  silence: (
+    <>
+      <path d="M3.5 12h2M7 9v6M9.5 7v10M18.5 9v6M14.5 12h2" />
+      <path d="M12 4v16" strokeDasharray="2 2" />
     </>
   ),
   "cut-before": (

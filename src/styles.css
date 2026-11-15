@@ -11358,34 +11358,6 @@ button.ctx-item.store-make-option:hover {
   cursor: pointer;
 }
 /* Video's cutting tools sit in the timeline's own bar, beside Add: they work on the timeline */
-.time-tools {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--panel-2);
-}
-.time-tool {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 24px;
-  border: none;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-}
-.time-tool:hover:not(:disabled) {
-  background: var(--panel);
-  color: var(--text);
-}
-.time-tool:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
 /* the tool pill stays one line on any screen: the Comment tool keeps only its flag first, then the tools get a little smaller */
 .app:not(.time-max) .studio-bar .toolbar.row {
   flex-wrap: nowrap;
@@ -11871,4 +11843,178 @@ button.ctx-item.store-make-option:hover {
 }
 .strip-r .strip-tab.on::after {
   left: -5px;
+}
+
+/* #335 the timeline in three parts: watch and output on top, mouse tools down the left, actions underneath */
+.time {
+  container: time / inline-size;
+}
+/* the top bar never draws past its column, onto the chat or the right panel; what matters least goes first */
+.time-bar {
+  overflow-x: clip;
+  min-width: 0;
+}
+@container time (max-width: 860px) {
+  .time-bar .time-scene,
+  .time-bar .time-length {
+    display: none;
+  }
+}
+@container time (max-width: 600px) {
+  .time-bar .time-zoom {
+    display: none;
+  }
+}
+.time-body {
+  display: flex;
+  min-width: 0;
+}
+.time-body > .time-lanes {
+  flex: 1;
+  min-width: 0;
+}
+.app.time-max .time-body {
+  flex: 1;
+  min-height: 0;
+}
+.time-mouse {
+  flex: none;
+  width: 58px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 0;
+  border-right: 1px solid var(--line);
+  background: var(--panel-2);
+}
+.time-mouse-tool {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 50px;
+  padding: 5px 0 4px;
+  font: inherit;
+  font-size: 10px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.time-mouse-tool:hover {
+  color: var(--text);
+}
+.time-mouse-tool.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.time.blading .time-span,
+.time.blading .time-span * {
+  cursor: crosshair !important;
+}
+.time-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 12px;
+  border-top: 1px solid var(--line);
+  overflow-x: clip;
+  min-width: 0;
+}
+.time-act-anchor {
+  position: relative;
+}
+.time-act {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 54px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.time-act:hover:not(:disabled) {
+  background: var(--panel-2);
+  color: var(--text);
+}
+.time-act.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.time-act:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.export-pop.act-pop {
+  left: 0;
+  right: auto;
+  bottom: calc(100% + 6px);
+  width: 270px;
+}
+.act-pop label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+.act-pop input:not([type="range"]),
+.act-pop select {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 3px 6px;
+  font: inherit;
+}
+.act-pop .act-row {
+  justify-content: flex-start;
+  gap: 0;
+}
+.act-pop .act-row input {
+  width: 72px;
+  margin-left: 12px;
+}
+/* the unit sits right against the number, as on the quick picks above */
+.act-unit {
+  margin-left: 4px;
+  color: var(--text);
+}
+.act-pop .sec {
+  padding: 0;
+  border: none;
+}
+.act-pop-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.act-chips {
+  display: flex;
+  gap: 6px;
+}
+.act-chip {
+  flex: 1;
+  padding: 5px 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.act-chip.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
 }

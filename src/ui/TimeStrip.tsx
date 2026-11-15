@@ -20,7 +20,8 @@ import { lastChoice, rememberExport, shortFolder } from "../video/exportPrefs";
 import { open as openDialog } from "./dialog";
 import { droppedPaths } from "../canvas/CanvasView";
 import { CLIP_DRAG, LAYER_DRAG, draggedFootage, placeFromClips, placeLayerPictures } from "../video/media";
-import { CutTools } from "./Toolbar";
+import { ActButton, MouseTools, SpeedCard, VolumeCard } from "./TimeActions";
+import type { TimeTool } from "./TimeActions";
 import type { ExportChoice } from "../video/scene";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { DEFAULT_TRACK_H, NO_HEIGHTS, TIME_MIN_H, TRACK_MAX_H, TRACK_MIN_H, getLayout, isColorOpen, setLayout, useLayout } from "./layout";
@@ -115,6 +116,19 @@ export default function TimeStrip() {
   // the stretch tool (R): pulling the end of a clip changes its speed instead of cutting it shorter
   const [stretchTool, setStretchTool] = useState(false);
   const stretching = useRef(false);
+  // the blade (X): a click on a clip cuts it where you clicked
+  const [bladeTool, setBladeTool] = useState(false);
+  const blading = useRef(false);
+  const pickTimeTool = (t: TimeTool) => {
+    stretching.current = t === "stretch";
+    blading.current = t === "blade";
+    setStretchTool(t === "stretch");
+    setBladeTool(t === "blade");
+  };
+  // the mouse tools belong to Edit: going back to Motion puts them down
+  useEffect(() => {
+    if (look !== "cut" && (stretching.current || blading.current)) pickTimeTool("select");
+  }, [look]);
   const [menu, setMenu] = useState<{ x: number; y: number; el: El; mark?: Picked } | null>(null);
   useDismiss(!!menu, () => setMenu(null), ".ctx");
   // the track picked by its name, which paste puts clips on, and the menu of a track's name
@@ -186,6 +200,9 @@ export default function TimeStrip() {
   const heard = sceneId && doc.elements[sceneId] ? doc.elements[sceneId].childIds.map((id) => doc.elements[id]).filter((el) => el && playsFile(el)) : [];
   const pickedHeard = heard.filter((el) => selection.includes(el.id)).map((el) => el.id);
   const hushIds = pickedHeard.length ? pickedHeard : undefined;
+  // what the bar under the timeline acts on: the picked things in this scene, and of those the clips and sounds
+  const pickedHere = frame ? selection.map((id) => doc.elements[id]).filter((el): el is El => !!el && el.parentId === frame.id) : [];
+  const pickedPlays = pickedHere.filter((el) => playsFile(el));
   const heardKey = heard.map((el) => el.src).join("|");
   useEffect(() => {
     if (!hushing) return;
@@ -354,14 +371,18 @@ export default function TimeStrip() {
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
-        stretching.current = !stretching.current;
-        setStretchTool(stretching.current);
+        pickTimeTool(stretching.current ? "select" : "stretch");
         return;
       }
-      if (k === "escape" && stretching.current) {
-        stretching.current = false;
-        setStretchTool(false);
+      // X is the blade, as R is the stretch: press again or Esc to put it down. B already starts the work area.
+      if (k === "x" && !e.shiftKey && getLayout().timeLook === "cut") {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        pickTimeTool(blading.current ? "select" : "blade");
+        return;
       }
+      if (k === "escape" && (stretching.current || blading.current)) pickTimeTool("select");
       if (!["s", "d", "j", "k", "l", " "].includes(k)) return;
       e.preventDefault();
       e.stopPropagation();
@@ -1226,6 +1247,19 @@ export default function TimeStrip() {
           width: Math.max(4, (span.end - span.start) * pps),
           ...(spanH !== undefined ? { height: spanH } : {}),
         }}
+        onPointerDownCapture={
+          bladeTool
+            ? (e) => {
+                // the blade cuts the clip where it is clicked, before its handles or volume line can take the click
+                if (e.button !== 0) return;
+                e.preventDefault();
+                e.stopPropagation();
+                const r = e.currentTarget.getBoundingClientRect();
+                const t = Math.round((span.start + (e.clientX - r.left) / pps) * 1000) / 1000;
+                if (t > span.start + 0.01 && t < span.end - 0.01) dispatch("split_at", { sceneId: frame.id, t, ids: [el.id] });
+              }
+            : undefined
+        }
         onPointerDown={(e) => drag(e, el, "all")}
         onContextMenu={(e) => {
           e.preventDefault();
@@ -1334,7 +1368,7 @@ export default function TimeStrip() {
     });
 
   return (
-    <section className={`time ${look === "cut" ? "cut" : ""} ${stretchTool ? "stretching" : ""}`} style={{ "--names": `${NAMES}px` } as React.CSSProperties} data-name="time-strip" onContextMenu={(e) => { e.preventDefault(); setMenu(null); }}>
+    <section className={`time ${look === "cut" ? "cut" : ""} ${stretchTool ? "stretching" : ""} ${bladeTool ? "blading" : ""}`} style={{ "--names": `${NAMES}px` } as React.CSSProperties} data-name="time-strip" onContextMenu={(e) => { e.preventDefault(); setMenu(null); }}>
       <div className="time-bar">
         <button className="pill" data-name="play" onClick={togglePlay} title={clock.playing ? "Pause" : "Play"}>
           {clock.playing ? "Pause" : "Play"}
@@ -1346,7 +1380,7 @@ export default function TimeStrip() {
         <span className="time-now" data-name="time-now">
           {clockText(clock.t)} / {clockText(length)}
         </span>
-        <label title="How long this frame plays, in seconds">
+        <label className="time-length" title="How long this frame plays, in seconds">
           <span
             className="time-label"
             onPointerDown={(e) => {
@@ -1440,63 +1474,6 @@ export default function TimeStrip() {
             Edit
           </button>
         </div>
-        <CutTools />
-        <button className="pill" data-name="add-media" onClick={() => void bring()} title="Bring in video, music or a voice, at the moment the clock is on">
-          Add
-        </button>
-        {look === "cut" && (
-          <div className="hush-anchor">
-            <button className={`pill ${hushing ? "active" : ""}`} data-name="cut-silences" onClick={() => setHushing(!hushing)} title="Find the pauses where nobody speaks and cut them away">
-              Cut silences
-            </button>
-            {hushing && (
-              <div className="export-pop hush-pop" data-name="silence-settings">
-                <label>
-                  Quieter than
-                  <input type="range" min={5} max={120} value={hush.quiet} onChange={(e) => setHush({ ...hush, quiet: Number(e.target.value) })} />
-                </label>
-                <label>
-                  Pauses longer than
-                  <select value={hush.shortest} onChange={(e) => setHush({ ...hush, shortest: Number(e.target.value) })}>
-                    {[0.3, 0.5, 0.75, 1, 1.5, 2].map((n) => (
-                      <option key={n} value={n}>
-                        {n} s
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Keep around words
-                  <select value={hush.keep} onChange={(e) => setHush({ ...hush, keep: Number(e.target.value) })}>
-                    {[0, 0.05, 0.1, 0.2, 0.3].map((n) => (
-                      <option key={n} value={n}>
-                        {n} s
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <div className="time-quiet">
-                  {!hushPeaks
-                    ? "Listening…"
-                    : !silences.length
-                      ? "No pauses found. Try a higher quiet level."
-                      : `${silences.length} ${silences.length === 1 ? "pause" : "pauses"}, ${Math.round(silences.reduce((t, r) => t + r.end - r.start, 0) * 10) / 10} s, marked on the timeline.${hushIds ? " Only the picked clips are listened to." : ""}`}
-                </div>
-                <button
-                  className="pill primary"
-                  data-name="cut-silences-go"
-                  disabled={!silences.length}
-                  onClick={() => {
-                    dispatch("cut_ranges", { sceneId: frame.id, ranges: silences });
-                    setHushing(false);
-                  }}
-                >
-                  Cut them
-                </button>
-              </div>
-            )}
-          </div>
-        )}
         {colorOpen && (
           <div className="pill time-look grade-every" title="Where a colour change goes">
             <button className={gradeEvery ? "" : "active"} data-name="grade-this" onClick={() => setLayout({ gradeEvery: false })} title="Change only the picked clips">
@@ -1651,6 +1628,8 @@ export default function TimeStrip() {
 
       {sweepBox && <div className="time-sweep" style={{ left: sweepBox.x, top: sweepBox.y, width: sweepBox.w, height: sweepBox.h }} />}
       <div className="time-grip" data-name="timeline-height" onPointerDown={grow} title="Pull to make the timeline taller or shorter" />
+      <div className="time-body">
+      {look === "cut" && <MouseTools tool={bladeTool ? "blade" : stretchTool ? "stretch" : "select"} pick={pickTimeTool} />}
       <div
         className="time-lanes"
         ref={lanes}
@@ -2035,6 +2014,74 @@ export default function TimeStrip() {
         {snap !== null && <div className="time-snap" style={{ left: NAMES + snap * pps }} />}
         </div>
       </div>
+      </div>
+      {/* the actions, under the timeline: only the ones that fit what is picked */}
+      <div className="time-actions" data-name="time-actions">
+        {pickedHere.length ? (
+          <>
+            <ActButton icon="cut-here" label="Split" hint="S" name="act-split" onClick={() => cutNow("split")} />
+            <ActButton icon="trash" label="Delete" hint="Delete. D also closes the gap" name="act-delete" onClick={() => dispatch("delete_elements", { ids: pickedHere.map((el) => el.id) })} />
+            {pickedPlays.length > 0 && <SpeedCard els={pickedPlays} />}
+            {pickedPlays.length > 0 && <VolumeCard els={pickedPlays} scene={frame} />}
+          </>
+        ) : (
+          <>
+            <ActButton icon="plus" label="Add" name="add-media" hint="Bring in video, music or a voice, at the playhead" onClick={() => void bring()} />
+            <ActButton icon="marker" label="Marker" hint="M" name="add-marker" onClick={() => dispatch("add_marker", { id: frame.id, t: clock.t })} />
+          </>
+        )}
+        {look === "cut" && (
+          <div className="time-act-anchor hush-anchor">
+            <ActButton icon="silence" label="Cut silences" name="cut-silences" on={hushing} hint={pickedHeard.length ? "Find the pauses in the picked clips and cut them away" : "Find the pauses in the whole video and cut them away"} onClick={() => setHushing(!hushing)} />
+            {hushing && (
+              <div className="export-pop hush-pop act-pop" data-name="silence-settings">
+                <label>
+                  Quieter than
+                  <input type="range" min={5} max={120} value={hush.quiet} onChange={(e) => setHush({ ...hush, quiet: Number(e.target.value) })} />
+                </label>
+                <label>
+                  Pauses longer than
+                  <select value={hush.shortest} onChange={(e) => setHush({ ...hush, shortest: Number(e.target.value) })}>
+                    {[0.3, 0.5, 0.75, 1, 1.5, 2].map((n) => (
+                      <option key={n} value={n}>
+                        {n} s
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Keep around words
+                  <select value={hush.keep} onChange={(e) => setHush({ ...hush, keep: Number(e.target.value) })}>
+                    {[0, 0.05, 0.1, 0.2, 0.3].map((n) => (
+                      <option key={n} value={n}>
+                        {n} s
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="time-quiet">
+                  {!hushPeaks
+                    ? "Listening…"
+                    : !silences.length
+                      ? "No pauses found. Try a higher quiet level."
+                      : `${silences.length} ${silences.length === 1 ? "pause" : "pauses"}, ${Math.round(silences.reduce((t, r) => t + r.end - r.start, 0) * 10) / 10} s, marked on the timeline.${hushIds ? " Only the picked clips are listened to." : ""}`}
+                </div>
+                <button
+                  className="pill primary"
+                  data-name="cut-silences-go"
+                  disabled={!silences.length}
+                  onClick={() => {
+                    dispatch("cut_ranges", { sceneId: frame.id, ranges: silences });
+                    setHushing(false);
+                  }}
+                >
+                  Cut them
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
       {markerMenu && frame && (
         <div className="ctx" style={{ left: Math.max(10, Math.min(markerMenu.x, window.innerWidth - 230)), top: Math.max(10, Math.min(markerMenu.y, window.innerHeight - 200)) }}>
           {markerMenu.id === "work" ? (
@@ -2166,11 +2213,24 @@ export default function TimeStrip() {
               if (sceneId) dispatch("split_at", { sceneId, t: clock.t, ids: [el.id] });
             }}
           >
-            <span>Cut here</span>
-            <kbd>C</kbd>
+            <span>Split</span>
+            <kbd>S</kbd>
           </div>
           <div
             className="ctx-item"
+            data-name="menu-delete"
+            onClick={() => {
+              const el = menu.el;
+              setMenu(null);
+              dispatch("delete_elements", { ids: selection.includes(el.id) ? selection : [el.id] });
+            }}
+          >
+            <span>Delete</span>
+            <kbd>Delete</kbd>
+          </div>
+          <div
+            className="ctx-item"
+            data-name="menu-ripple-delete"
             onClick={() => {
               const el = menu.el;
               setMenu(null);
@@ -2180,6 +2240,24 @@ export default function TimeStrip() {
             <span>Delete and close the gap</span>
             <kbd>D</kbd>
           </div>
+          <div className="ctx-item" data-name="menu-cut-before" onClick={() => (setMenu(null), cutNow("before"))}>
+            <span>Cut away what comes before</span>
+          </div>
+          <div className="ctx-item" data-name="menu-cut-after" onClick={() => (setMenu(null), cutNow("after"))}>
+            <span>Cut away what comes after</span>
+          </div>
+          {playsFile(menu.el) && (
+            <>
+              <div className="ctx-line" />
+              {/* speed and sound live in Properties: these open the panel on them */}
+              <div className="ctx-item" data-name="menu-speed" onClick={() => (setMenu(null), setLayout({ rightHidden: false, videoTab: "properties" }))}>
+                <span>Speed…</span>
+              </div>
+              <div className="ctx-item" data-name="menu-volume" onClick={() => (setMenu(null), setLayout({ rightHidden: false, videoTab: "properties" }))}>
+                <span>Volume…</span>
+              </div>
+            </>
+          )}
           <div className="ctx-line" />
           {(
             [

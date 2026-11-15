@@ -2,8 +2,6 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { currentDoc, dispatch, getState, select, setTool, useStore } from "../state/store";
 import type { Tool } from "../state/store";
 import { pickImages } from "../project/imageImport";
-import { cutNow } from "../video/edit";
-import type { CutKind } from "../video/edit";
 import Icon from "./Icons";
 import type { IconName } from "./Icons";
 import { useLayout } from "./layout";
@@ -30,13 +28,6 @@ export const PHOTO_TOOLS: { tool: Tool; label: string; key: string; icon: IconNa
   { tool: "eraser", label: "Eraser", key: "E", icon: "eraser" },
 ];
 
-const CUTS: { kind: CutKind; label: string; key?: string; icon: IconName }[] = [
-  { kind: "split", label: "Cut here", key: "S", icon: "cut-here" },
-  { kind: "remove", label: "Delete and close the gap", key: "D", icon: "cut-close" },
-  { kind: "before", label: "Cut away what comes before", icon: "cut-before" },
-  { kind: "after", label: "Cut away what comes after", icon: "cut-after" },
-];
-
 export function screenCenter(vp = getState().viewport, canvasEl?: Element | null): { x: number; y: number } {
   const canvas = canvasEl ?? document.querySelector("main.canvas canvas") ?? document.querySelector("main.canvas");
   const r = canvas?.getBoundingClientRect();
@@ -55,36 +46,6 @@ export function presetFrameBounds(preset: FramePreset, center: { x: number; y: n
     width: preset.width,
     height: preset.height,
   };
-}
-
-/** Video's cutting tools and the marker, in the timeline's own bar: they work on the timeline, so they sit on it. */
-export function CutTools() {
-  const scene = useStore((s) => s.clock.scene);
-  return (
-    <div className="time-tools" data-name="cut-tools">
-      {CUTS.map((c) => (
-        <button
-          key={c.kind}
-          className="time-tool"
-          data-name={`cut-${c.kind}`}
-          disabled={!scene}
-          title={scene ? (c.key ? `${c.label} (${c.key})` : c.label) : `${c.label}. Select a scene first`}
-          onClick={() => cutNow(c.kind)}
-        >
-          <Icon name={c.icon} size={15} />
-        </button>
-      ))}
-      <button
-        className="time-tool"
-        data-name="add-marker"
-        disabled={!scene}
-        title={scene ? "Add a marker at the playhead (M)" : "Add a marker. Select a scene first"}
-        onClick={() => scene && dispatch("add_marker", { id: scene, t: getState().clock.t })}
-      >
-        <Icon name="marker" size={15} />
-      </button>
-    </div>
-  );
 }
 
 /** `row` lays the same tools out in a line, for the thin bar over the canvas beside the chat. */

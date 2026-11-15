@@ -72,6 +72,8 @@ export const SHORTCUTS: { group: string; keys: [string, string][] }[] = [
       ["K with J or L", "Step one frame back or forward"],
       ["S", "Split at the playhead"],
       ["D", "Delete the clip and close the gap"],
+      ["X", "In Edit: the blade. Click a clip to cut it there. X or Esc puts it down"],
+      ["R", "In Edit: the stretch tool. Pull a clip's end to change its speed"],
       ["M", "Add a marker at the playhead, or take it away"],
       ["B and N", "Begin and end the work area at the playhead. Play stays inside it"],
       ["[ and ]", "In Motion: start or end the picked layers at the playhead, sliding them"],
