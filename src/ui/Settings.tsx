@@ -8,6 +8,7 @@ import { useStore } from "../state/store";
 import { getVersion } from "@tauri-apps/api/app";
 import { setLayout, useLayout } from "./layout";
 import { useTheme } from "./theme";
+import AiTrail from "./AiTrail";
 
 interface SettingsProps {
   check?: boolean;
@@ -75,7 +76,7 @@ export function matchGeneralRow(
 }
 
 export default function Settings({ check = false, onClose }: SettingsProps) {
-  const [section, setSection] = useState<"Keyboard shortcuts" | "General" | "Add-ons" | "Developer">("Keyboard shortcuts");
+  const [section, setSection] = useState<"Keyboard shortcuts" | "General" | "Add-ons" | "Developer" | "AI trail">("Keyboard shortcuts");
   const [search, setSearch] = useState("");
   const [version, setVersion] = useState("");
   const [theme, setTheme] = useTheme();
@@ -112,8 +113,8 @@ export default function Settings({ check = false, onClose }: SettingsProps) {
     : undefined;
   const workingNow = who ?? "No one";
 
-  const sections = check ? (["Keyboard shortcuts", "General", "Add-ons", "Developer"] as const) : (["Keyboard shortcuts", "General", "Add-ons"] as const);
-  const activeSection = section === "Developer" && !check ? "General" : section;
+  const sections = check ? (["Keyboard shortcuts", "General", "Add-ons", "Developer", "AI trail"] as const) : (["Keyboard shortcuts", "General", "Add-ons"] as const);
+  const activeSection = (section === "Developer" || section === "AI trail") && !check ? "General" : section;
 
   const searching = Boolean(search.trim());
   const matchingShortcuts = searching ? matchShortcuts(SHORTCUTS, search, MAC) : [];
@@ -375,6 +376,12 @@ export default function Settings({ check = false, onClose }: SettingsProps) {
                   >
                     Open the Store
                   </button>
+                </div>
+              )}
+              {activeSection === "AI trail" && check && (
+                <div className="settings-content wide">
+                  <div className="settings-section-title">AI trail</div>
+                  <AiTrail />
                 </div>
               )}
               {activeSection === "Developer" && check && (

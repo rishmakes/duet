@@ -6,6 +6,7 @@ import { outsideWorking } from "./outside";
 import { TOOLS, callTool } from "./tools";
 import { getChat, subscribeChat } from "./chat";
 import { fromChat, OUTSIDE, toolName } from "./who";
+import { recordStep, startTrace } from "./trace";
 
 /** Answers the questions agents ask over MCP. Duet owns the design, so the answers come from here. */
 
@@ -49,7 +50,11 @@ async function answer(rpc: Rpc, client?: string | null): Promise<unknown> {
       if (tool && !chats && !name.startsWith("dev_")) outsideWorking(tool, /^(get_|look_|select_)/.test(name));
       // a task's AI carries its task after a slash, so its changes are told in that task
       const thread = /\/(task:[\w-]+)$/.exec(client ?? "")?.[1];
+      const began = performance.now();
+      const at = Date.now();
       const result = builder?.isBuilderTool(name) ? await builder.callBuilderTool(name, rpc.params?.arguments, by) : await callTool(name, rpc.params?.arguments, by, thread);
+      // Duet dev keeps the AI trail: what was asked and what came back, word for word
+      recordStep({ at, ms: Math.round(performance.now() - began), who: by ?? client ?? "unknown", tool: name, args: rpc.params?.arguments ?? {}, text: result.text, ...(result.image ? { image: result.image } : {}), error: !!result.isError });
       const content: Record<string, unknown>[] = [{ type: "text", text: result.text }];
       if (result.image) content.push({ type: "image", data: result.image.data, mimeType: result.image.mime });
       return { content, isError: !!result.isError };
@@ -64,6 +69,7 @@ export async function startMcp(): Promise<() => void> {
   if (import.meta.env.DEV) {
     builder = await import("./builder");
     builder.watchErrors();
+    startTrace();
   }
   // The bridge answers from this while Duet is closed, so an outside AI tool that starts first
   // still learns what Duet can do, and only has to be told to open Duet.
