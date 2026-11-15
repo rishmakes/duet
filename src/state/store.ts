@@ -316,6 +316,16 @@ export function setPagesView(on: boolean) {
   set({ timeline });
 }
 
+/**
+ * Edit makes a scene's length follow its footage; Motion keeps it fixed. Which view it is worked in is not a
+ * change to the design, so like page view it is never a step in history: every step already loaded takes it.
+ */
+export function setFollowsFootage(id: string, on: boolean) {
+  const timeline = state.timeline.map((e) => (isLoaded(e) ? { ...e, doc: runCommand(e.doc, "follow_footage", { id, on }) } : e));
+  if (timeline.every((e, i) => e === state.timeline[i] || e.doc === state.timeline[i].doc)) return;
+  set({ timeline });
+}
+
 /** Arrow presses closer together than this count as one step. Shorter than the wait before saving. */
 const NUDGE_GAP = 600;
 let lastNudge: { entry: HistoryEntry; ids: string } | null = null;

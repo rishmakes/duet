@@ -3,7 +3,7 @@ import { MARKER_COLORS, runCommand } from "../commands";
 import { KEY_GROUPS, fileTimeAt, frameTimeAt, spanOf } from "../document/time";
 import { MOVING, playsFile } from "../document/types";
 import type { Doc, El, Marker, Moving, Track } from "../document/types";
-import { currentDoc, dispatch, dragBase, dragCancel, dragCommit, dragPreview, dragPreviewDoc, getState, select, useStore } from "../state/store";
+import { currentDoc, dispatch, dragBase, dragCancel, dragCommit, dragPreview, dragPreviewDoc, getState, select, setFollowsFootage, useStore } from "../state/store";
 import { clipLength } from "../video/clips";
 import { cutNow } from "../video/edit";
 import { peaksOf } from "../video/faces";
@@ -195,6 +195,11 @@ export default function TimeStrip() {
   useEffect(() => {
     if (sceneId && !clock.scene) openScene(sceneId);
   }, [sceneId, clock.scene]);
+  // in Edit the scene is as long as its footage; in Motion its length stays where it is
+  const follows = !!frame?.followsFootage;
+  useEffect(() => {
+    if (sceneId && follows !== (look === "cut")) setFollowsFootage(sceneId, look === "cut");
+  }, [sceneId, look, follows]);
 
   // Cut silences listens to the picked clips, or to every clip with sound when none is picked
   const heard = sceneId && doc.elements[sceneId] ? doc.elements[sceneId].childIds.map((id) => doc.elements[id]).filter((el) => el && playsFile(el)) : [];
@@ -1384,7 +1389,7 @@ export default function TimeStrip() {
           <span
             className="time-label"
             onPointerDown={(e) => {
-              if (e.button !== 0 || !frame) return;
+              if (e.button !== 0 || !frame || follows) return;
               e.preventDefault();
               const target = e.currentTarget;
               target.setPointerCapture(e.pointerId);
@@ -1446,6 +1451,8 @@ export default function TimeStrip() {
           <input
             key={length}
             data-name="length"
+            readOnly={follows}
+            title={follows ? "In Edit the video ends where its footage ends. Switch to Motion to set a length." : undefined}
             type="number"
             min={0}
             step={0.5}

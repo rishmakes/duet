@@ -7,10 +7,10 @@ import type { Doc } from "../document/types";
 
 const clip = (id: string, seconds: number, type: PlaceItem["type"] = "video"): PlaceItem => ({ id, type, src: `/m/${id}.mp4`, name: `${id}.mp4`, seconds, width: 1920, height: 1080 });
 
-/** A video scene, 10 seconds long, as Home makes it. */
+/** A video scene, 10 seconds long, as Home makes it, worked on in Edit. */
 function blank() {
   const doc = runCommand(emptyDoc(), "create_element", { type: "frame", id: "f", x: 0, y: 0, width: 1920, height: 1080 });
-  return runCommand(doc, "set_duration", { id: "f", seconds: 10 });
+  return runCommand(runCommand(doc, "set_duration", { id: "f", seconds: 10 }), "follow_footage", { id: "f", on: true });
 }
 
 const rows = (doc: Doc) => trackRows(doc, doc.elements.f).map((r) => r.items.map((el) => `${el.id} ${el.start}-${el.end}`).join(", "));
@@ -72,7 +72,8 @@ describe("place_media", () => {
   });
 
   it("a drop in a title that runs to the end cuts it; its second part keeps its length, and nothing is drawn over", () => {
-    let doc = runCommand(blank(), "set_duration", { id: "f", seconds: 13 });
+    let doc = runCommand(blank(), "follow_footage", { id: "f", on: false });
+    doc = runCommand(runCommand(doc, "set_duration", { id: "f", seconds: 13 }), "follow_footage", { id: "f", on: true });
     doc = runCommand(doc, "create_element", { type: "text", id: "sun", parentId: "f", x: 0, y: 0, width: 10, height: 10, props: { start: 0, end: 0 } });
     doc = runCommand(doc, "add_track", { id: "f", index: 1 });
     const pic = { ...clip("p", 3), type: "image" as const };

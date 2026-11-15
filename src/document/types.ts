@@ -211,6 +211,8 @@ export interface El {
   workArea?: { start: number; end: number };
   /** A frame that plays only: its tracks for clips, sounds and titles, top first. Left out while Duet still sorts things into rows by itself. */
   tracks?: Track[];
+  /** A frame that plays only: its length follows its footage, ending where the last thing on it ends. On while it is worked on in Edit; Motion keeps a fixed length. */
+  followsFootage?: boolean;
   /** Anything in a frame that plays: the track it sits on in Edit, in its frame's tracks. */
   track?: string;
   /** A video clip or a sound only: the second in its file where playing starts, and how loud it is from 0 to 1. For these, src is where the file is on the computer. A sound has no place on the canvas: it is only heard. */

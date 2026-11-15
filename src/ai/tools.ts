@@ -357,7 +357,7 @@ export const TOOLS: ToolDef[] = [
   {
     name: "set_duration",
     description:
-      "Make a frame on the page play like a video, or change how long it plays. Everything in the frame is then seen over time: use set_timing for when a thing shows, set_entrance for a ready-made arrival, animate for any other movement, and place_video for clips. The frame's size is the size of the video (1920 by 1080 for wide, 1080 by 1920 for tall). Things later in the frame's list are in front. seconds 0 makes it a still design again.",
+      "Make a frame on the page play like a video, or change how long it plays. Everything in the frame is then seen over time: use set_timing for when a thing shows, set_entrance for a ready-made arrival, animate for any other movement, and place_video for clips. The frame's size is the size of the video (1920 by 1080 for wide, 1080 by 1920 for tall). Things later in the frame's list are in front. seconds 0 makes it a still design again. A frame the outline marks \"ends where its footage ends\" is being edited as a video: it is always as long as what is on it, growing and shrinking by itself, so its length cannot be set here. Trim, move or delete clips instead, and use set_work_area to export only part of it.",
     inputSchema: { type: "object", properties: { id: { ...str, description: "A frame on the page." }, seconds: num }, required: ["id", "seconds"] },
   },
   {
@@ -1169,6 +1169,7 @@ function prepare(tool: string, raw: Args, doc = R.currentDoc()): { args: Args } 
       if (!el) return { error: `No element with id: ${String(a.id)}.` };
       if (el.type !== "frame" || el.parentId) return { error: `${el.name} is not a frame on the page. Only a frame on the page can play.` };
       if (typeof a.seconds !== "number" || a.seconds < 0) return { error: "seconds must be a number, 0 or more." };
+      if (el.followsFootage && a.seconds > 0) return { error: `${el.name} is being edited as a video, so it is always as long as its footage (now ${el.duration}s). Trim, move or delete clips to change its length, or use set_work_area to export only part of it.` };
       return { args: a };
     }
     case "set_work_area": {
@@ -1642,7 +1643,9 @@ async function placeVideo(args: Args, by?: string): Promise<ToolResult> {
   const sceneId = String(args.parentId);
   const scene = R.currentDoc().elements[sceneId];
   const start = Math.max(0, Number(args.start) || 0);
+  // in Edit the scene grows to take the whole clip; in Motion its length stays and the clip is seen up to its end
   const end = Math.round((start + info.duration) * 1000) / 1000;
+  if (!scene.followsFootage && start >= scene.duration) return fail(`The frame plays for ${scene.duration}s, so a clip starting at ${start}s would not be seen. Start it earlier, or work on this frame in Edit, where the frame grows with its footage.`);
   const k = Math.min(scene.width / info.width, scene.height / info.height);
   const shape = info.width / info.height;
   let width = typeof args.width === "number" ? args.width : typeof args.height === "number" ? args.height * shape : info.width * k;
@@ -1654,7 +1657,6 @@ async function placeVideo(args: Args, by?: string): Promise<ToolResult> {
   const file = path.split(/[\\/]/).pop() ?? "Clip";
   const name = typeof args.name === "string" && args.name.trim() ? args.name.trim() : file;
   await ensureSaved();
-  if (end > scene.duration) R.dispatch("set_duration", { id: sceneId, seconds: end }, "ai", by);
   R.dispatch("create_element", { type: "video", id: String(args.id), parentId: sceneId, x, y, width, height, props: { src: path, name, start, end } }, "ai", by);
   if (!R.currentDoc().elements[String(args.id)]) return fail("The clip could not be placed there.");
   addMsg({ role: "note", text: `Brought in the clip ${file}`, ...stepNow() }, said());

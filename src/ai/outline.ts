@@ -32,7 +32,7 @@ function describe(doc: Doc, el: El): string {
   if (el.type === "sound") bits.push(`sound ${el.src}${el.clipFrom ? ` from ${el.clipFrom}s of the file` : ""}${el.volume !== 1 ? ` volume ${el.volume}` : ""}${el.fadeIn ? ` fades in ${el.fadeIn}s` : ""}${el.fadeOut ? ` fades out ${el.fadeOut}s` : ""} (only heard, its position and size mean nothing)`);
   if (el.type === "video") bits.push(`clip ${el.src}${el.clipFrom ? ` from ${el.clipFrom}s of the file` : ""}${el.volume !== 1 ? ` volume ${el.volume}` : ""}${el.fadeIn ? ` fades in ${el.fadeIn}s` : ""}${el.fadeOut ? ` fades out ${el.fadeOut}s` : ""}${el.speed !== 1 ? ` speed ${el.speed}` : ""}`);
   if (el.grade) bits.push(`colour ${Object.entries(gradeChanges(el.grade)).map(([k, v]) => (k === "look" ? `look ${String(v).split(/[\\/]/).pop()}` : `${k} ${v}`)).join(", ")}`);
-  if (el.duration > 0) bits.push(`PLAYS ${el.duration}s`);
+  if (el.duration > 0) bits.push(`PLAYS ${el.duration}s${el.followsFootage ? " (ends where its footage ends)" : ""}`);
   if (el.start || el.end) bits.push(`shows ${el.start}s to ${el.end ? `${el.end}s` : "the end"}`);
   for (const [prop, keys] of Object.entries(el.keys)) if (keys?.length) bits.push(`${prop} over time ${keys.map((k) => `${k.t}s:${Math.round(k.v * 100) / 100}`).join(" ")}`);
   if (el.opacity < 1) bits.push(`opacity ${el.opacity}`);

@@ -98,7 +98,7 @@ describe("tracks", () => {
   });
 
   it("pastes clips onto a picked track, the first one starting at the playhead", () => {
-    let doc = runCommand(scene(), "add_track", { id: "f", name: "60s idea" });
+    let doc = runCommand(runCommand(scene(), "follow_footage", { id: "f", on: true }), "add_track", { id: "f", name: "60s idea" });
     const payload = extractPayload(doc, ["b", "c"])!;
     doc = runCommand(doc, "paste_elements", { payload, parentId: "f", idMap: { b: "b2", c: "c2" }, track: { index: 0 }, at: 15 });
     expect([doc.elements.b2.start, doc.elements.b2.end, doc.elements.c2.start, doc.elements.c2.end]).toEqual([15, 19, 21, 23]);

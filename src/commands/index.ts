@@ -863,7 +863,8 @@ const pasteElements: CommandDef<PasteArgs> = {
           el.shapeKeys = el.shapeKeys.map((k) => ({ ...k, t: round(k.t + by) }));
         }
         const last = Math.max(...roots.map((el) => el.end));
-        if (last > frame.duration) frame.duration = round(last);
+        // only a scene that follows its footage grows; Motion keeps its length
+        if (frame.followsFootage && last > frame.duration) frame.duration = round(last);
       }
       if (track) stackByTrack(next, a.parentId!, roots.map((el) => el.id));
     }
@@ -1059,7 +1060,7 @@ function shiftTime(el: El, by: number) {
  * In Edit, pictures and clips go on the track dropped on, at the moment dropped: a drop in the middle of a clip
  * cuts it there, and what comes later on that track is pushed right, so nothing is covered or lost. Sounds go on a sound track
  * of their own. In Motion each one is a layer, above the picked layer or on top. An empty scene takes the
- * length of what comes in; otherwise the scene grows to hold the pictures and clips, and sounds stop at its end.
+ * length of what comes in; otherwise a scene in Edit grows to hold the pictures and clips, a scene in Motion keeps its length, and sounds stop at its end.
  */
 const placeMedia: CommandDef<PlaceMediaArgs> = {
   label: (a) => (a.items.length > 1 ? `Add ${a.items.length} clips` : "Add a clip"),
@@ -1153,7 +1154,8 @@ const placeMedia: CommandDef<PlaceMediaArgs> = {
     }
     const longest = Math.max(t, ...next.elements[a.id].childIds.map((id) => next.elements[id]).filter((el) => el.type !== "sound" && !made.includes(el.id) && el.end > el.start).map((el) => el.end));
     if (empty) next.elements[a.id].duration = round(Math.max(1, pictures.length ? t : at + sounds.reduce((sum, it) => sum + it.seconds, 0)));
-    else if (longest > next.elements[a.id].duration) next.elements[a.id].duration = round(longest);
+    // a scene that follows its footage grows after the change; one that does not (Motion) keeps its length
+    else if (frame0.followsFootage && longest > next.elements[a.id].duration) next.elements[a.id].duration = round(longest);
     // music is usually longer than the video: it stops where the video stops
     let u = at;
     for (const it of sounds) {
@@ -1814,12 +1816,69 @@ const setDuration: CommandDef<SetDurationArgs> = {
     // only a frame on the page plays: the things in it are what is seen over time
     if (!el || el.type !== "frame" || el.parentId) return doc;
     const seconds = Math.max(0, Math.min(3600, round(Number(a.seconds) || 0)));
-    if (seconds === el.duration) return doc;
+    // a scene that follows its footage is as long as what is on it; only making it still again goes through
+    if (seconds === el.duration || (el.followsFootage && seconds > 0)) return doc;
     const next = clone(doc);
     next.elements[a.id].duration = seconds;
     return next;
   },
 };
+
+// ---- follow_footage ----
+export interface FollowFootageArgs {
+  id: string;
+  /** On: the length follows the footage, as in Edit. Off: the length stays where it is, as in Motion. */
+  on: boolean;
+}
+
+const followFootage: CommandDef<FollowFootageArgs> = {
+  label: (a) => (a.on ? "Length follows the footage" : "Keep the length"),
+  run: (doc, a) => {
+    const el = doc.elements[a.id];
+    if (!el || el.type !== "frame" || el.parentId || !(el.duration > 0) || !!el.followsFootage === a.on) return doc;
+    const next = clone(doc);
+    if (a.on) next.elements[a.id].followsFootage = true;
+    else delete next.elements[a.id].followsFootage;
+    return next;
+  },
+};
+
+/** Where the last thing in a scene ends. Things that stay to the end do not set it, only where they start. 0 when nothing is timed. */
+function footageEnd(doc: Doc, frame: El): number {
+  let last = 0;
+  const walk = (ids: string[]) => {
+    for (const id of ids) {
+      const el = doc.elements[id];
+      if (!el) continue;
+      last = Math.max(last, el.end > el.start ? el.end : el.start);
+      walk(el.childIds);
+    }
+  };
+  walk(frame.childIds);
+  return round(last);
+}
+
+/** Scenes that follow their footage take the length of what is on them, after every change. An empty scene keeps its length. */
+function fitFootage(doc: Doc): Doc {
+  let out = doc;
+  for (const id of doc.rootIds) {
+    const f = doc.elements[id];
+    if (!f || f.type !== "frame" || !f.followsFootage || !(f.duration > 0)) continue;
+    const end = footageEnd(doc, f);
+    if (end < 0.1 || end === f.duration) continue;
+    const fitted: El = { ...f, duration: end };
+    if (fitted.workArea) {
+      const wa = { start: Math.min(fitted.workArea.start, end), end: Math.min(fitted.workArea.end, end) };
+      if (wa.end - wa.start < 0.1 || (wa.start <= 0.001 && wa.end >= end - 0.001)) delete fitted.workArea;
+      else fitted.workArea = wa;
+    }
+    out = { ...out, elements: { ...out.elements, [id]: fitted } };
+  }
+  return out;
+}
+
+/** How late a thing may reach in its scene: anywhere when the scene grows with its footage, else its length. */
+const roomIn = (scene: El) => (scene.followsFootage ? 3600 : scene.duration);
 
 // ---- set_timing ----
 export interface SetTimingArgs {
@@ -1844,9 +1903,10 @@ const setTiming: CommandDef<SetTimingArgs> = {
       const scene = sceneOf(next, id);
       if (!el || !scene || scene.id === id) continue;
       const was = el.start;
-      if (a.start !== undefined) el.start = Math.max(0, Math.min(scene.duration, round(Number(a.start) || 0)));
-      if (a.end !== undefined) el.end = Math.max(0, Math.min(scene.duration, round(Number(a.end) || 0)));
-      if (el.end && el.end <= el.start) el.end = Math.min(scene.duration, round(el.start + 0.1));
+      const room = roomIn(scene);
+      if (a.start !== undefined) el.start = Math.max(0, Math.min(room, round(Number(a.start) || 0)));
+      if (a.end !== undefined) el.end = Math.max(0, Math.min(room, round(Number(a.end) || 0)));
+      if (el.end && el.end <= el.start) el.end = Math.min(room, round(el.start + 0.1));
       if (a.clipFrom !== undefined && playsFile(el)) el.clipFrom = Math.max(0, round(Number(a.clipFrom) || 0));
       // what it does over time moves along with it
       const by = a.keepKeys ? 0 : el.start - was;
@@ -1881,7 +1941,7 @@ const stretchClip: CommandDef<StretchClipArgs> = {
     const was = el.speed || 1;
     // the part of the file the bar shows, which stays the same
     const shown = (span.end - span.start) * was;
-    const to = a.edge === "end" ? Math.min(scene.duration, Number(a.to) || 0) : Math.max(0, Number(a.to) || 0);
+    const to = a.edge === "end" ? Math.min(roomIn(scene), Number(a.to) || 0) : Math.max(0, Number(a.to) || 0);
     const long = a.edge === "end" ? to - span.start : span.end - to;
     if (long <= 0) return doc;
     const speed = round(Math.max(SPEEDS.min, Math.min(SPEEDS.max, shown / long)));
@@ -1892,7 +1952,7 @@ const stretchClip: CommandDef<StretchClipArgs> = {
     const held = speed <= SPEEDS.min || speed >= SPEEDS.max;
     const length = held ? round(shown / speed) : long;
     if (a.edge === "end") {
-      e.end = Math.min(scene.duration, round(span.start + length));
+      e.end = Math.min(roomIn(scene), round(span.start + length));
     } else {
       e.start = Math.max(0, round(span.end - length));
       e.end = span.end;
@@ -2150,7 +2210,7 @@ const setSpeed: CommandDef<SetSpeedArgs> = {
       const span = spanOf(el, scene);
       const was = el.speed || 1;
       // an end of 0 stays to the end of the frame; otherwise the same part of the file is shown
-      if (el.end) el.end = Math.min(scene.duration, round(span.start + ((span.end - span.start) * was) / speed));
+      if (el.end) el.end = Math.min(roomIn(scene), round(span.start + ((span.end - span.start) * was) / speed));
       el.speed = speed;
       changed = true;
     }
@@ -2782,6 +2842,7 @@ export const commands = {
   detach_instance: detachCommand,
   reset_overrides: resetOverrides,
   set_duration: setDuration,
+  follow_footage: followFootage,
   set_timing: setTiming,
   set_speed: setSpeed,
   stretch_clip: stretchClip,
@@ -2826,7 +2887,7 @@ export function runCommand<N extends CommandName>(doc: Doc, name: N, args: ArgsO
   const out = (commands[name] as CommandDef<ArgsOf<N>>).run(doc, args);
   if (out === doc) return doc;
   // keep what was changed on a copy, rebuild the copies from their components, then line things up
-  return relayout(syncInstances(captureOverrides(doc, out)));
+  return fitFootage(relayout(syncInstances(captureOverrides(doc, out))));
 }
 
 export function commandLabel<N extends CommandName>(name: N, args: ArgsOf<N>): string {
