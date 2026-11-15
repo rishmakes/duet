@@ -147,8 +147,8 @@ export const TOOLS: ToolDef[] = [
   {
     name: "look_at_design",
     description:
-      "See what a frame or shape looks like right now, drawn as the designer sees it. Use it to check your own work after changes, and to understand a design before you change it. Leave ids out to see the selection, or the first frame. maxSize is the longest side in pixels (default 768).",
-    inputSchema: { type: "object", properties: { ids, maxSize: num } },
+      "See what a frame or shape looks like right now, drawn as the designer sees it. Use it to check your own work after changes, and to understand a design before you change it. Leave ids out to see the selection, or the first frame. maxSize is the longest side in pixels (default 768). In a video it shows the real footage at the moment the playhead is on; give at (seconds) to see another moment without moving the designer's playhead.",
+    inputSchema: { type: "object", properties: { ids, maxSize: num, at: { type: "number", description: "In a video, the second to look at. Leave out for where the playhead is." } } },
   },
   {
     name: "create_instance",
@@ -2045,7 +2045,7 @@ async function answerTool(name: string, raw: unknown, by?: string): Promise<Tool
     return { text: JSON.stringify({ rootIds: d.rootIds, elements: d.elements }) };
   }
   if (name === "look_at_image") return lookAtImage(a.id, a.maxSize, R);
-  if (name === "look_at_design") return lookAtDesign(a.ids, a.maxSize, R);
+  if (name === "look_at_design") return lookAtDesign(a.ids, a.maxSize, R, a.at);
   if (name === "look_at_attachment") return lookAtAttachment(a.number);
   if (name === "color_readings") return colorReadings(a);
   if (name === "hear_sound") return hearSound(a);

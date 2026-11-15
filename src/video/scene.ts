@@ -317,7 +317,7 @@ async function baseClip(doc: Doc, now: Doc, sceneId: string, t: number, sizes: M
  * The web view is not asked: it can give a black picture for a large file without saying so. `skip` is
  * the clip at the bottom, which the engine reads and lays down itself.
  */
-async function readClips(doc: Doc, now: Doc, sceneId: string, t: number, sx: number, sy: number, sizes: Map<string, Info>, skip?: string) {
+async function readClips(doc: Doc, now: Doc, sceneId: string, t: number, sx: number, sy: number, sizes: Map<string, Info>, skip?: string, reader = "scene_export_clip") {
   const scene = doc.elements[sceneId];
   for (const id of clipsIn(now, sceneId)) {
     const el = now.elements[id];
@@ -337,12 +337,25 @@ async function readClips(doc: Doc, now: Doc, sceneId: string, t: number, sx: num
     const w = Math.max(1, Math.min(8192, Math.round(info.width * k)));
     const h = Math.max(1, Math.min(8192, Math.round(info.height * k)));
     const at = Math.max(0, fileTimeAt(doc.elements[id], start, t));
-    const bytes = await invoke<ArrayBuffer>("scene_export_clip", { ask: { id, path: el.src, at, speed: el.speed || 1, width: w, height: h, matrix: info.height <= 576 ? "bt601" : "bt709" } });
+    const bytes = await invoke<ArrayBuffer>(reader, { ask: { id, path: el.src, at, speed: el.speed || 1, width: w, height: h, matrix: info.height <= 576 ? "bt601" : "bt709" } });
     // an empty answer means the file ended before the clip did, and the clip shows black, as on the canvas
     const got = bytes instanceof ArrayBuffer ? bytes.byteLength : -1;
     if (got !== w * h * 4 && got !== 0) throw new Error(`The clip "${el.name}" could not be read at ${Math.round(t * 100) / 100}s (${got} of ${w * h * 4}), so the video was not made.`);
     setMadePicture(id, w, h, got ? new Uint8ClampedArray(bytes) : null);
   }
+}
+
+/**
+ * Draw a picture of a frame that plays, at one moment, with every clip read from its own file, so the
+ * AI sees the real footage and not the black box the web view gives when a clip's picture is copied.
+ * `draw` is handed the design as it stands at that moment.
+ */
+export async function drawWithFootage<T>(doc: Doc, sceneId: string, t: number, scale: number, draw: (now: Doc) => T): Promise<T> {
+  const now = docAt(doc, sceneId, t);
+  await readClips(doc, now, sceneId, t, scale, scale, new Map(), undefined, "clip_still");
+  let out!: T;
+  drawingMade(() => (out = draw(now)));
+  return out;
 }
 
 /**

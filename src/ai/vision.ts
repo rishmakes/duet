@@ -3,6 +3,9 @@ import { liveRoom } from "../state/store";
 import type { Room } from "../state/store";
 import { pictureOf, pictureSize, preloadPictures } from "../project/assets";
 import { renderPng } from "../project/exporter";
+import { drawWithFootage } from "../video/scene";
+import { logError } from "../errorLog";
+import type { Doc } from "../document/types";
 import type { ToolResult } from "./tools";
 
 /**
@@ -40,8 +43,21 @@ export async function lookAtImage(id: unknown, max: unknown, room: Room = liveRo
   };
 }
 
-/** What the design looks like right now: one frame or shape, drawn as the designer sees it. */
-export async function lookAtDesign(ids: unknown, max: unknown, room: Room = liveRoom): Promise<ToolResult> {
+/** The frame that plays which holds this element, or the element itself when it is one. */
+function sceneOf(doc: Doc, id: string): string | null {
+  for (let el: Doc["elements"][string] | undefined = doc.elements[id]; el; el = el.parentId ? doc.elements[el.parentId] : undefined) {
+    if (el.type === "frame" && el.duration > 0) return el.id;
+  }
+  return null;
+}
+
+const secs = (t: number) => `${Math.round(t * 100) / 100}s`;
+
+/**
+ * What the design looks like right now: one frame or shape, drawn as the designer sees it. In a frame
+ * that plays it is drawn at the moment the playhead is on, or at `at` seconds, with the real footage.
+ */
+export async function lookAtDesign(ids: unknown, max: unknown, room: Room = liveRoom, at?: unknown): Promise<ToolResult> {
   const doc = room.currentDoc();
   const sel = room.getState().selection;
   const list = Array.isArray(ids) && ids.length ? ids.map(String) : sel.length ? sel : doc.rootIds.filter((i) => doc.elements[i]?.type === "frame").slice(0, 1);
@@ -51,9 +67,24 @@ export async function lookAtDesign(ids: unknown, max: unknown, room: Room = live
   await preloadPictures(doc);
   const box = turnedBox({ x: 0, y: 0, width: el.width, height: el.height }, turnOf(el));
   const k = Math.min(1, side(max) / Math.max(box.width, box.height));
-  const data = renderPng(doc, id, k);
+  const sceneId = sceneOf(doc, id);
+  const scene = sceneId ? doc.elements[sceneId] : null;
+  let data: string;
+  let when = "";
+  if (scene) {
+    const clock = room.getState().clock;
+    const asked = typeof at === "number" && Number.isFinite(at);
+    const t = Math.max(0, Math.min(scene.duration, asked ? (at as number) : clock.scene === scene.id ? clock.t : 0));
+    when = ` at ${secs(t)} of ${secs(scene.duration)}${asked ? "" : clock.scene === scene.id ? ", where the playhead is" : ""}`;
+    try {
+      data = await drawWithFootage(doc, scene.id, t, k, (now) => renderPng(now, id, k));
+    } catch (e) {
+      logError("look at footage", e);
+      return { text: `The footage in "${el.name}" could not be read at ${secs(t)}. Check that its file is still there.`, isError: true };
+    }
+  } else data = renderPng(doc, id, k);
   return {
-    text: `A picture of "${el.name}" (${Math.round(el.width)} by ${Math.round(el.height)} pixels${turnOf(el) ? `, turned ${turnOf(el)} degrees` : ""}), shown at ${Math.round(box.width * k)} by ${Math.round(box.height * k)}.${list.length > 1 ? " Only the first one is shown. Ask again for the others." : ""}`,
+    text: `A picture of "${el.name}" (${Math.round(el.width)} by ${Math.round(el.height)} pixels${turnOf(el) ? `, turned ${turnOf(el)} degrees` : ""})${when}, shown at ${Math.round(box.width * k)} by ${Math.round(box.height * k)}.${list.length > 1 ? " Only the first one is shown. Ask again for the others." : ""}`,
     image: { data, mime: "image/png" },
   };
 }

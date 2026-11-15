@@ -615,6 +615,34 @@ pub fn scene_export_clip(ask: ClipAsk) -> Result<tauri::ipc::Response, String> {
     Ok(tauri::ipc::Response::new(m.clip_picture(&ask)?))
 }
 
+/// One clip's picture at one moment, read from its own file, with no video being made. This is how
+/// the AI sees a clip: the web view will not let a picture of a playing clip be copied. Empty when the
+/// file has ended by then.
+#[tauri::command(async)]
+pub fn clip_still(ask: ClipAsk) -> Result<tauri::ipc::Response, String> {
+    use std::io::Read;
+    if ask.width == 0 || ask.height == 0 || ask.width > 8192 || ask.height > 8192 {
+        return Err("That clip size cannot be read.".into());
+    }
+    let ffmpeg = find("ffmpeg").ok_or(MISSING)?;
+    let mut args = clip_reader_args(&ask, 30, &look_of(&ask.path));
+    let last = args.len() - 1;
+    args.splice(last..last, ["-frames:v".to_string(), "1".to_string()]);
+    let mut child = crate::quiet_command(ffmpeg)
+        .args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    let mut out = child.stdout.take().ok_or("The clip could not be read.")?;
+    let mut bytes = vec![0u8; (ask.width * ask.height * 4) as usize];
+    let got = out.read_exact(&mut bytes).is_ok();
+    let _ = child.kill();
+    let _ = child.wait();
+    Ok(tauri::ipc::Response::new(if got { bytes } else { Vec::new() }))
+}
+
 /// One picture of the video. The header says what is in it; the body holds what was drawn, as RGBA.
 /// A clip that fills the picture is read from its own file at full quality and graded here, in
 /// 32-bit, and only what is drawn over it comes from the canvas.
