@@ -4,6 +4,7 @@ import vm from "node:vm";
 import { emptyDoc } from "../document/types";
 import { ScriptRun, itemsFor, readMeta, workerSource } from "./scripts";
 import { scriptStep } from "../ai/tools";
+import { runCommand } from "../commands";
 
 describe("a script's steps", () => {
   it("changes a copy of the design through the same tools as the AI, counting each change", () => {
@@ -155,5 +156,31 @@ describe("the scripts that come with Duet", () => {
     const xs = ids.map((id) => run.doc.elements[id].x);
     // 220 wide, 100 of things, so three gaps of 40
     expect(xs).toEqual([0, 60, 120, 200]);
+  });
+});
+
+describe("the AI's speed tool", () => {
+  function clip() {
+    let doc = runCommand(emptyDoc(), "create_element", { type: "frame", id: "f", x: 0, y: 0, width: 1920, height: 1080 });
+    doc = runCommand(doc, "set_duration", { id: "f", seconds: 10 });
+    doc = runCommand(doc, "create_element", { type: "rect", id: "r", parentId: "f", x: 0, y: 0, width: 10, height: 10 });
+    return runCommand(doc, "create_element", { type: "video", id: "v", parentId: "f", x: 0, y: 0, width: 1920, height: 1080, props: { src: "/a.mp4", start: 2, end: 6 } });
+  }
+
+  it("uses the same command as the Speed button, so the clip gets shorter", () => {
+    const r = scriptStep(clip(), "set_speed", { ids: ["v"], speed: 2 });
+    if ("error" in r) throw new Error(r.error);
+    expect([r.doc.elements.v.speed, r.doc.elements.v.end]).toEqual([2, 4]);
+  });
+
+  it("refuses what has no speed, and speeds out of range", () => {
+    expect("error" in scriptStep(clip(), "set_speed", { ids: ["r"], speed: 2 })).toBe(true);
+    expect("error" in scriptStep(clip(), "set_speed", { ids: ["v"], speed: 40 })).toBe(true);
+    expect("error" in scriptStep(clip(), "set_speed", { ids: ["v"], speed: "fast" })).toBe(true);
+  });
+
+  it("set_props points to set_speed instead of changing speed", () => {
+    const r = scriptStep(clip(), "set_props", { ids: ["v"], props: { speed: 2 } });
+    expect("error" in r && r.error).toMatch(/set_speed/);
   });
 });

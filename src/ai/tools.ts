@@ -5,7 +5,7 @@ import { lookAtDesign, lookAtImage } from "./vision";
 import { lookAtAttachment } from "./pictures";
 import { checkLayout } from "./designCheck";
 import { checkExport } from "./exportCheck";
-import { commandLabel, newId, runCommand } from "../commands";
+import { SPEEDS, commandLabel, newId, runCommand } from "../commands";
 import { brandRules, offBrand } from "./brandLock";
 import type { CommandName } from "../commands";
 import { measureText } from "../canvas/text";
@@ -17,7 +17,7 @@ import { ENTRANCES, sceneOf, spanOf } from "../document/time";
 import { dbText, dipKeys, loudnessMap } from "../document/sound";
 import { trackOf } from "../document/tracks";
 import { PEAK_SLICE, peaksOf } from "../video/faces";
-import { MOVING, emptyDoc } from "../document/types";
+import { MOVING, emptyDoc, playsFile } from "../document/types";
 import { boardsOf, commentsHere, describeMark, onOpenBoard, openBoard } from "../document/boards";
 import { GRADE_CONTROLS, canGrade, gradeChanges } from "../document/grade";
 import { readings as gradeReadings } from "../canvas/grade";
@@ -372,6 +372,12 @@ export const TOOLS: ToolDef[] = [
     inputSchema: { type: "object", properties: { ids, start: num, end: num, clipFrom: num }, required: ["ids"] },
   },
   {
+    name: "set_speed",
+    description:
+      "Play video clips or sounds faster or slower. speed 1 is normal, 2 is twice as fast, 0.5 is half speed, from 0.1 to 16. The clip keeps the same part of its file, so it gets shorter on the timeline when faster and longer when slower (never past the end of the frame). Things after it do not move. This is the only way to change speed: set_props cannot.",
+    inputSchema: { type: "object", properties: { ids, speed: num }, required: ["ids", "speed"] },
+  },
+  {
     name: "set_entrance",
     description: "A ready-made way for things to arrive when they appear (when: in) or go when they leave (when: out). kind is none, fade, slide-left, slide-right, slide-up, slide-down or grow. seconds is how long it takes, 0.4 if left out. Set the timing first.",
     inputSchema: { type: "object", properties: { ids, when: { ...str, description: "in or out." }, kind: str, seconds: num }, required: ["ids", "when", "kind"] },
@@ -636,7 +642,7 @@ export const TOOLS: ToolDef[] = [
 
 /** Tools that make or change the brand kit or the design system: the designer always says yes first. */
 const KIT_TOOLS = new Set(["make_brand_kit", "change_brand_kit", "make_design_system", "change_design_system", "use_kit"]);
-const EDITS = new Set(["apply_text_style", "add_board", "open_board", "rename_board", "move_to_board", "resolve_comment", "add_comment", "set_grade", "copy_grade", "create_instance", "create_element", "create_elements", "set_props", "duplicate_elements", "move_elements", "resize_element", "reparent_elements", "make_mask", "trace_image", "set_duration", "set_work_area", "set_timing", "set_entrance", "animate", "change_volume_between", "set_curve"]);
+const EDITS = new Set(["apply_text_style", "add_board", "open_board", "rename_board", "move_to_board", "resolve_comment", "add_comment", "set_grade", "copy_grade", "create_instance", "create_element", "create_elements", "set_props", "duplicate_elements", "move_elements", "resize_element", "reparent_elements", "make_mask", "trace_image", "set_duration", "set_work_area", "set_timing", "set_speed", "set_entrance", "animate", "change_volume_between", "set_curve"]);
 /** Things the designer is asked about first in Ask first mode: losing work, and reading or writing a file on the computer. */
 const RISKY = new Set(["load_look", "delete_elements", "delete_board", "place_image", "import_svg", "find_fonts", "find_icons", "place_icon", "place_video", "place_sound", "export_frame", "export_video"]);
 
@@ -751,6 +757,8 @@ export function summarise(tool: string, a: Args): string {
       return a.clear ? `Make all of ${nameOf(a.id)} the work area` : `Mark the work area of ${nameOf(a.id)}`;
     case "set_timing":
       return `Change when ${namesOf(a.ids)} ${Array.isArray(a.ids) && a.ids.length > 1 ? "show" : "shows"}`;
+    case "set_speed":
+      return `Play ${namesOf(a.ids)} at ${Math.round(Number(a.speed) * 100)}% speed`;
     case "set_entrance":
       return `${namesOf(a.ids)}: ${a.when === "out" ? "leave" : "arrive"} with ${String(a.kind)}`;
     case "set_curve":
@@ -1044,6 +1052,7 @@ function prepare(tool: string, raw: Args, doc = R.currentDoc()): { args: Args } 
       if (!a.props || typeof a.props !== "object") return { error: "props must be an object." };
       const p: Record<string, unknown> = { ...(a.props as Record<string, unknown>) };
       for (const forbidden of ["id", "type", "parentId", "childIds", "componentId", "overrides"]) delete p[forbidden];
+      if ("speed" in p) return { error: "set_props cannot change speed. Use set_speed, which also makes the clip shorter or longer to match." };
       const list = a.ids as string[];
       if ("component" in p) {
         if (p.component !== true) return { error: "component can only be set to true. To stop something being a component, ask the designer." };
@@ -1162,6 +1171,18 @@ function prepare(tool: string, raw: Args, doc = R.currentDoc()): { args: Args } 
         if (!(ENTRANCES as readonly string[]).includes(String(a.kind))) return { error: `kind must be one of: ${ENTRANCES.join(", ")}.` };
       }
       return { args: a };
+    }
+    case "set_speed": {
+      const bad = missing(a.ids);
+      if (bad.length) return { error: `No element with id: ${bad.join(", ")}.` };
+      const speed = a.speed;
+      if (typeof speed !== "number" || !(speed >= SPEEDS.min && speed <= SPEEDS.max)) return { error: `speed must be a number from ${SPEEDS.min} to ${SPEEDS.max}. 1 is normal.` };
+      const list = a.ids as string[];
+      const no = list.filter((i) => !playsFile(doc.elements[i]));
+      if (no.length) return { error: `${namesOf(no)} is not a video clip or a sound. Only those have a speed.` };
+      const still = list.filter((i) => !sceneOf(doc, i) || sceneOf(doc, i)?.id === i);
+      if (still.length) return { error: `${namesOf(still)} must be inside a frame that plays.` };
+      return { args: { ids: list, speed } };
     }
     case "set_curve": {
       const bad = missing(a.ids);
