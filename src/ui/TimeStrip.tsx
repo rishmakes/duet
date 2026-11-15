@@ -13,7 +13,7 @@ import { openScene, pause, seek, shuttle, togglePlay } from "../video/play";
 import Icon from "./Icons";
 import ClipFace from "./ClipFace";
 import VolumeLine from "./VolumeLine";
-import { QUIETEST_DB, dbText, fromDb, toDb } from "../document/sound";
+import { fromLevel, levelText, toLevel } from "../document/sound";
 import { setKeyFocus } from "./keyFocus";
 import { QUALITIES, SIZES, addMedia, clipKind, dropClips, exportScene, exportSize, keepDropped, stopExport } from "../video/scene";
 import { lastChoice, rememberExport, shortFolder } from "../video/exportPrefs";
@@ -1865,25 +1865,25 @@ export default function TimeStrip() {
                     type="range"
                     className="track-volume"
                     data-name={`track-volume-${row.name}`}
-                    min={QUIETEST_DB}
-                    max={0}
-                    step={0.5}
-                    value={Math.max(QUIETEST_DB, toDb(row.saved?.volume ?? 1))}
-                    title={`Track volume: ${dbText(row.saved?.volume ?? 1)}. Drag to make everything on this track louder or quieter`}
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={Math.round(toLevel(row.saved?.volume ?? 1) * 100)}
+                    title={`Track volume: ${levelText(row.saved?.volume ?? 1)}. Drag to make everything on this track louder or quieter`}
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => e.stopPropagation()}
                     onDoubleClick={(e) => {
                       e.stopPropagation();
                       dispatch("set_track_switch", { id: frame.id, track: row.track!, volume: 1 });
                     }}
-                    onChange={(e) => dragPreview("set_track_switch", { id: frame.id, track: row.track!, volume: fromDb(parseFloat(e.currentTarget.value)) })}
+                    onChange={(e) => dragPreview("set_track_switch", { id: frame.id, track: row.track!, volume: fromLevel(parseFloat(e.currentTarget.value) / 100) })}
                     onPointerUp={(e) => {
                       dragCancel();
-                      dispatch("set_track_switch", { id: frame.id, track: row.track!, volume: fromDb(parseFloat(e.currentTarget.value)) });
+                      dispatch("set_track_switch", { id: frame.id, track: row.track!, volume: fromLevel(parseFloat(e.currentTarget.value) / 100) });
                     }}
                     onKeyUp={(e) => {
                       dragCancel();
-                      dispatch("set_track_switch", { id: frame.id, track: row.track!, volume: fromDb(parseFloat(e.currentTarget.value)) });
+                      dispatch("set_track_switch", { id: frame.id, track: row.track!, volume: fromLevel(parseFloat(e.currentTarget.value) / 100) });
                     }}
                   />
                 )}
@@ -2256,6 +2256,19 @@ export default function TimeStrip() {
               <div className="ctx-item" data-name="menu-volume" onClick={() => (setMenu(null), setLayout({ rightHidden: false, videoTab: "properties" }))}>
                 <span>Volume…</span>
               </div>
+              {(menu.el.keys.volume?.length || menu.el.volume !== 1 || menu.el.fadeIn || menu.el.fadeOut) && (
+                <div
+                  className="ctx-item"
+                  data-name="menu-reset-volume"
+                  onClick={() => {
+                    const el = menu.el;
+                    setMenu(null);
+                    dispatch("set_volume_line", { id: el.id, keys: [], volume: 1, fadeIn: 0, fadeOut: 0, label: "Reset volume" } as never);
+                  }}
+                >
+                  <span>Reset volume</span>
+                </div>
+              )}
             </>
           )}
           <div className="ctx-line" />

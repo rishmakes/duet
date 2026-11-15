@@ -2209,6 +2209,49 @@ const setKeys: CommandDef<SetKeysArgs> = {
   },
 };
 
+// ---- set_volume_line ----
+export interface SetVolumeLineArgs {
+  id: string;
+  /** Every volume point of the clip, replacing what was there. `curve` is the shape of the stretch arriving at this point. */
+  keys: { t: number; v: number; curve?: [number, number, number, number]; lift?: [number, number] }[];
+  /** Its volume when it has no points. */
+  volume?: number;
+  fadeIn?: number;
+  fadeOut?: number;
+  label?: string;
+}
+
+/** The whole volume line of one clip or sound at once: its points with their shapes, and its fades, as one step to undo. */
+const setVolumeLine: CommandDef<SetVolumeLineArgs> = {
+  label: (a) => a.label ?? "Change volume",
+  run: (doc, a) => {
+    const scene = sceneOf(doc, a.id);
+    const el = doc.elements[a.id];
+    if (!el || !playsFile(el) || !scene || !Array.isArray(a.keys)) return doc;
+    const next = clone(doc);
+    const n = next.elements[a.id];
+    const unit = (x: number) => Math.max(0, Math.min(1, x));
+    let keys: Key[] = [];
+    for (const k of a.keys) {
+      if (!Number.isFinite(k.t) || !Number.isFinite(k.v)) continue;
+      const c = k.curve;
+      const curve = c && c.length === 4 && c.every(Number.isFinite) ? ([unit(c[0]), Math.min(4, Math.max(-3, c[1])), unit(c[2]), Math.min(4, Math.max(-3, c[3]))].map((x) => Math.round(x * 1000) / 1000) as [number, number, number, number]) : undefined;
+      const l = k.lift;
+      const lift = l && l.length === 2 && l.every(Number.isFinite) ? (l.map((x) => Math.round(Math.max(-2, Math.min(2, x)) * 1000) / 1000) as [number, number]) : undefined;
+      keys = withKey(keys, { t: Math.max(0, Math.min(scene.duration, round(k.t))), v: Math.round(unit(k.v) * 10000) / 10000, ease: "in-out", ...(curve ? { curve } : {}), ...(lift ? { lift } : {}) });
+    }
+    if (keys.length) n.keys = { ...n.keys, volume: keys };
+    else if (n.keys.volume) {
+      n.keys = { ...n.keys };
+      delete n.keys.volume;
+    }
+    if (a.volume !== undefined && Number.isFinite(a.volume)) n.volume = unit(a.volume);
+    if (a.fadeIn !== undefined && Number.isFinite(a.fadeIn)) n.fadeIn = Math.max(0, a.fadeIn);
+    if (a.fadeOut !== undefined && Number.isFinite(a.fadeOut)) n.fadeOut = Math.max(0, a.fadeOut);
+    return next;
+  },
+};
+
 // ---- set_curve ----
 export interface SetCurveArgs {
   ids: string[];
@@ -2758,6 +2801,7 @@ export const commands = {
   remove_shape_key: removeShapeKey,
   set_key: setKey,
   set_keys: setKeys,
+  set_volume_line: setVolumeLine,
   key_now: keyNow,
   set_curve: setCurve,
   remove_key: removeKey,

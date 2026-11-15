@@ -55,6 +55,12 @@ export interface Key {
    * Up is how far along the move it is, across is time. A handle above 1 or below 0 overshoots. It replaces `ease`.
    */
   curve?: [number, number, number, number];
+  /**
+   * Volume only: how far above (or below) its point each handle of the stretch arriving here sits, in loudness
+   * from 0 to 1, the handle of the point before first. With this, `curve` gives only how far along in time the
+   * handles sit, so a curve can bulge even between two points at the same level. [0, 0] is smooth and level.
+   */
+  lift?: [number, number];
 }
 
 /** A note on the timeline of a frame that plays: a moment with a name and a colour, for the editor. It changes nothing in the picture. */

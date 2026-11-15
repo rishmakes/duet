@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { runCommand } from "../commands";
 import { parseDoc, serializeDoc } from "./serialize";
-import { dbText, dipKeys, fromDb, gainAt, gainPoints, loudnessMap, toDb, volumeAt } from "./sound";
+import { dbText, dipKeys, fromDb, fromLevel, gainAt, gainPoints, levelText, loudnessMap, ratioDb, toDb, toLevel, volumeAt } from "./sound";
 import { emptyDoc } from "./types";
 import { cutGains, soundsBetween, soundsOf } from "../video/scene";
 
@@ -54,9 +54,52 @@ describe("sound", () => {
   it("volume changes over time like any other property, and moves with the clip", () => {
     let doc = withSound();
     doc = runCommand(doc, "set_keys", { id: "m", prop: "volume", keys: [{ t: 3, v: 1 }, { t: 5, v: 0.25, ease: "linear" }] });
-    expect(volumeAt(doc.elements.m, 4)).toBeCloseTo(0.625);
+    // halfway between the points it is halfway in loudness as heard, not in strength
+    expect(toLevel(volumeAt(doc.elements.m, 4))).toBeCloseTo((1 + toLevel(0.25)) / 2);
     doc = runCommand(doc, "set_timing", { ids: ["m"], start: 4 });
     expect(doc.elements.m.keys.volume?.map((k) => k.t)).toEqual([5, 7]);
+  });
+
+  it("reads loudness as heard: 50% sounds half as loud, about 10 dB quieter", () => {
+    expect(toLevel(1)).toBe(1);
+    expect(toLevel(0)).toBe(0);
+    expect(toDb(fromLevel(0.5))).toBeCloseTo(-10, 1);
+    expect(toLevel(fromLevel(0.3))).toBeCloseTo(0.3);
+    expect(levelText(1)).toBe("100%");
+    expect(levelText(fromLevel(0.5))).toBe("50%");
+    expect(levelText(0)).toBe("Silent");
+    expect(ratioDb(0.5)).toBeCloseTo(-10, 1);
+  });
+
+  it("a curve can dip between two points at the same level, by pulling its handles down", () => {
+    let doc = withSound();
+    doc = runCommand(doc, "set_volume_line", { id: "m", keys: [{ t: 2, v: 1 }, { t: 6, v: 1, curve: [1 / 3, 0, 2 / 3, 1], lift: [-0.6, -0.6] }] });
+    const m = doc.elements.m;
+    expect(m.keys.volume?.[1].lift).toEqual([-0.6, -0.6]);
+    expect(volumeAt(m, 2)).toBeCloseTo(1);
+    expect(toLevel(volumeAt(m, 4))).toBeCloseTo(0.55, 2);
+    expect(volumeAt(m, 6)).toBeCloseTo(1);
+  });
+
+  it("sets the whole volume line with its curve shapes and fades as one step", () => {
+    let doc = withSound({ fadeIn: 1 });
+    doc = runCommand(doc, "set_volume_line", { id: "m", keys: [{ t: 2, v: 0.2, curve: [1 / 3, 0, 2 / 3, 1] }, { t: 4, v: 1, curve: [0.2, 0, 0.9, 1.5] }], fadeIn: 0 });
+    const m = doc.elements.m;
+    expect(m.fadeIn).toBe(0);
+    expect(m.keys.volume?.map((k) => k.t)).toEqual([2, 4]);
+    expect(m.keys.volume?.[1].curve).toEqual([0.2, 0, 0.9, 1.5]);
+    // starts low and rises, instead of from silence
+    expect(volumeAt(m, 2)).toBeCloseTo(0.2);
+    expect(volumeAt(m, 3)).toBeGreaterThan(0.2);
+    // a shape survives saving and opening
+    expect(parseDoc(serializeDoc(doc)).elements.m.keys.volume?.[1].curve).toEqual([0.2, 0, 0.9, 1.5]);
+    // reset: no points, full volume, no fades
+    doc = runCommand(doc, "set_volume_line", { id: "m", keys: [], volume: 1, fadeIn: 0, fadeOut: 0 });
+    expect(doc.elements.m.keys.volume).toBeUndefined();
+    expect(doc.elements.m.volume).toBe(1);
+    // only clips and sounds have a volume line
+    const frame = runCommand(doc, "set_volume_line", { id: "f", keys: [{ t: 1, v: 0.5 }] });
+    expect(frame).toBe(doc);
   });
 
   it("lowering a stretch makes a smooth dip and leaves the rest alone", () => {

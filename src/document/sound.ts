@@ -13,8 +13,54 @@ export const dbText = (v: number) => (v <= fromDb(QUIETEST_DB) ? "Silent" : `${M
 
 const clamp = (v: number) => Math.max(0, Math.min(1, v));
 
-/** The clip's own volume at a moment of its frame, before fades and its track. */
-export const volumeAt = (el: El, t: number) => clamp(el.keys.volume?.length ? valueAt(el.keys.volume, t) : el.volume);
+/**
+ * Loudness the way a person hears it, from 0 to 1: 1 is the file as it is, 0.5 sounds half as loud
+ * (about 10 dB quieter), 0 is silent. A volume (0 to 1, the strength of the sound) is this to the power 1.66.
+ * The volume line is drawn and dragged in this, and points ease between each other in it too.
+ */
+const POW = Math.log2(10) / 2;
+export const toLevel = (v: number) => (v <= 0 ? 0 : Math.min(1, Math.pow(v, 1 / POW)));
+export const fromLevel = (p: number) => (p <= 0.005 ? 0 : Math.min(1, Math.pow(p, POW)));
+/** How a volume reads to a person on the line: "100%", "50%", "Silent". */
+export const levelText = (v: number) => {
+  const p = Math.round(toLevel(v) * 100);
+  return p <= 0 ? "Silent" : `${p}%`;
+};
+
+/** Decibels that make something sound this many times as loud: 0.5 is about -10 dB, 0 is silent. */
+export const ratioDb = (r: number) => (r <= 0 ? -Infinity : 20 * POW * Math.log10(r));
+
+/** The clip's own volume at a moment of its frame, before fades and its track. Points ease in loudness, so the line drawn is the sound heard. */
+export const volumeAt = (el: El, t: number) => {
+  const keys = el.keys.volume;
+  if (!keys?.length) return clamp(el.volume);
+  if (t > keys[0].t && t < keys[keys.length - 1].t) {
+    const i = keys.findIndex((k) => k.t >= t);
+    const b = keys[i];
+    if (b.lift) return fromLevel(clamp(liftedAt(keys[i - 1], b, t)));
+  }
+  return fromLevel(clamp(valueAt(keys.map((k) => ({ ...k, v: toLevel(k.v) })), t)));
+};
+
+/** Loudness between two volume points whose handles are placed freely: a curve through the points and their handles, like the pen tool. */
+function liftedAt(a: Key, b: Key, t: number) {
+  const pa = toLevel(a.v);
+  const pb = toLevel(b.v);
+  const [ha, hb] = b.lift!;
+  const x1 = b.curve ? b.curve[0] : 1 / 3;
+  const x2 = b.curve ? b.curve[2] : 2 / 3;
+  const p = b.t === a.t ? 1 : (t - a.t) / (b.t - a.t);
+  const bez = (p0: number, p1: number, p2: number, p3: number, s: number) => (1 - s) ** 3 * p0 + 3 * (1 - s) ** 2 * s * p1 + 3 * (1 - s) * s * s * p2 + s ** 3 * p3;
+  // find where along the curve time is p (time only goes forward, so halving the range finds it), then read the loudness there
+  let lo = 0;
+  let hi = 1;
+  for (let n = 0; n < 30; n++) {
+    const mid = (lo + hi) / 2;
+    if (bez(0, x1, x2, 1, mid) < p) lo = mid;
+    else hi = mid;
+  }
+  return bez(pa, pa + ha, pb + hb, pb, (lo + hi) / 2);
+}
 
 /** How far its fades let it be heard at a moment, from 0 to 1. The sound rises quickly and settles, and dies away the same way. */
 export function fadeAt(el: El, span: { start: number; end: number }, t: number) {
