@@ -1047,14 +1047,19 @@ export default function PropertiesPanel() {
   // the top of the right panel: the kind of work, and under it the one extra each kind has.
   // Design can turn to Prototype; Video and Photo can turn to Colour. Off is the plain panel.
   const extra = mode === "design"
-    ? { name: "Prototype", on: prototyping, title: "Connect screens so they can be clicked through", flip: () => setLayout({ prototyping: !prototyping }) }
-    : { name: "Colour", on: tab === "color", title: "Colour: grade the pictures and clips", flip: () => setTab(tab === "color" ? "properties" : "color") };
+    ? { name: "Prototype", on: prototyping, title: "Connect screens so they can be clicked through", set: (on: boolean) => setLayout({ prototyping: on }) }
+    : { name: "Colour", on: tab === "color", title: "Colour: grade the pictures and clips", set: (on: boolean) => setTab(on ? "color" : "properties") };
   const switchElement = (
     <div className="panel-kind">
       <KindSwitch />
-      <button type="button" className={`panel-extra ${extra.on ? "on" : ""}`} aria-pressed={extra.on} data-name={`extra-${extra.name.toLowerCase()}`} title={extra.title} onClick={extra.flip}>
-        {extra.name}
-      </button>
+      <div className="panel-extra" role="group" aria-label="View">
+        <button type="button" className={!extra.on && tab !== "chat" ? "on" : ""} aria-pressed={!extra.on && tab !== "chat"} data-name="extra-properties" title="Properties of what you picked" onClick={() => extra.set(false)}>
+          Properties
+        </button>
+        <button type="button" className={extra.on ? "on" : ""} aria-pressed={extra.on} data-name={`extra-${extra.name.toLowerCase()}`} title={extra.title} onClick={() => extra.set(true)}>
+          {extra.name}
+        </button>
+      </div>
     </div>
   );
 

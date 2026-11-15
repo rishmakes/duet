@@ -9174,62 +9174,64 @@ input.chathome-name.rename {
   padding: 0;
   margin: 0;
   border-radius: 0;
-  background: var(--panel-2);
+  background: var(--panel);
   box-sizing: border-box;
+  border-bottom: 1px solid var(--line);
 }
+/* same look as the Layers and Assets tabs: plain words, the open one underlined */
 .panel-kind .kind-quiet button {
   flex: 1;
-  padding: 10px 4px;
+  padding: 11px 0;
   border: none;
+  border-bottom: 2px solid transparent;
   border-radius: 0;
-  background: var(--panel-2);
+  background: none;
   color: var(--muted);
   font: inherit;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: inherit;
+  font-weight: 400;
   cursor: pointer;
-  position: relative;
-  border-bottom: 1px solid var(--line);
   box-shadow: none;
-  transition: color 0.12s ease, background 0.12s ease;
-}
-.panel-kind .kind-quiet button:not(:last-child) {
-  border-right: 1px solid var(--line);
+  transition: color 0.12s ease;
 }
 .panel-kind .kind-quiet button:hover:not(.on) {
   color: var(--text);
-  background: var(--tint);
 }
 .panel-kind .kind-quiet button.on {
-  background: var(--panel);
+  background: none;
   color: var(--text);
-  font-weight: 600;
-  border-bottom: 1px solid transparent;
+  font-weight: 400;
+  border-bottom-color: var(--accent);
   box-shadow: none;
 }
+/* the two views of the right panel, side by side: the open one is the white button standing up a little */
 .panel-extra {
-  align-self: flex-start;
-  margin: 8px 14px 10px;
-  padding: 4px 11px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
+  display: flex;
+  margin: 10px 14px;
+  padding: 2px;
+  border-radius: var(--r-md);
   background: var(--panel-2);
+}
+.panel-extra button {
+  flex: 1;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 6px;
+  background: none;
   color: var(--muted);
   font: inherit;
   font-size: 12px;
-  font-weight: 500;
   cursor: pointer;
-  transition: all 0.12s ease;
+  transition: color 0.12s ease;
 }
-.panel-extra:hover {
+.panel-extra button:hover:not(.on) {
   color: var(--text);
-  border-color: var(--muted);
 }
-.panel-extra.on {
-  background: var(--text);
-  border-color: var(--text);
-  color: var(--panel);
-  font-weight: 600;
+.panel-extra button.on {
+  background: var(--panel);
+  color: var(--text);
+  font-weight: 500;
+  box-shadow: 0 1px 2px var(--shadow), 0 0 0 1px var(--line);
 }
 /* Kitchen: the chat, your design, and a recipe's steps only while one is in use */
 .kitchen,
