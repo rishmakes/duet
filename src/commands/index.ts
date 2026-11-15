@@ -320,6 +320,19 @@ export interface ResizeArgs {
   height: number;
 }
 
+/** A group has no size of its own: giving it one scales everything inside it. Changes the document it is given. */
+function scaleGroup(doc: Doc, id: string, width: number, height: number) {
+  const el = doc.elements[id];
+  const sx = Math.max(1, width) / Math.max(1, el.width);
+  const sy = Math.max(1, height) / Math.max(1, el.height);
+  for (const d of descendants(doc, id).map((c) => doc.elements[c])) {
+    d.width = Math.max(1, d.width * sx);
+    d.height = Math.max(1, d.height * sy);
+    d.x *= sx;
+    d.y *= sy;
+  }
+}
+
 const resizeElement: CommandDef<ResizeArgs> = {
   label: () => "Resize element",
   run: (doc, a) => {
@@ -327,16 +340,7 @@ const resizeElement: CommandDef<ResizeArgs> = {
     const el = next.elements[a.id];
     if (!el) return next;
     if (el.type === "group") {
-      // a group has no size of its own: resizing it scales everything inside it
-      const sx = Math.max(1, a.width) / Math.max(1, el.width);
-      const sy = Math.max(1, a.height) / Math.max(1, el.height);
-      for (const id of descendants(next, a.id)) {
-        const d = next.elements[id];
-        d.width = Math.max(1, d.width * sx);
-        d.height = Math.max(1, d.height * sy);
-        d.x *= sx;
-        d.y *= sy;
-      }
+      scaleGroup(next, a.id, a.width, a.height);
       el.x = a.x;
       el.y = a.y;
       return next;
@@ -392,6 +396,11 @@ const setProps: CommandDef<SetPropsArgs> = {
       const el = next.elements[id];
       if (!el) continue;
       const was = el.rotation || 0;
+      if (el.type === "group" && ("width" in a.props || "height" in a.props)) {
+        // a group's size is the box around what is inside: a new size scales the inside
+        const { width = el.width, height = el.height } = a.props;
+        scaleGroup(next, id, Number(width) || el.width, Number(height) || el.height);
+      }
       Object.assign(el, a.props);
       if ("rotation" in a.props) {
         // a rotation that changes over time keeps whole turns: 360 is one full spin, and minus turns the other way

@@ -1800,7 +1800,13 @@ async function duplicateElements(args: Args, by?: string): Promise<ToolResult> {
   addMsg({ role: "note", text: summarise("duplicate_elements", args), ...stepNow() }, said());
   saveIfHome();
   const made = payload.rootIds.map((id) => `${id} -> ${idMap[id]}`).join(", ");
-  return { text: `Copied ${payload.rootIds.length === 1 ? "it" : `${payload.rootIds.length} things`} with everything inside. New ids: ${made}. The copy is a separate design now: change it with set_props and the original stays as it was.` };
+  // the things inside get new ids too: say them, so the copy can be changed without reading the outline again
+  const now = R.currentDoc();
+  const inside = Object.keys(payload.elements).filter((id) => !payload.rootIds.includes(id) && now.elements[idMap[id]]);
+  const SHOWN = 60;
+  const listed = inside.slice(0, SHOWN).map((id) => `${now.elements[idMap[id]].name} ${id} -> ${idMap[id]}`).join(", ");
+  const insideText = inside.length ? ` Inside: ${listed}${inside.length > SHOWN ? `, and ${inside.length - SHOWN} more (read them with get_outline)` : ""}.` : "";
+  return { text: `Copied ${payload.rootIds.length === 1 ? "it" : `${payload.rootIds.length} things`} with everything inside. New ids: ${made}.${insideText} The copy is a separate design now: change it with set_props and the original stays as it was.` };
 }
 
 async function apply(tool: string, args: Args, by?: string): Promise<ToolResult> {
