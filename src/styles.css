@@ -12295,3 +12295,69 @@ button.ctx-item.store-make-option:hover {
   background: var(--accent);
   transition: width 0.4s linear;
 }
+
+/* Transcribe a clip (#340): the box, the thin line while it listens, and the Words mark */
+.export-pop.transcribe-pop {
+  width: 300px;
+  gap: 8px;
+}
+.transcribe-title {
+  font-weight: 600;
+}
+.transcribe-sub,
+.transcribe-hint {
+  color: var(--muted);
+  font-size: 11px;
+}
+.act-pop label.transcribe-field {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  margin-top: 4px;
+}
+.act-pop .transcribe-field select {
+  width: 100%;
+  max-width: none;
+  align-self: stretch;
+  padding: 6px 8px;
+}
+.transcribe-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.transcribe-foot span {
+  flex: 1;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 11px;
+}
+.time-hearing {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--tint-strong);
+  pointer-events: none;
+  z-index: 3;
+}
+.time-hearing i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.4s ease;
+}
+.time-words-mark {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: var(--link);
+  font-style: normal;
+  font-size: 9px;
+  line-height: 12px;
+  font-weight: 600;
+}

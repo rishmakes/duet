@@ -31,6 +31,8 @@ import { ConnectAddon, VoiceAddon } from "./AddOns";
 import Icon, { type IconName } from "./Icons";
 
 interface StorePageProps {
+  /** The thing to open on, such as Voice to text when a clip asks to be transcribed. */
+  startOn?: string | null;
   onClose: () => void;
 }
 
@@ -81,7 +83,7 @@ function kitHint(k: Kit): string {
   return `Brand kit: ${colours}, ${assets}`;
 }
 
-export default function StorePage({ onClose }: StorePageProps) {
+export default function StorePage({ onClose, startOn }: StorePageProps) {
   const [theme] = useTheme();
   const things = useThings();
   const skills = useSkills();
@@ -96,7 +98,7 @@ export default function StorePage({ onClose }: StorePageProps) {
   const [source, setSource] = useState<"duet" | "yours">("duet");
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<ThingKind | "all">("all");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(startOn ?? null);
 
   const selectedKit = selectedId?.startsWith("kit-") ? kits.find((k) => k.id === selectedId) : null;
   const selectedThing = selectedId ? things.find((t) => t.id === selectedId) : null;

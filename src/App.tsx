@@ -165,9 +165,14 @@ export default function App() {
   const projectBehind = useStore((s) => !!s.project.file);
   // the skills open as a page of their own, beside your projects, in any space
   const [skillsOpen, setSkillsOpen] = useState(false);
+  // what the Store opens on, when something asks for it by name, like Voice to text from Transcribe
+  const [storeOn, setStoreOn] = useState<string | null>(null);
   const [recipesOpen, setRecipesOpen] = useState(false);
   useEffect(() => {
-    const open = () => setSkillsOpen(true);
+    const open = (e: Event) => {
+      setStoreOn((e as CustomEvent<{ thing?: string } | undefined>).detail?.thing ?? null);
+      setSkillsOpen(true);
+    };
     const openRecipes = () => setRecipesOpen(true);
     window.addEventListener("duet:skills-page", open);
     window.addEventListener("duet:recipes-page", openRecipes);
@@ -475,7 +480,7 @@ export default function App() {
           <ChatPanel docked full />
         </div>
       )}
-      {skillsOpen && <StorePage onClose={() => setSkillsOpen(false)} />}
+      {skillsOpen && <StorePage key={storeOn ?? ""} startOn={storeOn} onClose={() => setSkillsOpen(false)} />}
       {recipesOpen && <RecipesPage onClose={() => setRecipesOpen(false)} />}
       {dock.historyLine && !recipeFull && <HistoryStrip />}
       <Versions />

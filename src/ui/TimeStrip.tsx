@@ -31,6 +31,7 @@ import { showComment } from "./commentFocus";
 import { rowLook, trackRows } from "../document/tracks";
 import type { TrackRow } from "../document/tracks";
 import { getPickedTrack, pickTrack, usePickedTrack } from "./pickedTrack";
+import { HearingLine, TranscribeBox } from "./Transcribe";
 
 /** Time under the canvas: a row for each thing in a frame that plays, when it shows, and where the clock is. */
 
@@ -130,6 +131,9 @@ export default function TimeStrip() {
     if (look !== "cut" && (stretching.current || blading.current)) pickTimeTool("select");
   }, [look]);
   const [menu, setMenu] = useState<{ x: number; y: number; el: El; mark?: Picked } | null>(null);
+  // the Transcribe box, for one clip, opened from its menu or from the bar under the timeline
+  const [askWords, setAskWords] = useState<string | null>(null);
+  useDismiss(!!askWords, () => setAskWords(null), "[data-card='act-transcribe']");
   useDismiss(!!menu, () => setMenu(null), ".ctx");
   // the track picked by its name, which paste puts clips on, and the menu of a track's name
   const trackPick = usePickedTrack();
@@ -1279,8 +1283,10 @@ export default function TimeStrip() {
           <span className="time-span-name">
             {el.name}
             {playsFile(el) && el.speed && el.speed !== 1 ? ` · ${Math.round(el.speed * 100)}%` : ""}
+            {playsFile(el) && doc.words?.[el.src] && <em className="time-words-mark" title="Its words are known: an AI can cut it by words">Words</em>}
           </span>
         )}
+        {playsFile(el) && <HearingLine src={el.src} />}
         <b className="l" onPointerDown={(e) => drag(e, el, "start")} />
         {keyTimes.map((t) => (
           <u
@@ -2030,6 +2036,19 @@ export default function TimeStrip() {
             <ActButton icon="trash" label="Delete" hint="Delete. D also closes the gap" name="act-delete" onClick={() => dispatch("delete_elements", { ids: pickedHere.map((el) => el.id) })} />
             {pickedPlays.length > 0 && <SpeedCard els={pickedPlays} />}
             {pickedPlays.length > 0 && <VolumeCard els={pickedPlays} scene={frame} />}
+            {pickedPlays.length === 1 && (
+              <div className="time-act-anchor" data-card="act-transcribe">
+                <ActButton
+                  icon="plugin-voice"
+                  label="Transcribe"
+                  name="act-transcribe"
+                  hint="Turn the speech in this clip into words, so it can be cut by words"
+                  on={askWords === pickedPlays[0].id}
+                  onClick={() => setAskWords(askWords ? null : pickedPlays[0].id)}
+                />
+                {askWords === pickedPlays[0].id && <TranscribeBox el={pickedPlays[0]} scene={frame} onClose={() => setAskWords(null)} onError={setNote} />}
+              </div>
+            )}
           </>
         ) : (
           <>
@@ -2263,7 +2282,7 @@ export default function TimeStrip() {
               <div className="ctx-item" data-name="menu-volume" onClick={() => (setMenu(null), setLayout({ rightHidden: false, videoTab: "properties" }))}>
                 <span>Volume…</span>
               </div>
-              {(menu.el.keys.volume?.length || menu.el.volume !== 1 || menu.el.fadeIn || menu.el.fadeOut) && (
+              {!!(menu.el.keys.volume?.length || menu.el.volume !== 1 || menu.el.fadeIn || menu.el.fadeOut) && (
                 <div
                   className="ctx-item"
                   data-name="menu-reset-volume"
@@ -2276,6 +2295,18 @@ export default function TimeStrip() {
                   <span>Reset volume</span>
                 </div>
               )}
+              <div
+                className="ctx-item"
+                data-name="menu-transcribe"
+                onClick={() => {
+                  const el = menu.el;
+                  setMenu(null);
+                  select([el.id]);
+                  setAskWords(el.id);
+                }}
+              >
+                <span>Transcribe…</span>
+              </div>
             </>
           )}
           <div className="ctx-line" />
