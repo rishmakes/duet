@@ -11,13 +11,25 @@ import { spanOf } from "../document/time";
  * with the recording, so every clip of the same file has them, however it is cut.
  */
 
-/** The languages people here speak sit on top. No "guess for me": guessing fails on mixed speech. */
-export const LANGUAGES: { key: string; name: string; code: string }[] = [
-  { key: "hi-en", name: "Hindi and English, mixed", code: "hi" },
-  { key: "bn-en", name: "Bengali and English, mixed", code: "bn" },
+/**
+ * The languages people here speak sit on top. No "guess for me": guessing fails on mixed speech.
+ * Hinglish and Banglish come out in English letters, the way people type them: the model hears them as
+ * English, led by a line written that way. It also hears more of them than when told Hindi or Bengali.
+ */
+export const LANGUAGES: { key: string; name: string; code: string; prompt?: string }[] = [
+  {
+    key: "hi-en",
+    name: "Hinglish (Hindi + English)",
+    code: "en",
+    prompt: "Haan toh aaj main aapko dikhata hoon ki video kaise edit karte hain. Yeh bahut simple hai, bas thoda dhyan dena padta hai.",
+  },
+  {
+    key: "bn-en",
+    name: "Banglish (Bengali + English)",
+    code: "en",
+    prompt: "Ki khobor? Ami bhalo achi. Aaj ami tomake dekhabo kivabe video edit korte hoy. Eta khub simple, shudhu ektu dhyan dite hoy.",
+  },
   { key: "en", name: "English", code: "en" },
-  { key: "hi", name: "Hindi", code: "hi" },
-  { key: "bn", name: "Bengali", code: "bn" },
 ];
 
 /** Every other language the speech model knows, by name. */
@@ -28,7 +40,7 @@ const EVERY: [string, string][] = [
   ["ru", "Russian"], ["sa", "Sanskrit"], ["es", "Spanish"], ["sv", "Swedish"], ["ta", "Tamil"], ["te", "Telugu"],
   ["th", "Thai"], ["tr", "Turkish"], ["uk", "Ukrainian"], ["ur", "Urdu"], ["vi", "Vietnamese"],
 ];
-const ALL = [...LANGUAGES, ...EVERY.map(([code, name]) => ({ key: code, name, code }))];
+const ALL: { key: string; name: string; code: string; prompt?: string }[] = [...LANGUAGES, ...EVERY.map(([code, name]) => ({ key: code, name, code }))];
 
 const LAST = "duet.voice.language";
 function lastLanguage(): string {
@@ -92,8 +104,10 @@ export async function transcribe(src: string, languageKey: string): Promise<void
     changed();
   });
   try {
-    const t = await invoke<Transcript>("voice_transcribe", { path: src, language: lang.code });
-    dispatch("set_words", { src, transcript: { language: lang.code, model: t.model, words: t.words } });
+    const t = await invoke<Transcript>("voice_transcribe", { path: src, language: lang.code, prompt: lang.prompt ?? null });
+    // English letters only for the mixed ones: no accents left over, like the a in "na"
+    const words = lang.prompt ? t.words.map((w) => ({ ...w, w: plainLetters(w.w) })).filter((w) => w.w) : t.words;
+    dispatch("set_words", { src, transcript: { language: lang.key, model: t.model, words } });
   } catch (e) {
     throw new Error(typeof e === "string" ? e : e instanceof Error ? e.message : "Voice to text could not hear this clip.");
   } finally {
@@ -102,6 +116,9 @@ export async function transcribe(src: string, languageKey: string): Promise<void
     changed();
   }
 }
+
+/** A word without accents: "ná" becomes "na". */
+export const plainLetters = (w: string) => w.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
 const secondsText = (s: number) => {
   const n = Math.round(s);

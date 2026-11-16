@@ -281,9 +281,10 @@ fn sha256_file(path: &PathBuf) -> Result<String, String> {
 // ---------- hearing a recording ----------
 
 /// Turn the speech in a recording into words, each with the second it starts and ends.
-/// `language` is a Whisper language code such as "hi", "bn" or "en".
+/// `language` is a Whisper language code such as "hi", "bn" or "en". `prompt` is a line written the
+/// way the words should come out: Hinglish heard as English with a Hinglish line comes out in English letters.
 #[tauri::command(async)]
-pub fn voice_transcribe(app: AppHandle, path: String, language: String) -> Result<Value, String> {
+pub fn voice_transcribe(app: AppHandle, path: String, language: String, prompt: Option<String>) -> Result<Value, String> {
     let m = installed().ok_or("Voice to text is not downloaded yet.")?;
     let model_path = own_dir()?.join(m.file);
     let mut child = crate::quiet_command(std::env::current_exe().map_err(|e| e.to_string())?)
@@ -291,6 +292,7 @@ pub fn voice_transcribe(app: AppHandle, path: String, language: String) -> Resul
         .arg(&model_path)
         .arg(&path)
         .arg(&language)
+        .arg(prompt.unwrap_or_default())
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -315,13 +317,13 @@ pub fn voice_transcribe(app: AppHandle, path: String, language: String) -> Resul
     Ok(a)
 }
 
-/// The helper process: `duet-app --transcribe <model> <recording> <language>`.
+/// The helper process: `duet-app --transcribe <model> <recording> <language> [prompt]`.
 /// Prints "progress N" lines while it works, then one line of JSON: the words, or an error.
 pub fn transcribe_main() {
     let args: Vec<String> = std::env::args().collect();
     let at = args.iter().position(|a| a == "--transcribe").unwrap_or(0);
     let get = |n: usize| args.get(at + n).cloned().unwrap_or_default();
-    let answer = match hear(&get(1), &get(2), &get(3)) {
+    let answer = match hear(&get(1), &get(2), &get(3), &get(4)) {
         Ok(words) => json!({ "words": words }),
         Err(e) => json!({ "error": e }),
     };
@@ -344,7 +346,7 @@ fn sound_of(path: &str) -> Result<Vec<f32>, String> {
     Ok(out.stdout.chunks_exact(4).map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect())
 }
 
-fn hear(model_path: &str, path: &str, language: &str) -> Result<Vec<Value>, String> {
+fn hear(model_path: &str, path: &str, language: &str, prompt: &str) -> Result<Vec<Value>, String> {
     use whisper_rs::{DtwMode, DtwModelPreset, DtwParameters, FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
     whisper_rs::install_logging_hooks();
     let sound = sound_of(path)?;
@@ -360,6 +362,10 @@ fn hear(model_path: &str, path: &str, language: &str) -> Result<Vec<Value>, Stri
     p.set_n_threads(threads);
     if !language.is_empty() {
         p.set_language(Some(language));
+    }
+    // a line written the way the words should come out: Hinglish and Banglish in English letters
+    if !prompt.is_empty() {
+        p.set_initial_prompt(prompt);
     }
     // each stretch is heard fresh: leaning on the previous text makes Whisper skip or repeat mixed speech
     p.set_no_context(true);

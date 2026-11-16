@@ -331,7 +331,7 @@ export interface Word {
 
 /** The words of one recording, made once by Voice to text (#340). */
 export interface Transcript {
-  /** The language it was heard in, as a Whisper code like hi, bn or en. */
+  /** The language picked when it was heard: hi-en for Hinglish, bn-en for Banglish, or a code like en. */
   language: string;
   /** The size of speech model that heard it: small, medium or large. */
   model: string;
