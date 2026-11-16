@@ -77,6 +77,6 @@ describe("the AI's words tools", () => {
     loadDoc(runCommand(talk(), "set_words", { src: "/talk.mp4", transcript: null }));
     const r = await callTool("get_transcript", { id: "f" });
     expect(r.isError).toBe(true);
-    expect(r.text).toContain("Transcribe");
+    expect(r.text).toContain("transcribe");
   });
 });

@@ -138,8 +138,15 @@ const EVERY: [string, string][] = [
 ];
 const ALL: { key: string; name: string; code: string; prompt?: string }[] = [...LANGUAGES, ...EVERY.map(([code, name]) => ({ key: code, name, code }))];
 
+/** The language a key or a name stands for, such as "hi-en", "Hinglish" or "English". */
+export function languageOf(said: string): { key: string; name: string; code: string; prompt?: string } | undefined {
+  const k = said.trim().toLowerCase();
+  if (!k) return undefined;
+  return ALL.find((l) => l.key.toLowerCase() === k) ?? ALL.find((l) => l.name.toLowerCase() === k) ?? ALL.find((l) => l.name.toLowerCase().startsWith(k));
+}
+
 const LAST = "duet.voice.language";
-function lastLanguage(): string {
+export function lastLanguage(): string {
   try {
     const k = localStorage.getItem(LAST);
     if (k && ALL.some((l) => l.key === k)) return k;
@@ -183,9 +190,24 @@ export function openVoiceInStore() {
   window.dispatchEvent(new CustomEvent("duet:skills-page", { detail: { thing: "plugin-voice" } }));
 }
 
-/** Hear the speech in a file and keep its words. Rejects with a sentence a designer can read. */
-export async function transcribe(src: string, languageKey: string): Promise<void> {
-  if (jobs.has(src)) return;
+/** How far a file is through being heard now, 0 to 100, or undefined when it is not being heard. */
+export const hearingNow = (src: string) => jobs.get(src);
+
+const running = new Map<string, Promise<void>>();
+
+/**
+ * Hear the speech in a file and keep its words. Rejects with a sentence a designer can read. A file
+ * already being heard is not heard twice: the same work is waited on.
+ */
+export function transcribe(src: string, languageKey: string, keep: (t: Transcript) => void = (t) => dispatch("set_words", { src, transcript: t })): Promise<void> {
+  const now = running.get(src);
+  if (now) return now;
+  const job = hear(src, languageKey, keep).finally(() => running.delete(src));
+  running.set(src, job);
+  return job;
+}
+
+async function hear(src: string, languageKey: string, keep: (t: Transcript) => void): Promise<void> {
   const lang = ALL.find((l) => l.key === languageKey) ?? LANGUAGES[0];
   try {
     localStorage.setItem(LAST, lang.key);
@@ -203,7 +225,7 @@ export async function transcribe(src: string, languageKey: string): Promise<void
     const t = await invoke<Transcript>("voice_transcribe", { path: src, language: lang.code, prompt: lang.prompt ?? null });
     // English letters only for the mixed ones: no accents left over, like the a in "na"
     const words = lang.prompt ? t.words.map((w) => ({ ...w, w: plainLetters(w.w) })).filter((w) => w.w) : t.words;
-    dispatch("set_words", { src, transcript: { language: lang.key, model: t.model, words } });
+    keep({ language: lang.key, model: t.model, words });
   } catch (e) {
     throw new Error(typeof e === "string" ? e : e instanceof Error ? e.message : "Voice to text could not hear this clip.");
   } finally {

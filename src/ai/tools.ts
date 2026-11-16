@@ -18,12 +18,13 @@ import { dbText, dipKeys, loudnessMap } from "../document/sound";
 import { trackOf } from "../document/tracks";
 import { PEAK_SLICE, peaksOf } from "../video/faces";
 import { SILENCE_DEFAULT, findSilences } from "../video/silence";
+import { hearingNow, languageOf, lastLanguage, transcribe, voiceReady } from "../ui/Transcribe";
 import { BREATH, cutOutOfEdit, cutsForWords, plainWord, wordsOfEdit } from "../document/words";
 import { MOVING, emptyDoc, playsFile } from "../document/types";
 import { boardsOf, commentsHere, describeMark, onOpenBoard, openBoard } from "../document/boards";
 import { GRADE_CONTROLS, canGrade, gradeChanges } from "../document/grade";
 import { readings as gradeReadings } from "../canvas/grade";
-import type { Doc, El } from "../document/types";
+import type { Doc, El, Transcript } from "../document/types";
 import { invoke } from "@tauri-apps/api/core";
 import { addPicture, mimeFor, pictureOf, preloadPictures } from "../project/assets";
 import { renderPng } from "../project/exporter";
@@ -643,9 +644,23 @@ export const TOOLS: ToolDef[] = [
     },
   },
   {
+    name: "transcribe",
+    description:
+      "Hear the speech in clips or sounds on this computer and keep their words, so get_transcript and cut_words can use them. Each recording is heard once: every clip of the same file shares its words, and they follow every cut. A recording that already has words is skipped unless again is true. It takes a while, about half the length of the recording, and the designer sees a line fill along each clip. If it is not done in about four minutes, the reply says how far it got: call transcribe again with the same ids to keep waiting, it does not start over. Needs Voice to text from the Store.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ids: { ...ids, description: "Clips or sounds." },
+        language: { ...str, description: "What is spoken: auto, en (English), hi-en (Hinglish, Hindi and English mixed, written in English letters), bn-en (Banglish, Bengali and English mixed, in English letters), or any language by name or code. Auto-detect often mishears mixed speech, so ask the designer if you do not know. The last language used if left out." },
+        again: { type: "boolean", description: "true to hear a recording again even if it has words." },
+      },
+      required: ["ids"],
+    },
+  },
+  {
     name: "get_transcript",
     description:
-      "The words spoken in a frame that plays, as the edit is now, in the order they are heard, so you can cut a talking video by what is said. Each line is a phrase: the seconds of the frame it is heard, then its words, each as number:word. The numbers are what cut_words takes. Also lists the words cut out of the edit, so you know what was said and dropped, and the clips with no words yet (the designer transcribes a clip by right-clicking it and choosing Transcribe). Words belong to the recording, so read this again after any cut, trim, split or speed change: the numbers change.",
+      "The words spoken in a frame that plays, as the edit is now, in the order they are heard, so you can cut a talking video by what is said. Each line is a phrase: the seconds of the frame it is heard, then its words, each as number:word. The numbers are what cut_words takes. Also lists the words cut out of the edit, so you know what was said and dropped, and the clips with no words yet (hear them with transcribe). Words belong to the recording, so read this again after any cut, trim, split or speed change: the numbers change.",
     inputSchema: { type: "object", properties: { id: { ...str, description: "A frame that plays." } }, required: ["id"] },
   },
   {
@@ -1640,6 +1655,45 @@ async function hearSound(a: Args): Promise<ToolResult> {
   };
 }
 
+/** How long transcribe waits before it answers with how far it got, inside the time an AI waits for a reply. */
+export const HEARING_WAIT = 240_000;
+
+/** Hear the speech in recordings, one at a time, keeping their words in the project the AI works in. */
+async function transcribeTool(a: Args, by?: string): Promise<ToolResult> {
+  const doc = R.currentDoc();
+  if (!Array.isArray(a.ids) || !a.ids.length) return fail("Give ids: the clips or sounds to hear.");
+  const list = (a.ids as unknown[]).map(String);
+  const bad = list.filter((i) => !playsFile(doc.elements[i]));
+  if (bad.length) return fail(`${namesOf(bad)} is not a video clip or a sound.`);
+  const lang = a.language == null ? languageOf(lastLanguage()) : languageOf(String(a.language));
+  if (!lang) return fail(`${String(a.language)} is not a language Voice to text knows. Use auto, en, hi-en, bn-en or a language by name.`);
+  if (!(await voiceReady())) return fail("Voice to text is not downloaded. Ask the designer to get it from the Store (Small, Medium or Large), then try again.");
+  const srcs = [...new Set(list.map((i) => doc.elements[i].src))];
+  const todo = srcs.filter((src) => a.again === true || !doc.words?.[src] || hearingNow(src) != null);
+  const room = R;
+  const keep = (src: string) => (t: Transcript) => room.dispatch("set_words", { src, transcript: t }, "ai", by);
+  const failed: string[] = [];
+  const all = (async () => {
+    for (const src of todo) await transcribe(src, lang.key, keep(src)).catch((e: Error) => failed.push(`${fileName(src)}: ${e.message}`));
+  })();
+  const done = await Promise.race([all.then(() => true), new Promise<boolean>((ok) => setTimeout(() => ok(false), HEARING_WAIT))]);
+  const now = R.currentDoc();
+  const lines = srcs.map((src) => {
+    const p = hearingNow(src);
+    if (p != null) return `${fileName(src)}: still being heard, ${Math.round(p)}% done.`;
+    const w = now.words?.[src];
+    return w ? `${fileName(src)}: ${w.words.length} words${todo.includes(src) ? "" : ", already heard before"}.` : `${fileName(src)}: no words.`;
+  });
+  if (done) {
+    if (todo.length) addMsg({ role: "note", text: `Transcribed ${todo.length === 1 ? fileName(todo[0]) : `${todo.length} recordings`} (${lang.name})`, ...stepNow() }, said());
+    const text = [...lines, ...failed].join("\n");
+    return failed.length && failed.length === todo.length ? fail(text) : { text: `${text}\nRead them with get_transcript.` };
+  }
+  return { text: `${lines.join("\n")}\nNot done yet. Call transcribe again with the same ids to keep waiting.` };
+}
+
+const fileName = (src: string) => src.split(/[\\/]/).pop() || src;
+
 /** The words of a frame as the edit is now, in phrases, each word numbered for cut_words, then what was cut out. */
 function transcriptOf(a: Args): ToolResult {
   const doc = R.currentDoc();
@@ -1648,7 +1702,7 @@ function transcriptOf(a: Args): ToolResult {
   const clips = scene.childIds.map((i) => doc.elements[i]).filter((el) => el && playsFile(el) && !el.hidden);
   const without = clips.filter((el) => !doc.words?.[el.src]);
   if (!clips.length) return fail(`${scene.name} has no clips or sounds.`);
-  if (without.length === clips.length) return fail(`No clip in ${scene.name} has words yet. Ask the designer to right-click a clip and choose Transcribe, then read again.`);
+  if (without.length === clips.length) return fail(`No clip in ${scene.name} has words yet. Hear them first with transcribe (ask the designer which language is spoken if you do not know), then read again.`);
   const words = wordsOfEdit(doc, scene.id);
   const lines: string[] = [];
   let line: string[] = [];
@@ -1673,7 +1727,7 @@ function transcriptOf(a: Args): ToolResult {
     out.push("", "Cut out of the edit, not heard now (seconds of the recording):");
     for (const c of cut) out.push(`${clips.find((el) => el.src === c.src)?.name ?? c.src} ${c.s.toFixed(2)}-${c.e.toFixed(2)}  ${c.words.join(" ")}`);
   }
-  if (without.length) out.push("", `No words yet for: ${namesOf(without.map((el) => el.id))}. The designer can right-click a clip and choose Transcribe.`);
+  if (without.length) out.push("", `No words yet for: ${namesOf(without.map((el) => el.id))}. Hear them with transcribe.`);
   return { text: out.join("\n") };
 }
 
@@ -2160,6 +2214,7 @@ async function answerTool(name: string, raw: unknown, by?: string): Promise<Tool
   if (name === "color_readings") return colorReadings(a);
   if (name === "hear_sound") return hearSound(a);
   if (name === "get_transcript") return transcriptOf(a);
+  if (name === "transcribe") return transcribeTool(a, by);
   if (name === "list_looks") {
     const list = await invoke<string[]>("looks_list").catch(() => []);
     return { text: list.length ? `Looks kept in Documents, Duet, Looks:\n${list.join("\n")}` : "No looks are kept yet. Give load_look the full path of a .cube file." };
