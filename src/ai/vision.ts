@@ -57,7 +57,7 @@ const secs = (t: number) => `${Math.round(t * 100) / 100}s`;
  * What the design looks like right now: one frame or shape, drawn as the designer sees it. In a frame
  * that plays it is drawn at the moment the playhead is on, or at `at` seconds, with the real footage.
  */
-export async function lookAtDesign(ids: unknown, max: unknown, room: Room = liveRoom, at?: unknown): Promise<ToolResult> {
+export async function lookAtDesign(ids: unknown, max: unknown, room: Room = liveRoom, at?: unknown, around?: unknown, gap?: unknown, count?: unknown): Promise<ToolResult> {
   const doc = room.currentDoc();
   const sel = room.getState().selection;
   const list = Array.isArray(ids) && ids.length ? ids.map(String) : sel.length ? sel : doc.rootIds.filter((i) => doc.elements[i]?.type === "frame").slice(0, 1);
@@ -69,6 +69,7 @@ export async function lookAtDesign(ids: unknown, max: unknown, room: Room = live
   const k = Math.min(1, side(max) / Math.max(box.width, box.height));
   const sceneId = sceneOf(doc, id);
   const scene = sceneId ? doc.elements[sceneId] : null;
+  if (scene && typeof around === "number" && Number.isFinite(around)) return filmstrip(doc, id, scene.id, around, gap, count, side(max));
   let data: string;
   let when = "";
   if (scene) {
@@ -86,5 +87,62 @@ export async function lookAtDesign(ids: unknown, max: unknown, room: Room = live
   return {
     text: `A picture of "${el.name}" (${Math.round(el.width)} by ${Math.round(el.height)} pixels${turnOf(el) ? `, turned ${turnOf(el)} degrees` : ""})${when}, shown at ${Math.round(box.width * k)} by ${Math.round(box.height * k)}.${list.length > 1 ? " Only the first one is shown. Ask again for the others." : ""}`,
     image: { data, mime: "image/png" },
+  };
+}
+
+const num = (v: unknown, fallback: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, typeof v === "number" && Number.isFinite(v) ? v : fallback));
+
+const loadPicture = (data: string) =>
+  new Promise<HTMLImageElement>((done, fail) => {
+    const img = new Image();
+    img.onload = () => done(img);
+    img.onerror = () => fail(new Error("The picture could not be drawn."));
+    img.src = `data:image/png;base64,${data}`;
+  });
+
+/**
+ * A row of pictures of one thing in a frame that plays, a little before and after a moment, so a cut can be
+ * judged by its frames. Each picture is marked with its second.
+ */
+async function filmstrip(doc: Doc, id: string, sceneId: string, around: number, gap: unknown, count: unknown, longSide: number): Promise<ToolResult> {
+  const el = doc.elements[id];
+  const scene = doc.elements[sceneId];
+  const n = Math.round(num(count, 6, 2, 12));
+  const step = num(gap, 0.25, 1 / 30, 10);
+  const times = [...new Set(Array.from({ length: n }, (_, i) => Math.round(Math.max(0, Math.min(scene.duration - 0.001, around + (i - (n - 1) / 2) * step)) * 1000) / 1000))];
+  const box = turnedBox({ x: 0, y: 0, width: el.width, height: el.height }, turnOf(el));
+  const cols = times.length <= 4 ? times.length : Math.ceil(times.length / 2);
+  const rows = Math.ceil(times.length / cols);
+  const tileW = Math.max(64, Math.floor(longSide / cols));
+  const k = tileW / box.width;
+  const tileH = Math.max(1, Math.round(box.height * k));
+  const label = 22;
+  const sheet = document.createElement("canvas");
+  sheet.width = tileW * cols;
+  sheet.height = (tileH + label) * rows;
+  const ctx = sheet.getContext("2d");
+  if (!ctx) return { text: "Could not prepare the picture.", isError: true };
+  ctx.fillStyle = "#16161a";
+  ctx.fillRect(0, 0, sheet.width, sheet.height);
+  ctx.font = "600 14px system-ui, sans-serif";
+  ctx.textBaseline = "middle";
+  for (let i = 0; i < times.length; i++) {
+    const t = times[i];
+    let data: string;
+    try {
+      data = await drawWithFootage(doc, sceneId, t, k, (now) => renderPng(now, id, k));
+    } catch (e) {
+      logError("look at footage", e);
+      return { text: `The footage in "${el.name}" could not be read at ${secs(t)}. Check that its file is still there.`, isError: true };
+    }
+    const x = (i % cols) * tileW;
+    const y = Math.floor(i / cols) * (tileH + label);
+    ctx.drawImage(await loadPicture(data), x, y + label, tileW, tileH);
+    ctx.fillStyle = Math.abs(t - around) <= step / 2 + 0.002 ? "#ffd166" : "#e8e8ee";
+    ctx.fillText(secs(t), x + 6, y + label / 2);
+  }
+  return {
+    text: `${times.length} pictures of "${el.name}" around ${secs(around)}, ${secs(step)} apart: ${times.map(secs).join(", ")}. Read left to right, top to bottom; each is marked with its second above it, and the nearest to ${secs(around)} (one on each side when it falls between two) are marked in yellow.`,
+    image: { data: sheet.toDataURL("image/jpeg", 0.85).split(",")[1], mime: "image/jpeg" },
   };
 }

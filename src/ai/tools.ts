@@ -147,8 +147,18 @@ export const TOOLS: ToolDef[] = [
   {
     name: "look_at_design",
     description:
-      "See what a frame or shape looks like right now, drawn as the designer sees it. Use it to check your own work after changes, and to understand a design before you change it. Leave ids out to see the selection, or the first frame. maxSize is the longest side in pixels (default 768). In a video it shows the real footage at the moment the playhead is on; give at (seconds) to see another moment without moving the designer's playhead.",
-    inputSchema: { type: "object", properties: { ids, maxSize: num, at: { type: "number", description: "In a video, the second to look at. Leave out for where the playhead is." } } },
+      "See what a frame or shape looks like right now, drawn as the designer sees it. Use it to check your own work after changes, and to understand a design before you change it. Leave ids out to see the selection, or the first frame. maxSize is the longest side in pixels (default 768). In a video it shows the real footage at the moment the playhead is on; give at (seconds) to see another moment without moving the designer's playhead. To judge a cut, give around (seconds) instead: one picture with a row of frames before and after that moment, gap seconds apart (default 0.25), count of them (default 6, up to 12).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ids,
+        maxSize: num,
+        at: { type: "number", description: "In a video, the second to look at. Leave out for where the playhead is." },
+        around: { type: "number", description: "In a video, the second to see frames before and after, such as a cut." },
+        gap: { type: "number", description: "With around: seconds between the frames. Default 0.25." },
+        count: { type: "number", description: "With around: how many frames, 2 to 12. Default 6." },
+      },
+    },
   },
   {
     name: "create_instance",
@@ -2045,7 +2055,7 @@ async function answerTool(name: string, raw: unknown, by?: string): Promise<Tool
     return { text: JSON.stringify({ rootIds: d.rootIds, elements: d.elements }) };
   }
   if (name === "look_at_image") return lookAtImage(a.id, a.maxSize, R);
-  if (name === "look_at_design") return lookAtDesign(a.ids, a.maxSize, R, a.at);
+  if (name === "look_at_design") return lookAtDesign(a.ids, a.maxSize, R, a.at, a.around, a.gap, a.count);
   if (name === "look_at_attachment") return lookAtAttachment(a.number);
   if (name === "color_readings") return colorReadings(a);
   if (name === "hear_sound") return hearSound(a);
