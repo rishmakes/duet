@@ -18,6 +18,7 @@ import { dbText, dipKeys, loudnessMap } from "../document/sound";
 import { trackOf } from "../document/tracks";
 import { PEAK_SLICE, peaksOf } from "../video/faces";
 import { SILENCE_DEFAULT, findSilences } from "../video/silence";
+import { BREATH, cutOutOfEdit, cutsForWords, plainWord, wordsOfEdit } from "../document/words";
 import { MOVING, emptyDoc, playsFile } from "../document/types";
 import { boardsOf, commentsHere, describeMark, onOpenBoard, openBoard } from "../document/boards";
 import { GRADE_CONTROLS, canGrade, gradeChanges } from "../document/grade";
@@ -642,6 +643,29 @@ export const TOOLS: ToolDef[] = [
     },
   },
   {
+    name: "get_transcript",
+    description:
+      "The words spoken in a frame that plays, as the edit is now, in the order they are heard, so you can cut a talking video by what is said. Each line is a phrase: the seconds of the frame it is heard, then its words, each as number:word. The numbers are what cut_words takes. Also lists the words cut out of the edit, so you know what was said and dropped, and the clips with no words yet (the designer transcribes a clip by right-clicking it and choosing Transcribe). Words belong to the recording, so read this again after any cut, trim, split or speed change: the numbers change.",
+    inputSchema: { type: "object", properties: { id: { ...str, description: "A frame that plays." } }, required: ["id"] },
+  },
+  {
+    name: "cut_words",
+    description:
+      "Cut words out of a frame that plays, by the numbers get_transcript gave them, in one step. Each cut is from one word to another, both cut, with says: the words it cuts as you read them, so Duet checks they are still those words. A cut never starts or ends on a word: it keeps a short breath of quiet after the word before and before the word after, and the pause around the cut words goes too. Everything showing during a cut is cut on every track and what comes after moves up. Read get_transcript first, and again after. One undo brings everything back.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { ...str, description: "A frame that plays." },
+        cuts: {
+          type: "array",
+          items: { type: "object", properties: { from: num, to: num, says: { ...str, description: "The words from from to to, as get_transcript shows them." } }, required: ["from", "to", "says"] },
+        },
+        keep: { ...num, description: `Seconds of quiet kept on each side of a cut, 0.05 to 0.5. ${BREATH} if left out.` },
+      },
+      required: ["id", "cuts"],
+    },
+  },
+  {
     name: "resolve_comment",
     description:
       "Mark a comment the designer pinned on the canvas as dealt with, once you have done what it asks. get_context lists the open ones under comments, each with where it points, the thing under it and what is near. Say in reply what you did, in a few words.",
@@ -670,7 +694,7 @@ export const TOOLS: ToolDef[] = [
 
 /** Tools that make or change the brand kit or the design system: the designer always says yes first. */
 const KIT_TOOLS = new Set(["make_brand_kit", "change_brand_kit", "make_design_system", "change_design_system", "use_kit"]);
-const EDITS = new Set(["apply_text_style", "add_board", "open_board", "rename_board", "move_to_board", "resolve_comment", "add_comment", "set_grade", "copy_grade", "create_instance", "create_element", "create_elements", "set_props", "duplicate_elements", "move_elements", "resize_element", "reparent_elements", "make_mask", "trace_image", "set_duration", "set_work_area", "set_timing", "set_speed", "set_entrance", "animate", "change_volume_between", "cut_silences", "set_curve"]);
+const EDITS = new Set(["apply_text_style", "add_board", "open_board", "rename_board", "move_to_board", "resolve_comment", "add_comment", "set_grade", "copy_grade", "create_instance", "create_element", "create_elements", "set_props", "duplicate_elements", "move_elements", "resize_element", "reparent_elements", "make_mask", "trace_image", "set_duration", "set_work_area", "set_timing", "set_speed", "set_entrance", "animate", "change_volume_between", "cut_silences", "cut_words", "set_curve"]);
 /** Things the designer is asked about first in Ask first mode: losing work, and reading or writing a file on the computer. */
 const RISKY = new Set(["load_look", "delete_elements", "delete_board", "place_image", "import_svg", "find_fonts", "find_icons", "place_icon", "place_video", "place_sound", "export_frame", "export_video"]);
 
@@ -788,6 +812,11 @@ export function summarise(tool: string, a: Args): string {
     case "cut_silences": {
       const r = Array.isArray(a.ranges) ? (a.ranges as { start: number; end: number }[]) : [];
       return `Cut ${r.length} ${r.length === 1 ? "pause" : "pauses"} (${Math.round(r.reduce((t, x) => t + x.end - x.start, 0) * 10) / 10} s) out of ${nameOf(a.id ?? a.sceneId)}`;
+    }
+    case "cut_words": {
+      const r = Array.isArray(a.ranges) ? (a.ranges as { start: number; end: number }[]) : [];
+      const said = typeof a.says === "string" && a.says ? `: "${a.says.length > 80 ? `${a.says.slice(0, 77)}…` : a.says}"` : "";
+      return `Cut ${r.length === 1 ? "one bit" : `${r.length} bits`} of speech (${Math.round(r.reduce((t, x) => t + x.end - x.start, 0) * 10) / 10} s) out of ${nameOf(a.id ?? a.sceneId)}${said}`;
     }
     case "set_speed":
       return `Play ${namesOf(a.ids)} at ${Math.round(Number(a.speed) * 100)}% speed`;
@@ -1205,12 +1234,13 @@ function prepare(tool: string, raw: Args, doc = R.currentDoc()): { args: Args } 
       }
       return { args: a };
     }
-    case "cut_silences": {
+    case "cut_silences":
+    case "cut_words": {
       const el = typeof a.id === "string" ? doc.elements[a.id] : undefined;
       if (!el || el.type !== "frame" || !(el.duration > 0)) return { error: `${String(a.id)} is not a frame that plays.` };
       const ranges = Array.isArray(a.ranges) ? (a.ranges as { start: unknown; end: unknown }[]) : [];
-      if (!ranges.length || ranges.some((r) => typeof r?.start !== "number" || typeof r?.end !== "number" || r.end <= r.start)) return { error: "No pauses to cut." };
-      return { args: { id: el.id, ranges } };
+      if (!ranges.length || ranges.some((r) => typeof r?.start !== "number" || typeof r?.end !== "number" || r.end <= r.start)) return { error: tool === "cut_words" ? "No words to cut." : "No pauses to cut." };
+      return { args: tool === "cut_words" ? { id: el.id, ranges, says: typeof a.says === "string" ? a.says : "" } : { id: el.id, ranges } };
     }
     case "set_speed": {
       const bad = missing(a.ids);
@@ -1610,6 +1640,69 @@ async function hearSound(a: Args): Promise<ToolResult> {
   };
 }
 
+/** The words of a frame as the edit is now, in phrases, each word numbered for cut_words, then what was cut out. */
+function transcriptOf(a: Args): ToolResult {
+  const doc = R.currentDoc();
+  const scene = typeof a.id === "string" ? doc.elements[a.id] : undefined;
+  if (!scene || scene.type !== "frame" || !(scene.duration > 0)) return fail(`${String(a.id)} is not a frame that plays.`);
+  const clips = scene.childIds.map((i) => doc.elements[i]).filter((el) => el && playsFile(el) && !el.hidden);
+  const without = clips.filter((el) => !doc.words?.[el.src]);
+  if (!clips.length) return fail(`${scene.name} has no clips or sounds.`);
+  if (without.length === clips.length) return fail(`No clip in ${scene.name} has words yet. Ask the designer to right-click a clip and choose Transcribe, then read again.`);
+  const words = wordsOfEdit(doc, scene.id);
+  const lines: string[] = [];
+  let line: string[] = [];
+  let from = 0;
+  let to = 0;
+  const flush = () => {
+    if (line.length) lines.push(`${from.toFixed(2)}-${to.toFixed(2)}  ${line.join(" ")}`);
+    line = [];
+  };
+  words.forEach((w, i) => {
+    const prev = words[i - 1];
+    // a new phrase after a pause, at another clip, or when a line gets long
+    if (prev && (w.s - prev.e > 0.5 || w.clip !== prev.clip || line.length >= 14)) flush();
+    if (!line.length) from = w.s;
+    line.push(`${i}:${w.w}`);
+    to = w.e;
+  });
+  flush();
+  const out = [`Words of ${scene.name} as it plays now, ${words.length} in all. Seconds of the frame, then number:word. cut_words takes the numbers.`, ...(lines.length ? lines : ["No words are heard in it now."])];
+  const cut = cutOutOfEdit(doc, scene.id);
+  if (cut.length) {
+    out.push("", "Cut out of the edit, not heard now (seconds of the recording):");
+    for (const c of cut) out.push(`${clips.find((el) => el.src === c.src)?.name ?? c.src} ${c.s.toFixed(2)}-${c.e.toFixed(2)}  ${c.words.join(" ")}`);
+  }
+  if (without.length) out.push("", `No words yet for: ${namesOf(without.map((el) => el.id))}. The designer can right-click a clip and choose Transcribe.`);
+  return { text: out.join("\n") };
+}
+
+/** The stretches of a frame cut_words takes out, after checking each cut still names the words the AI read. */
+function wordCuts(a: Args): { ranges: { start: number; end: number }[]; says: string } | { error: string } {
+  const doc = R.currentDoc();
+  const scene = typeof a.id === "string" ? doc.elements[a.id] : undefined;
+  if (!scene || scene.type !== "frame" || !(scene.duration > 0)) return { error: `${String(a.id)} is not a frame that plays.` };
+  if (a.keep != null && (typeof a.keep !== "number" || a.keep < 0.05 || a.keep > 0.5)) return { error: "keep must be a number from 0.05 to 0.5." };
+  if (!Array.isArray(a.cuts) || !a.cuts.length) return { error: "Give cuts: from, to and says for each." };
+  const words = wordsOfEdit(doc, scene.id);
+  if (!words.length) return { error: `No words are heard in ${scene.name}. Read get_transcript first.` };
+  const picks: { from: number; to: number }[] = [];
+  const said: string[] = [];
+  for (const c of a.cuts as { from?: unknown; to?: unknown; says?: unknown }[]) {
+    const f = c?.from;
+    const t = c?.to;
+    if (!Number.isInteger(f) || !Number.isInteger(t) || (f as number) < 0 || (t as number) < (f as number) || (t as number) >= words.length) return { error: `Each cut needs whole numbers from and to, from 0 to ${words.length - 1}, with to not before from.` };
+    const these = words.slice(f as number, (t as number) + 1).map((w) => w.w);
+    // the words the AI named must still be these words: the first and last are enough, and forgive spelling of the rest
+    const named = String(c.says ?? "").split(/\s+/).map(plainWord).filter(Boolean);
+    if (!named.length || named[0] !== plainWord(these[0]) || named[named.length - 1] !== plainWord(these[these.length - 1])) return { error: `Words ${String(f)} to ${String(t)} now say "${these.join(" ")}", not "${String(c.says ?? "")}". The edit may have changed: read get_transcript again.` };
+    if (picks.some((p) => (f as number) <= p.to && (t as number) >= p.from)) return { error: `Cut ${String(f)} to ${String(t)} overlaps another cut. Join them into one.` };
+    picks.push({ from: f as number, to: t as number });
+    said.push(these.join(" "));
+  }
+  return { ranges: cutsForWords(words, picks, typeof a.keep === "number" ? a.keep : BREATH, scene.duration), says: said.join(" … ") };
+}
+
 /** The pauses Cut silences would take out of a frame that plays, with the same settings as its button. */
 async function pausesIn(a: Args): Promise<{ pauses: { start: number; end: number }[]; seconds: number } | { error: string }> {
   const doc = R.currentDoc();
@@ -1837,13 +1930,16 @@ async function apply(tool: string, args: Args, by?: string): Promise<ToolResult>
   if (tool === "duplicate_elements") return duplicateElements(args, by);
   if (tool === "load_look") return loadLook(args, by);
   await ensureSaved();
+  // cut_words says which words in the note, and the command underneath does not carry them
+  const wordsNote = tool === "cut_words" ? summarise(tool, args) : "";
   // changing a value over time is one tool for the AI and the set_keys command underneath, and copying a colour is setting it
-  const command = (tool === "animate" || tool === "change_volume_between" ? "set_keys" : tool === "copy_grade" ? "set_grade" : tool === "change_design_system" ? "set_design_system" : tool === "cut_silences" ? "cut_ranges" : tool) as CommandName;
+  const command = (tool === "animate" || tool === "change_volume_between" ? "set_keys" : tool === "copy_grade" ? "set_grade" : tool === "change_design_system" ? "set_design_system" : tool === "cut_silences" || tool === "cut_words" ? "cut_ranges" : tool) as CommandName;
   // the AI names the frame id like everywhere else; the command underneath calls it sceneId
   if (tool === "cut_silences") args = { sceneId: args.id, ranges: args.ranges };
+  if (tool === "cut_words") args = { sceneId: args.id, ranges: args.ranges, what: "words" };
   const label = commandLabel(command, args as never);
   R.dispatch(command, args as never, "ai", by);
-  addMsg({ role: "note", text: summarise(tool, args), ...stepNow() }, said());
+  addMsg({ role: "note", text: wordsNote || summarise(tool, args), ...stepNow() }, said());
   saveIfHome();
   if (tool === "set_grade" || tool === "copy_grade") {
     const doc = R.currentDoc();
@@ -1987,7 +2083,7 @@ function changedIds(a: Doc, b: Doc): string[] {
  * What a script may change: the design, through the same commands as the AI and the designer.
  * Files, pictures from the computer, exports and the internet are doors a script does not have.
  */
-const SCRIPT_EDITS = new Set([...EDITS, "delete_elements", "delete_board"].filter((t) => t !== "trace_image" && t !== "duplicate_elements" && t !== "cut_silences"));
+const SCRIPT_EDITS = new Set([...EDITS, "delete_elements", "delete_board"].filter((t) => t !== "trace_image" && t !== "duplicate_elements" && t !== "cut_silences" && t !== "cut_words"));
 const SCRIPT_READS = new Set(["get_document", "get_outline"]);
 export const scriptTools = () => [...SCRIPT_READS, ...SCRIPT_EDITS];
 
@@ -2063,6 +2159,7 @@ async function answerTool(name: string, raw: unknown, by?: string): Promise<Tool
   if (name === "look_at_attachment") return lookAtAttachment(a.number);
   if (name === "color_readings") return colorReadings(a);
   if (name === "hear_sound") return hearSound(a);
+  if (name === "get_transcript") return transcriptOf(a);
   if (name === "list_looks") {
     const list = await invoke<string[]>("looks_list").catch(() => []);
     return { text: list.length ? `Looks kept in Documents, Duet, Looks:\n${list.join("\n")}` : "No looks are kept yet. Give load_look the full path of a .cube file." };
@@ -2170,6 +2267,12 @@ async function answerTool(name: string, raw: unknown, by?: string): Promise<Tool
     if (a.find === true) return { text: JSON.stringify(found) };
     if (!found.pauses.length) return fail("No pauses found, so nothing was cut. Try a higher quiet or a shorter shortest.");
     a.ranges = found.pauses;
+  }
+  if (name === "cut_words") {
+    const found = wordCuts(a);
+    if ("error" in found) return fail(found.error);
+    a.ranges = found.ranges;
+    a.says = found.says;
   }
   if (!EDITS.has(name) && !RISKY.has(name)) return fail(`Unknown tool ${name}.`);
   const check = prepare(name, a);

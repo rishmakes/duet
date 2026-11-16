@@ -99,6 +99,36 @@ export function cutOutOfEdit(doc: Doc, sceneId: string): CutOut[] {
   return out;
 }
 
+/** Seconds of quiet a cut by words keeps on each side, so the words left never sound clipped. */
+export const BREATH = 0.15;
+
+/**
+ * The stretches of frame time to take out to cut words `from` to `to` (places in `words`, both kept in
+ * the cut). A cut never starts or ends on a word: it starts a breath after the word before and ends a
+ * breath before the word after, or halfway there when the gap is shorter. So the pause around the cut
+ * words goes too, and the join is two short breaths. Cuts that touch become one.
+ */
+export function cutsForWords(words: EditWord[], picks: { from: number; to: number }[], keep = BREATH, length = Infinity): { start: number; end: number }[] {
+  const out: { start: number; end: number }[] = [];
+  for (const p of [...picks].sort((a, b) => a.from - b.from)) {
+    const first = words[p.from];
+    const last = words[p.to];
+    if (!first || !last || p.to < p.from) continue;
+    const before = words[p.from - 1];
+    const after = words[p.to + 1];
+    const start = before ? before.e + Math.min(keep, Math.max(0, first.s - before.e) / 2) : Math.max(0, first.s - keep);
+    const end = after ? after.s - Math.min(keep, Math.max(0, after.s - last.e) / 2) : Math.min(length, last.e + keep);
+    const r = { start: round(start), end: round(Math.max(end, last.e)) };
+    const prev = out[out.length - 1];
+    if (prev && r.start <= prev.end) prev.end = Math.max(prev.end, r.end);
+    else out.push(r);
+  }
+  return out;
+}
+
+/** A word as compared when checking the AI means the word it named: letters and digits only, lower case. */
+export const plainWord = (w: string) => w.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+
 /** The doc with a recording's words set, or taken away when `transcript` is null. Never mutates. */
 export function withWords(doc: Doc, src: string, transcript: Transcript | null): Doc {
   const words = { ...(doc.words ?? {}) };

@@ -2551,10 +2551,12 @@ export interface CutRangesArgs {
   sceneId: string;
   /** Stretches of its time to take out, such as the pauses in a voice. Everything showing then goes. */
   ranges: { start: number; end: number }[];
+  /** What is cut, for the history: pauses unless it is words. */
+  what?: "pauses" | "words";
 }
 
 const cutRanges: CommandDef<CutRangesArgs> = {
-  label: (a) => (a.ranges.length === 1 ? "Cut away one pause" : `Cut away ${a.ranges.length} pauses`),
+  label: (a) => (a.what === "words" ? (a.ranges.length === 1 ? "Cut away some words" : `Cut away words in ${a.ranges.length} places`) : a.ranges.length === 1 ? "Cut away one pause" : `Cut away ${a.ranges.length} pauses`),
   run: (doc, a) => {
     const scene = doc.elements[a.sceneId];
     if (!scene || !(scene.duration > 0)) return doc;
