@@ -12,11 +12,14 @@ import { spanOf } from "../document/time";
  */
 
 /**
- * The languages people here speak sit on top. No "guess for me": guessing fails on mixed speech.
+ * Auto-detect, then the languages people here speak. Auto-detect can mishear mixed speech, so Hinglish
+ * and Banglish sit right under it.
  * Hinglish and Banglish come out in English letters, the way people type them: the model hears them as
  * English, led by a line written that way. It also hears more of them than when told Hindi or Bengali.
  */
 export const LANGUAGES: { key: string; name: string; code: string; prompt?: string }[] = [
+  { key: "auto", name: "Auto-detect", code: "auto" },
+  { key: "en", name: "English", code: "en" },
   {
     key: "hi-en",
     name: "Hinglish (Hindi + English)",
@@ -29,10 +32,6 @@ export const LANGUAGES: { key: string; name: string; code: string; prompt?: stri
     code: "en",
     prompt: "Ki khobor? Ami bhalo achi. Aaj ami tomake dekhabo kivabe video edit korte hoy. Eta khub simple, shudhu ektu dhyan dite hoy.",
   },
-  { key: "en", name: "English", code: "en" },
-  // for anyone who wants Hindi or Bengali written in their own letters
-  { key: "hi", name: "Hindi", code: "hi" },
-  { key: "bn", name: "Bengali", code: "bn" },
 ];
 
 /** Every other language the speech model knows, by name, A to Z. */
@@ -47,6 +46,7 @@ const EVERY: [string, string][] = [
   ["ba", "Bashkir"],
   ["eu", "Basque"],
   ["be", "Belarusian"],
+  ["bn", "Bengali"],
   ["bs", "Bosnian"],
   ["br", "Breton"],
   ["bg", "Bulgarian"],
@@ -71,6 +71,7 @@ const EVERY: [string, string][] = [
   ["ha", "Hausa"],
   ["haw", "Hawaiian"],
   ["he", "Hebrew"],
+  ["hi", "Hindi"],
   ["hu", "Hungarian"],
   ["is", "Icelandic"],
   ["id", "Indonesian"],
