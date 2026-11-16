@@ -12177,3 +12177,121 @@ button.ctx-item.store-make-option:hover {
   border-radius: var(--r-sm);
   border: 1px solid var(--line);
 }
+
+/* Voice to text in the Store (#340) */
+.voice-addon {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+}
+.voice-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.voice-ready-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ok, #3ecf6e);
+}
+.voice-sizes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+.voice-size {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 10px 16px;
+  cursor: pointer;
+}
+.voice-size.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.voice-radio {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid var(--muted);
+  display: grid;
+  place-items: center;
+}
+.voice-size.on .voice-radio {
+  border-color: var(--accent);
+}
+.voice-size.on .voice-radio::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.voice-size-words {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.voice-size-name {
+  font-weight: 600;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.voice-size-what,
+.voice-size-bytes {
+  color: var(--muted);
+  font-size: 12px;
+}
+.voice-size-bytes {
+  flex: none;
+}
+.voice-tag {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+.voice-foot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 6px;
+}
+.voice-actions {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+.voice-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+.voice-bar > div {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.4s linear;
+}

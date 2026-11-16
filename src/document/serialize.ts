@@ -1,6 +1,7 @@
 import { isDerived, syncInstances } from "./components";
 import { relayout } from "./layout";
 import { keepTracks, oldTracks } from "./tracks";
+import { readWords } from "./words";
 import { playsFile } from "./types";
 import type { Board, Comment, Doc, El, MediaItem } from "./types";
 
@@ -168,6 +169,7 @@ export function serializeDoc(doc: Doc): string {
   if (doc.comments?.length) out.comments = doc.comments;
   if (doc.pages) out.pages = true;
   if (doc.media?.length) out.media = doc.media;
+  if (doc.words && Object.keys(doc.words).length) out.words = doc.words;
   if (doc.boards && doc.boards.length > 1) {
     // the open board's things are the rootIds above, so they are not written twice
     out.boards = doc.boards.map((b) => (b.id === doc.board ? { id: b.id, name: b.name } : { id: b.id, name: b.name, rootIds: b.rootIds ?? [] }));
@@ -247,6 +249,7 @@ export function parseDoc(text: string): Doc {
   }
   const styles = r.styles && typeof r.styles === "object" ? (r.styles as Doc["styles"]) : undefined;
   const media = readMedia(r.media);
+  const words = readWords(r.words);
   const brand = readBrand(r.brand);
   const system = readSystem(r.system);
   const background = typeof r.background === "string" && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(r.background) ? r.background : undefined;
@@ -263,7 +266,7 @@ export function parseDoc(text: string): Doc {
     const saved = new Set((el.tracks ?? []).map((t) => t.id));
     if (oldTracks(el) || el.childIds.some((c) => elements[c] && !saved.has(elements[c].track ?? ""))) keepTracks({ version: 1, rootIds: [], elements }, el.id);
   }
-  return relayout(syncInstances({ version: 1, rootIds: r.rootIds as string[], elements, ...(background ? { background } : {}), ...(styles ? { styles } : {}), ...(brand ? { brand } : {}), ...(system ? { system } : {}), ...(guides ? { guides } : {}), ...(comments.length ? { comments } : {}), ...(r.pages === true ? { pages: true as const } : {}), ...(media.length ? { media } : {}), ...(boards ? { boards, board } : {}) }));
+  return relayout(syncInstances({ version: 1, rootIds: r.rootIds as string[], elements, ...(background ? { background } : {}), ...(styles ? { styles } : {}), ...(brand ? { brand } : {}), ...(system ? { system } : {}), ...(guides ? { guides } : {}), ...(comments.length ? { comments } : {}), ...(r.pages === true ? { pages: true as const } : {}), ...(media.length ? { media } : {}), ...(words ? { words } : {}), ...(boards ? { boards, board } : {}) }));
 }
 
 /** A brand kit read from a file, keeping only what makes sense. */

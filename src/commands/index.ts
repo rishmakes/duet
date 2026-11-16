@@ -4,7 +4,8 @@ import { ancestors, canMask, canTurn, descendants, tidyAngle, topLevelOnly, turn
 import { canBeComponent, captureOverrides, detachInstance, isDerived, syncInstances } from "../document/components";
 import { orderByPosition, relayout } from "../document/layout";
 import { MOVING, playsFile } from "../document/types";
-import type { Blend, Comment, CommentMark, Doc, El, ElementType, Key, Layout, Moving, ShapeKey, TextStyle } from "../document/types";
+import type { Blend, Comment, CommentMark, Doc, El, ElementType, Key, Layout, Moving, ShapeKey, TextStyle, Transcript } from "../document/types";
+import { withWords } from "../document/words";
 import { CURVES, ENTRANCES, entranceKeys, fileTimeAt, outlineOf, sceneOf, spanOf, valueAt, withKey, withShapeKey } from "../document/time";
 import type { CurveName, Entrance } from "../document/time";
 import { canGrade, mergeGrade } from "../document/grade";
@@ -2686,6 +2687,19 @@ const reorderPagesDef: CommandDef<ReorderPagesArgs> = {
   run: (doc, a) => reorderPages(doc, a),
 };
 
+// ---- Voice to text: the words heard in a recording (#340) ----
+export interface SetWordsArgs {
+  /** Where the recording is on the computer. */
+  src: string;
+  /** Its words, or null to take them away. */
+  transcript: Transcript | null;
+}
+
+const setWordsDef: CommandDef<SetWordsArgs> = {
+  label: (a) => (a.transcript ? "Transcribe" : "Remove the words"),
+  run: (doc, a) => withWords(doc, a.src, a.transcript),
+};
+
 // ---- Clips: the clips, sounds, pictures and folders a video is made from ----
 const addMediaDef: CommandDef<AddMediaArgs> = {
   label: (a) => (a.items.length === 1 ? `Add ${a.items[0].name} to Clips` : "Add to Clips"),
@@ -2802,6 +2816,7 @@ export const commands = {
   remove_brand_colour: removeBrandColourDef,
   make_brand_kit: makeBrandKitDef,
   add_media: addMediaDef,
+  set_words: setWordsDef,
   remove_media: removeMediaDef,
   new_folder: newFolderDef,
   rename_media: renameMediaDef,

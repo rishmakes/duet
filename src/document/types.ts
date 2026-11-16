@@ -322,6 +322,22 @@ export interface MediaItem {
   folderId?: string;
 }
 
+/** One word heard in a recording: what was said, and the seconds of the file it starts and ends. */
+export interface Word {
+  w: string;
+  s: number;
+  e: number;
+}
+
+/** The words of one recording, made once by Voice to text (#340). */
+export interface Transcript {
+  /** The language it was heard in, as a Whisper code like hi, bn or en. */
+  language: string;
+  /** The size of speech model that heard it: small, medium or large. */
+  model: string;
+  words: Word[];
+}
+
 export interface Doc {
   version: 1;
   /** The colour of the canvas behind the design, like #141417. Left out means the standard dark one. */
@@ -344,6 +360,8 @@ export interface Doc {
   board?: string;
   /** The clips, sounds, pictures and folders in the Clips panel, in order. Left out when there are none. */
   media?: MediaItem[];
+  /** The words heard in each recording, keyed by where the file is on the computer. They belong to the recording, not to a clip, so every clip cut from one file reads the same words. Left out when there are none. */
+  words?: Record<string, Transcript>;
   /** What sits at the top of the open board, back to front. */
   rootIds: string[];
   elements: Record<string, El>;

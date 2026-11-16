@@ -27,7 +27,7 @@ import {
 } from "../store/scripts";
 import { sendToAgent } from "../ai/agent";
 import { useDismiss } from "./useDismiss";
-import { ConnectAddon } from "./AddOns";
+import { ConnectAddon, VoiceAddon } from "./AddOns";
 import Icon, { type IconName } from "./Icons";
 
 interface StorePageProps {
@@ -38,7 +38,7 @@ const RUNS_ON_KEYS: RunsOn[] = ["selection", "each-frame", "file", "list"];
 
 function thingIcon(thing: Thing): IconName {
   if (thing.kind === "plugin") {
-    if (thing.id === "plugin-connect") return "plugin-connect";
+    if (thing.id === "plugin-voice") return "plugin-voice";
     return "plugin-connect";
   }
   switch (thing.id) {
@@ -931,6 +931,11 @@ export default function StorePage({ onClose }: StorePageProps) {
             {selectedThing.id === "plugin-connect" && (
               <div className="store-thing-section">
                 <ConnectAddon />
+              </div>
+            )}
+            {selectedThing.id === "plugin-voice" && (
+              <div className="store-thing-section">
+                <VoiceAddon />
               </div>
             )}
           </div>

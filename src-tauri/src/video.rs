@@ -9,7 +9,7 @@ use std::process::{Child, Stdio};
 use std::sync::Mutex;
 
 /// Where a tool such as ffmpeg lives. An app started from the Dock does not get the folders a terminal knows.
-fn find(program: &str) -> Option<PathBuf> {
+pub(crate) fn find(program: &str) -> Option<PathBuf> {
     // the copy that ships with Duet sits next to the app itself
     let mut dirs: Vec<PathBuf> = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.to_path_buf())).into_iter().collect();
     dirs.extend(std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect::<Vec<_>>()).unwrap_or_default());

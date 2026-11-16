@@ -9,6 +9,7 @@ mod psd;
 mod snapshot;
 mod trash;
 mod video;
+mod voice;
 
 use git2::{Repository, Signature};
 use serde::Serialize;
@@ -770,6 +771,11 @@ fn note_panics() {
     }));
 }
 
+/// The helper process that turns speech into words. See voice.rs.
+pub fn transcribe() {
+    voice::transcribe_main()
+}
+
 pub fn run() {
     note_panics();
     tauri::Builder::default()
@@ -783,6 +789,11 @@ pub fn run() {
             connect::connect_status,
             connect::connect_start,
             connect::connect_stop,
+            voice::voice_status,
+            voice::voice_download,
+            voice::voice_cancel,
+            voice::voice_remove,
+            voice::voice_transcribe,
             ai::agent_models,
             read_text_file,
             read_binary_file,

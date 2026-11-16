@@ -65,6 +65,20 @@ export const CONNECT_PLUGIN: Thing = {
   editable: false,
 };
 
+/** Voice to text: speech in a recording becomes words with their times, on this computer (#340). */
+export const VOICE_PLUGIN: Thing = {
+  kind: "plugin",
+  id: "plugin-voice",
+  name: "Voice to text",
+  line: "Turns the speech in your clips into words, with the moment each word is said. Then you and the AI can cut by words, and cuts land between words, never inside one.",
+  by: "Duet",
+  touches: ["The sound of your clips, only on this computer. Nothing goes to the internet.", "One download, kept in Duet's own folder"],
+  installed: true,
+  on: false,
+  removable: false,
+  editable: false,
+};
+
 export function scriptThing(s: Script): Thing {
   return {
     kind: "script",
@@ -81,7 +95,7 @@ export function scriptThing(s: Script): Thing {
 }
 
 export function buildThings(skills: Skill[], scripts: Script[] = []): Thing[] {
-  return [...skills.map(skillThing), ...scripts.map(scriptThing), CONNECT_PLUGIN];
+  return [...skills.map(skillThing), ...scripts.map(scriptThing), CONNECT_PLUGIN, VOICE_PLUGIN];
 }
 
 export interface Finding {
