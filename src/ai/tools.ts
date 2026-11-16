@@ -1714,7 +1714,11 @@ async function pictureOfDuet(args: Args): Promise<ToolResult> {
   await new Promise((done) => setTimeout(done, 600));
   // the dev copy's own marks stay out of the picture
   document.body.classList.add("picturing");
-  await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+  // a hidden window gets no animation frames, so never wait on them alone (#339)
+  await new Promise((done) => {
+    requestAnimationFrame(() => requestAnimationFrame(done));
+    setTimeout(done, 150);
+  });
   try {
     await invoke("window_picture", { path });
   } catch (e) {

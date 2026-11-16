@@ -2622,7 +2622,9 @@ option {
 
 /* Duet dev: a second Duet used only to check work on Duet itself. The DEV mark beside the name is enough to tell it apart. */
 /* a picture of Duet for the site shows it as everyone has it */
-.picturing .checkmark {
+.picturing .checkmark,
+.picturing-dev .checkmark,
+.picturing-dev .top-file-folder {
   display: none;
 }
 .checkmark {

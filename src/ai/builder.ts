@@ -1,4 +1,3 @@
-import { toPng } from "html-to-image";
 import { agentIsDriving } from "../ui/dialog";
 import { runCommand } from "../commands";
 import { emptyDoc } from "../document/types";
@@ -267,6 +266,18 @@ function readInterface(filter: unknown, max: unknown): string {
 type Args = Record<string, unknown>;
 
 const fail = (text: string): ToolResult => ({ text, isError: true });
+
+/** A PNG made no larger than `most` on its long side, as base64. */
+async function shrinkPng(png: ArrayBuffer, most: number): Promise<string> {
+  const picture = await createImageBitmap(new Blob([png], { type: "image/png" }));
+  const k = Math.min(1, most / Math.max(picture.width, picture.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(picture.width * k);
+  canvas.height = Math.round(picture.height * k);
+  canvas.getContext("2d")!.drawImage(picture, 0, 0, canvas.width, canvas.height);
+  picture.close();
+  return canvas.toDataURL("image/png").split(",")[1];
+}
 /** Long enough for the interface to draw what the press changed. */
 const settle = () => new Promise<void>((r) => setTimeout(r, 80));
 
@@ -422,17 +433,23 @@ export async function callBuilderTool(name: string, raw: unknown, by?: string): 
   if (name === "dev_read_interface") return { text: `${inTestDesign() ? "" : "This is a real project, not a test design.\n"}${readInterface(a.filter, a.max)}` };
   if (name === "dev_press") return press(a);
   if (name === "dev_look_at_window") {
+    // Duet dev shows a DEV tag and "in Duet dev" so it is never mistaken for the real Duet. The picture leaves them out, so it looks like the real one; keepDevTag brings them back.
+    const keep = a.keepDevTag === true;
+    if (!keep) document.body.classList.add("picturing-dev");
     try {
-      const w = window.innerWidth;
-      const h = window.innerHeight;
+      // a hidden window gets no animation frames, so never wait on them alone
+      await new Promise((done) => {
+        requestAnimationFrame(() => requestAnimationFrame(done));
+        setTimeout(done, 150);
+      });
       const most = typeof a.maxSize === "number" && a.maxSize > 0 ? a.maxSize : 1600;
-      // Duet dev shows a DEV tag and "in Duet dev" so it is never mistaken for the real Duet. The picture leaves them out, so it looks like the real one; keepDevTag brings them back.
-      const keep = a.keepDevTag === true;
-      const filter = (n: Node) => keep || !(n instanceof Element && (n.classList.contains("checkmark") || n.classList.contains("top-file-folder")));
-      const url = await toPng(document.body, { pixelRatio: Math.min(window.devicePixelRatio || 1, most / Math.max(w, h)), width: w, height: h, cacheBust: false, skipFonts: true, filter });
-      return { text: "The Duet window as it is now.", image: { data: url.split(",")[1], mime: "image/png" } };
+      // the web view's own snapshot: a video on the canvas does not block it, as drawing the page from inside did (#339)
+      const png = await invoke<ArrayBuffer>("window_picture_bytes");
+      return { text: "The Duet window as it is now.", image: { data: await shrinkPng(png, most), mime: "image/png" } };
     } catch (e) {
       return fail(`The window could not be drawn: ${String(e instanceof Error ? e.message : e)}`);
+    } finally {
+      document.body.classList.remove("picturing-dev");
     }
   }
   if (name === "dev_type") return type(a);

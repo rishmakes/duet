@@ -40,6 +40,13 @@ fn take(_app: &AppHandle) -> Result<Vec<u8>, String> {
     Err("Pictures of the Duet window work on a Mac for now.".into())
 }
 
+/// A picture of the Duet window as PNG bytes, for the AI to look at. Videos on the canvas do not stop it,
+/// unlike drawing the page from inside it.
+#[tauri::command(async)]
+pub fn window_picture_bytes(app: AppHandle) -> Result<tauri::ipc::Response, String> {
+    take(&app).map(tauri::ipc::Response::new)
+}
+
 /// Save a picture of the Duet window as a PNG at `path`. Folders are made as needed.
 #[tauri::command(async)]
 pub fn window_picture(app: AppHandle, path: String) -> Result<(), String> {

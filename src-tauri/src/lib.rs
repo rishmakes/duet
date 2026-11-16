@@ -805,6 +805,7 @@ pub fn run() {
             psd::psd_read,
             psd::psd_read_bytes,
             snapshot::window_picture,
+            snapshot::window_picture_bytes,
             psd::psd_write,
             path_exists,
             move_project,
