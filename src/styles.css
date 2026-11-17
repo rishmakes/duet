@@ -12213,70 +12213,72 @@ button.ctx-item.store-make-option:hover {
   border-radius: 50%;
   background: var(--ok, #3ecf6e);
 }
-.voice-sizes {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+/* one slider from fastest to most accurate (#364): a dot under each stop, a filled one on the suggested */
+.voice-slider {
+  position: relative;
   margin-top: 6px;
+  padding: 0 7px;
 }
-.voice-size {
-  display: flex;
-  align-items: center;
-  gap: 14px;
+.voice-slider input[type="range"] {
   width: 100%;
-  text-align: left;
-  font: inherit;
-  color: var(--text);
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 10px 16px;
+  margin: 0;
+  accent-color: var(--accent);
   cursor: pointer;
 }
-.voice-size.on {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
+.voice-stops {
+  display: flex;
+  justify-content: space-between;
+  margin: 2px -7px 0;
 }
-.voice-radio {
-  flex: none;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  border: 1.5px solid var(--muted);
+.voice-stop {
+  width: 14px;
+  height: 14px;
+  padding: 0;
   display: grid;
   place-items: center;
+  background: transparent;
+  border: none;
+  cursor: pointer;
 }
-.voice-size.on .voice-radio {
-  border-color: var(--accent);
-}
-.voice-size.on .voice-radio::after {
-  content: "";
-  width: 8px;
-  height: 8px;
+.voice-stop-dot {
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--muted);
+  opacity: 0.5;
 }
-.voice-size-words {
+.voice-stop-dot.suggested {
+  width: 7px;
+  height: 7px;
+  background: var(--accent);
+  opacity: 1;
+}
+.voice-ends {
+  display: flex;
+  justify-content: space-between;
+  margin: 2px -7px 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+.voice-pick {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  flex: 1;
-  min-width: 0;
+  padding: 8px 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
 }
-.voice-size-name {
+.voice-pick-name {
   font-weight: 600;
   font-size: 14px;
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.voice-size-what,
-.voice-size-bytes {
+.voice-pick-what {
   color: var(--muted);
   font-size: 12px;
-}
-.voice-size-bytes {
-  flex: none;
 }
 .voice-tag {
   font-size: 11px;
@@ -12334,49 +12336,6 @@ button.ctx-item.store-make-option:hover {
   max-width: none;
   align-self: stretch;
   padding: 6px 8px;
-}
-.listen-stops {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
-}
-.listen-stop {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  padding: 6px 8px;
-  font: inherit;
-  text-align: left;
-  color: var(--text);
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  cursor: pointer;
-}
-.listen-stop.on {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
-}
-.listen-stop.suggested::after {
-  content: "";
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-}
-.listen-name {
-  font-size: 12px;
-  font-weight: 600;
-}
-.listen-time {
-  font-size: 11px;
-  color: var(--muted);
-  min-height: 1em;
 }
 .transcribe-foot {
   display: flex;
@@ -12829,8 +12788,47 @@ button.ctx-item.store-make-option:hover {
 @keyframes act-busy {
   50% { opacity: 0.35; }
 }
+/* the little sound wave beside the step: Duet is listening, even when the bar is between reports */
+.hearing-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.hearing-wave {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 12px;
+}
+.hearing-wave i {
+  width: 2px;
+  height: 100%;
+  border-radius: 1px;
+  background: var(--accent);
+  transform-origin: center;
+  animation: hearing-wave 0.9s ease-in-out infinite;
+}
+.hearing-wave i:nth-child(2) { animation-delay: -0.2s; }
+.hearing-wave i:nth-child(3) { animation-delay: -0.45s; }
+.hearing-wave i:nth-child(4) { animation-delay: -0.7s; }
+@keyframes hearing-wave {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+.hearing-line {
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.8;
+  animation: hearing-line-in 0.4s ease-out;
+}
+@keyframes hearing-line-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 0.8; transform: none; }
+}
 @media (prefers-reduced-motion: reduce) {
   .hearing-bar.waiting i,
+  .hearing-wave i,
+  .hearing-line,
   .time-act.busy svg {
     animation: none;
   }

@@ -24,13 +24,19 @@ cp "$EXE" "$DIR/duet-test-setup.exe"
 echo "Copying to the PC..."
 (cd "$DIR" && printf 'put duet-test-setup.exe\n' | sftp -b - "$PC" > /dev/null)
 
-# close Duet and install silently over it; open it on the PC by hand
+# install silently over Duet, but never while it is open: closing it by force once lost unsaved work.
+# Duet cannot tell from out here what is unsaved, so any open Duet stops the install. Open it on the PC by hand.
 cat > "$DIR/install.ps1" <<'EOF'
-Stop-Process -Name duet-app -Force -ErrorAction SilentlyContinue
-Start-Sleep -Seconds 2
+if (Get-Process -Name duet-app -ErrorAction SilentlyContinue) {
+  "Duet is open on the PC. Save your work, close Duet, then run: scripts/windows-test --install"
+  exit 3
+}
 Start-Process -FilePath "$env:USERPROFILE\duet-test-setup.exe" -ArgumentList "/S" -Wait
 "installed: " + (Get-Item "$env:LOCALAPPDATA\Duet\duet-app.exe").LastWriteTime
 EOF
 (cd "$DIR" && printf 'put install.ps1\n' | sftp -b - "$PC" > /dev/null)
-ssh "$PC" 'powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1'
+if ! ssh "$PC" 'powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1'; then
+  echo "Not installed. The build is kept on GitHub; run scripts/windows-test --install once Duet is closed on the PC."
+  exit 1
+fi
 echo "Done: $(basename "$EXE") is on the test PC."

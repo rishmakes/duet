@@ -39,3 +39,26 @@ export function pickWaitingLine(last?: string, elapsed = 0): string {
 export function formatWaitingLine(tool: string, line: string): string {
   return `${tool}: ${line}`;
 }
+
+/** Playful lines on the card while Duet listens for words in a clip (#364). */
+export const LISTENING_LINES: string[] = [
+  "Ears on.",
+  "Listening very, very closely.",
+  "Was that a word or a cough? Checking.",
+  "Writing it all down. Neatly.",
+  "Pretending to be a court stenographer.",
+  "Hinglish? Banglish? No problem.",
+  "Turning sound into words, one syllable at a time.",
+  "Rewinding that bit. You mumbled.",
+  "Counting the ums. There are a few.",
+  "Not stuck. Just a careful listener.",
+  "Nodding along politely.",
+  "Go grab a chai. This is on it.",
+  "Still listening. Promise.",
+];
+
+/** A listening line that does not repeat the last one. */
+export function pickListeningLine(last?: string): string {
+  const pool = LISTENING_LINES.filter((line) => line !== last);
+  return pool[Math.floor(Math.random() * pool.length)];
+}

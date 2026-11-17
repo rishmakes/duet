@@ -67,23 +67,29 @@ export function ConnectAddon() {
   );
 }
 
-type VoiceSize = "small" | "medium" | "large";
-
 interface VoiceStatus {
-  installed: VoiceSize | null;
-  downloading: VoiceSize | null;
+  /** The stop picked on the slider, 1 (fastest) to 4 (most accurate). */
+  level: number;
+  suggested: number;
+  /** The picked stop's download is here. */
+  ready: boolean;
+  /** Any stop's download is here, so Transcribe works. */
+  usable: boolean;
+  downloading: string | null;
   step: "" | "downloading" | "checking";
   got: number;
   total: number | null;
   error: string;
   free: number | null;
-  sizes: { size: VoiceSize; bytes: number }[];
+  stops: { level: number; ready: boolean; bytes: number }[];
 }
 
-const VOICE_SIZES: { size: VoiceSize; name: string; what: string }[] = [
-  { size: "small", name: "Small", what: "Quick. Fine for clear speech in one language." },
-  { size: "medium", name: "Medium", what: "Better with mixed speech, like Hindi and English in one sentence." },
-  { size: "large", name: "Large", what: "Most careful. Slowest. Best on a strong computer." },
+/** The slider's stops, fastest to most accurate (#364). What is behind each is in src-tauri/src/voice.rs. */
+export const VOICE_STOPS: { level: number; name: string; what: string }[] = [
+  { level: 1, name: "Fastest", what: "Ready soonest. A few words may be off." },
+  { level: 2, name: "Balanced", what: "Quick, and hears every word of Hinglish and Banglish." },
+  { level: 3, name: "Careful", what: "Slower. More careful with English and other languages. Good for client work." },
+  { level: 4, name: "Most accurate", what: "Slowest and most careful. Best on a strong computer." },
 ];
 
 /** A size in plain words: "574 MB", "1.6 GB". */
@@ -101,11 +107,10 @@ export function timeLeftWords(left: number, perSecond: number): string {
   return m === 1 ? "about a minute left" : `about ${m} minutes left`;
 }
 
-/** Voice to text: pick a size, download it once, then transcribe clips on this computer (#340). */
+/** Voice to text: one slider from fastest to most accurate, download once, then transcribe clips on this computer (#340, #364). */
 export function VoiceAddon() {
   const [s, setS] = useState<VoiceStatus | null>(null);
-  const [pick, setPick] = useState<VoiceSize>("medium");
-  const [changing, setChanging] = useState(false);
+  const [pick, setPick] = useState<number | null>(null);
   const [sureRemove, setSureRemove] = useState(false);
   const [rate, setRate] = useState<{ at: number; got: number; perSecond: number } | null>(null);
 
@@ -132,130 +137,131 @@ export function VoiceAddon() {
   }, [s?.got, s?.downloading, s?.step]);
 
   if (!s) return null;
-  const bytesOf = (size: VoiceSize) => s.sizes.find((x) => x.size === size)?.bytes ?? 0;
-  const nameOf = (size: VoiceSize) => VOICE_SIZES.find((x) => x.size === size)?.name ?? size;
+  const shown = pick ?? s.level;
+  const stopOf = (l: number) => VOICE_STOPS.find((v) => v.level === l) ?? VOICE_STOPS[1];
+  const info = s.stops.find((x) => x.level === shown);
+  const here = !!info?.ready;
+  const need = info?.bytes ?? 0;
+  const short = !here && s.free != null && s.free < need + 200e6;
+  const using = s.stops.filter((x) => x.ready).sort((a, b) => Math.abs(a.level - s.level) - Math.abs(b.level - s.level) || b.level - a.level)[0];
 
-  if (s.downloading) {
-    const total = s.total ?? bytesOf(s.downloading);
-    const share = total ? Math.min(1, s.got / total) : 0;
-    return (
-      <div className="voice-addon">
-        <div className="voice-title">{s.step === "checking" ? `Checking ${nameOf(s.downloading)}` : `Downloading ${nameOf(s.downloading)}`}</div>
-        <div className="voice-bar">
-          <div style={{ width: `${share * 100}%` }} />
-        </div>
-        <div className="voice-foot">
-          <div className="addon-note">
-            {s.step === "checking"
-              ? "Making sure the download is complete and unchanged."
-              : [`${sizeWords(s.got)} of ${sizeWords(total)}`, rate ? timeLeftWords(total - s.got, rate.perSecond) : ""].filter(Boolean).join(" · ")}
-            <br />
-            Keep working. If you close Duet, press Download again and it carries on.
-          </div>
-          <button className="mini" data-name="voice-cancel" onClick={() => void invoke("voice_cancel")}>
-            Cancel
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // a stop whose download is here is used at once; one that needs a download waits for Download
+  const choose = (l: number) => {
+    setPick(l);
+    setSureRemove(false);
+    if (s.stops.find((x) => x.level === l)?.ready) void invoke("voice_set_level", { level: l }).catch(() => undefined);
+  };
 
-  if (s.installed && !changing) {
-    return (
-      <div className="voice-addon">
-        <div className="voice-title">
-          <span className="voice-ready-dot" /> Ready · {nameOf(s.installed)}, {sizeWords(bytesOf(s.installed))}
-        </div>
-        <div className="addon-note">Right-click a clip and pick Transcribe. The AI can use it too.</div>
-        <div className="voice-actions">
-          <button
-            className="mini"
-            onClick={() => {
-              setPick(s.installed === "medium" ? "large" : "medium");
-              setChanging(true);
-            }}
-          >
-            Change size
-          </button>
-          <button
-            className="mini"
-            data-name="voice-remove"
-            onClick={() => {
-              if (!sureRemove) {
-                setSureRemove(true);
-                return;
-              }
-              setSureRemove(false);
-              void invoke("voice_remove");
-            }}
-            onBlur={() => setSureRemove(false)}
-          >
-            {sureRemove ? "Remove it" : "Remove"}
-          </button>
-        </div>
-        <div className="addon-note">
-          {sureRemove
-            ? "Press again to delete the download and get the space back."
-            : "Remove deletes the download and gives the space back. Words already made stay with their clips."}
-        </div>
-      </div>
-    );
-  }
-
-  const need = bytesOf(pick);
-  const short = s.free != null && s.free < need + 200e6;
+  const total = s.total ?? 0;
+  const share = total ? Math.min(1, s.got / total) : 0;
   return (
     <div className="voice-addon">
-      <div className="voice-title">Pick a size</div>
-      <div className="addon-note">One download understands every language. You can switch size later.</div>
-      <div className="voice-sizes" role="radiogroup">
-        {VOICE_SIZES.map((v) => (
-          <button
-            key={v.size}
-            role="radio"
-            aria-checked={pick === v.size}
-            data-name={`voice-size-${v.size}`}
-            className={`voice-size ${pick === v.size ? "on" : ""}`}
-            onClick={() => setPick(v.size)}
-          >
-            <span className="voice-radio" />
-            <span className="voice-size-words">
-              <span className="voice-size-name">
-                {v.name}
-                {v.size === "medium" && <span className="voice-tag">Suggested</span>}
-                {s.installed === v.size && <span className="voice-tag">You have this</span>}
-              </span>
-              <span className="voice-size-what">{v.what}</span>
-            </span>
-            <span className="voice-size-bytes">about {sizeWords(bytesOf(v.size))}</span>
-          </button>
-        ))}
+      <div className="voice-title">
+        {s.ready && !s.downloading ? <span className="voice-ready-dot" /> : null}
+        {s.ready && !s.downloading ? `Ready · ${stopOf(s.level).name}` : "How Duet listens"}
       </div>
-      {s.error && <div className="addon-note addon-error">{s.error}</div>}
-      <div className="voice-foot">
-        <div className={`addon-note ${short ? "addon-error" : ""}`}>
-          Needs {sizeWords(need)} of space.{s.free != null && ` You have about ${sizeWords(s.free)} free.`}
-          {s.installed && " The size you have now is removed once the new one is ready."}
-        </div>
-        <div className="voice-actions">
-          {changing && (
-            <button className="mini" onClick={() => setChanging(false)}>
-              Keep {nameOf(s.installed ?? pick)}
+      <div className="voice-slider" data-name="voice-slider">
+        <input
+          type="range"
+          min={1}
+          max={4}
+          step={1}
+          value={shown}
+          aria-label="How Duet listens, from fastest to most accurate"
+          aria-valuetext={stopOf(shown).name}
+          onChange={(e) => choose(Number(e.target.value))}
+        />
+        <div className="voice-stops">
+          {VOICE_STOPS.map((v) => (
+            <button
+              key={v.level}
+              data-name={`voice-stop-${v.level}`}
+              className={`voice-stop ${shown === v.level ? "on" : ""}`}
+              onClick={() => choose(v.level)}
+              title={v.level === s.suggested ? `${v.name}, suggested` : v.name}
+            >
+              <span className={`voice-stop-dot ${v.level === s.suggested ? "suggested" : ""}`} />
             </button>
-          )}
-          <button
-            className="mini primary"
-            data-name="voice-download"
-            disabled={short || s.installed === pick}
-            onClick={() => {
-              setChanging(false);
-              void invoke("voice_download", { size: pick });
-            }}
-          >
-            Download
-          </button>
+          ))}
+        </div>
+        <div className="voice-ends">
+          <span>Fastest</span>
+          <span>Most accurate</span>
         </div>
       </div>
+      <div className="voice-pick" data-name="voice-pick">
+        <span className="voice-pick-name">
+          {stopOf(shown).name}
+          {shown === s.suggested && <span className="voice-tag">Suggested</span>}
+        </span>
+        <span className="voice-pick-what">{stopOf(shown).what}</span>
+      </div>
+
+      {s.downloading ? (
+        <>
+          <div className="voice-bar">
+            <div style={{ width: `${share * 100}%` }} />
+          </div>
+          <div className="voice-foot">
+            <div className="addon-note">
+              {s.step === "checking"
+                ? "Checking the download is complete and unchanged."
+                : [`Downloading ${sizeWords(s.got)} of ${sizeWords(total)}`, rate ? timeLeftWords(total - s.got, rate.perSecond) : ""].filter(Boolean).join(" · ")}
+              <br />
+              {using ? `Until it is ready, Transcribe uses ${stopOf(using.level).name}.` : "Keep working. If you close Duet, press Download again and it carries on."}
+            </div>
+            <button className="mini" data-name="voice-cancel" onClick={() => void invoke("voice_cancel")}>
+              Cancel
+            </button>
+          </div>
+        </>
+      ) : here ? (
+        <>
+          <div className="addon-note">Right-click a clip and pick Transcribe. The AI can use it too.</div>
+          <div className="voice-foot">
+            <div className="addon-note">
+              {sureRemove ? "Press again to delete the download and get the space back." : "Remove deletes the download and gives the space back. Words already made stay with their clips."}
+            </div>
+            <div className="voice-actions">
+              <button
+                className="mini"
+                data-name="voice-remove"
+                onClick={() => {
+                  if (!sureRemove) {
+                    setSureRemove(true);
+                    return;
+                  }
+                  setSureRemove(false);
+                  void invoke("voice_remove");
+                }}
+                onBlur={() => setSureRemove(false)}
+              >
+                {sureRemove ? "Remove it" : "Remove"}
+              </button>
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          {s.error && <div className="addon-note addon-error">{s.error}</div>}
+          <div className="voice-foot">
+            <div className={`addon-note ${short ? "addon-error" : ""}`}>
+              A one-time download of {sizeWords(need)}.{s.free != null && ` You have about ${sizeWords(s.free)} free.`}
+              {using && ` Until it is ready, Transcribe uses ${stopOf(using.level).name}. What is not needed is removed after.`}
+            </div>
+            <div className="voice-actions">
+              <button
+                className="mini primary"
+                data-name="voice-download"
+                disabled={short}
+                onClick={() => void invoke("voice_set_level", { level: shown }).catch(() => undefined)}
+              >
+                Download
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
