@@ -3034,9 +3034,6 @@ option {
   min-height: 100%;
   display: flex;
   flex-direction: column;
-  /* the room under the last row sits inside, so the playhead runs through it to the very bottom */
-  padding-bottom: 6px;
-  box-sizing: border-box;
 }
 .time-row {
   display: flex;
@@ -3077,7 +3074,8 @@ option {
 .time-row.time-fill {
   flex: 1 1 auto;
   height: auto;
-  min-height: 0;
+  /* the room under the last row is part of the names cell, so nothing of the playhead shows there */
+  min-height: 6px;
   align-items: stretch;
 }
 .time-row.ruler {
