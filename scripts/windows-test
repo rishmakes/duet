@@ -1,0 +1,36 @@
+#!/bin/bash
+# Build Duet for Windows from what is pushed to main, and install it on the creator's test PC.
+# No tag, no release: nobody else gets it. About 30 minutes, hands-off.
+#   scripts/windows-test            build, download, install
+#   scripts/windows-test --install  install the last build again, without building
+set -euo pipefail
+PC="soumya nath@100.72.209.14"
+DIR="$(mktemp -d)"
+cd "$(dirname "$0")/.."
+
+if [ "${1:-}" != "--install" ]; then
+  gh workflow run windows-test.yml --ref main
+  sleep 10
+  ID=$(gh run list --workflow windows-test.yml --limit 1 --json databaseId -q '.[0].databaseId')
+  echo "Building on GitHub (run $ID)..."
+  gh run watch "$ID" --exit-status --interval 60 > /dev/null
+else
+  ID=$(gh run list --workflow windows-test.yml --status success --limit 1 --json databaseId -q '.[0].databaseId')
+fi
+
+gh run download "$ID" -n duet-windows-test -D "$DIR"
+EXE=$(ls "$DIR"/*-setup.exe | head -1)
+cp "$EXE" "$DIR/duet-test-setup.exe"
+echo "Copying to the PC..."
+(cd "$DIR" && printf 'put duet-test-setup.exe\n' | sftp -b - "$PC" > /dev/null)
+
+# close Duet and install silently over it; open it on the PC by hand
+cat > "$DIR/install.ps1" <<'EOF'
+Stop-Process -Name duet-app -Force -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 2
+Start-Process -FilePath "$env:USERPROFILE\duet-test-setup.exe" -ArgumentList "/S" -Wait
+"installed: " + (Get-Item "$env:LOCALAPPDATA\Duet\duet-app.exe").LastWriteTime
+EOF
+(cd "$DIR" && printf 'put install.ps1\n' | sftp -b - "$PC" > /dev/null)
+ssh "$PC" 'powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1'
+echo "Done: $(basename "$EXE") is on the test PC."

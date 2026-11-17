@@ -1,0 +1,36 @@
+name: Windows test build
+
+# A Windows installer to try on the creator's own test PC. No tag, no release: nobody else gets it.
+# Started by scripts/windows-test, which downloads it and installs it on that PC.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ./src-tauri -> target
+      - run: npm ci
+      - run: bash scripts/fetch-ffmpeg x86_64-pc-windows-msvc
+        shell: bash
+      - run: npx tauri build --bundles nsis
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+      - uses: actions/upload-artifact@v4
+        with:
+          name: duet-windows-test
+          path: src-tauri/target/release/bundle/nsis/*-setup.exe
+          retention-days: 3
