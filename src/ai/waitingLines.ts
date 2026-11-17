@@ -47,7 +47,7 @@ export const LISTENING_LINES: string[] = [
   "Was that a word or a cough? Checking.",
   "Writing it all down. Neatly.",
   "Pretending to be a court stenographer.",
-  "Hinglish? Banglish? No problem.",
+  "Two languages in one sentence? No problem.",
   "Turning sound into words, one syllable at a time.",
   "Rewinding that bit. You mumbled.",
   "Counting the ums. There are a few.",

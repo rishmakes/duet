@@ -68,7 +68,7 @@ export function ConnectAddon() {
 }
 
 interface VoiceStatus {
-  /** The stop picked on the slider, 1 (fastest) to 4 (most accurate). */
+  /** The stop picked on the slider, 1 (fastest) to 5 (most accurate). */
   level: number;
   suggested: number;
   /** The picked stop's download is here. */
@@ -87,9 +87,10 @@ interface VoiceStatus {
 /** The slider's stops, fastest to most accurate (#364). What is behind each is in src-tauri/src/voice.rs. */
 export const VOICE_STOPS: { level: number; name: string; what: string }[] = [
   { level: 1, name: "Fastest", what: "Ready soonest. A few words may be off." },
-  { level: 2, name: "Balanced", what: "Quick, and hears every word of Hinglish and Banglish." },
-  { level: 3, name: "Careful", what: "Slower. More careful with English and other languages. Good for client work." },
-  { level: 4, name: "Most accurate", what: "Slowest and most careful. Best on a strong computer." },
+  { level: 2, name: "Fast", what: "Same small download, listens more carefully. Good with two languages in one sentence." },
+  { level: 3, name: "Balanced", what: "A bigger listener. Careful words at a fair wait." },
+  { level: 4, name: "Careful", what: "Slower, and more careful. Good for client work." },
+  { level: 5, name: "Most accurate", what: "Slowest and most careful. Best on a strong computer." },
 ];
 
 /** A size in plain words: "574 MB", "1.6 GB". */
@@ -164,7 +165,7 @@ export function VoiceAddon() {
         <input
           type="range"
           min={1}
-          max={4}
+          max={5}
           step={1}
           value={shown}
           aria-label="How Duet listens, from fastest to most accurate"
@@ -195,6 +196,9 @@ export function VoiceAddon() {
           {shown === s.suggested && <span className="voice-tag">Suggested</span>}
         </span>
         <span className="voice-pick-what">{stopOf(shown).what}</span>
+        <span className="voice-pick-size" data-name="voice-pick-size">
+          {need ? (here ? `${sizeWords(need)}, on this computer` : `${sizeWords(need)} to download, one time`) : ""}
+        </span>
       </div>
 
       {s.downloading ? (
@@ -246,7 +250,7 @@ export function VoiceAddon() {
           {s.error && <div className="addon-note addon-error">{s.error}</div>}
           <div className="voice-foot">
             <div className={`addon-note ${short ? "addon-error" : ""}`}>
-              A one-time download of {sizeWords(need)}.{s.free != null && ` You have about ${sizeWords(s.free)} free.`}
+              {s.free != null ? `You have about ${sizeWords(s.free)} free.` : ""}
               {using && ` Until it is ready, Transcribe uses ${stopOf(using.level).name}. What is not needed is removed after.`}
             </div>
             <div className="voice-actions">

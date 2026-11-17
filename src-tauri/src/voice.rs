@@ -31,7 +31,6 @@ const COMMIT: &str = "5359861c739e955e79d9a303bcbc70fb988958b1";
 pub const MODELS: [Model; 4] = [
     Model { size: "light", file: "ggml-small-q5_1.bin", bytes: 190_085_487, sha256: "ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb" },
     Model { size: "small", file: "ggml-large-v3-turbo-q5_0.bin", bytes: 574_041_195, sha256: "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2" },
-    // no stop downloads this one any more; a computer that has it uses it for stop 3
     Model { size: "medium", file: "ggml-large-v3-turbo.bin", bytes: 1_624_555_275, sha256: "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69" },
     Model { size: "large", file: "ggml-large-v3.bin", bytes: 3_095_033_483, sha256: "64d182b440b98d5203c4f9bd541544d84c605196c4f7b845dfa11fb23594d1e2" },
 ];
@@ -40,7 +39,8 @@ pub const MODELS: [Model; 4] = [
 /// The designer never sees the model or the search. Picked on Rish's own Hinglish recordings, 17 Nov:
 /// the quickest search on the light model dropped the second half of a 3 minute clip, so even Fastest
 /// keeps a small search; the light model with the wide search heard all of it, sooner than the big turbo.
-/// Stops 3 and 4 are for client work, where a slower, careful pass is worth it.
+/// Each stop up is a bigger download or a more careful search (Rish, 17 Nov: the sizes must climb).
+/// The bigger stops are for client work, where a slower, careful pass is worth it.
 pub struct Stop {
     pub level: u8,
     /// The models this stop can use, the first one being what it downloads.
@@ -48,12 +48,14 @@ pub struct Stop {
     pub search: &'static str,
 }
 
-pub const STOPS: [Stop; 4] = [
+pub const STOPS: [Stop; 5] = [
     Stop { level: 1, models: &["light"], search: "beam2" },
     Stop { level: 2, models: &["light"], search: "beam5" },
-    Stop { level: 3, models: &["small", "medium"], search: "beam5" },
-    Stop { level: 4, models: &["large"], search: "beam5" },
+    Stop { level: 3, models: &["small"], search: "beam5" },
+    Stop { level: 4, models: &["medium"], search: "beam5" },
+    Stop { level: 5, models: &["large"], search: "beam5" },
 ];
+const TOP: u8 = 5;
 
 /// The stop Duet suggests and starts on: quick and heard every word of mixed Hinglish.
 pub const SUGGESTED: u8 = 2;
@@ -73,20 +75,28 @@ fn ready_model(level: u8) -> Option<&'static Model> {
 }
 
 fn level_file() -> Result<PathBuf, String> {
-    Ok(own_dir()?.join("level.txt"))
+    Ok(own_dir()?.join("stop.txt"))
+}
+
+fn read_number(f: PathBuf) -> Option<u8> {
+    std::fs::read_to_string(f).ok().and_then(|s| s.trim().parse::<u8>().ok())
 }
 
 /// The stop picked in settings. Before anything is picked: what is on this computer says it.
 fn level() -> u8 {
-    if let Some(l) = level_file().ok().and_then(|f| std::fs::read_to_string(f).ok()).and_then(|s| s.trim().parse::<u8>().ok()) {
-        if (1..=4).contains(&l) {
-            return l;
-        }
+    if let Some(l) = level_file().ok().and_then(read_number).filter(|l| (1..=TOP).contains(l)) {
+        return l;
+    }
+    // a pick from the four-stop slider of the first test build: its 4 was the biggest model, now 5
+    if let Some(l) = own_dir().ok().map(|d| d.join("level.txt")).and_then(read_number).filter(|l| (1..=4).contains(l)) {
+        return if l == 4 { TOP } else { l };
     }
     let Ok(dir) = own_dir() else { return SUGGESTED };
     if has(&dir, "large") {
+        5
+    } else if has(&dir, "medium") {
         4
-    } else if has(&dir, "small") || has(&dir, "medium") {
+    } else if has(&dir, "small") {
         3
     } else {
         SUGGESTED
@@ -199,7 +209,7 @@ pub fn voice_status(app: AppHandle) -> Value {
 /// is ready, the ones no stop picked now needs are deleted, to give the space back.
 #[tauri::command]
 pub fn voice_set_level(app: AppHandle, level: u8) -> Result<(), String> {
-    if !(1..=4).contains(&level) {
+    if !(1..=TOP).contains(&level) {
         return Err("There is no such choice.".into());
     }
     let f = level_file()?;
@@ -390,6 +400,20 @@ fn stop_to_use() -> Option<(&'static Stop, &'static Model)> {
     order.into_iter().find_map(|s| ready_model(s.level).map(|m| (s, m)))
 }
 
+/// Words the model would not know are spelled out in the line it is given first, so it writes them
+/// right: "Duet" came out as "do it" (Rish, 17 Nov). Only for English, mixed speech and auto-detect: a line
+/// in English letters would pull Hindi or Bengali in their own script towards English letters.
+fn with_own_words(prompt: String, language: &str) -> String {
+    const OWN: &str = "Duet";
+    if !prompt.is_empty() {
+        format!("{prompt} {OWN}.")
+    } else if language == "en" || language == "auto" || language.is_empty() {
+        format!("{OWN}.")
+    } else {
+        prompt
+    }
+}
+
 /// Turn the speech in a recording into words, each with the second it starts and ends.
 /// `language` is a Whisper language code such as "hi", "bn" or "en". `prompt` is a line written the
 /// way the words should come out: Hinglish heard as English with a Hinglish line comes out in English letters.
@@ -403,7 +427,7 @@ pub fn voice_transcribe(app: AppHandle, path: String, language: String, prompt: 
         .arg(&model_path)
         .arg(&path)
         .arg(&language)
-        .arg(prompt.unwrap_or_default())
+        .arg(with_own_words(prompt.unwrap_or_default(), &language))
         .arg(st.search)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -657,7 +681,7 @@ mod tests {
 
     #[test]
     fn every_stop_downloads_a_pinned_model() {
-        assert_eq!(STOPS.iter().map(|s| s.level).collect::<Vec<_>>(), [1, 2, 3, 4]);
+        assert_eq!(STOPS.iter().map(|s| s.level).collect::<Vec<_>>(), [1, 2, 3, 4, 5]);
         for s in &STOPS {
             assert!(model(s.models[0]).is_some());
             assert!(["beam2", "beam5"].contains(&s.search));
@@ -665,12 +689,19 @@ mod tests {
         // slower stops never use a smaller download
         let bytes: Vec<u64> = STOPS.iter().map(|s| model(s.models[0]).unwrap().bytes).collect();
         assert!(bytes.windows(2).all(|w| w[0] <= w[1]));
-        assert!((1..=4).contains(&SUGGESTED));
+        assert!((1..=TOP).contains(&SUGGESTED));
         for m in &MODELS {
             assert_eq!(m.sha256.len(), 64);
             assert!(url(m).starts_with("https://huggingface.co/ggerganov/whisper.cpp/resolve/"));
             assert!(url(m).contains(COMMIT));
         }
+    }
+
+    #[test]
+    fn duet_is_spelled_out_only_where_it_cannot_change_the_script() {
+        assert_eq!(with_own_words(String::new(), "en"), "Duet.");
+        assert_eq!(with_own_words(String::new(), "hi"), "");
+        assert!(with_own_words("Haan yaar, ekdum.".into(), "en").ends_with("Duet."));
     }
 
     #[test]

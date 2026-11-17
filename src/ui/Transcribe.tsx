@@ -5,6 +5,7 @@ import { currentDoc, dispatch, useStore } from "../state/store";
 import type { El, Transcript } from "../document/types";
 import { spanOf } from "../document/time";
 import { pickListeningLine } from "../ai/waitingLines";
+import { VOICE_STOPS } from "./AddOns";
 
 /**
  * Transcribe a clip (#340): the box that asks which language is spoken, and the work that follows.
@@ -328,6 +329,18 @@ export function TranscribeBox({ els, scene, picked, onClose, onError }: { els: E
     return t + span.end - span.start;
   }, 0);
 
+  // how it listens is picked in Voice to text settings; the box says which, and where to change it
+  const [stopName, setStopName] = useState("");
+  useEffect(() => {
+    let live = true;
+    void invoke<{ level: number }>("voice_status")
+      .then((st) => live && setStopName(VOICE_STOPS.find((v) => v.level === st.level)?.name ?? ""))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
+
   // not downloaded yet: the Store page says how to get it
   useEffect(() => {
     let live = true;
@@ -366,6 +379,21 @@ export function TranscribeBox({ els, scene, picked, onClose, onError }: { els: E
           </optgroup>
         </select>
       </label>
+      {stopName && (
+        <div className="transcribe-hint" data-name="transcribe-listens-on">
+          Listens on {stopName}.{" "}
+          <button
+            className="linkbtn"
+            data-name="transcribe-change-listening"
+            onClick={() => {
+              onClose();
+              openVoiceInStore();
+            }}
+          >
+            Change
+          </button>
+        </div>
+      )}
       <div className="transcribe-hint">
         {has ? "These have their words already. Transcribing again replaces them. Read them in the Words tab." : "Pick what is spoken. Duet suggests the one you used last. The words show in the Words tab."}
       </div>
@@ -464,7 +492,7 @@ export function HearingCard() {
             </div>
             <div className="hearing-foot">
               <span title={src}>
-                {name} · {shortTime((now - h.started) / 1000)} so far{left !== null ? ` · about ${shortTime(left)} left` : h.stage === "hear" ? " · working out the time left" : ""}
+                {name} · {shortTime((now - h.started) / 1000)} so far{left !== null ? ` · about ${shortTime(left)} left` : " · can take a few minutes on a slower computer"}
               </span>
               <button className="hearing-stop" data-name="stop-hearing" onClick={() => stopHearing(src)} title="Stop listening. Nothing is kept.">
                 Stop
