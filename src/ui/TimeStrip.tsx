@@ -1651,8 +1651,11 @@ export default function TimeStrip() {
         onPointerDown={(e) => {
           if (e.button !== 0) return;
           const t = e.target as HTMLElement;
-          const empty = t === e.currentTarget || t.classList.contains("time-inner") || (t.classList.contains("time-lane") && !t.closest(".ruler"));
-          if (empty && getState().selection.length) select([]);
+          // empty room: the space itself, a lane or row with nothing under the pointer, or beside + New track
+          const room = t === e.currentTarget || t.classList.contains("time-inner") || t.classList.contains("time-lane") || t.classList.contains("time-row") || (t.classList.contains("time-name") && !!t.closest(".track-add-row"));
+          if (!room || t.closest(".ruler")) return;
+          if (getState().selection.length) select([]);
+          if (getPickedTrack()?.frameId === frame.id) pickTrack(null);
         }}
         // video and sound dropped from the computer land at the moment under the pointer
         onDragOver={(e) => {
