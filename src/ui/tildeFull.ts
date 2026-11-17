@@ -14,27 +14,39 @@ function part(): "chat" | "time" | "canvas" | null {
   return null;
 }
 
+type Part = "chat" | "time" | "canvas" | null;
+type Full = { chatFull: boolean; timeMax: boolean; canvasMax: boolean };
+const NONE = { chatFull: false, timeMax: false, canvasMax: false };
+
+/**
+ * What a key does to the layout: the part to fill the window with, everything back, or nothing (null).
+ * `typing` is a box with text in it that keeps the key; an empty chat box does not.
+ */
+export function tildeChange(d: Full, key: string, over: Part, typing: boolean): Partial<Full> | null {
+  const anyFull = d.chatFull || d.timeMax || d.canvasMax;
+  if (key === "Escape") return anyFull ? NONE : null;
+  if ((key !== "`" && key !== "~") || typing) return null;
+  if (anyFull) return NONE;
+  if (over === "chat") return { chatFull: true };
+  if (over === "time") return { timeMax: true };
+  if (over === "canvas") return { canvasMax: true };
+  return null;
+}
+
 export function installTilde(): () => void {
   const move = (e: PointerEvent) => (under = e.target as Element);
   const key = (e: KeyboardEvent) => {
-    const d = getLayout();
-    const anyFull = d.chatFull || d.timeMax || d.canvasMax;
-    if (e.key === "Escape" && anyFull) {
-      setLayout({ chatFull: false, timeMax: false, canvasMax: false });
-      return;
-    }
-    if (e.key !== "`" && e.key !== "~") return;
-    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key !== "Escape" && (e.metaKey || e.ctrlKey || e.altKey)) return;
     const on = document.activeElement as HTMLElement | null;
-    const typing = on && (on.tagName === "INPUT" || on.tagName === "TEXTAREA" || on.tagName === "SELECT" || on.isContentEditable);
-    if (typing && !(on!.closest(".chat") && (on as HTMLTextAreaElement).value === "")) return;
-    e.preventDefault();
-    e.stopPropagation();
-    if (anyFull) return setLayout({ chatFull: false, timeMax: false, canvasMax: false });
-    const p = part() ?? (on?.closest(".chat") ? "chat" : null);
-    if (p === "chat") setLayout({ chatFull: true });
-    else if (p === "time") setLayout({ timeMax: true });
-    else if (p === "canvas") setLayout({ canvasMax: true });
+    const box = !!on && (on.tagName === "INPUT" || on.tagName === "TEXTAREA" || on.tagName === "SELECT" || on.isContentEditable);
+    const emptyChat = box && !!on!.closest(".chat") && (on as HTMLTextAreaElement).value === "";
+    const change = tildeChange(getLayout(), e.key, part() ?? (on?.closest(".chat") ? "chat" : null), box && !emptyChat);
+    if (!change) return;
+    if (e.key !== "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setLayout(change);
   };
   window.addEventListener("pointermove", move, true);
   window.addEventListener("keydown", key, true);

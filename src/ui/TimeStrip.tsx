@@ -35,6 +35,9 @@ import { getPickedTrack, pickTrack, usePickedTrack } from "./pickedTrack";
 import { HearingCard, HearingLine, TranscribeBox, useHearingAll } from "./Transcribe";
 import { AutoCaptionsBox } from "./AutoCaptions";
 
+/** The playhead shows only from the right edge of the names, however far the lanes have scrolled (--sl is set on scroll). #327 */
+export const HEAD_WINDOW = "inset(0 0 0 calc(var(--sl, 0px) + var(--names, 150px)))";
+
 /** Time under the canvas: a row for each thing in a frame that plays, when it shows, and where the clock is. */
 
 const SHORTEST = 0.1;
@@ -2081,7 +2084,7 @@ export default function TimeStrip() {
         {(frame.markers ?? []).map((m) => (
           <div key={m.id} className="time-marker-line" style={{ left: NAMES + m.t * pps, "--marker": m.color } as React.CSSProperties} />
         ))}
-        <div className="time-head-clip">
+        <div className="time-head-clip" style={{ clipPath: HEAD_WINDOW }}>
           <div className="time-head" style={{ left: NAMES + clock.t * pps }} />
         </div>
         {snap !== null && <div className="time-snap" style={{ left: NAMES + snap * pps }} />}

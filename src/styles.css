@@ -3375,7 +3375,6 @@ option {
   inset: 0;
   pointer-events: none;
   z-index: 3;
-  clip-path: inset(0 0 0 calc(var(--sl, 0px) + var(--names, 150px)));
 }
 .time-head {
   position: absolute;
