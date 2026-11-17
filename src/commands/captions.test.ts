@@ -50,6 +50,9 @@ describe("captions", () => {
     // in front of the video, inside the frame, clear of the bottom
     expect(doc.elements.f.childIds.indexOf(list[0].id)).toBeGreaterThan(doc.elements.f.childIds.indexOf("v"));
     expect(list[0].y + list[0].height).toBeLessThan(1920 * 0.8);
+    // as wide as its words, centred, never wider than most of the frame
+    expect(list[0].width).toBeLessThan(1080 * 0.84);
+    expect(Math.abs(list[0].x + list[0].width / 2 - 540)).toBeLessThanOrEqual(1);
   });
 
   it("replaces the captions it made before, so another look just swaps them", () => {

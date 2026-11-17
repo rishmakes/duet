@@ -245,12 +245,16 @@ const secondsText = (s: number) => {
   return `${m} min ${n % 60} s`;
 };
 
-/** The box: which language is spoken in this clip, then Transcribe. */
-export function TranscribeBox({ el, scene, onClose, onError }: { el: El; scene: El; onClose: () => void; onError: (note: string) => void }) {
+/** The box: which language is spoken in these clips, then Transcribe. Picked clips, or the whole video. */
+export function TranscribeBox({ els, scene, picked, onClose, onError }: { els: El[]; scene: El; picked: boolean; onClose: () => void; onError: (note: string) => void }) {
   const [key, setKey] = useState(lastLanguage);
-  const has = useStore((s) => !!currentDoc(s).words?.[el.src]);
-  const hearing = useHearing(el.src) !== undefined;
-  const span = spanOf(el, scene);
+  const words = useStore((s) => currentDoc(s).words);
+  const srcs = [...new Set(els.map((el) => el.src))];
+  const has = srcs.length > 0 && srcs.every((src) => !!words?.[src]);
+  const seconds = els.reduce((t, el) => {
+    const span = spanOf(el, scene);
+    return t + span.end - span.start;
+  }, 0);
 
   // not downloaded yet: the Store page says how to get it
   useEffect(() => {
@@ -266,11 +270,12 @@ export function TranscribeBox({ el, scene, onClose, onError }: { el: El; scene: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const what = !picked ? "The whole video" : els.length === 1 ? els[0].name : `${els.length} picked clips`;
   return (
     <div className="export-pop act-pop transcribe-pop" data-name="transcribe-box">
       <div className="transcribe-title">Transcribe speech</div>
       <div className="transcribe-sub">
-        {el.name} · {secondsText(span.end - span.start)}
+        {what} · {secondsText(seconds)}
       </div>
       <label className="transcribe-field">
         <span>Language</span>
@@ -290,7 +295,7 @@ export function TranscribeBox({ el, scene, onClose, onError }: { el: El; scene: 
         </select>
       </label>
       <div className="transcribe-hint">
-        {has ? "This clip has its words already. Transcribing again replaces them." : "Pick what is spoken in this clip. Duet suggests the one you used last."}
+        {has ? "These have their words already. Transcribing again replaces them. Read them in the Words tab." : "Pick what is spoken. Duet suggests the one you used last. The words show in the Words tab."}
       </div>
       <div className="transcribe-foot">
         <span>Runs on this computer</span>
@@ -300,13 +305,19 @@ export function TranscribeBox({ el, scene, onClose, onError }: { el: El; scene: 
         <button
           className="pill primary"
           data-name="transcribe-go"
-          disabled={hearing}
+          disabled={!srcs.length}
           onClick={() => {
             onClose();
-            transcribe(el.src, key).catch((e: Error) => onError(e.message));
+            void (async () => {
+              try {
+                for (const src of srcs) await transcribe(src, key);
+              } catch (e) {
+                onError(e instanceof Error ? e.message : "Voice to text could not hear this clip.");
+              }
+            })();
           }}
         >
-          {hearing ? "Listening…" : "Transcribe"}
+          Transcribe
         </button>
       </div>
     </div>

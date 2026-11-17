@@ -77,7 +77,7 @@ export function captionProps(look: CaptionLook, frame: { width: number; height: 
   const k = Math.min(frame.width, frame.height) / 1080;
   const px = (n: number) => Math.max(1, Math.round(n * k));
   const shadow = (y: number, blur: number): Shadow => ({ x: 0, y: px(y), blur: px(blur), color: "#000000" });
-  const base: Partial<El> = { fill: "#ffffff", textAlign: "center", textFixed: true, fontFamily: "", lineHeight: 1.15, letterSpacing: 0, caps: true, plate: undefined, spokenBox: undefined, shadow: null };
+  const base: Partial<El> = { fill: "#ffffff", textAlign: "center", textFixed: false, fontFamily: "", lineHeight: 1.15, letterSpacing: 0, caps: true, plate: undefined, spokenBox: undefined, shadow: null };
   switch (look) {
     case "quiet":
       return { ...base, fontSize: px(44), fontWeight: 500, caps: undefined, shadow: shadow(2, 12) };
@@ -96,3 +96,6 @@ export function captionProps(look: CaptionLook, frame: { width: number; height: 
 
 /** Where captions sit: low on a wide video, a little higher on a tall one, clear of the phone's buttons. */
 export const captionMiddle = (frame: { width: number; height: number }) => Math.round(frame.height * (frame.height > frame.width ? 0.68 : 0.82));
+
+/** The widest a caption gets before its words wrap: most of the frame, clear of the sides. */
+export const captionRoom = (frame: { width: number }) => Math.round(frame.width * 0.84);

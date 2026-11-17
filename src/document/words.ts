@@ -1,6 +1,7 @@
 import type { Doc, Transcript, Word } from "./types";
 import { playsFile } from "./types";
 import { frameTimeAt, spanOf } from "./time";
+import { inEnglishLetters } from "./roman";
 
 /**
  * The words of an edit (#340). Words belong to a recording; a clip is a window onto its file. So the
@@ -132,7 +133,7 @@ export const plainWord = (w: string) => w.toLowerCase().replace(/[^\p{L}\p{N}]/g
 /** The doc with a recording's words set, or taken away when `transcript` is null. Never mutates. */
 export function withWords(doc: Doc, src: string, transcript: Transcript | null): Doc {
   const words = { ...(doc.words ?? {}) };
-  if (transcript) words[src] = { language: transcript.language, model: transcript.model, words: transcript.words.map((w) => ({ w: w.w, s: w.s, e: w.e })) };
+  if (transcript) words[src] = { language: transcript.language, model: transcript.model, words: transcript.words.map((w) => ({ w: inEnglishLetters(w.w), s: w.s, e: w.e })) };
   else delete words[src];
   if (Object.keys(words).length) return { ...doc, words };
   const { words: _w, ...rest } = doc;
@@ -145,7 +146,7 @@ export function readWords(raw: unknown): Record<string, Transcript> | undefined 
   const out: Record<string, Transcript> = {};
   for (const [src, t] of Object.entries(raw as Record<string, Partial<Transcript>>)) {
     if (!t || !Array.isArray(t.words)) continue;
-    const words = t.words.filter((w): w is Word => !!w && typeof w.w === "string" && Number.isFinite(w.s) && Number.isFinite(w.e));
+    const words = t.words.filter((w): w is Word => !!w && typeof w.w === "string" && Number.isFinite(w.s) && Number.isFinite(w.e)).map((w) => ({ ...w, w: inEnglishLetters(w.w) }));
     out[src] = { language: typeof t.language === "string" ? t.language : "", model: typeof t.model === "string" ? t.model : "", words };
   }
   return Object.keys(out).length ? out : undefined;

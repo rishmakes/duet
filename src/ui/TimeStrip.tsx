@@ -145,6 +145,7 @@ export default function TimeStrip() {
   const [markerMenu, setMarkerMenu] = useState<{ x: number; y: number; id: string } | null>(null);
   useDismiss(!!markerMenu, () => setMarkerMenu(null), ".ctx");
   useDismiss(hushing, () => setHushing(false), ".hush-anchor");
+  useDismiss(captioning, () => setCaptioning(false), "[data-card='act-captions']");
   useDismiss(choosing, () => setChoosing(false), ".export-anchor");
   const [markerEdit, setMarkerEdit] = useState<string | null>(null);
   const draggedMarker = useRef(false);
@@ -2042,19 +2043,6 @@ export default function TimeStrip() {
             <ActButton icon="trash" label="Delete" hint="Delete. D also closes the gap" name="act-delete" onClick={() => dispatch("delete_elements", { ids: pickedHere.map((el) => el.id) })} />
             {pickedPlays.length > 0 && <SpeedCard els={pickedPlays} />}
             {pickedPlays.length > 0 && <VolumeCard els={pickedPlays} scene={frame} />}
-            {pickedPlays.length === 1 && (
-              <div className="time-act-anchor" data-card="act-transcribe">
-                <ActButton
-                  icon="plugin-voice"
-                  label="Transcribe"
-                  name="act-transcribe"
-                  hint="Turn the speech in this clip into words, so it can be cut by words"
-                  on={askWords === pickedPlays[0].id}
-                  onClick={() => setAskWords(askWords ? null : pickedPlays[0].id)}
-                />
-                {askWords === pickedPlays[0].id && <TranscribeBox el={pickedPlays[0]} scene={frame} onClose={() => setAskWords(null)} onError={setNote} />}
-              </div>
-            )}
           </>
         ) : (
           <>
@@ -2116,6 +2104,30 @@ export default function TimeStrip() {
             )}
           </div>
         )}
+        {frame && heard.length > 0 && (
+          <div className="time-act-anchor" data-card="act-transcribe">
+            <ActButton
+              icon="plugin-voice"
+              label="Transcribe"
+              name="act-transcribe"
+              hint={pickedHeard.length ? "Turn the speech in the picked clips into words" : "Turn the speech in the whole video into words"}
+              on={!!askWords}
+              onClick={() => {
+                setCaptioning(false);
+                setAskWords(askWords ? null : "open");
+              }}
+            />
+            {askWords && (
+              <TranscribeBox
+                els={pickedHeard.length ? heard.filter((el) => pickedHeard.includes(el.id)) : heard}
+                scene={frame}
+                picked={pickedHeard.length > 0}
+                onClose={() => setAskWords(null)}
+                onError={setNote}
+              />
+            )}
+          </div>
+        )}
         {look === "cut" && frame && (
           <div className="time-act-anchor" data-card="act-captions">
             <ActButton
@@ -2126,6 +2138,7 @@ export default function TimeStrip() {
               hint={pickedHeard.length ? "Make captions from what is said in the picked clips" : "Make captions from what is said in the whole video"}
               onClick={() => {
                 setHushing(false);
+                setAskWords(null);
                 setCaptioning(!captioning);
               }}
             />
@@ -2335,7 +2348,7 @@ export default function TimeStrip() {
                   const el = menu.el;
                   setMenu(null);
                   select([el.id]);
-                  setAskWords(el.id);
+                  setAskWords("open");
                 }}
               >
                 <span>Transcribe…</span>

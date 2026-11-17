@@ -1,6 +1,7 @@
 import { lengthText } from "../canvas/render";
 import AssetsPanel from "./AssetsPanel";
 import CaptionsPanel from "./CaptionLooks";
+import WordsPanel from "./WordsPanel";
 import ClipsPanel from "./ClipsPanel";
 import { setLayout, useLayout } from "./layout";
 import { FoldButton } from "./PanelStrip";
@@ -411,8 +412,8 @@ export default function LayersPanel() {
   const leftTab = useLayout((d) => d.leftTab);
   const swapped = useLayout((d) => d.swapped);
   // a video opens on its clips; Clips is only there in Video. The tab is kept in the layout so the folded strip can pick it too.
-  const tab: "clips" | "captions" | "layers" | "assets" = (leftTab === "clips" || leftTab === "captions") && !video ? "layers" : leftTab ?? (video ? "clips" : "layers");
-  const setTab = (t: "clips" | "captions" | "layers" | "assets") => setLayout({ leftTab: t });
+  const tab: "clips" | "captions" | "words" | "layers" | "assets" = (leftTab === "clips" || leftTab === "captions" || leftTab === "words") && !video ? "layers" : leftTab ?? (video ? "clips" : "layers");
+  const setTab = (t: "clips" | "captions" | "words" | "layers" | "assets") => setLayout({ leftTab: t });
   // only when the kind of work changes after the panel is open: opening it from the strip on Assets must stay on Assets
   const lastVideo = useRef(video);
   useEffect(() => {
@@ -515,6 +516,11 @@ export default function LayersPanel() {
             Captions
           </div>
         )}
+        {video && (
+          <div className={`tab ${tab === "words" ? "on" : ""}`} data-name="tab-words" onClick={() => setTab("words")}>
+            Words
+          </div>
+        )}
         <div className={`tab ${tab === "layers" ? "on" : ""}`} onClick={() => setTab("layers")}>
           Layers
         </div>
@@ -529,6 +535,7 @@ export default function LayersPanel() {
       {tab === "assets" && <AssetsPanel />}
       {tab === "clips" && video && <ClipsPanel />}
       {tab === "captions" && video && <CaptionsPanel />}
+      {tab === "words" && video && <WordsPanel />}
       <div
         className="layers"
         hidden={tab !== "layers"}

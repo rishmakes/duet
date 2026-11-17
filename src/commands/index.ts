@@ -6,7 +6,7 @@ import { orderByPosition, relayout } from "../document/layout";
 import { MOVING, playsFile } from "../document/types";
 import type { Blend, Comment, CommentMark, Doc, El, ElementType, Key, Layout, Moving, ShapeKey, TextStyle, Transcript } from "../document/types";
 import { withWords, wordsOfEdit } from "../document/words";
-import { CAPTION_LOOKS, CAPTIONS_TRACK, SPOKEN_COLOURS, boxedLook, captionChunks, captionMiddle, captionProps, captionText } from "../document/captions";
+import { CAPTION_LOOKS, CAPTIONS_TRACK, SPOKEN_COLOURS, boxedLook, captionChunks, captionMiddle, captionProps, captionRoom, captionText } from "../document/captions";
 import type { CaptionLook } from "../document/captions";
 import { CURVES, ENTRANCES, entranceKeys, fileTimeAt, outlineOf, sceneOf, spanOf, valueAt, withKey, withShapeKey } from "../document/time";
 import type { CurveName, Entrance } from "../document/time";
@@ -2579,6 +2579,20 @@ const cutRanges: CommandDef<CutRangesArgs> = {
   },
 };
 
+/** A caption as wide as its words, wrapping only when wider than `room`, centred on `centre`. Changes the text it is given. */
+function hugCaption(el: El, centre: number, room: number) {
+  el.textFixed = false;
+  let m = fitText(el);
+  if (m.width > room) {
+    el.textFixed = true;
+    el.width = room;
+    m = fitText(el);
+  }
+  el.width = m.width;
+  el.height = m.height;
+  el.x = Math.round(centre - el.width / 2);
+}
+
 // ---- add_captions ----
 export interface AddCaptionsArgs {
   /** The frame that plays. */
@@ -2629,8 +2643,8 @@ const addCaptions: CommandDef<AddCaptionsArgs> = {
     const props = captionProps(look, f);
     // a boxed look lights the spoken word in its own colour
     const lit = boxedLook(look) ? CAPTION_LOOKS.find((l) => l.key === look)?.lit : a.spokenFill;
-    const width = Math.round(f.width * 0.84);
-    const x = Math.round(f.width * 0.08);
+    const width = captionRoom(f);
+    const x = Math.round((f.width - width) / 2);
     const mid = captionMiddle(f);
     const made: string[] = [];
     for (const c of chunks) {
@@ -2648,6 +2662,7 @@ const addCaptions: CommandDef<AddCaptionsArgs> = {
         props: { ...props, text, name: `Caption: ${text.slice(0, 30)}`, start: c.start, end: c.end, track: trackId, ...(lit && look !== "one" && c.spoken.length > 1 ? { spoken: c.spoken, spokenFill: lit } : {}) },
       });
       const el = next.elements[id];
+      hugCaption(el, f.width / 2, captionRoom(f));
       el.y = Math.round(mid - el.height / 2);
       made.push(id);
     }
@@ -2680,6 +2695,7 @@ const styleCaptions: CommandDef<StyleCaptionsArgs> = {
       const parent = el.parentId ? next.elements[el.parentId] : null;
       const props = captionProps(found.key, parent ?? { width: 1080, height: 1080 });
       const middle = el.y + el.height / 2;
+      const centre = el.x + el.width / 2;
       for (const [k, v] of Object.entries(props)) {
         if (v === undefined) delete (el as unknown as Record<string, unknown>)[k];
         else (el as unknown as Record<string, unknown>)[k] = v;
@@ -2691,8 +2707,7 @@ const styleCaptions: CommandDef<StyleCaptionsArgs> = {
         if (found.key === "one") delete el.spokenFill;
       }
       el.textStyleId = "";
-      const m = fitText(el);
-      el.height = m.height;
+      hugCaption(el, centre, captionRoom(parent ?? { width: Math.max(el.width, 1080) }));
       el.y = Math.round(middle - el.height / 2);
     }
     return next;
