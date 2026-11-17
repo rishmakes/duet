@@ -66,3 +66,28 @@ describe("captions", () => {
     expect(runCommand(bare, "add_captions", { sceneId: "f", look: "bold", per: 3 })).toBe(bare);
   });
 });
+
+describe("the spoken word", () => {
+  it("lights up each word of a caption while it is said, and is kept in the file", async () => {
+    const { docAt } = await import("../document/time");
+    const { parseDoc, serializeDoc } = await import("../document/serialize");
+    const doc = runCommand(talk(), "add_captions", { sceneId: "f", look: "bold", per: 3, spokenFill: "#ffe14d" });
+    const second = captions(doc)[1];
+    expect(second.spoken).toEqual([0, 0.3, 0.7]);
+    const at = (t: number) => docAt(doc, "f", t).elements[second.id].lit;
+    expect(at(2.1)).toBe(0);
+    expect(at(2.4)).toBe(1);
+    expect(at(2.95)).toBe(2);
+    const back = parseDoc(serializeDoc(doc)).elements[second.id];
+    expect(back.spoken).toEqual([0, 0.3, 0.7]);
+    expect(back.spokenFill).toBe("#ffe14d");
+    expect(serializeDoc(doc)).not.toContain('"lit"');
+  });
+
+  it("leaves one word captions and captions with no colour unlit", () => {
+    const one = runCommand(talk(), "add_captions", { sceneId: "f", look: "one", per: 3, spokenFill: "#ffe14d" });
+    expect(captions(one).every((el) => !el.spoken)).toBe(true);
+    const plain = runCommand(talk(), "add_captions", { sceneId: "f", look: "bold", per: 3 });
+    expect(captions(plain).every((el) => !el.spoken)).toBe(true);
+  });
+});

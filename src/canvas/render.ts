@@ -448,18 +448,37 @@ export function drawElement(ctx: CanvasRenderingContext2D, doc: Doc, el: El, ox:
     ctx.textBaseline = "top";
     const { lines } = layoutText(el);
     const step = lineStep(el);
-    lines.forEach((line, i) => {
-      const w = lineWidth(line, el);
-      const dx = el.textAlign === "center" ? (el.width - w) / 2 : el.textAlign === "right" ? el.width - w : 0;
+    const run = (text: string, sx: number, sy: number) => {
       if (!el.letterSpacing) {
-        ctx.fillText(line, x + dx, y + i * step);
+        ctx.fillText(text, sx, sy);
         return;
       }
       // letter by letter, so the spacing shows on every computer
-      let cx = x + dx;
-      for (const ch of line) {
-        ctx.fillText(ch, cx, y + i * step);
+      let cx = sx;
+      for (const ch of text) {
+        ctx.fillText(ch, cx, sy);
         cx += ctx.measureText(ch).width + el.letterSpacing;
+      }
+    };
+    // a caption: word by word, the one being said in its own colour
+    let n = 0;
+    const lit = el.lit !== undefined && el.spokenFill ? el.lit : -1;
+    lines.forEach((line, i) => {
+      const w = lineWidth(line, el);
+      const dx = el.textAlign === "center" ? (el.width - w) / 2 : el.textAlign === "right" ? el.width - w : 0;
+      if (lit < 0) {
+        run(line, x + dx, y + i * step);
+        return;
+      }
+      let px = 0;
+      for (const part of line.split(/(\s+)/)) {
+        if (!part) continue;
+        if (!/^\s+$/.test(part)) {
+          ctx.fillStyle = n === lit ? el.spokenFill! : el.fill;
+          run(part, x + dx + px, y + i * step);
+          n++;
+        }
+        px += lineWidth(part, el);
       }
     });
     ctx.restore();

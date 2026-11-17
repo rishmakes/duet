@@ -2588,6 +2588,8 @@ export interface AddCaptionsArgs {
   look: CaptionLook;
   /** How many words show at once, 1 to 6. One word always shows one. */
   per: number;
+  /** The colour the word being said is lit in, or left out to leave every word alike. */
+  spokenFill?: string;
 }
 
 /**
@@ -2641,7 +2643,7 @@ const addCaptions: CommandDef<AddCaptionsArgs> = {
         width,
         height: 10,
         keepOrder: true,
-        props: { ...props, text, name: `Caption: ${text.slice(0, 30)}`, start: c.start, end: c.end, track: trackId },
+        props: { ...props, text, name: `Caption: ${text.slice(0, 30)}`, start: c.start, end: c.end, track: trackId, ...(a.spokenFill && look !== "one" && c.spoken.length > 1 ? { spoken: c.spoken, spokenFill: a.spokenFill } : {}) },
       });
       const el = next.elements[id];
       el.y = Math.round(mid - el.height / 2);

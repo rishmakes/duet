@@ -12440,3 +12440,21 @@ button.ctx-item.store-make-option:hover {
   background: var(--accent);
   color: #ffffff;
 }
+.captions-lit {
+  display: flex;
+  gap: 5px;
+}
+.captions-lit button {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+}
+.captions-lit button.on {
+  border-color: var(--text);
+}
+.captions-lit button.none {
+  background: linear-gradient(135deg, transparent 45%, var(--muted) 45%, var(--muted) 55%, transparent 55%), var(--panel-2);
+}

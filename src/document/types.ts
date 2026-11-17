@@ -141,6 +141,11 @@ export interface El {
   textFixed: boolean;
   /** Text only. A saved text style this text follows, or an empty string. */
   textStyleId: string;
+  /** Text only, a caption: the second each of its words starts being said, counted from when it appears. The word being said is drawn in spokenFill. Left out for other text. */
+  spoken?: number[];
+  spokenFill?: string;
+  /** Drawing only, never saved: which of its words is being said at this moment. */
+  lit?: number;
   /** A drop shadow behind the shape, or null for none. */
   shadow: Shadow | null;
   /** A linear gradient used instead of the solid fill, or null. */

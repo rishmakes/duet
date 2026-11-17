@@ -147,6 +147,16 @@ export function elAt(el: El, t: number): El {
   return out;
 }
 
+/** A caption with the word being said at `since` seconds after it appears marked, to be drawn lit. */
+function litAt(el: El, since: number): El {
+  if (el.type !== "text" || !el.spoken?.length || !el.spokenFill) return el;
+  let lit = -1;
+  el.spoken.forEach((s, i) => {
+    if (since >= s - 0.001) lit = i;
+  });
+  return lit < 0 ? el : { ...el, lit };
+}
+
 /**
  * The design as it looks at one moment of a frame that plays. Things that have not appeared yet or
  * have left are taken out, and what changes over time is set to its value at that moment.
@@ -170,7 +180,7 @@ export function docAt(doc: Doc, sceneId: string, t: number): Doc {
       elements[id] = { ...el, childIds: kept, ...(emptied ? { hidden: true } : {}) };
     }
     for (const c of kept) {
-      elements[c] = elAt(doc.elements[c], t);
+      elements[c] = litAt(elAt(doc.elements[c], t), t - spanOf(doc.elements[c], scene).start);
       walk(c);
     }
   };

@@ -21,7 +21,12 @@ export interface CaptionChunk {
   text: string;
   start: number;
   end: number;
+  /** The second each word starts being said, counted from the caption's start. */
+  spoken: number[];
 }
+
+/** Colours the spoken word can be lit in, the first one by default. */
+export const SPOKEN_COLOURS = ["#ffe14d", "#7cf2c9", "#ff5fd2", "#a68bff", "#ff5a5a"];
 
 /** A pause this long between two words starts a new caption, so a caption never hangs over silence. */
 const PAUSE = 0.7;
@@ -49,7 +54,8 @@ export function captionChunks(words: EditWord[], per: number): CaptionChunk[] {
     const lastEnd = g[g.length - 1].e;
     // straight into the next caption when it follows closely, so the text never blinks off between them
     const end = next && next.s - lastEnd <= PAUSE ? next.s : lastEnd + LINGER;
-    return { text: g.map((w) => w.w).join(" "), start: round(g[0].s), end: round(Math.max(end, g[0].s + 0.1)) };
+    const start = round(g[0].s);
+    return { text: g.map((w) => w.w).join(" "), start, end: round(Math.max(end, g[0].s + 0.1)), spoken: g.map((w) => round(w.s - start)) };
   });
 }
 

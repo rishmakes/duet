@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { currentDoc, dispatch, useStore } from "../state/store";
 import type { El } from "../document/types";
-import { CAPTION_LOOKS } from "../document/captions";
+import { CAPTION_LOOKS, SPOKEN_COLOURS } from "../document/captions";
 import type { CaptionLook } from "../document/captions";
 import { EVERY_LANGUAGE, LANGUAGES, lastLanguage, openVoiceInStore, transcribe, voiceReady } from "./Transcribe";
 
@@ -12,6 +12,7 @@ import { EVERY_LANGUAGE, LANGUAGES, lastLanguage, openVoiceInStore, transcribe, 
 
 const LOOK = "duet.captions.look";
 const PER = "duet.captions.per";
+const LIT = "duet.captions.lit";
 
 function remembered<T>(key: string, ok: (v: string) => boolean, fallback: T, read: (v: string) => T): T {
   try {
@@ -38,12 +39,15 @@ export function AutoCaptionsBox({ scene, clips, picked, onClose, onError }: { sc
   const [look, setLook] = useState<CaptionLook>(() => remembered(LOOK, (v) => CAPTION_LOOKS.some((l) => l.key === v), "bold" as CaptionLook, (v) => v as CaptionLook));
   const [per, setPer] = useState(() => remembered(PER, (v) => +v >= 1 && +v <= 6, 3, Number));
   const [lang, setLang] = useState(lastLanguage);
+  // the colour the spoken word lights up in, or "" for none
+  const [lit, setLit] = useState(() => remembered(LIT, (v) => v === "none" || SPOKEN_COLOURS.includes(v), SPOKEN_COLOURS[0], (v) => (v === "none" ? "" : v)));
   const words = useStore((s) => currentDoc(s).words);
   const missing = [...new Set(clips.map((el) => el.src))].filter((src) => !words?.[src]);
 
   const go = async () => {
     remember(LOOK, look);
     remember(PER, String(per));
+    remember(LIT, lit || "none");
     onClose();
     if (missing.length && !(await voiceReady())) {
       openVoiceInStore();
@@ -55,7 +59,7 @@ export function AutoCaptionsBox({ scene, clips, picked, onClose, onError }: { sc
       onError(e instanceof Error ? e.message : "Voice to text could not hear this clip.");
       return;
     }
-    dispatch("add_captions", { sceneId: scene.id, clips: picked ? clips.map((el) => el.id) : undefined, look, per });
+    dispatch("add_captions", { sceneId: scene.id, clips: picked ? clips.map((el) => el.id) : undefined, look, per, spokenFill: lit || undefined });
   };
 
   return (
@@ -78,6 +82,15 @@ export function AutoCaptionsBox({ scene, clips, picked, onClose, onError }: { sc
             <button key={n} className={(look === "one" ? n === 1 : per === n) ? "on" : ""} data-name={`captions-per-${n}`} disabled={look === "one"} onClick={() => setPer(n)}>
               {n}
             </button>
+          ))}
+        </div>
+      </div>
+      <div className={`captions-row${look === "one" ? " off" : ""}`}>
+        <span>Light up the spoken word</span>
+        <div className="captions-lit">
+          <button className={!lit ? "none on" : "none"} data-name="captions-lit-none" title="No colour" disabled={look === "one"} onClick={() => setLit("")} />
+          {SPOKEN_COLOURS.map((c) => (
+            <button key={c} className={lit === c ? "on" : ""} style={{ background: c }} data-name={`captions-lit-${c.slice(1)}`} title="Light up in this colour" disabled={look === "one"} onClick={() => setLit(c)} />
           ))}
         </div>
       </div>
