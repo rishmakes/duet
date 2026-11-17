@@ -232,6 +232,9 @@ export function soundsOf(doc: Doc, sceneId: string) {
 }
 
 let stop = false;
+/** A video is being made. Only one at a time: they share one encoder. */
+let making = false;
+export const exportBusy = () => making;
 /** Give up on the video being made. */
 export const stopExport = () => {
   stop = true;
@@ -392,6 +395,8 @@ export async function exportScene(sceneId: string, progress: (done: number) => v
   const from = part?.start ?? 0;
   const to = part?.end ?? scene.duration;
   const total = Math.max(1, Math.round((to - from) * FPS));
+  if (making) throw new Error("Another video is being made. Wait for it to finish, then try again.");
+  making = true;
   stop = false;
   pause();
   holdClips(true);
@@ -433,5 +438,6 @@ export async function exportScene(sceneId: string, progress: (done: number) => v
     throw e;
   } finally {
     holdClips(false);
+    making = false;
   }
 }

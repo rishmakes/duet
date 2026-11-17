@@ -29,7 +29,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { addPicture, mimeFor, pictureOf, preloadPictures } from "../project/assets";
 import { renderPng } from "../project/exporter";
 import { clipPicture, clipPictureOf, fileLength, letGoOfOriginals, seekClips } from "../video/clips";
-import { QUALITIES, defaultChoice, exportScene } from "../video/scene";
+import { QUALITIES, defaultChoice, exportBusy, exportScene } from "../video/scene";
+import { aboutTime, addJob, allJobs, appendRenderLog, askAgainIn, jobLine, jobsText, secondsLeft, setJobHooks } from "./jobs";
+import { recordStep } from "./trace";
 import { saveNow, saveVersion, tabName } from "../project/project";
 import { findFonts, fontsReport, importSvgPath, importSvgText } from "../project/svgImport";
 import { ICON_SETS, iconSvg, parseIcon, searchIcons } from "../project/icons";
@@ -60,6 +62,8 @@ export interface ToolResult {
   /** A picture to show the AI, as base64. */
   image?: { data: string; mime: string };
   isError?: boolean;
+  /** Waiting that is done outside the line, so other calls are answered meanwhile. */
+  later?: () => Promise<ToolResult>;
 }
 
 const str = { type: "string" };
@@ -459,7 +463,7 @@ export const TOOLS: ToolDef[] = [
   {
     name: "export_video",
     description:
-      "Make an MP4 video of a frame that plays (one with a length), with its clips and sound, exactly as the designer's Export video does. When the frame has a work area marked, only that part is made. path is the full path of the new file and must end in .mp4, or .mov for a master (~ for the home folder works); leave it out to save in Documents, Duet, Exports. It never replaces a file that already exists. fps is 24, 25, 30 (the default) or 60. size is the longer side in pixels (for example 1080 or 3840); leave it out to keep the frame's own size. quality is best, good (the default) or small. master true makes a 10-bit ProRes .mov to keep editing or grading elsewhere instead of an MP4 to share. Clips that fill the frame are read from their own files at full quality and their colour is worked out in 32-bit. The project must be the one on screen. It can take a while for a long video. The designer may be asked to allow it.",
+      "Make an MP4 video of a frame that plays (one with a length), with its clips and sound, exactly as the designer's Export video does. When the frame has a work area marked, only that part is made. path is the full path of the new file and must end in .mp4, or .mov for a master (~ for the home folder works); leave it out to save in Documents, Duet, Exports. It never replaces a file that already exists. fps is 24, 25, 30 (the default) or 60. size is the longer side in pixels (for example 1080 or 3840); leave it out to keep the frame's own size. quality is best, good (the default) or small. master true makes a 10-bit ProRes .mov to keep editing or grading elsewhere instead of an MP4 to share. Clips that fill the frame are read from their own files at full quality and their colour is worked out in 32-bit. The project must be the one on screen. It answers at once: the video waits in a line with any others and is made on its own, and Duet tells the designer when it is done, so you keep working. The design as it is when you ask is the one made. Ask how it is going with jobs. The designer may be asked to allow it.",
     inputSchema: {
       type: "object",
       properties: {
@@ -472,6 +476,12 @@ export const TOOLS: ToolDef[] = [
       },
       required: ["id"],
     },
+  },
+  {
+    name: "jobs",
+    description:
+      "How the videos you asked for with export_video are doing: waiting in line, being made with how far along and how long is left, done with the file, or not made and why. It answers at once, even while a video is being made, and works from any chat. Duet tells the designer itself when a video is done, so ask only when you need to know, and not sooner than the reply says.",
+    inputSchema: { type: "object", properties: {} },
   },
   {
     name: "save_skill",
@@ -1676,8 +1686,14 @@ async function transcribeTool(a: Args, by?: string): Promise<ToolResult> {
   const all = (async () => {
     for (const src of todo) await transcribe(src, lang.key, keep(src)).catch((e: Error) => failed.push(`${fileName(src)}: ${e.message}`));
   })();
+  const where = said();
+  // the wait happens outside the line, so other AIs are answered while the words come in
+  return { text: "", later: () => hearingReport(all, room, srcs, todo, failed, lang.name, where) };
+}
+
+async function hearingReport(all: Promise<void>, room: Room, srcs: string[], todo: string[], failed: string[], language: string, where: ReturnType<typeof said>): Promise<ToolResult> {
   const done = await Promise.race([all.then(() => true), new Promise<boolean>((ok) => setTimeout(() => ok(false), HEARING_WAIT))]);
-  const now = R.currentDoc();
+  const now = room.currentDoc();
   const lines = srcs.map((src) => {
     const p = hearingNow(src);
     if (p != null) return `${fileName(src)}: still being heard, ${Math.round(p)}% done.`;
@@ -1685,7 +1701,7 @@ async function transcribeTool(a: Args, by?: string): Promise<ToolResult> {
     return w ? `${fileName(src)}: ${w.words.length} words${todo.includes(src) ? "" : ", already heard before"}.` : `${fileName(src)}: no words.`;
   });
   if (done) {
-    if (todo.length) addMsg({ role: "note", text: `Transcribed ${todo.length === 1 ? fileName(todo[0]) : `${todo.length} recordings`} (${lang.name})`, ...stepNow() }, said());
+    if (todo.length) addMsg({ role: "note", text: `Transcribed ${todo.length === 1 ? fileName(todo[0]) : `${todo.length} recordings`} (${language})`, ...stepNow(room) }, where);
     const text = [...lines, ...failed].join("\n");
     return failed.length && failed.length === todo.length ? fail(text) : { text: `${text}\nRead them with get_transcript.` };
   }
@@ -1877,26 +1893,63 @@ async function pictureOfDuet(args: Args): Promise<ToolResult> {
 }
 
 /** Make a video of a frame that plays, the same way the designer's Export video does. */
-async function exportVideo(args: Args): Promise<ToolResult> {
+async function exportVideo(args: Args, by?: string): Promise<ToolResult> {
   let to: string | undefined;
   if (typeof args.path === "string") {
     to = args.path.trim();
     if (to.startsWith("~")) to = (await invoke<string>("duet_home")).replace(/[\\/]\.duet[^\\/]*[\\/]?$/, "") + to.slice(1);
     if ((await invoke<boolean>("path_exists", { path: to })) === true) return fail(`${String(args.path)} already exists. Choose a new file name; nothing was saved.`);
+    if (allJobs().some((j) => j.file === to && (j.state === "waiting" || j.state === "running"))) return fail(`A video for ${String(args.path)} is already being made. Choose a new file name.`);
     const dir = to.replace(/[\\/][^\\/]*$/, "");
     if (dir) await invoke("make_dir", { path: dir }).catch(() => undefined);
   }
   const quality = QUALITIES[{ best: 0, good: 1, small: 2 }[String(args.quality ?? "good") as "best" | "good" | "small"]].quality;
-  const began = Date.now();
-  try {
-    // the video is drawn off screen, so a project waiting in its tab is made into one without coming on screen
-    const doc = R.currentDoc();
+  // the design as it is now is the one made, even if it changes while the video waits its turn
+  const doc = R.currentDoc();
+  const scene = doc.elements[String(args.id)];
+  const path = R.file ?? R.getState().project.path;
+  const where = said();
+  const span = scene.workArea ? scene.workArea.end - scene.workArea.start : scene.duration;
+  const dest = to;
+  const job = addJob({ what: scene.name, project: path ? tabName(path) : "Untitled", by, file: dest, seconds: span }, async (progress) => {
     await preloadPictures(doc);
-    const file = await exportScene(String(args.id), () => {}, { ...defaultChoice(), fps: Number(args.fps) || 30, longSide: Number(args.size) || 0, quality, master: args.master === true, ...(to ? { to } : {}) }, doc);
-    if (!file) return fail("The video was not made.");
-    return { text: `Made the video ${file} in ${Math.round((Date.now() - began) / 1000)} seconds. The design was not changed.` };
-  } catch (e) {
-    return fail(`The video could not be made. ${String(e instanceof Error ? e.message : e)}`);
+    return exportScene(scene.id, progress, { ...defaultChoice(), fps: Number(args.fps) || 30, longSide: Number(args.size) || 0, quality, master: args.master === true, ...(dest ? { to: dest } : {}) }, doc);
+  });
+  if (!("n" in job)) return fail(job.error);
+  jobWhere.set(job.n, where);
+  const left = secondsLeft(job);
+  const ahead = allJobs().filter((j) => j.n < job.n && (j.state === "waiting" || j.state === "running")).length;
+  return {
+    text: `Started: video ${job.n}, ${scene.name}, ${span.toFixed(1)} seconds long. ${ahead ? `${ahead} ${ahead === 1 ? "video is" : "videos are"} ahead of it. ` : ""}Done in ${aboutTime(left)}. It saves to ${to ?? "Documents, Duet, Exports"}. Duet tells the designer when it is done, so you do not need to wait: keep working, and ask with jobs in about ${askAgainIn(left)} seconds if you need to know.`,
+  };
+}
+
+/** Where each video's news goes in the chat. */
+const jobWhere = new Map<number, ReturnType<typeof said>>();
+
+/** Tell the designer a video is done or failed: on the Mac, in the chat, and in the AI trail. */
+setJobHooks({
+  free: () => !exportBusy(),
+  log: (line) => void appendRenderLog(line),
+  ended: (job) => {
+    const where = jobWhere.get(job.n);
+    jobWhere.delete(job.n);
+    const ok = job.state === "done";
+    const file = job.file?.split(/[\\/]/).pop() ?? "";
+    addMsg({ role: ok ? "note" : "error", text: ok ? `Made the video ${file}` : `The video ${job.what} was not made. ${job.error ?? ""}`.trim() }, where);
+    void tellMac(ok ? "Video ready" : "Video not made", ok ? `${job.what}: ${file}` : `${job.what}: ${job.error ?? ""}`);
+    recordStep({ at: job.ended ?? Date.now(), ms: (job.ended ?? 0) - (job.started ?? job.ended ?? 0), who: job.by ?? "Duet", tool: "export_video (finished)", args: { video: job.n }, text: jobLine(job), error: !ok });
+  },
+});
+
+async function tellMac(title: string, body: string) {
+  try {
+    const n = await import("@tauri-apps/plugin-notification");
+    let ok = await n.isPermissionGranted();
+    if (!ok) ok = (await n.requestPermission()) === "granted";
+    if (ok) n.sendNotification({ title, body });
+  } catch {
+    // the chat still says it
   }
 }
 
@@ -1926,8 +1979,8 @@ async function placeSound(args: Args, by?: string): Promise<ToolResult> {
 }
 
 /** The step a change has just made: where it is for Undo, and its name so the words stay tied to it. */
-function stepNow() {
-  const s = R.getState();
+function stepNow(room: Room = R) {
+  const s = room.getState();
   return { undoStep: s.cursor, step: s.timeline[s.cursor].step };
 }
 
@@ -1972,7 +2025,7 @@ async function duplicateElements(args: Args, by?: string): Promise<ToolResult> {
 
 async function apply(tool: string, args: Args, by?: string): Promise<ToolResult> {
   if (tool === "export_frame") return exportFrame(args);
-  if (tool === "export_video") return exportVideo(args);
+  if (tool === "export_video") return exportVideo(args, by);
   if (tool === "place_image") return placeImage(args, by);
   if (tool === "import_svg") return importSvg(args, by);
   if (tool === "find_fonts") return findFontsTool(args, by);
@@ -2173,7 +2226,14 @@ export function scriptStep(doc: Doc, tool: string, raw: unknown): { doc: Doc; va
 }
 
 /** Run one tool call from an agent. `by` is the name of the AI tool that asked, when it said who it is. */
-export function callTool(name: string, raw: unknown, by?: string, thread?: string): Promise<ToolResult> {
+export async function callTool(name: string, raw: unknown, by?: string, thread?: string): Promise<ToolResult> {
+  // asking how the videos are doing never waits behind anything
+  if (name === "jobs") return { text: jobsText() };
+  const result = await inLine(name, raw, by, thread);
+  return result.later ? result.later() : result;
+}
+
+function inLine(name: string, raw: unknown, by?: string, thread?: string): Promise<ToolResult> {
   return oneAtATime(async () => {
     T = null;
     if (name === "work_in_project") return workInProject(raw, by);

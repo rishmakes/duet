@@ -784,6 +784,7 @@ pub fn run() {
         // new versions arrive signed with Duet's own key, and Duet restarts into them
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
             ai::agy_connect,
             connect::connect_status,
