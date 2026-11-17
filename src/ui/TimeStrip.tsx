@@ -696,11 +696,18 @@ export default function TimeStrip() {
   const scrub = (e: React.PointerEvent) => {
     // only the left button moves the playhead: the middle one drags the timeline and the right one opens the menu
     if (e.button !== 0) return;
-    const box = e.currentTarget.getBoundingClientRect();
+    const lane = e.currentTarget;
     // the playhead snaps to clip edges and markers; Cmd or Ctrl turns that off
     const targets = getSnapTargets().filter((t) => t !== getState().clock.t);
     const at = (clientX: number, noSnap: boolean) => {
-      let t = (clientX - box.left) / pps;
+      // pulled past the names or the right edge, it stays on the last moment that shows and the timeline scrolls after it, so it never goes under the names
+      const view = lanes.current?.getBoundingClientRect();
+      if (view && lanes.current) {
+        const pull = clientX < view.left + NAMES ? clientX - (view.left + NAMES) : clientX > view.right ? clientX - view.right : 0;
+        if (pull) lanes.current.scrollLeft += pull / 2;
+        clientX = Math.max(view.left + NAMES, Math.min(view.right, clientX));
+      }
+      let t = (clientX - lane.getBoundingClientRect().left) / pps;
       let snapTime: number | null = null;
       if (!noSnap) {
         const s = findSnap(t, targets);
