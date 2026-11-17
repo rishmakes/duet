@@ -565,6 +565,30 @@ export default function TimeStrip() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, plays]);
 
+  // a track that was not there a moment ago, like the Captions track Auto captions adds at the top, is
+  // scrolled into sight below the ruler, so adding one never looks like nothing happened (#365)
+  const seenTracks = useRef<{ frame: string; keys: Set<string> } | null>(null);
+  useLayoutEffect(() => {
+    const box = lanes.current;
+    const at = frame?.id ?? "";
+    if (!box || mode !== "motion" || !plays) {
+      seenTracks.current = null;
+      return;
+    }
+    const rows = [...box.querySelectorAll<HTMLElement>(".time-row[data-track-key]")];
+    const keys = new Set(rows.map((r) => r.dataset.trackKey!));
+    const was = seenTracks.current;
+    seenTracks.current = { frame: at, keys };
+    if (!was || was.frame !== at) return;
+    const fresh = rows.find((r) => !was.keys.has(r.dataset.trackKey!));
+    if (!fresh) return;
+    const b = box.getBoundingClientRect();
+    const r = fresh.getBoundingClientRect();
+    const ruler = box.querySelector<HTMLElement>(".time-row.ruler")?.offsetHeight ?? 0;
+    if (r.top < b.top + ruler) box.scrollTop -= b.top + ruler - r.top;
+    else if (r.bottom > b.bottom) box.scrollTop += r.bottom - b.bottom;
+  });
+
   if (mode !== "motion") return null;
   if (!plays) {
     // the timeline is what Motion is, so it is always there: blank, with a way to make a scene
@@ -1841,6 +1865,7 @@ export default function TimeStrip() {
               <div
                 data-row={ri}
                 data-kind={rowTrackKind}
+                data-track-key={row.track ? row.key : undefined}
                 className={`time-row ${rowH !== undefined && rowH <= 16 ? "row-compact" : ""} ${row.items.some((el) => selection.includes(el.id)) ? "on" : ""} ${look === "cut" && (row.track || row.items.some(playsFile)) ? "footage" : ""} ${look === "cut" && row.items.some((el) => el.type === "video") ? "has-video" : ""} ${allHidden(row) ? "is-hidden" : ""} ${trackPicked(row) ? "picked" : ""} ${rowDrop === ri ? "drop-above" : ""} ${rowDrop === displayRows.length && ri === displayRows.length - 1 ? "drop-below" : ""}`}
                 style={rowH !== undefined ? { height: rowH } : undefined}
               >
