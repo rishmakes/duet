@@ -2957,6 +2957,10 @@ option {
   align-items: center;
   gap: 2px;
 }
+.time-zoom-slider {
+  width: 96px;
+  accent-color: var(--muted);
+}
 .time-quiet-btn {
   background: transparent;
   border: none;
@@ -3068,7 +3072,8 @@ option {
   position: sticky;
   top: 0;
   background: var(--panel);
-  z-index: 2;
+  /* above the playhead line, so the names corner always covers it; the ruler draws its own piece of it; above the names of the rows scrolled under it */
+  z-index: 6;
   width: max-content;
   min-width: 100%;
 }
@@ -3331,6 +3336,15 @@ option {
   content: "";
   position: absolute;
   inset: -4px;
+}
+.time-head-top {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--text);
+  pointer-events: none;
+  z-index: 1;
 }
 .time-head {
   position: absolute;

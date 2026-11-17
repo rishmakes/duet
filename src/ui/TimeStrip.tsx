@@ -38,6 +38,8 @@ import { AutoCaptionsBox } from "./AutoCaptions";
 /** Time under the canvas: a row for each thing in a frame that plays, when it shows, and where the clock is. */
 
 const SHORTEST = 0.1;
+/** How far the timeline zooms in, as a multiple of showing the whole video. */
+const MOST_ZOOM = 200;
 /** The height inside a video or sound bar in Edit, where its frames or sound are drawn. */
 const FOOTAGE_BAR = 38;
 /** A video bar is taller: its frames on top and its sound in a strip of its own underneath. */
@@ -234,7 +236,8 @@ export default function TimeStrip() {
 
   // the room the timeline has is the panel's own width, measured on the panel so it never depends on what is inside it
   useEffect(() => {
-    const el = lanes.current?.parentElement;
+    // the lanes' own box, not the panel's: the mouse tools beside them take room too, and Fit must show it all
+    const el = lanes.current;
     if (!el) return;
     const measure = () => setWide(Math.max(100, el.clientWidth - NAMES - 16));
     measure();
@@ -343,7 +346,7 @@ export default function TimeStrip() {
       if (e.key === "=" || e.key === "+") {
         e.preventDefault();
         e.stopPropagation();
-        setZoom((z) => z * 1.5);
+        setZoom((z) => Math.min(MOST_ZOOM, z * 1.5));
         return;
       }
       if (e.key === "-" || e.key === "_") {
@@ -439,7 +442,7 @@ export default function TimeStrip() {
     const was = lastLength.current;
     lastLength.current = frame ? { id: frame.id, length } : null;
     if (!frame || !was || was.id !== frame.id || !(was.length > 0) || !(length > 0) || was.length === length) return;
-    setZoom((z) => Math.max(1, Math.min(200, (z * length) / was.length)));
+    setZoom((z) => Math.max(1, Math.min(MOST_ZOOM, (z * length) / was.length)));
   }, [frame?.id, length]);
 
   useEffect(() => {
@@ -471,12 +474,21 @@ export default function TimeStrip() {
     const box = lanes.current;
     if (!box) return;
     const { zoom: z, pps: per } = zoomNow.current;
-    const next = Math.max(1, Math.min(200, z * factor));
+    const next = Math.max(1, Math.min(MOST_ZOOM, z * factor));
     if (next === z) return;
     const left = box.getBoundingClientRect().left;
     hold.current = { t: (clientX - left + box.scrollLeft - NAMES) / per, at: clientX - left };
     zoomNow.current = { zoom: next, pps: (per * next) / z };
     setZoom(next);
+  };
+  /** Zoom by `factor`, keeping the playhead where it is when it shows, else the middle of the lanes. */
+  const zoomStep = (factor: number) => {
+    const box = lanes.current;
+    if (!box) return;
+    const r = box.getBoundingClientRect();
+    const head = r.left + NAMES + clock.t * zoomNow.current.pps - box.scrollLeft;
+    zoomTo(head >= r.left + NAMES && head <= r.right ? head : r.left + NAMES + (r.width - NAMES) / 2, factor);
+    if (zoomNow.current.zoom <= 1) box.scrollLeft = 0;
   };
   useLayoutEffect(() => {
     const h = hold.current;
@@ -1506,32 +1518,25 @@ export default function TimeStrip() {
           </div>
         )}
         <span className="spacer" />
-        <div className="time-zoom">
-          <button
-            className="time-quiet-btn"
-            data-name="zoom-out"
-            onClick={() => setZoom((z) => Math.max(1, z / 1.5))}
-            title="Zoom out (-)"
-          >
-            -
+        <div className="time-zoom" title="Zoom: far left shows the whole video (\\), right comes closer (- and =)">
+          <button className="time-quiet-btn" data-name="zoom-out" onClick={() => zoomStep(1 / 1.5)} aria-label="Zoom out">
+            −
           </button>
-          <button
-            className="time-quiet-btn"
-            data-name="zoom-fit"
-            onClick={() => {
-              setZoom(1);
-              if (lanes.current) lanes.current.scrollLeft = 0;
+          <input
+            type="range"
+            className="time-zoom-slider"
+            data-name="zoom-slider"
+            min={0}
+            max={100}
+            step={1}
+            value={Math.round((Math.log(zoom) / Math.log(MOST_ZOOM)) * 100)}
+            onChange={(e) => {
+              const next = Math.pow(MOST_ZOOM, Number(e.currentTarget.value) / 100);
+              zoomStep(next / zoomNow.current.zoom);
             }}
-            title="Fit to window (\)"
-          >
-            Fit
-          </button>
-          <button
-            className="time-quiet-btn"
-            data-name="zoom-in"
-            onClick={() => setZoom((z) => z * 1.5)}
-            title="Zoom in (=)"
-          >
+            aria-label="Zoom"
+          />
+          <button className="time-quiet-btn" data-name="zoom-in" onClick={() => zoomStep(1.5)} aria-label="Zoom in">
             +
           </button>
         </div>
@@ -1739,6 +1744,7 @@ export default function TimeStrip() {
             <i className="names-grip" onPointerDown={pullNames} title="Pull to make the names wider or narrower" />
           </span>
           <div className="time-lane" onPointerDown={scrub} style={{ width: laneWidth }}>
+            <b className="time-head-top" style={{ left: clock.t * pps }} />
             {marks.map((t) => (
               <i key={t} style={{ left: t * pps }}>
                 {clockText(t).replace(/\.0$/, "")}
