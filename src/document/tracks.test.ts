@@ -81,6 +81,18 @@ describe("tracks", () => {
     expect(names(parseDoc(serializeDoc(doc)))).toEqual(names(doc));
   });
 
+  it("a new layer behind a clip in Motion sits on a row below it in Edit, so both views agree", () => {
+    let doc = runCommand(scene(), "add_track", { id: "f" });
+    doc = runCommand(doc, "create_element", { type: "video", id: "v", parentId: "f", x: 0, y: 0, width: 10, height: 10, props: { src: "/a.mp4", start: 1, end: 9 } });
+    // v goes to the very back, as a layer sent behind does
+    doc = { ...doc, elements: { ...doc.elements, f: { ...doc.elements.f, childIds: ["v", ...doc.elements.f.childIds.filter((id) => id !== "v")] } } };
+    const rows = trackRows(doc, doc.elements.f);
+    const row = (id: string) => rows.findIndex((r) => r.items.some((el) => el.id === id));
+    expect(row("v")).toBeGreaterThan(row("a"));
+    expect(row("v")).toBeGreaterThan(row("b"));
+    expect(row("v")).toBeGreaterThan(row("c"));
+  });
+
   it("renames a track, and a track with no clips can be taken away", () => {
     let doc = runCommand(scene(), "add_track", { id: "f" });
     doc = runCommand(doc, "rename_track", { id: "f", track: { index: 0 }, name: "60s idea" });

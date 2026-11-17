@@ -130,25 +130,37 @@ export function trackRows(doc: Doc, frame: El): TrackRow[] {
     return { index, name: track.name, track, items: split.kept };
   });
   const ids = new Set(frame.tracks.map((t) => t.id));
-  const extra: El[][] = [];
+  const names = [...frame.tracks];
+  const rowOf = new Map<El, TrackRow>();
+  for (const row of rows) for (const el of row.items) rowOf.set(el, row);
   // the oldest first, so a thing put in later never pushes an earlier one off its row
   for (const el of items.filter((el) => !ids.has(el.track ?? "") || bumped.has(el)).reverse()) {
-    const fits = (list: El[]) => !list.some((other) => overlap(el, other, frame));
-    const row = rows.find((r) => fits(r.items));
-    if (row) row.items.push(el);
-    else {
-      const more = extra.find(fits);
-      if (more) more.push(el);
-      else extra.push([el]);
+    // a row above every row of what it covers in time and behind it, and below every row of what is in front of it, so Edit and the layers agree
+    const at = items.indexOf(el);
+    let lo = 0;
+    let hi = rows.length;
+    for (const [other, row] of rowOf) {
+      // a sound is only heard, so it covers nothing and nothing covers it
+      if (el.type === "sound" || other.type === "sound" || !overlap(el, other, frame)) continue;
+      const i = rows.indexOf(row);
+      if (items.indexOf(other) < at) lo = Math.max(lo, i + 1);
+      else hi = Math.min(hi, i);
+    }
+    hi = Math.max(lo, hi);
+    const fits = (r: TrackRow) => !r.items.some((other) => overlap(el, other, frame));
+    const row = rows.slice(lo, hi).find(fits);
+    if (row) {
+      row.items.push(el);
+      rowOf.set(el, row);
+    } else {
+      const name = freshName(names);
+      names.push({ id: "", name });
+      const made: TrackRow = { index: 0, name, track: null, items: [el] };
+      rows.splice(lo, 0, made);
+      rowOf.set(el, made);
     }
   }
-  const names = [...frame.tracks];
-  const made = extra.map((list) => {
-    const name = freshName(names);
-    names.push({ id: "", name });
-    return { index: 0, name, track: null, items: list };
-  });
-  return [...made.reverse(), ...rows].map((r, index) => ({ ...r, index }));
+  return rows.map((r, index) => ({ ...r, index }));
 }
 
 /** A new track id. */
