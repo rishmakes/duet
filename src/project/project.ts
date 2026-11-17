@@ -930,7 +930,10 @@ export function giveHome(): Promise<boolean> {
   // asked again while it is being done, it is done once
   homing ??= (async () => {
     try {
-      await saveTo(await freePath(getState().project.name));
+      const file = await freePath(getState().project.name);
+      // the work may have gone while the name was found: an empty canvas still gets no file
+      if (!hasWork() || getState().project.path || inTest) return !!getState().project.path;
+      await saveTo(file);
     } catch (e) {
       logError("give work a home", e);
     } finally {
@@ -1064,14 +1067,16 @@ export async function closeProject() {
 export async function leaveTestDesign(): Promise<string | null> {
   // after a test design was kept as a file there is still a project to go back to
   if (!inTest && !leftForTest && !checkCopy) return "There is no test design open.";
-  inTest = false;
   await flushPack();
   const back = leftForTest;
   leftForTest = null;
-  setProject({ path: null, file: null, name: "Untitled", status: "unsaved", error: null });
+  // the test design is cleared away while it is still a test, so for no moment does it look like unsaved
+  // work that needs a file (that moment made an empty Untitled project after every check, #370)
   loadDoc(emptyDoc(), "New file");
+  setProject({ path: null, file: null, name: "Untitled", status: "unsaved", error: null });
   lastSaved = committed();
   clearTimeout(timer);
+  inTest = false;
   if (back && inTauri() && !(await openAny(back, true))) return `The project at ${back} could not be opened again.`;
   return null;
 }
