@@ -1687,6 +1687,8 @@ export default function TimeStrip() {
         className="time-lanes"
         ref={lanes}
         style={{ height: growing ?? timeH, maxHeight: "none" }}
+        // the playhead is cut off at the names, by how far this has scrolled, so it never depends on what is drawn over it (#327)
+        onScroll={(e) => e.currentTarget.style.setProperty("--sl", `${e.currentTarget.scrollLeft}px`)}
         // a click on empty room in the timeline lets go of what is picked
         onPointerDown={(e) => {
           if (e.button !== 0) return;
@@ -2072,7 +2074,9 @@ export default function TimeStrip() {
         {(frame.markers ?? []).map((m) => (
           <div key={m.id} className="time-marker-line" style={{ left: NAMES + m.t * pps, "--marker": m.color } as React.CSSProperties} />
         ))}
-        <div className="time-head" style={{ left: NAMES + clock.t * pps }} />
+        <div className="time-head-clip">
+          <div className="time-head" style={{ left: NAMES + clock.t * pps }} />
+        </div>
         {snap !== null && <div className="time-snap" style={{ left: NAMES + snap * pps }} />}
         </div>
       </div>

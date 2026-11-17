@@ -3369,6 +3369,14 @@ option {
   clip-path: polygon(0 0, 100% 0, 100% 55%, 50% 100%, 0 55%);
   border-radius: 2px;
 }
+/* the playhead's own window: it shows only from the right edge of the names, however far the timeline is scrolled */
+.time-head-clip {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  clip-path: inset(0 0 0 calc(var(--sl, 0px) + var(--names, 150px)));
+}
 .time-head {
   position: absolute;
   top: 0;
@@ -3376,7 +3384,6 @@ option {
   width: 1px;
   background: var(--accent, var(--text));
   pointer-events: none;
-  z-index: 3;
 }
 
 /* settings screen */
