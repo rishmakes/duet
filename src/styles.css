@@ -12335,6 +12335,49 @@ button.ctx-item.store-make-option:hover {
   align-self: stretch;
   padding: 6px 8px;
 }
+.listen-stops {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+.listen-stop {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 6px 8px;
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.listen-stop.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.listen-stop.suggested::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.listen-name {
+  font-size: 12px;
+  font-weight: 600;
+}
+.listen-time {
+  font-size: 11px;
+  color: var(--muted);
+  min-height: 1em;
+}
 .transcribe-foot {
   display: flex;
   align-items: center;

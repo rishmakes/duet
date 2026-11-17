@@ -156,10 +156,107 @@ export function lastLanguage(): string {
   return LANGUAGES[0].key;
 }
 
+// ---------- how to listen: Fastest, Balanced or Best words (#364) ----------
+
+/**
+ * Designers pick what they care about, not a model. Behind each choice is a model and a way of
+ * listening, set in src-tauri/src/voice.rs. Fastest and Balanced use the small light model; Best words
+ * the big one.
+ */
+export type Quality = "fast" | "balanced" | "best";
+export const QUALITIES: { key: Quality; name: string; what: string }[] = [
+  { key: "fast", name: "Fastest", what: "Ready soonest. A few words may be off." },
+  { key: "balanced", name: "Balanced", what: "Good words, still quick. The one for Hinglish and Banglish." },
+  { key: "best", name: "Best words", what: "Most careful with English and other languages. Takes longest." },
+];
+/** Fastest and Balanced need the light model, a small download of its own. */
+export const needsLight = (q: Quality) => q !== "best";
+
+/** What this computer measured: seconds to load, and seconds for each 30 second stretch of sound. */
+export type Speed = Partial<Record<Quality, { load: number; perStretch: number }>>;
+
+// how each choice compares with Balanced, until this computer has measured it itself
+const PER_STRETCH: Record<Quality, number> = { fast: 0.7, balanced: 1, best: 2.5 };
+const LOAD: Record<Quality, number> = { fast: 1, balanced: 1, best: 3 };
+
+/** Seconds to hear a recording this long with this choice, on this computer. Null before anything is measured. */
+export function estimate(q: Quality, seconds: number, speed: Speed): number | null {
+  const stretches = Math.max(1, Math.ceil(seconds / 30));
+  const own = speed[q];
+  if (own) return 2 + own.load + stretches * own.perStretch;
+  const base = (["balanced", "fast", "best"] as Quality[]).find((k) => speed[k]);
+  if (!base) return null;
+  const b = speed[base]!;
+  return 2 + (b.load / LOAD[base]) * LOAD[q] + stretches * (b.perStretch / PER_STRETCH[base]) * PER_STRETCH[q];
+}
+
+/**
+ * The best choice that is still a good wait: done in about the length of the recording, or under
+ * 45 seconds for a short one. Hinglish and Banglish never get Best words: on Rish's clips the big
+ * model skipped whole stretches of mixed speech that the light one heard.
+ */
+export function recommend(seconds: number, speed: Speed, mixed: boolean): Quality {
+  const fair = Math.max(45, seconds);
+  for (const q of ["best", "balanced", "fast"] as Quality[]) {
+    if (q === "best" && mixed) continue;
+    const t = estimate(q, seconds, speed);
+    if (t === null) return "balanced";
+    if (t <= fair) return q;
+  }
+  return "fast";
+}
+
+const LAST_QUALITY = "duet.voice.quality";
+export function lastQuality(): Quality | null {
+  try {
+    const q = localStorage.getItem(LAST_QUALITY);
+    if (q === "fast" || q === "balanced" || q === "best") return q;
+  } catch {
+    /* no storage */
+  }
+  return null;
+}
+
+/**
+ * The 5 second speed test: hear the start of a recording once and keep how long it took. Runs only
+ * when this computer has no times yet. Resolves with what is known afterwards.
+ */
+export async function speedOfThisComputer(src: string): Promise<Speed> {
+  const now = await invoke<Speed>("voice_speed").catch(() => ({}) as Speed);
+  if (Object.keys(now).length) return now;
+  const s = await invoke<{ fast?: boolean }>("voice_status").catch(() => ({}) as { fast?: boolean });
+  await invoke("voice_transcribe", { path: src, language: "en", prompt: null, quality: s.fast ? "balanced" : "best", limit: 5 }).catch(() => undefined);
+  return invoke<Speed>("voice_speed").catch(() => ({}) as Speed);
+}
+
+/** Download the light model, once, and wait for it. Rejects with a sentence a designer can read. */
+async function getLight(onShare: (share: number) => void): Promise<void> {
+  type S = { fast?: boolean; downloading?: string | null; got?: number; total?: number; error?: string };
+  const now = await invoke<S>("voice_status");
+  if (now.fast) return;
+  let off: (() => void) | undefined;
+  try {
+    await new Promise<void>((done, fail) => {
+      void listen<S>("voice-status", (e) => {
+        const s = e.payload;
+        if (s.downloading === "fast" && s.total) onShare((s.got ?? 0) / s.total);
+        if (s.downloading) return;
+        if (s.fast) done();
+        else fail(new Error(s.error || "The download stopped. Try again."));
+      }).then((f) => {
+        off = f;
+        invoke("voice_download", { size: "fast" }).catch((e) => fail(new Error(typeof e === "string" ? e : "The download could not start.")));
+      });
+    });
+  } finally {
+    off?.();
+  }
+}
+
 // ---------- the clips being heard now, by file ----------
 
-/** Where a file is in being heard: reading its sound, loading the voice model, or listening for words. */
-export type HearingStage = "sound" | "model" | "hear";
+/** Where a file is in being heard: getting the light model, reading its sound, loading the voice model, or listening for words. */
+export type HearingStage = "download" | "sound" | "model" | "hear";
 
 export interface Hearing {
   stage: HearingStage;
@@ -253,15 +350,20 @@ const running = new Map<string, Promise<void>>();
  * Hear the speech in a file and keep its words. Rejects with a sentence a designer can read. A file
  * already being heard is not heard twice: the same work is waited on.
  */
-export function transcribe(src: string, languageKey: string, keep: (t: Transcript) => void = (t) => dispatch("set_words", { src, transcript: t })): Promise<void> {
+export function transcribe(
+  src: string,
+  languageKey: string,
+  keep: (t: Transcript) => void = (t) => dispatch("set_words", { src, transcript: t }),
+  quality: Quality = lastQuality() ?? "balanced",
+): Promise<void> {
   const now = running.get(src);
   if (now) return now;
-  const job = hear(src, languageKey, keep).finally(() => running.delete(src));
+  const job = hear(src, languageKey, keep, quality).finally(() => running.delete(src));
   running.set(src, job);
   return job;
 }
 
-async function hear(src: string, languageKey: string, keep: (t: Transcript) => void): Promise<void> {
+async function hear(src: string, languageKey: string, keep: (t: Transcript) => void, quality: Quality): Promise<void> {
   const lang = ALL.find((l) => l.key === languageKey) ?? LANGUAGES[0];
   try {
     localStorage.setItem(LAST, lang.key);
@@ -292,7 +394,17 @@ async function hear(src: string, languageKey: string, keep: (t: Transcript) => v
     changed();
   });
   try {
-    const t = await invoke<Transcript>("voice_transcribe", { path: src, language: lang.code, prompt: lang.prompt ?? null });
+    if (needsLight(quality)) {
+      jobs.set(src, { ...jobs.get(src)!, stage: "download" });
+      changed();
+      await getLight((share) => {
+        jobs.set(src, { ...jobs.get(src)!, percent: Math.round(share * 100) });
+        changed();
+      });
+      jobs.set(src, { ...jobs.get(src)!, stage: "sound", percent: 0 });
+      changed();
+    }
+    const t = await invoke<Transcript>("voice_transcribe", { path: src, language: lang.code, prompt: lang.prompt ?? null, quality });
     // English letters only for the mixed ones: no accents left over, like the a in "na"
     const words = lang.prompt ? t.words.map((w) => ({ ...w, w: plainLetters(w.w) })).filter((w) => w.w) : t.words;
     keep({ language: lang.key, model: t.model, words });
@@ -325,6 +437,32 @@ export function TranscribeBox({ els, scene, picked, onClose, onError }: { els: E
     const span = spanOf(el, scene);
     return t + span.end - span.start;
   }, 0);
+  // how to listen: the whole of each file is heard, so the wait is worked out from the files' lengths
+  const [speed, setSpeed] = useState<Speed | null>(null);
+  const [fileSeconds, setFileSeconds] = useState(0);
+  const [light, setLight] = useState(true);
+  const [choice, setChoice] = useState<Quality | null>(lastQuality);
+  useEffect(() => {
+    let live = true;
+    void Promise.all(srcs.map((path) => invoke<{ duration: number }>("video_info", { path }).then((i) => i.duration).catch(() => 0))).then((d) => {
+      if (live) setFileSeconds(d.reduce((a, b) => a + b, 0));
+    });
+    void invoke<{ fast?: boolean }>("voice_status").then((st) => live && setLight(!!st.fast)).catch(() => undefined);
+    if (srcs[0]) void speedOfThisComputer(srcs[0]).then((sp) => live && setSpeed(sp));
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const length = fileSeconds || seconds;
+  const mixed = !!ALL.find((l) => l.key === key)?.prompt;
+  const rec = speed ? recommend(length, speed, mixed) : null;
+  const shown: Quality = choice ?? rec ?? "balanced";
+  const about = (q: Quality) => {
+    if (!speed) return "Timing…";
+    const t = estimate(q, length, speed);
+    return t === null ? "" : `about ${t < 60 ? `${Math.max(5, Math.round(t / 5) * 5)} s` : `${Math.round(t / 60)} min`}`;
+  };
 
   // not downloaded yet: the Store page says how to get it
   useEffect(() => {
@@ -364,6 +502,32 @@ export function TranscribeBox({ els, scene, picked, onClose, onError }: { els: E
           </optgroup>
         </select>
       </label>
+      <div className="transcribe-field">
+        <span>How to listen</span>
+        <div className="listen-stops" role="radiogroup" data-name="transcribe-quality">
+          {QUALITIES.map((q) => (
+            <button
+              key={q.key}
+              role="radio"
+              aria-checked={shown === q.key}
+              data-name={`listen-${q.key}`}
+              className={`listen-stop ${shown === q.key ? "on" : ""} ${rec === q.key ? "suggested" : ""}`}
+              onClick={() => setChoice(q.key)}
+            >
+              <span className="listen-name">{q.name}</span>
+              <span className="listen-time">{about(q.key)}</span>
+            </button>
+          ))}
+        </div>
+        <div className="transcribe-hint" data-name="transcribe-quality-hint">
+          {!speed
+            ? "Timing this computer once, so the waits are its own."
+            : rec === shown
+              ? `Best for this computer. ${QUALITIES.find((q) => q.key === shown)!.what}`
+              : `${QUALITIES.find((q) => q.key === shown)!.what}${rec ? ` Duet suggests ${QUALITIES.find((q) => q.key === rec)!.name} here.` : ""}`}
+          {needsLight(shown) && !light && " First a one-time download of 190 MB."}
+        </div>
+      </div>
       <div className="transcribe-hint">
         {has ? "These have their words already. Transcribing again replaces them. Read them in the Words tab." : "Pick what is spoken. Duet suggests the one you used last. The words show in the Words tab."}
       </div>
@@ -378,9 +542,14 @@ export function TranscribeBox({ els, scene, picked, onClose, onError }: { els: E
           disabled={!srcs.length}
           onClick={() => {
             onClose();
+            try {
+              localStorage.setItem(LAST_QUALITY, shown);
+            } catch {
+              /* remembering is a nicety */
+            }
             void (async () => {
               try {
-                for (const src of srcs) await transcribe(src, key);
+                for (const src of srcs) await transcribe(src, key, undefined, shown);
               } catch (e) {
                 onError(e instanceof Error ? e.message : "Voice to text could not hear this clip.");
               }
@@ -395,6 +564,7 @@ export function TranscribeBox({ els, scene, picked, onClose, onError }: { els: E
 }
 
 const STAGE_TEXT: Record<HearingStage, string> = {
+  download: "Getting voice to text ready, one time only",
   sound: "Reading the sound",
   model: "Loading the voice model",
   hear: "Listening for words",
@@ -428,17 +598,18 @@ export function HearingCard() {
   return (
     <div className="hearing-card" data-name="hearing-card" role="status">
       {all.map(([src, h]) => {
-        const p = shownPercent(h, now);
+        const p = h.stage === "download" ? h.percent : shownPercent(h, now);
+        const moving = h.stage === "hear" || h.stage === "download";
         const left = secondsLeft(h, now);
         const name = src.split(/[\\/]/).pop();
         return (
           <div className="hearing-row" key={src}>
             <div className="hearing-head">
               <span className="hearing-step">{STAGE_TEXT[h.stage]}</span>
-              <span className="hearing-pct">{h.stage === "hear" ? `${p}%` : ""}</span>
+              <span className="hearing-pct">{moving ? `${p}%` : ""}</span>
             </div>
-            <div className={`hearing-bar ${h.stage === "hear" ? "" : "waiting"}`}>
-              <i style={{ width: h.stage === "hear" ? `${Math.max(2, p)}%` : undefined }} />
+            <div className={`hearing-bar ${moving ? "" : "waiting"}`}>
+              <i style={{ width: moving ? `${Math.max(2, p)}%` : undefined }} />
             </div>
             <div className="hearing-foot">
               <span title={src}>

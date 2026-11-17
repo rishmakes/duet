@@ -796,6 +796,7 @@ pub fn run() {
             voice::voice_remove,
             voice::voice_transcribe,
             voice::voice_stop,
+            voice::voice_speed,
             ai::agent_models,
             read_text_file,
             read_binary_file,

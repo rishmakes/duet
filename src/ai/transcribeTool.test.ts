@@ -4,7 +4,7 @@ const heard: { path: string; language: string; prompt: string | null }[] = [];
 let installed: string | null = "medium";
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: async (cmd: string, args: { path: string; language: string; prompt: string | null }) => {
-    if (cmd === "voice_status") return { installed };
+    if (cmd === "voice_status") return { installed, fast: true };
     if (cmd === "voice_transcribe") {
       heard.push(args);
       return { language: args.language, model: "medium", words: [{ w: "Namaste", s: 0.2, e: 0.6 }, { w: "dosto", s: 0.7, e: 1.1 }] };

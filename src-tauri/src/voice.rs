@@ -28,11 +28,31 @@ pub struct Model {
 /// The version of the whisper.cpp model files Duet asks for. A new version is a deliberate change here.
 const COMMIT: &str = "5359861c739e955e79d9a303bcbc70fb988958b1";
 
-pub const MODELS: [Model; 3] = [
+pub const MODELS: [Model; 4] = [
     Model { size: "small", file: "ggml-large-v3-turbo-q5_0.bin", bytes: 574_041_195, sha256: "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2" },
     Model { size: "medium", file: "ggml-large-v3-turbo.bin", bytes: 1_624_555_275, sha256: "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69" },
     Model { size: "large", file: "ggml-large-v3.bin", bytes: 3_095_033_483, sha256: "64d182b440b98d5203c4f9bd541544d84c605196c4f7b845dfa11fb23594d1e2" },
+    // the light model behind "Fastest" (#364): kept beside the main one, never instead of it
+    Model { size: "fast", file: "ggml-small-q5_1.bin", bytes: 190_085_487, sha256: "ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb" },
 ];
+
+/// The main sizes: one at a time. "fast" sits beside whichever is there.
+fn main_sizes() -> impl DoubleEndedIterator<Item = &'static Model> {
+    MODELS.iter().filter(|m| m.size != "fast")
+}
+
+/// How to listen, in the designer's words (#364): Fastest, Balanced or Best words.
+/// Each is a model and a search; the designer never sees either. Picked on Rish's own Hinglish
+/// recordings, 17 Nov: the quickest search on the light model dropped the second half of a 3 minute
+/// clip, so even Fastest keeps a small search. The light model with the wide search heard all of it,
+/// in English letters, sooner than the big one, which skipped whole stretches of that clip.
+fn quality_plan(quality: &str) -> (&'static str, &'static str) {
+    match quality {
+        "fast" => ("fast", "beam2"),
+        "best" => ("main", "beam5"),
+        _ => ("fast", "beam5"),
+    }
+}
 
 fn model(size: &str) -> Option<&'static Model> {
     MODELS.iter().find(|m| m.size == size)
@@ -68,7 +88,12 @@ fn own_dir() -> Result<PathBuf, String> {
 /// The size that is downloaded and checked. A file only gets its final name after its check passed.
 fn installed() -> Option<&'static Model> {
     let dir = own_dir().ok()?;
-    MODELS.iter().rev().find(|m| dir.join(m.file).is_file())
+    main_sizes().rev().find(|m| dir.join(m.file).is_file())
+}
+
+/// Is the light model for Fastest downloaded?
+fn fast_installed() -> bool {
+    model("fast").zip(own_dir().ok()).is_some_and(|(m, d)| d.join(m.file).is_file())
 }
 
 /// Free space where the download goes, in bytes, when the computer says.
@@ -100,13 +125,14 @@ fn status_of(app: &AppHandle) -> Value {
     let i = s.inner.lock().unwrap();
     json!({
         "installed": installed().map(|m| m.size),
+        "fast": fast_installed(),
         "downloading": i.downloading,
         "step": i.step,
         "got": i.got,
         "total": i.downloading.and_then(model).map(|m| m.bytes),
         "error": i.error,
         "free": free_bytes(),
-        "sizes": MODELS.iter().map(|m| json!({ "size": m.size, "bytes": m.bytes })).collect::<Vec<_>>(),
+        "sizes": main_sizes().map(|m| json!({ "size": m.size, "bytes": m.bytes })).collect::<Vec<_>>(),
     })
 }
 
@@ -256,8 +282,8 @@ fn download(app: &AppHandle, run: u64, m: &'static Model) -> Result<(), String> 
         return Err("The download did not match, so it was not used. Press Download to try again.".into());
     }
     std::fs::rename(&part, dir.join(m.file)).map_err(|e| e.to_string())?;
-    // one size at a time: changing size replaces the old one once the new one is ready
-    for other in MODELS.iter().filter(|o| o.size != m.size) {
+    // one main size at a time: changing size replaces the old one once the new one is ready
+    for other in main_sizes().filter(|o| o.size != m.size && m.size != "fast") {
         let _ = std::fs::remove_file(dir.join(other.file));
         let _ = std::fs::remove_file(dir.join(format!("{}.part", other.file)));
     }
@@ -283,38 +309,63 @@ fn sha256_file(path: &PathBuf) -> Result<String, String> {
 /// Turn the speech in a recording into words, each with the second it starts and ends.
 /// `language` is a Whisper language code such as "hi", "bn" or "en". `prompt` is a line written the
 /// way the words should come out: Hinglish heard as English with a Hinglish line comes out in English letters.
+/// `quality` is "fast", "balanced" (the default) or "best". `limit` hears only the first seconds: the
+/// speed test. Each finished run is timed and kept, so the next estimate is this computer's own.
 #[tauri::command(async)]
-pub fn voice_transcribe(app: AppHandle, path: String, language: String, prompt: Option<String>) -> Result<Value, String> {
-    let m = installed().ok_or("Voice to text is not downloaded yet.")?;
+pub fn voice_transcribe(app: AppHandle, path: String, language: String, prompt: Option<String>, quality: Option<String>, limit: Option<f64>) -> Result<Value, String> {
+    let quality = quality.unwrap_or_else(|| "balanced".into());
+    let (which, search) = quality_plan(&quality);
+    let main = installed().ok_or("Voice to text is not downloaded yet.")?;
+    let m = if which == "fast" { model("fast").filter(|_| fast_installed()).ok_or("This choice needs a small download first.")? } else { main };
     let model_path = own_dir()?.join(m.file);
+    // a speed test is a job of its own, so it never stops the real one on the same file
+    let key = if limit.is_some() { format!("test:{path}") } else { path.clone() };
     let mut child = crate::quiet_command(std::env::current_exe().map_err(|e| e.to_string())?)
         .arg("--transcribe")
         .arg(&model_path)
         .arg(&path)
         .arg(&language)
         .arg(prompt.unwrap_or_default())
+        .arg(search)
+        .arg(limit.map(|l| l.to_string()).unwrap_or_else(|| "0".into()))
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
         .map_err(|e| format!("Voice to text could not start: {e}"))?;
-    hearing().lock().unwrap().insert(path.clone(), child.id());
+    hearing().lock().unwrap().insert(key.clone(), child.id());
     let out = child.stdout.take().ok_or("Voice to text could not start.")?;
     let mut answer: Option<Value> = None;
+    let started = std::time::Instant::now();
+    let (mut load_from, mut hear_from, mut seconds) = (None, None, 0.0);
+    let test = limit.is_some();
     // each step and how far it is, so a slow computer never looks stuck
     for line in BufReader::new(out).lines().map_while(Result::ok) {
         if let Some(p) = line.strip_prefix("progress ") {
-            let _ = app.emit("voice-progress", json!({ "path": path, "percent": p.trim().parse::<u32>().unwrap_or(0) }));
+            if !test {
+                let _ = app.emit("voice-progress", json!({ "path": path, "percent": p.trim().parse::<u32>().unwrap_or(0) }));
+            }
         } else if let Some(st) = line.strip_prefix("stage ") {
-            let _ = app.emit("voice-progress", json!({ "path": path, "stage": st.trim() }));
+            match st.trim() {
+                "model" => load_from = Some(started.elapsed().as_secs_f64()),
+                "hear" => hear_from = Some(started.elapsed().as_secs_f64()),
+                _ => {}
+            }
+            if !test {
+                let _ = app.emit("voice-progress", json!({ "path": path, "stage": st.trim() }));
+            }
         } else if let Some(sec) = line.strip_prefix("seconds ") {
-            let _ = app.emit("voice-progress", json!({ "path": path, "seconds": sec.trim().parse::<f64>().unwrap_or(0.0) }));
+            seconds = sec.trim().parse::<f64>().unwrap_or(0.0);
+            if !test {
+                let _ = app.emit("voice-progress", json!({ "path": path, "seconds": seconds }));
+            }
         } else if line.starts_with('{') {
             answer = serde_json::from_str(&line).ok();
         }
     }
     let _ = child.wait();
-    let stopped = hearing().lock().unwrap().remove(&path).is_none();
+    let ended = started.elapsed().as_secs_f64();
+    let stopped = hearing().lock().unwrap().remove(&key).is_none();
     if stopped {
         return Err("Stopped.".into());
     }
@@ -322,9 +373,53 @@ pub fn voice_transcribe(app: AppHandle, path: String, language: String, prompt: 
     if let Some(e) = a.get("error").and_then(|e| e.as_str()) {
         return Err(e.to_string());
     }
+    if let (Some(l), Some(h)) = (load_from, hear_from) {
+        // a 30 second stretch is the unit of work: even 5 seconds is heard as one whole stretch
+        let stretches = (seconds / 30.0).ceil().max(1.0);
+        remember_speed(&quality, main.file, h - l, (ended - h) / stretches);
+    }
     a["model"] = json!(m.size);
+    a["quality"] = json!(quality);
     a["language"] = json!(language);
     Ok(a)
+}
+
+// ---------- how fast this computer listens ----------
+
+fn speed_file() -> Result<PathBuf, String> {
+    Ok(own_dir()?.join("speed.json"))
+}
+
+/// Keep how long loading and one stretch took, for this quality with this main model. A new time is
+/// blended with the old so one odd run does not swing the next estimate.
+fn remember_speed(quality: &str, main_file: &str, load: f64, per_stretch: f64) {
+    let Ok(f) = speed_file() else { return };
+    let mut all: Value = std::fs::read(&f).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_else(|| json!({}));
+    let key = format!("{quality}|{main_file}");
+    let (load, per) = match all.get(&key) {
+        Some(old) => (blend(old["load"].as_f64(), load), blend(old["perStretch"].as_f64(), per_stretch)),
+        None => (load, per_stretch),
+    };
+    all[key] = json!({ "load": load, "perStretch": per });
+    let _ = std::fs::write(&f, all.to_string());
+}
+
+fn blend(old: Option<f64>, new: f64) -> f64 {
+    old.map_or(new, |o| o * 0.5 + new * 0.5)
+}
+
+/// What this computer has measured, for the main model it has now: `{ quality: { load, perStretch } }`.
+#[tauri::command]
+pub fn voice_speed() -> Value {
+    let Some(main) = installed() else { return json!({}) };
+    let all: Value = speed_file().ok().and_then(|f| std::fs::read(f).ok()).and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_else(|| json!({}));
+    let mut out = json!({});
+    for q in ["fast", "balanced", "best"] {
+        if let Some(v) = all.get(format!("{q}|{}", main.file)) {
+            out[q] = v.clone();
+        }
+    }
+    out
 }
 
 /// The helpers hearing recordings now, by the recording's path, so one can be stopped.
@@ -350,13 +445,15 @@ fn say(line: &str) {
     let _ = o.flush();
 }
 
-/// The helper process: `duet-app --transcribe <model> <recording> <language> [prompt]`.
+/// The helper process: `duet-app --transcribe <model> <recording> <language> <prompt> <search> <limit>`.
+/// `search` is "greedy", "beam2" or "beam5". `limit` is how many seconds to hear, 0 for all.
 /// Prints "progress N" lines while it works, then one line of JSON: the words, or an error.
 pub fn transcribe_main() {
     let args: Vec<String> = std::env::args().collect();
     let at = args.iter().position(|a| a == "--transcribe").unwrap_or(0);
     let get = |n: usize| args.get(at + n).cloned().unwrap_or_default();
-    let answer = match hear(&get(1), &get(2), &get(3), &get(4)) {
+    let limit = get(6).parse::<f64>().unwrap_or(0.0);
+    let answer = match hear(&get(1), &get(2), &get(3), &get(4), &get(5), limit) {
         Ok(words) => json!({ "words": words }),
         Err(e) => json!({ "error": e }),
     };
@@ -379,21 +476,35 @@ fn sound_of(path: &str) -> Result<Vec<f32>, String> {
     Ok(out.stdout.chunks_exact(4).map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect())
 }
 
-fn hear(model_path: &str, path: &str, language: &str, prompt: &str) -> Result<Vec<Value>, String> {
+fn hear(model_path: &str, path: &str, language: &str, prompt: &str, search: &str, limit: f64) -> Result<Vec<Value>, String> {
     use whisper_rs::{DtwMode, DtwModelPreset, DtwParameters, FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
     whisper_rs::install_logging_hooks();
     say("stage sound");
-    let sound = sound_of(path)?;
+    let mut sound = sound_of(path)?;
+    if limit > 0.0 {
+        sound.truncate((limit * 16000.0) as usize);
+    }
     say(&format!("seconds {:.1}", sound.len() as f64 / 16000.0));
     say("stage model");
     // word times come from the model's own attention (DTW), which needs to know which model it is
-    let preset = if model_path.contains("turbo") { DtwModelPreset::LargeV3Turbo } else { DtwModelPreset::LargeV3 };
+    let preset = if model_path.contains("turbo") {
+        DtwModelPreset::LargeV3Turbo
+    } else if model_path.contains("small") {
+        DtwModelPreset::Small
+    } else {
+        DtwModelPreset::LargeV3
+    };
     let mut cp = WhisperContextParameters::default();
     cp.dtw_parameters(DtwParameters { mode: DtwMode::ModelPreset { model_preset: preset }, ..Default::default() });
     let ctx = WhisperContext::new_with_params(model_path, cp).map_err(|e| format!("The speech model could not load: {e}"))?;
     let mut state = ctx.create_state().map_err(|e| e.to_string())?;
-    // the careful search: the quick one gives up on whole stretches of mixed speech
-    let mut p = FullParams::new(SamplingStrategy::BeamSearch { beam_size: 5, patience: -1.0 });
+    // Best words searches widest; Balanced keeps a small search, because the quickest one gives up
+    // on whole stretches of mixed speech; Fastest takes the first guess, on the light model
+    let mut p = FullParams::new(match search {
+        "greedy" => SamplingStrategy::Greedy { best_of: 1 },
+        "beam2" => SamplingStrategy::BeamSearch { beam_size: 2, patience: -1.0 },
+        _ => SamplingStrategy::BeamSearch { beam_size: 5, patience: -1.0 },
+    });
     let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4).min(8) as i32;
     p.set_n_threads(threads);
     if !language.is_empty() {
@@ -533,7 +644,8 @@ mod tests {
 
     #[test]
     fn three_sizes_each_pinned_and_checked() {
-        assert_eq!(MODELS.iter().map(|m| m.size).collect::<Vec<_>>(), ["small", "medium", "large"]);
+        assert_eq!(MODELS.iter().map(|m| m.size).collect::<Vec<_>>(), ["small", "medium", "large", "fast"]);
+        assert_eq!(main_sizes().count(), 3);
         for m in &MODELS {
             assert_eq!(m.sha256.len(), 64);
             assert!(url(m).starts_with("https://huggingface.co/ggerganov/whisper.cpp/resolve/"));
