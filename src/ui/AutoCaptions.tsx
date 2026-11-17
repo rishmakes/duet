@@ -3,6 +3,7 @@ import { currentDoc, dispatch, useStore } from "../state/store";
 import type { El } from "../document/types";
 import { CAPTION_LOOKS, SPOKEN_COLOURS } from "../document/captions";
 import type { CaptionLook } from "../document/captions";
+import { LookSample } from "./CaptionLooks";
 import { EVERY_LANGUAGE, LANGUAGES, lastLanguage, openVoiceInStore, transcribe, voiceReady } from "./Transcribe";
 
 /**
@@ -32,8 +33,6 @@ function remember(key: string, v: string) {
   }
 }
 
-/** The sample word each look shows on its button. */
-const SAMPLE: Record<CaptionLook, string> = { bold: "POP", quiet: "quiet", one: "ONE" };
 
 export function AutoCaptionsBox({ scene, clips, picked, onClose, onError }: { scene: El; clips: El[]; picked: boolean; onClose: () => void; onError: (note: string) => void }) {
   const [look, setLook] = useState<CaptionLook>(() => remembered(LOOK, (v) => CAPTION_LOOKS.some((l) => l.key === v), "bold" as CaptionLook, (v) => v as CaptionLook));
@@ -70,7 +69,7 @@ export function AutoCaptionsBox({ scene, clips, picked, onClose, onError }: { sc
       <div className="caption-looks">
         {CAPTION_LOOKS.map((l) => (
           <button key={l.key} className={`caption-look look-${l.key}${look === l.key ? " on" : ""}`} data-name={`captions-look-${l.key}`} title={l.name} onClick={() => setLook(l.key)}>
-            <b>{SAMPLE[l.key]}</b>
+            <LookSample look={l.key} words={["Say", "it"]} />
             <span>{l.name}</span>
           </button>
         ))}

@@ -22,7 +22,7 @@ export interface Dock {
   leftHidden: boolean;
   rightHidden: boolean;
   /** Which tab the left panel is on; null is the first one for the kind of work. */
-  leftTab: null | "clips" | "layers" | "assets";
+  leftTab: null | "clips" | "captions" | "layers" | "assets";
   /** Layers on the right and the design panel on the left. */
   swapped: boolean;
   /** Whether we are designing, making video or editing photos. */

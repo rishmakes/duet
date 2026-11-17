@@ -460,25 +460,60 @@ export function drawElement(ctx: CanvasRenderingContext2D, doc: Doc, el: El, ox:
         cx += ctx.measureText(ch).width + el.letterSpacing;
       }
     };
-    // a caption: word by word, the one being said in its own colour
-    let n = 0;
     const lit = el.lit !== undefined && el.spokenFill ? el.lit : -1;
-    lines.forEach((line, i) => {
+    // where each word of each line sits, for boxes behind them and for lighting the one being said
+    const placed = lines.map((line) => {
       const w = lineWidth(line, el);
       const dx = el.textAlign === "center" ? (el.width - w) / 2 : el.textAlign === "right" ? el.width - w : 0;
-      if (lit < 0) {
-        run(line, x + dx, y + i * step);
-        return;
-      }
+      const words: { text: string; at: number; width: number }[] = [];
       let px = 0;
       for (const part of line.split(/(\s+)/)) {
         if (!part) continue;
-        if (!/^\s+$/.test(part)) {
-          ctx.fillStyle = n === lit ? el.spokenFill! : el.fill;
-          run(part, x + dx + px, y + i * step);
-          n++;
-        }
-        px += lineWidth(part, el);
+        const pw = lineWidth(part, el);
+        if (!/^\s+$/.test(part)) words.push({ text: part, at: dx + px, width: pw });
+        px += pw;
+      }
+      return { line, dx, w, words };
+    });
+    const box = (bx: number, by: number, bw: number, bh: number, r: number) => {
+      ctx.beginPath();
+      ctx.roundRect(bx, by, bw, bh, Math.min(r, bh / 2, bw / 2));
+      ctx.fill();
+    };
+    const tall = el.fontSize * 1.15;
+    const top = (i: number) => y + i * step;
+    if (el.plate) {
+      const p = el.plate;
+      ctx.fillStyle = p.fill;
+      placed.forEach((l, i) => {
+        if (!l.words.length) return;
+        if (p.each) for (const wd of l.words) box(x + wd.at - p.padX, top(i) - p.padY, wd.width + p.padX * 2, tall + p.padY * 2, p.radius);
+        else box(x + l.dx - p.padX, top(i) - p.padY, l.w + p.padX * 2, tall + p.padY * 2, p.radius);
+      });
+    }
+    if (el.spokenBox && lit >= 0) {
+      let n = 0;
+      ctx.fillStyle = el.spokenFill!;
+      const pad = el.fontSize * 0.12;
+      placed.forEach((l, i) =>
+        l.words.forEach((wd) => {
+          if (n++ === lit) box(x + wd.at - pad, top(i) - pad * 0.6, wd.width + pad * 2, tall + pad * 1.2, el.plate?.radius ?? pad);
+        }),
+      );
+    }
+    if (el.shadow) castShadow(ctx, el.shadow);
+    // a caption: word by word, the one being said in its own colour
+    let n = 0;
+    placed.forEach((l, i) => {
+      if (lit < 0 || el.spokenBox) {
+        ctx.fillStyle = el.fill;
+        run(l.line, x + l.dx, y + i * step);
+        return;
+      }
+      for (const wd of l.words) {
+        ctx.fillStyle = n === lit ? el.spokenFill! : el.fill;
+        run(wd.text, x + wd.at, y + i * step);
+        n++;
       }
     });
     ctx.restore();

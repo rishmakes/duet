@@ -106,8 +106,8 @@ export function wrapLines(text: string, f: TextFace, maxWidth?: number): string[
 }
 
 /** The lines of a piece of text and the box that holds them. */
-export function layoutText(el: Pick<El, "text" | "width" | "textFixed"> & TextFace): { lines: string[]; width: number; height: number } {
-  const lines = wrapLines(el.text, el, el.textFixed ? el.width : undefined);
+export function layoutText(el: Pick<El, "text" | "width" | "textFixed"> & { caps?: boolean } & TextFace): { lines: string[]; width: number; height: number } {
+  const lines = wrapLines(el.caps ? el.text.toUpperCase() : el.text, el, el.textFixed ? el.width : undefined);
   const widest = Math.max(0, ...lines.map((l) => lineWidth(l, el)));
   return {
     lines,

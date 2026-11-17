@@ -42,7 +42,8 @@ describe("captions", () => {
   it("puts plain texts on a Captions track at the top, each showing while its words are said", () => {
     const doc = runCommand(talk(), "add_captions", { sceneId: "f", look: "bold", per: 3 });
     const list = captions(doc);
-    expect(list.map((el) => el.text)).toEqual(["SO TODAY", "WE UM TALK", "ABOUT MONEY"]);
+    expect(list.map((el) => el.text)).toEqual(["So today", "we um talk", "about money"]);
+    expect(list.every((el) => el.caps)).toBe(true);
     const track = doc.elements.f.tracks?.[0];
     expect(track?.name).toBe("Captions");
     expect(list.every((el) => el.track === track?.id && el.textAlign === "center" && el.fontWeight === 900)).toBe(true);
@@ -55,7 +56,7 @@ describe("captions", () => {
     let doc = runCommand(talk(), "add_captions", { sceneId: "f", look: "bold", per: 3 });
     doc = runCommand(doc, "add_captions", { sceneId: "f", look: "one", per: 3 });
     const list = captions(doc);
-    expect(list.map((el) => el.text)).toEqual(["SO", "TODAY", "WE", "UM", "TALK", "ABOUT", "MONEY"]);
+    expect(list.map((el) => el.text)).toEqual(["So", "today", "we", "um", "talk", "about", "money"]);
     expect(doc.elements.f.tracks?.filter((t) => t.name === "Captions")).toHaveLength(1);
   });
 
@@ -89,5 +90,41 @@ describe("the spoken word", () => {
     expect(captions(one).every((el) => !el.spoken)).toBe(true);
     const plain = runCommand(talk(), "add_captions", { sceneId: "f", look: "bold", per: 3 });
     expect(captions(plain).every((el) => !el.spoken)).toBe(true);
+  });
+});
+
+describe("caption looks", () => {
+  it("restyles captions fully, keeping their words, their timing and their middle", async () => {
+    const { parseDoc, serializeDoc } = await import("../document/serialize");
+    let doc = runCommand(talk(), "add_captions", { sceneId: "f", look: "bold", per: 3, spokenFill: "#7cf2c9" });
+    const before = captions(doc)[1];
+    doc = runCommand(doc, "style_captions", { ids: captions(doc).map((el) => el.id), look: "pill" });
+    const pill = doc.elements[before.id];
+    expect(pill.text).toBe(before.text);
+    expect(pill.spoken).toEqual(before.spoken);
+    expect(pill.spokenFill).toBe("#7cf2c9");
+    expect(pill.plate?.fill).toBe("#111013");
+    expect(pill.caps).toBeUndefined();
+    expect(pill.shadow).toBeNull();
+    expect(Math.abs(pill.y + pill.height / 2 - (before.y + before.height / 2))).toBeLessThanOrEqual(1);
+    // a boxed look lights the word in its own colour, and the box is kept in the file
+    doc = runCommand(doc, "style_captions", { ids: [before.id], look: "line" });
+    const line = parseDoc(serializeDoc(doc)).elements[before.id];
+    expect(line.spokenBox).toBe(true);
+    expect(line.spokenFill).toBe("#e5383b");
+    expect(line.plate?.each).toBeUndefined();
+    // back to a plain look: the box and the box colour go
+    doc = runCommand(doc, "style_captions", { ids: [before.id], look: "bold" });
+    expect(doc.elements[before.id].plate).toBeUndefined();
+    expect(doc.elements[before.id].spokenBox).toBeUndefined();
+    expect(doc.elements[before.id].spokenFill).toBe("#ffe14d");
+  });
+
+  it("styles text typed by hand too, and ignores anything else", () => {
+    let doc = runCommand(talk(), "create_element", { type: "text", id: "t", parentId: "f", x: 100, y: 100, width: 200, height: 40, props: { text: "Hello there" } });
+    doc = runCommand(doc, "style_captions", { ids: ["t", "v"], look: "box" });
+    expect(doc.elements.t.plate?.each).toBe(true);
+    expect(doc.elements.t.text).toBe("Hello there");
+    expect(doc.elements.v.plate).toBeUndefined();
   });
 });

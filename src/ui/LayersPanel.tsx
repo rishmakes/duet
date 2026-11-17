@@ -1,5 +1,6 @@
 import { lengthText } from "../canvas/render";
 import AssetsPanel from "./AssetsPanel";
+import CaptionsPanel from "./CaptionLooks";
 import ClipsPanel from "./ClipsPanel";
 import { setLayout, useLayout } from "./layout";
 import { FoldButton } from "./PanelStrip";
@@ -410,8 +411,8 @@ export default function LayersPanel() {
   const leftTab = useLayout((d) => d.leftTab);
   const swapped = useLayout((d) => d.swapped);
   // a video opens on its clips; Clips is only there in Video. The tab is kept in the layout so the folded strip can pick it too.
-  const tab: "clips" | "layers" | "assets" = leftTab === "clips" && !video ? "layers" : leftTab ?? (video ? "clips" : "layers");
-  const setTab = (t: "clips" | "layers" | "assets") => setLayout({ leftTab: t });
+  const tab: "clips" | "captions" | "layers" | "assets" = (leftTab === "clips" || leftTab === "captions") && !video ? "layers" : leftTab ?? (video ? "clips" : "layers");
+  const setTab = (t: "clips" | "captions" | "layers" | "assets") => setLayout({ leftTab: t });
   // only when the kind of work changes after the panel is open: opening it from the strip on Assets must stay on Assets
   const lastVideo = useRef(video);
   useEffect(() => {
@@ -509,6 +510,11 @@ export default function LayersPanel() {
             Media
           </div>
         )}
+        {video && (
+          <div className={`tab ${tab === "captions" ? "on" : ""}`} data-name="tab-captions" onClick={() => setTab("captions")}>
+            Captions
+          </div>
+        )}
         <div className={`tab ${tab === "layers" ? "on" : ""}`} onClick={() => setTab("layers")}>
           Layers
         </div>
@@ -522,6 +528,7 @@ export default function LayersPanel() {
       </div>
       {tab === "assets" && <AssetsPanel />}
       {tab === "clips" && video && <ClipsPanel />}
+      {tab === "captions" && video && <CaptionsPanel />}
       <div
         className="layers"
         hidden={tab !== "layers"}

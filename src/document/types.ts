@@ -36,6 +36,16 @@ export interface Shadow {
   color: string;
 }
 
+/** A box behind text, like the dark pill behind a caption. Pixels. */
+export interface Plate {
+  fill: string;
+  radius: number;
+  padX: number;
+  padY: number;
+  /** One box round each word instead of round each line. */
+  each?: boolean;
+}
+
 export interface Gradient {
   from: string;
   to: string;
@@ -146,6 +156,12 @@ export interface El {
   spokenFill?: string;
   /** Drawing only, never saved: which of its words is being said at this moment. */
   lit?: number;
+  /** Text only: a box drawn behind the words, round each line, or round each word when `each`. Left out for none. */
+  plate?: Plate;
+  /** Text only, a caption: the word being said gets a box of spokenFill behind it, instead of turning that colour. */
+  spokenBox?: boolean;
+  /** Text only: shown in capitals, while the words stay as they were typed. */
+  caps?: boolean;
   /** A drop shadow behind the shape, or null for none. */
   shadow: Shadow | null;
   /** A linear gradient used instead of the solid fill, or null. */

@@ -12388,20 +12388,6 @@ button.ctx-item.store-make-option:hover {
   color: #ffffff;
   cursor: pointer;
 }
-.caption-look b {
-  font-size: 15px;
-  line-height: 18px;
-  font-weight: 900;
-  text-shadow: 0 2px 0 #000;
-}
-.caption-look.look-quiet b {
-  font-weight: 500;
-  font-size: 13px;
-  text-shadow: 0 1px 6px #000;
-}
-.caption-look.look-one b {
-  font-size: 18px;
-}
 .caption-look span {
   font-size: 10px;
   color: #bdb7bf;
@@ -12457,4 +12443,145 @@ button.ctx-item.store-make-option:hover {
 }
 .captions-lit button.none {
   background: linear-gradient(135deg, transparent 45%, var(--muted) 45%, var(--muted) 55%, transparent 55%), var(--panel-2);
+}
+
+/* Caption looks (#71): tiles in the Captions tab and the Auto captions box, with example words */
+.captions-panel {
+  padding: 10px 12px;
+  overflow-y: auto;
+}
+.captions-panel-hint {
+  color: var(--muted);
+  font-size: 11px;
+  margin-bottom: 10px;
+}
+.captions-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+.captions-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 92px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: #111013;
+  cursor: pointer;
+}
+.captions-tile:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.captions-tile:disabled {
+  cursor: default;
+}
+.captions-tile-name {
+  font-size: 10px;
+  color: #bdb7bf;
+}
+.look-sample {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.3em;
+  color: #ffffff;
+  font-size: 15px;
+  line-height: 1.2;
+}
+.look-sample i {
+  font-style: normal;
+  animation-iteration-count: infinite;
+  animation-timing-function: steps(1, end);
+  animation-play-state: paused;
+}
+.captions-tile:hover .look-sample i,
+.caption-look:hover .look-sample i {
+  animation-play-state: running;
+}
+.sample-bold i,
+.sample-one i {
+  font-weight: 900;
+  text-transform: uppercase;
+  text-shadow: 0 2px 0 #000;
+}
+.sample-bold i {
+  animation-name: lit-yellow;
+}
+.sample-one i {
+  font-size: 1.5em;
+}
+.sample-quiet i {
+  font-weight: 500;
+  opacity: 0.8;
+  text-shadow: 0 1px 6px #000;
+  animation-name: lit-bright;
+}
+.sample-pill {
+  background: #000000;
+  border-radius: 999px;
+  padding: 4px 12px;
+}
+.sample-pill i {
+  font-weight: 700;
+  font-size: 0.85em;
+  animation-name: lit-yellow;
+}
+.sample-box,
+.sample-line {
+  font-weight: 800;
+  text-transform: uppercase;
+  font-size: 0.9em;
+}
+.sample-box i {
+  background: #000000;
+  border-radius: 4px;
+  padding: 1px 5px;
+  animation-name: lit-purple;
+}
+.sample-line {
+  background: #000000;
+  border-radius: 6px;
+  padding: 3px 6px;
+  gap: 0.15em;
+}
+.sample-line i {
+  border-radius: 4px;
+  padding: 1px 4px;
+  animation-name: lit-red;
+}
+/* the first word shows lit while still, the rest light in turn on hover */
+.look-sample i:first-child {
+  animation-play-state: paused;
+}
+.sample-bold i:first-child { color: #ffe14d; }
+.sample-pill i:first-child { color: #ffe14d; }
+.sample-quiet i:first-child { opacity: 1; }
+.sample-box i:first-child { background: #7c5cff; }
+.sample-line i:first-child { background: #e5383b; }
+.captions-tile:hover .look-sample i:first-child,
+.caption-look:hover .look-sample i:first-child {
+  animation-play-state: running;
+}
+@keyframes lit-yellow {
+  0% { color: #ffe14d; }
+  34%, 100% { color: inherit; }
+}
+@keyframes lit-bright {
+  0% { opacity: 1; }
+  34%, 100% { opacity: 0.8; }
+}
+@keyframes lit-purple {
+  0% { background: #7c5cff; }
+  34%, 100% { background: #000000; }
+}
+@keyframes lit-red {
+  0% { background: #e5383b; }
+  34%, 100% { background: transparent; }
+}
+.caption-looks .look-sample {
+  font-size: 11px;
 }

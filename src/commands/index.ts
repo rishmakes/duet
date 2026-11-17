@@ -6,7 +6,7 @@ import { orderByPosition, relayout } from "../document/layout";
 import { MOVING, playsFile } from "../document/types";
 import type { Blend, Comment, CommentMark, Doc, El, ElementType, Key, Layout, Moving, ShapeKey, TextStyle, Transcript } from "../document/types";
 import { withWords, wordsOfEdit } from "../document/words";
-import { CAPTION_LOOKS, CAPTIONS_TRACK, captionChunks, captionMiddle, captionProps, captionText } from "../document/captions";
+import { CAPTION_LOOKS, CAPTIONS_TRACK, SPOKEN_COLOURS, boxedLook, captionChunks, captionMiddle, captionProps, captionText } from "../document/captions";
 import type { CaptionLook } from "../document/captions";
 import { CURVES, ENTRANCES, entranceKeys, fileTimeAt, outlineOf, sceneOf, spanOf, valueAt, withKey, withShapeKey } from "../document/time";
 import type { CurveName, Entrance } from "../document/time";
@@ -2627,6 +2627,8 @@ const addCaptions: CommandDef<AddCaptionsArgs> = {
     });
     if (old.length) next = deleteElements.run(next, { ids: old });
     const props = captionProps(look, f);
+    // a boxed look lights the spoken word in its own colour
+    const lit = boxedLook(look) ? CAPTION_LOOKS.find((l) => l.key === look)?.lit : a.spokenFill;
     const width = Math.round(f.width * 0.84);
     const x = Math.round(f.width * 0.08);
     const mid = captionMiddle(f);
@@ -2643,13 +2645,56 @@ const addCaptions: CommandDef<AddCaptionsArgs> = {
         width,
         height: 10,
         keepOrder: true,
-        props: { ...props, text, name: `Caption: ${text.slice(0, 30)}`, start: c.start, end: c.end, track: trackId, ...(a.spokenFill && look !== "one" && c.spoken.length > 1 ? { spoken: c.spoken, spokenFill: a.spokenFill } : {}) },
+        props: { ...props, text, name: `Caption: ${text.slice(0, 30)}`, start: c.start, end: c.end, track: trackId, ...(lit && look !== "one" && c.spoken.length > 1 ? { spoken: c.spoken, spokenFill: lit } : {}) },
       });
       const el = next.elements[id];
       el.y = Math.round(mid - el.height / 2);
       made.push(id);
     }
     stackByTrack(next, a.sceneId, made);
+    return next;
+  },
+};
+
+// ---- style_captions ----
+export interface StyleCaptionsArgs {
+  /** Captions or any other text. */
+  ids: string[];
+  look: CaptionLook;
+}
+
+/**
+ * Give captions, or any text, one of the caption looks. The words stay as they are; a caption keeps the
+ * moments its words are said, and a boxed look lights them in its own colour. Each one stays centred
+ * where it was.
+ */
+const styleCaptions: CommandDef<StyleCaptionsArgs> = {
+  label: (a) => `Captions look: ${CAPTION_LOOKS.find((l) => l.key === a.look)?.name ?? "changed"}`,
+  run: (doc, a) => {
+    const found = CAPTION_LOOKS.find((l) => l.key === a.look);
+    const ids = a.ids.filter((id) => doc.elements[id]?.type === "text" && !isDerived(id));
+    if (!found || !ids.length) return doc;
+    const next = clone(doc);
+    for (const id of ids) {
+      const el = next.elements[id];
+      const parent = el.parentId ? next.elements[el.parentId] : null;
+      const props = captionProps(found.key, parent ?? { width: 1080, height: 1080 });
+      const middle = el.y + el.height / 2;
+      for (const [k, v] of Object.entries(props)) {
+        if (v === undefined) delete (el as unknown as Record<string, unknown>)[k];
+        else (el as unknown as Record<string, unknown>)[k] = v;
+      }
+      if (el.spoken?.length) {
+        if (found.lit) el.spokenFill = found.lit;
+        else if (!el.spokenFill || CAPTION_LOOKS.some((l) => l.lit === el.spokenFill)) el.spokenFill = SPOKEN_COLOURS[0];
+        // one word at a time has nothing to light
+        if (found.key === "one") delete el.spokenFill;
+      }
+      el.textStyleId = "";
+      const m = fitText(el);
+      el.height = m.height;
+      el.y = Math.round(middle - el.height / 2);
+    }
     return next;
   },
 };
@@ -2975,6 +3020,7 @@ export const commands = {
   ripple_delete: rippleDelete,
   cut_ranges: cutRanges,
   add_captions: addCaptions,
+  style_captions: styleCaptions,
   add_track: addTrack,
   rename_track: renameTrack,
   delete_track: deleteTrack,
