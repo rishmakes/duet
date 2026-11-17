@@ -7,7 +7,7 @@ import { logError } from "../errorLog";
 import { isLooseCopy } from "../document/components";
 import { isLivePicture, paintKey, pictureOf, pictureSize } from "../project/assets";
 import type { Picture } from "../project/assets";
-import { clipPictureOf, drawingVideoNow, madePicture } from "../video/clips";
+import { clipShownOf, drawingVideoNow, madePicture } from "../video/clips";
 import { graded } from "./grade";
 import { applyEffects } from "./effects";
 import { getChat } from "../ai/chat";
@@ -253,7 +253,7 @@ let blendSheet: HTMLCanvasElement | null = null;
 
 function drawClip(ctx: CanvasRenderingContext2D, el: El, x: number, y: number) {
   // while a video is made, the picture comes from the export engine, read from the clip's own file
-  const pic = drawingVideoNow() ? madePicture(el.id) : clipPictureOf(el);
+  const pic = drawingVideoNow() ? madePicture(el.id) : clipShownOf(el);
   ctx.save();
   roundedPath(ctx, x, y, el.width, el.height, el.radius);
   ctx.clip();

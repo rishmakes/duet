@@ -161,6 +161,49 @@ export function clipPictureOf(el: { id: string; src: string }): HTMLVideoElement
   return v instanceof HTMLVideoElement && v.readyState >= 2 ? v : null;
 }
 
+/**
+ * The last picture each paused player showed, kept so that while scrubbing, when the next one is still
+ * coming, the canvas keeps the last one instead of going black (#107). Some computers, like the Windows
+ * test PC, have no picture to give at all while a jump is in flight.
+ */
+const lastShown = new WeakMap<HTMLVideoElement, { canvas: HTMLCanvasElement; at: number }>();
+const KEEP_SIDE = 960;
+
+function keepPicture(v: HTMLVideoElement) {
+  const was = lastShown.get(v);
+  if (was && Math.abs(was.at - v.currentTime) < 0.001) return;
+  const k = Math.min(1, KEEP_SIDE / Math.max(v.videoWidth, v.videoHeight));
+  const w = Math.max(1, Math.round(v.videoWidth * k));
+  const h = Math.max(1, Math.round(v.videoHeight * k));
+  const canvas = was?.canvas ?? document.createElement("canvas");
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width = w;
+    canvas.height = h;
+  }
+  try {
+    canvas.getContext("2d")?.drawImage(v, 0, 0, w, h);
+    lastShown.set(v, { canvas, at: v.currentTime });
+  } catch {
+    /* a picture that cannot be copied is simply not kept */
+  }
+}
+
+/**
+ * The picture a clip on the canvas is on right now, from its own player. While it is jumping to another
+ * moment, the last picture it showed; null only before it has shown any.
+ */
+export function clipShownOf(el: { id: string; src: string }): HTMLVideoElement | HTMLCanvasElement | null {
+  if (!el.src) return null;
+  const v = clipPlayer(el);
+  if (!(v instanceof HTMLVideoElement)) return null;
+  if (v.readyState >= 2 && !v.seeking && v.videoWidth) {
+    // copied only while paused: scrubbing and stills, never on every frame of playing
+    if (v.paused) keepPicture(v);
+    return v;
+  }
+  return lastShown.get(v)?.canvas ?? null;
+}
+
 // ---- scrubbing: one jump at a time, and only to where the playhead is now ----
 
 /** Where each player should be, and where its jump in flight is heading. */
