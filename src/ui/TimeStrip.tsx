@@ -2052,6 +2052,10 @@ export default function TimeStrip() {
             </span>
           </div>
         )}
+        {/* a names cell that fills the room under the last row, so the playhead never shows through the names when the lanes slide under them */}
+        <div className="time-row time-fill">
+          <span className="time-name" />
+        </div>
         {frame.workArea && (
           <>
             <div className="time-work-dim" style={{ left: NAMES, width: frame.workArea.start * pps }} />
