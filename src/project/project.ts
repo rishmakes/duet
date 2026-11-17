@@ -333,6 +333,19 @@ function dropUntitled(key: string) {
   if (typeof window !== "undefined") window.dispatchEvent(new Event("duet:tabs"));
 }
 
+/**
+ * Something real has happened in work that has no file yet: something is on the canvas, or someone
+ * talked with an AI in it (which is also how plans and references reach the AI). Only then does it get
+ * a file. An empty start, even one an AI touched, never becomes an Untitled project.
+ */
+function hasWork(): boolean {
+  if (committed().rootIds.length > 0) return true;
+  // only what the designer said counts: an outside AI's own notes about its steps are not a conversation
+  const said = (list: { role: string }[]) => list.some((m) => m.role === "you");
+  const c = getChat();
+  return said(c.messages) || said(c.earlier) || c.tasks.some((t) => t.project === conversationProject() && said(t.messages));
+}
+
 const blank = () => {
   const s = getState();
   return s.timeline.length === 1 && committed().rootIds.length === 0;
@@ -606,6 +619,11 @@ let threadKept: { dir: string; text: string } | null = null;
 /** The conversation changed. Write it into the project a moment later. */
 function threadChanged() {
   const { path, file } = getState().project;
+  // talking with an AI is work too: unsaved work gets its file, and the chat is written into it after
+  if (!path && !file && conversationProject() === "" && hasWork()) {
+    void giveHome();
+    return;
+  }
   // while another project is being opened the chat and the project do not match yet
   if (!path || file !== conversationProject()) return;
   threadFor = path;
@@ -908,7 +926,7 @@ export function giveHome(): Promise<boolean> {
   if (getState().project.path) return Promise.resolve(true);
   // a project being opened already has its home: its history arrives a moment before its path does
   if (loadingHistory) return Promise.resolve(false);
-  if (!inTauri() || inTest) return Promise.resolve(false);
+  if (!inTauri() || inTest || !hasWork()) return Promise.resolve(false);
   // asked again while it is being done, it is done once
   homing ??= (async () => {
     try {
@@ -946,11 +964,9 @@ async function saveTo(picked: string) {
 
 /** Start a new, empty project in a folder you choose. */
 export async function newProject() {
-  await once(newProjectDialog);
+  // no file yet: it gets one once something real happens in it (see hasWork), so New never leaves an empty Untitled behind
+  await newDesignTab();
 }
-
-/** The first free "Untitled", "Untitled 2", … in the projects folder. */
-const untitledPath = () => freePath("Untitled");
 
 /** The first free "<name>", "<name> 2", … in the projects folder. */
 async function freePath(name: string): Promise<string> {
@@ -966,40 +982,6 @@ async function freePath(name: string): Promise<string> {
     if (!((await invoke<boolean>("path_exists", { path: file })) === true)) return file;
   }
   throw new Error("Too many projects with that name.");
-}
-
-async function newProjectDialog() {
-  if (!inTauri()) return;
-  const s = getState();
-  if (!s.project.path && s.timeline.length > 1) {
-    const go = await ask("Your current work has not been saved. Start a new project anyway?", {
-      title: "Duet",
-      kind: "warning",
-      okLabel: "Start new",
-      cancelLabel: "Cancel",
-    });
-    if (!go) return;
-  }
-  // an Untitled project nobody has touched is the new project already; making another would only pile up empty files
-  if (/^Untitled( \d+)?$/.test(s.project.name) && s.timeline.length <= 1 && s.project.file) return;
-  // no Save window: a new project starts at once in Documents/Duet, named "Untitled"
-  const picked = await untitledPath().catch(() => null);
-  if (!picked) return void (await oops("Duet could not find a place to keep the new project."));
-  if (!getState().project.file && !(await readyToLeave())) return;
-  try {
-    const doc = emptyDoc();
-    // the project being left waits in its tab; what was said in it goes into its file first
-    if (!(await parkCurrent())) await flushPack();
-    const work = await createProject(picked, doc, "New file");
-    showConversationFor(picked, true);
-    loadDoc(doc, "New file");
-    lastSaved = committed();
-    setProject({ path: work, file: picked, name: baseName(picked), status: "saved", error: null });
-    await packNow();
-    remember(picked);
-  } catch (e) {
-    await oops(String(e));
-  }
 }
 
 // ---- a test design, for building Duet ----
@@ -1416,8 +1398,8 @@ export function startAutosave() {
   const stopDesign = subscribe(() => {
     const s = getState();
     if (!s.project.path) {
-      // an AI's work is never left without a home; the designer's own new work waits until they save it
-      if (s.timeline[s.cursor].actor === "ai" && s.timeline.length > 1) void giveHome();
+      // work gets its file once something real is in it, by the designer or an AI; an empty start never does
+      if (s.timeline.length > 1 && hasWork()) void giveHome();
       return;
     }
     const doc = s.timeline[s.cursor].doc;
