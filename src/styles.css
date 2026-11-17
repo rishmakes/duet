@@ -12483,11 +12483,8 @@ button.ctx-item.store-make-option:hover {
   height: 92px;
   border-radius: 10px;
   border: 1px solid transparent;
-  /* a dim, blurry room, as captions sit on footage and not on black */
-  background:
-    radial-gradient(circle at 22% 30%, rgba(214, 160, 110, 0.55), transparent 55%),
-    radial-gradient(circle at 80% 70%, rgba(70, 110, 140, 0.6), transparent 60%),
-    linear-gradient(160deg, #3a3036, #17161c);
+  /* calm and nearly flat, with a faint warm wash as footage has, so only the words stand out */
+  background: radial-gradient(ellipse at 30% 20%, rgba(214, 170, 130, 0.12), transparent 70%), #1d1c21;
   cursor: pointer;
 }
 .captions-tile:hover:not(:disabled) {
@@ -12527,20 +12524,18 @@ button.ctx-item.store-make-option:hover {
   font-weight: 900;
   text-transform: uppercase;
   text-shadow: 0 2px 0 #000;
-  -webkit-text-stroke: 1.5px #000;
-  paint-order: stroke fill;
 }
 .sample-one i {
   font-weight: 400;
   letter-spacing: 0.02em;
 }
 .sample-outline i {
-  -webkit-text-stroke: 3px #000;
+  -webkit-text-stroke: 2px #000;
+  paint-order: stroke fill;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
   animation-name: lit-yellow;
 }
 .sample-dim i {
-  -webkit-text-stroke: 0;
   color: rgba(255, 255, 255, 0.45);
   text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
   animation-name: lit-white;

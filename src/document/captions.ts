@@ -110,13 +110,13 @@ export function captionProps(look: CaptionLook, frame: { width: number; height: 
     case "pill":
       return { ...base, fontSize: px(46), fontWeight: 700, caps: undefined, lineHeight: 1.5, plate: { fill: "#111013", radius: px(40), padX: px(26), padY: px(10) } };
     case "one":
-      return { ...base, fontSize: px(120), fontWeight: 400, letterSpacing: px(2), ...edge(6), shadow: shadow(6, 16) };
+      return { ...base, fontSize: px(120), fontWeight: 400, letterSpacing: px(2), ...edge(4), shadow: shadow(6, 16) };
     case "box":
       return { ...base, fontSize: px(52), fontWeight: 800, lineHeight: 1.5, spokenBox: true, plate: { fill: "#000000", radius: px(10), padX: px(12), padY: px(6), each: true } };
     case "line":
       return { ...base, fontSize: px(52), fontWeight: 800, lineHeight: 1.5, spokenBox: true, plate: { fill: "#000000", radius: px(12), padX: px(16), padY: px(8) } };
     default:
-      return { ...base, fontSize: px(68), fontWeight: 900, ...edge(4), shadow: shadow(6, 0) };
+      return { ...base, fontSize: px(68), fontWeight: 900, ...edge(3), shadow: shadow(6, 0) };
   }
 }
 
