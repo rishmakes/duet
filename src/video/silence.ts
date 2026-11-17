@@ -54,4 +54,26 @@ export function findSilences(doc: Doc, sceneId: string, peaks: Map<string, Uint8
   return out;
 }
 
+/**
+ * How loud a frame that plays is at a moment of its time, 0 to 255: the loudest clip heard then. `peaks`
+ * holds each file's loudness by its path. Used to cut words at the quietest moment between them (#340).
+ */
+export function loudnessAt(doc: Doc, sceneId: string, peaks: Map<string, Uint8Array>): (t: number) => number {
+  const scene = doc.elements[sceneId];
+  if (!scene) return () => 0;
+  const spans = scene.childIds
+    .map((id) => doc.elements[id])
+    .filter((el) => el && playsFile(el) && !hiddenHere(doc, el) && loudness(doc, el) > 0 && (peaks.get(el.src)?.length ?? 0) > 0)
+    .map((el) => ({ el, ...spanOf(el, scene), loud: peaks.get(el.src)! }));
+  return (t) => {
+    let top = 0;
+    for (const s of spans) {
+      if (t < s.start || t >= s.end) continue;
+      const i = Math.floor(fileTimeAt(s.el, s.start, t) / PEAK_SLICE + 1e-6);
+      top = Math.max(top, s.loud[Math.max(0, Math.min(s.loud.length - 1, i))]);
+    }
+    return top;
+  };
+}
+
 const round = (n: number) => Math.round(n * 1000) / 1000;

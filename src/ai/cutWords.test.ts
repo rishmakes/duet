@@ -4,9 +4,9 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: async () => undefined }));
 
 import { callTool } from "./tools";
 import { setMode } from "./chat";
-import { runCommand } from "../commands";
+import { JOIN_FADE, runCommand } from "../commands";
 import { emptyDoc } from "../document/types";
-import { cutsForWords, wordsOfEdit } from "../document/words";
+import { cutsForWords, trimPoints, wordsOfEdit } from "../document/words";
 import { currentDoc, loadDoc, resetStore } from "../state/store";
 
 // "so today we um talk about money" with a long pause after "today"
@@ -38,6 +38,38 @@ describe("cutting by words", () => {
     expect(cutsForWords(edit, [{ from: 6, to: 6 }], 0.15, 4.1)).toEqual([{ start: 3.45, end: 4.1 }]);
     // cuts that touch become one
     expect(cutsForWords(edit, [{ from: 4, to: 4 }, { from: 3, to: 3 }])).toEqual([{ start: 2.25, end: 3.05 }]);
+  });
+
+  it("in fast speech, cuts at the quietest moment between two words, never inside the next one", () => {
+    const edit = wordsOfEdit(talk(), "f");
+    // "talk" really ends at 3.08 and "about" starts at 3.12: the sound is quiet only from 3.08 to 3.12
+    const loud = (t: number) => (t >= 3.08 && t < 3.12 ? 5 : t >= 2.7 && t < 3.5 ? 200 : 5);
+    const [r] = cutsForWords(edit, [{ from: 3, to: 4 }], 0.15, Infinity, loud);
+    expect(r.end).toBeGreaterThanOrEqual(3.08);
+    expect(r.end).toBeLessThan(3.12);
+  });
+
+  it("still cuts a word the speech model gave no length", () => {
+    const edit = [
+      { w: "a", s: 1, e: 1.2, clip: "v", fs: 1, fe: 1.2 },
+      { w: "uh", s: 1.2, e: 1.2, clip: "v", fs: 1.2, fe: 1.2 },
+      { w: "b", s: 1.2, e: 1.5, clip: "v", fs: 1.2, fe: 1.5 },
+    ];
+    const [r] = cutsForWords(edit, [{ from: 1, to: 1 }]);
+    expect(r.end - r.start).toBeGreaterThan(0.01);
+  });
+
+  it("gives trims a breath before each word for a start and after each word for an end", () => {
+    expect(trimPoints(words, "start").slice(0, 3)).toEqual([0.05, 0.55, 1.85]);
+    expect(trimPoints(words, "end").slice(0, 2)).toEqual([0.55, 1.15]);
+  });
+
+  it("fades the sound a little on each side of every join", () => {
+    const doc = runCommand(talk(), "cut_ranges", { sceneId: "f", ranges: [{ start: 2.25, end: 2.65 }] });
+    const clips = doc.elements.f.childIds.map((id) => doc.elements[id]);
+    expect(clips).toHaveLength(2);
+    expect(clips.find((c) => c.start === 0)?.fadeOut).toBe(JOIN_FADE);
+    expect(clips.find((c) => c.start !== 0)?.fadeIn).toBe(JOIN_FADE);
   });
 });
 

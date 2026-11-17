@@ -2574,10 +2574,33 @@ const cutRanges: CommandDef<CutRangesArgs> = {
         return span.start >= r.start - 0.004 && span.end <= r.end + 0.004;
       });
       if (inside.length) next = rippleDelete.run(next, { ids: inside });
+      next = fadeJoin(next, a.sceneId, r.start);
     }
     return next;
   },
 };
+
+/** Seconds of sound fade on each side of a cut, so a join never clicks or pops (#340). */
+export const JOIN_FADE = 0.02;
+
+/** The doc with every clip or sound that ends or starts at `t` fading its sound out or in, never less than it did. */
+function fadeJoin(doc: Doc, sceneId: string, t: number): Doc {
+  const frame = doc.elements[sceneId];
+  const ends: string[] = [];
+  const starts: string[] = [];
+  for (const id of frame.childIds) {
+    const el = doc.elements[id];
+    if (!playsFile(el)) continue;
+    const s = spanOf(el, frame);
+    if (Math.abs(s.end - t) < 0.004) ends.push(id);
+    else if (Math.abs(s.start - t) < 0.004) starts.push(id);
+  }
+  if (!ends.length || !starts.length) return doc;
+  const elements = { ...doc.elements };
+  for (const id of ends) elements[id] = { ...elements[id], fadeOut: Math.max(elements[id].fadeOut || 0, JOIN_FADE) };
+  for (const id of starts) elements[id] = { ...elements[id], fadeIn: Math.max(elements[id].fadeIn || 0, JOIN_FADE) };
+  return { ...doc, elements };
+}
 
 /** A caption as wide as its words, wrapping only when wider than `room`, centred on `centre`. Changes the text it is given. */
 function hugCaption(el: El, centre: number, room: number) {

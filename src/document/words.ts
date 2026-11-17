@@ -109,7 +109,7 @@ export const BREATH = 0.15;
  * breath before the word after, or halfway there when the gap is shorter. So the pause around the cut
  * words goes too, and the join is two short breaths. Cuts that touch become one.
  */
-export function cutsForWords(words: EditWord[], picks: { from: number; to: number }[], keep = BREATH, length = Infinity): { start: number; end: number }[] {
+export function cutsForWords(words: EditWord[], picks: { from: number; to: number }[], keep = BREATH, length = Infinity, loud?: (t: number) => number): { start: number; end: number }[] {
   const out: { start: number; end: number }[] = [];
   for (const p of [...picks].sort((a, b) => a.from - b.from)) {
     const first = words[p.from];
@@ -117,14 +117,63 @@ export function cutsForWords(words: EditWord[], picks: { from: number; to: numbe
     if (!first || !last || p.to < p.from) continue;
     const before = words[p.from - 1];
     const after = words[p.to + 1];
-    const start = before ? before.e + Math.min(keep, Math.max(0, first.s - before.e) / 2) : Math.max(0, first.s - keep);
-    const end = after ? after.s - Math.min(keep, Math.max(0, after.s - last.e) / 2) : Math.min(length, last.e + keep);
-    const r = { start: round(start), end: round(Math.max(end, last.e)) };
+    let start = before ? between(before.e, first.s, keep, "after", loud) : Math.max(0, first.s - keep);
+    let end = after ? between(last.e, after.s, keep, "before", loud) : Math.min(length, last.e + keep);
+    // words the speech model gave no length still take a little time with them
+    if (end - start < 0.02) {
+      start = Math.max(0, Math.min(start, first.s) - 0.02);
+      end = Math.min(length, Math.max(end, last.e) + 0.02);
+    }
+    const r = { start: round(start), end: round(end) };
     const prev = out[out.length - 1];
     if (prev && r.start <= prev.end) prev.end = Math.max(prev.end, r.end);
     else out.push(r);
   }
   return out;
+}
+
+/** How finely the quiet between two words is searched, in seconds: the loudness is read in these slices. */
+const LISTEN_STEP = 0.05;
+/** Seconds the search may reach past the edge the speech model gave a word, which is often a little off. */
+const SLACK = 0.04;
+
+/**
+ * Where a cut sits between a word ending at `a` and one starting at `b`. With room, a breath away from the
+ * word that stays (`side` says which one: the word "after" `a` or "before" `b`). In fast speech, with no room
+ * for two breaths, the quietest moment between them when the sound can be heard, so the next word is never
+ * clipped; else halfway.
+ */
+function between(a: number, b: number, keep: number, side: "after" | "before", loud?: (t: number) => number): number {
+  const gap = Math.max(0, b - a);
+  const breath = side === "after" ? a + Math.min(keep, gap / 2) : b - Math.min(keep, gap / 2);
+  if (!loud || gap >= 2 * keep) return breath;
+  const lo = a - SLACK;
+  const hi = b + SLACK;
+  let best = breath;
+  let quiet = loud(breath);
+  for (let t = lo; t <= hi + 1e-9; t += LISTEN_STEP / 2) {
+    const v = loud(t);
+    if (v < quiet || (v === quiet && Math.abs(t - breath) < Math.abs(best - breath))) {
+      best = t;
+      quiet = v;
+    }
+  }
+  return Math.max(0, best);
+}
+
+/**
+ * Where a clip's start or end may be trimmed to so it never clips a word (#340): in seconds of its file, a
+ * breath before each word for a start, a breath after each word for an end, or halfway when words are closer.
+ */
+export function trimPoints(words: Word[], edge: "start" | "end", keep = BREATH): number[] {
+  return words.map((w, i) => {
+    if (edge === "start") {
+      const prev = words[i - 1];
+      return round(Math.max(0, prev ? w.s - Math.min(keep, Math.max(0, w.s - prev.e) / 2) : w.s - keep));
+    }
+    const next = words[i + 1];
+    return round(next ? w.e + Math.min(keep, Math.max(0, next.s - w.e) / 2) : w.e + keep);
+  });
 }
 
 /** A word as compared when checking the AI means the word it named: letters and digits only, lower case. */

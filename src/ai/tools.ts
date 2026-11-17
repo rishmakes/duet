@@ -17,7 +17,7 @@ import { ENTRANCES, sceneOf, spanOf } from "../document/time";
 import { dbText, dipKeys, loudnessMap } from "../document/sound";
 import { trackOf } from "../document/tracks";
 import { PEAK_SLICE, peaksOf } from "../video/faces";
-import { SILENCE_DEFAULT, findSilences } from "../video/silence";
+import { SILENCE_DEFAULT, findSilences, loudnessAt } from "../video/silence";
 import { hearingNow, languageOf, lastLanguage, transcribe, voiceReady } from "../ui/Transcribe";
 import { BREATH, cutOutOfEdit, cutsForWords, plainWord, wordsOfEdit } from "../document/words";
 import { MOVING, emptyDoc, playsFile } from "../document/types";
@@ -1748,7 +1748,7 @@ function transcriptOf(a: Args): ToolResult {
 }
 
 /** The stretches of a frame cut_words takes out, after checking each cut still names the words the AI read. */
-function wordCuts(a: Args): { ranges: { start: number; end: number }[]; says: string } | { error: string } {
+async function wordCuts(a: Args): Promise<{ ranges: { start: number; end: number }[]; says: string } | { error: string }> {
   const doc = R.currentDoc();
   const scene = typeof a.id === "string" ? doc.elements[a.id] : undefined;
   if (!scene || scene.type !== "frame" || !(scene.duration > 0)) return { error: `${String(a.id)} is not a frame that plays.` };
@@ -1770,7 +1770,18 @@ function wordCuts(a: Args): { ranges: { start: number; end: number }[]; says: st
     picks.push({ from: f as number, to: t as number });
     said.push(these.join(" "));
   }
-  return { ranges: cutsForWords(words, picks, typeof a.keep === "number" ? a.keep : BREATH, scene.duration), says: said.join(" … ") };
+  // the sound tells where the quiet between two fast words is; without it the cut falls halfway
+  const peaks = new Map<string, Uint8Array>();
+  for (const src of new Set(words.map((w) => doc.elements[w.clip]?.src).filter(Boolean))) {
+    try {
+      const p = await peaksOf(src);
+      if (p?.length) peaks.set(src, p);
+    } catch {
+      // no sound to read: the cut falls halfway
+    }
+  }
+  const loud = peaks.size ? loudnessAt(doc, scene.id, peaks) : undefined;
+  return { ranges: cutsForWords(words, picks, typeof a.keep === "number" ? a.keep : BREATH, scene.duration, loud), says: said.join(" … ") };
 }
 
 /** The pauses Cut silences would take out of a frame that plays, with the same settings as its button. */
@@ -2384,7 +2395,7 @@ async function answerTool(name: string, raw: unknown, by?: string): Promise<Tool
     a.ranges = found.pauses;
   }
   if (name === "cut_words") {
-    const found = wordCuts(a);
+    const found = await wordCuts(a);
     if ("error" in found) return fail(found.error);
     a.ranges = found.ranges;
     a.says = found.says;

@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MARKER_COLORS, runCommand } from "../commands";
 import { KEY_GROUPS, fileTimeAt, frameTimeAt, spanOf } from "../document/time";
+import { trimPoints } from "../document/words";
 import { MOVING, playsFile } from "../document/types";
 import type { Doc, El, Marker, Moving, Track } from "../document/types";
 import { currentDoc, dispatch, dragBase, dragCancel, dragCommit, dragPreview, dragPreviewDoc, getState, select, setFollowsFootage, useStore } from "../state/store";
@@ -811,6 +812,9 @@ export default function TimeStrip() {
     // a clip cannot show more than its file holds
     const file = playsFile(el) ? clipLength(el.src) : 0;
     const targets = getSnapTargets(el.id);
+    // trimming a clip with words also catches a breath before or after each word, so no word is clipped (#340)
+    const said = part !== "all" && playsFile(el) && !e.altKey && !stretching.current ? doc.words?.[el.src]?.words : undefined;
+    if (said?.length) for (const f of trimPoints(said, part === "start" ? "start" : "end")) targets.push(frameTimeAt(el, span.start, f));
     // holding Option on a clip's end, or having the stretch tool, changes its speed instead of cutting it
     const stretch = part !== "all" && playsFile(el) && (e.altKey || stretching.current);
     let moved = false;
