@@ -205,32 +205,30 @@ pub fn voice_status(app: AppHandle) -> Value {
 }
 
 /// Pick a stop on the slider. It is used from the next Transcribe on. When its model is not on this
-/// computer yet, the download starts, and a download for another stop is stopped first. Once the model
-/// is ready, the ones no stop picked now needs are deleted, to give the space back.
+/// computer yet, the download starts. A download on its way is never dropped by picking another stop:
+/// the pick is refused until it finishes or the designer cancels it (#371). Once the model is ready,
+/// the ones no stop picked now needs are deleted, to give the space back.
 #[tauri::command]
 pub fn voice_set_level(app: AppHandle, level: u8) -> Result<(), String> {
     if !(1..=TOP).contains(&level) {
         return Err("There is no such choice.".into());
     }
+    let need = model(stop(level).models[0]).ok_or("There is no such choice.")?;
+    let busy = app.state::<Arc<VoiceState>>().inner.lock().unwrap().downloading;
+    if busy.is_some() && busy != Some(need.size) {
+        return Err("A download is on its way. Let it finish, or cancel it first.".into());
+    }
     let f = level_file()?;
     std::fs::create_dir_all(f.parent().ok_or("No folder.")?).map_err(|e| e.to_string())?;
     std::fs::write(&f, level.to_string()).map_err(|e| e.to_string())?;
-    let need = model(stop(level).models[0]).ok_or("There is no such choice.")?;
-    let busy = app.state::<Arc<VoiceState>>().inner.lock().unwrap().downloading;
     if ready_model(level).is_some() {
-        if busy.is_some() {
-            voice_cancel(app.clone());
-        }
         prune();
         report(&app);
         return Ok(());
     }
-    if busy == Some(need.size) {
+    if busy.is_some() {
         report(&app);
         return Ok(());
-    }
-    if busy.is_some() {
-        voice_cancel(app.clone());
     }
     start_download(app, need)
 }

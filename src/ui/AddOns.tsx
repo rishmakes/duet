@@ -121,6 +121,11 @@ export function VoiceAddon() {
     return () => void off.then((f) => f());
   }, []);
 
+  // when a download ends, the slider comes back to the stop that just got ready (#371)
+  useEffect(() => {
+    if (!s?.downloading) setPick(null);
+  }, [s?.downloading]);
+
   // download speed, smoothed, for the time left
   useEffect(() => {
     if (!s?.downloading || s.step !== "downloading") {
@@ -146,11 +151,18 @@ export function VoiceAddon() {
   const short = !here && s.free != null && s.free < need + 200e6;
   const using = s.stops.filter((x) => x.ready).sort((a, b) => Math.abs(a.level - s.level) - Math.abs(b.level - s.level) || b.level - a.level)[0];
 
-  // a stop whose download is here is used at once; one that needs a download waits for Download
+  // a stop whose download is here is used at once; one that needs a download waits for Download.
+  // While a download is on its way, the slider only looks: the download keeps going (#371).
+  const readyStop = (l: number) => !!s.stops.find((x) => x.level === l)?.ready;
   const choose = (l: number) => {
     setPick(l);
     setSureRemove(false);
-    if (s.stops.find((x) => x.level === l)?.ready) void invoke("voice_set_level", { level: l }).catch(() => undefined);
+    if (!s.downloading && readyStop(l)) void invoke("voice_set_level", { level: l }).catch(() => undefined);
+  };
+  const cancel = () => {
+    void invoke("voice_cancel").then(() => {
+      if (pick !== null && pick !== s.level && readyStop(pick)) void invoke("voice_set_level", { level: pick }).catch(() => undefined);
+    });
   };
 
   const total = s.total ?? 0;
@@ -212,9 +224,13 @@ export function VoiceAddon() {
                 ? "Checking the download is complete and unchanged."
                 : [`Downloading ${sizeWords(s.got)} of ${sizeWords(total)}`, rate ? timeLeftWords(total - s.got, rate.perSecond) : ""].filter(Boolean).join(" · ")}
               <br />
-              {using ? `Until it is ready, Transcribe uses ${stopOf(using.level).name}.` : "Keep working. If you close Duet, press Download again and it carries on."}
+              {shown !== s.level
+                ? `${stopOf(s.level).name} keeps downloading. To pick ${stopOf(shown).name}, let it finish or cancel it.`
+                : using
+                  ? `Until it is ready, Transcribe uses ${stopOf(using.level).name}.`
+                  : "Keep working. If you close Duet, press Download again and it carries on."}
             </div>
-            <button className="mini" data-name="voice-cancel" onClick={() => void invoke("voice_cancel")}>
+            <button className="mini" data-name="voice-cancel" onClick={cancel}>
               Cancel
             </button>
           </div>
