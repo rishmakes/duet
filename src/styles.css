@@ -12771,9 +12771,9 @@ button.ctx-item.store-make-option:hover {
   color: var(--muted);
 }
 .hearing-foot span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* the whole line always shows; on a narrow window it wraps (#373) */
+  min-width: 0;
+  line-height: 1.4;
 }
 .hearing-stop {
   flex: none;
