@@ -32,7 +32,7 @@ import { showComment } from "./commentFocus";
 import { rowLook, trackRows } from "../document/tracks";
 import type { TrackRow } from "../document/tracks";
 import { getPickedTrack, pickTrack, usePickedTrack } from "./pickedTrack";
-import { HearingLine, TranscribeBox } from "./Transcribe";
+import { HearingCard, HearingLine, TranscribeBox, useHearingAll } from "./Transcribe";
 import { AutoCaptionsBox } from "./AutoCaptions";
 
 /** Time under the canvas: a row for each thing in a frame that plays, when it shows, and where the clock is. */
@@ -433,6 +433,8 @@ export default function TimeStrip() {
     };
   }, [sceneId]);
 
+  // while Duet listens for words, the buttons that started it say so
+  const listening = useHearingAll().length > 0;
   const length = frame?.duration ?? 0;
   const laneWidth = wide * zoom;
   const pps = length > 0 ? laneWidth / length : 1;
@@ -1400,6 +1402,7 @@ export default function TimeStrip() {
 
   return (
     <section className={`time ${look === "cut" ? "cut" : ""} ${stretchTool ? "stretching" : ""} ${bladeTool ? "blading" : ""}`} style={{ "--names": `${NAMES}px` } as React.CSSProperties} data-name="time-strip" onContextMenu={(e) => { e.preventDefault(); setMenu(null); }}>
+      <HearingCard />
       <div className="time-bar">
         <button className="pill" data-name="play" onClick={togglePlay} title={clock.playing ? "Pause" : "Play"}>
           {clock.playing ? "Pause" : "Play"}
@@ -2118,8 +2121,9 @@ export default function TimeStrip() {
           <div className="time-act-anchor" data-card="act-transcribe">
             <ActButton
               icon="plugin-voice"
-              label="Transcribe"
+              label={listening ? "Listening…" : "Transcribe"}
               name="act-transcribe"
+              busy={listening}
               hint={pickedHeard.length ? "Turn the speech in the picked clips into words" : "Turn the speech in the whole video into words"}
               on={!!askWords}
               onClick={() => {
@@ -2144,6 +2148,7 @@ export default function TimeStrip() {
               icon="captions"
               label="Auto captions"
               name="auto-captions"
+              busy={listening}
               on={captioning}
               hint={pickedHeard.length ? "Make captions from what is said in the picked clips" : "Make captions from what is said in the whole video"}
               onClick={() => {

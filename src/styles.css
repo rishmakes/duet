@@ -12698,3 +12698,97 @@ button.ctx-item.store-make-option:hover {
 .left .captions-panel {
   padding: 12px 14px;
 }
+
+/* While Duet listens for words (#354): a card over the video that never sits still */
+.hearing-card {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 14px);
+  transform: translateX(-50%);
+  z-index: 30;
+  width: min(420px, calc(100% - 32px));
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.hearing-row {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.hearing-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+.hearing-pct {
+  font-variant-numeric: tabular-nums;
+}
+.hearing-bar {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--tint-strong);
+  overflow: hidden;
+}
+.hearing-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+  transition: width 0.5s linear;
+}
+/* reading the sound and loading the model have no percent: a band slides along instead */
+.hearing-bar.waiting i {
+  width: 30%;
+  animation: hearing-wait 1.4s ease-in-out infinite;
+}
+@keyframes hearing-wait {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(340%); }
+}
+.hearing-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.hearing-foot span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hearing-stop {
+  flex: none;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: var(--r-sm);
+  padding: 3px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.hearing-stop:hover {
+  border-color: var(--accent);
+}
+.time-act.busy svg {
+  animation: act-busy 1.2s ease-in-out infinite;
+}
+@keyframes act-busy {
+  50% { opacity: 0.35; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hearing-bar.waiting i,
+  .time-act.busy svg {
+    animation: none;
+  }
+}

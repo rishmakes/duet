@@ -298,16 +298,26 @@ pub fn voice_transcribe(app: AppHandle, path: String, language: String, prompt: 
         .stderr(Stdio::null())
         .spawn()
         .map_err(|e| format!("Voice to text could not start: {e}"))?;
+    hearing().lock().unwrap().insert(path.clone(), child.id());
     let out = child.stdout.take().ok_or("Voice to text could not start.")?;
     let mut answer: Option<Value> = None;
+    // each step and how far it is, so a slow computer never looks stuck
     for line in BufReader::new(out).lines().map_while(Result::ok) {
         if let Some(p) = line.strip_prefix("progress ") {
             let _ = app.emit("voice-progress", json!({ "path": path, "percent": p.trim().parse::<u32>().unwrap_or(0) }));
+        } else if let Some(st) = line.strip_prefix("stage ") {
+            let _ = app.emit("voice-progress", json!({ "path": path, "stage": st.trim() }));
+        } else if let Some(sec) = line.strip_prefix("seconds ") {
+            let _ = app.emit("voice-progress", json!({ "path": path, "seconds": sec.trim().parse::<f64>().unwrap_or(0.0) }));
         } else if line.starts_with('{') {
             answer = serde_json::from_str(&line).ok();
         }
     }
     let _ = child.wait();
+    let stopped = hearing().lock().unwrap().remove(&path).is_none();
+    if stopped {
+        return Err("Stopped.".into());
+    }
     let mut a = answer.ok_or("Voice to text stopped before it finished. The recording may have no sound, or the computer ran out of memory.")?;
     if let Some(e) = a.get("error").and_then(|e| e.as_str()) {
         return Err(e.to_string());
@@ -315,6 +325,29 @@ pub fn voice_transcribe(app: AppHandle, path: String, language: String, prompt: 
     a["model"] = json!(m.size);
     a["language"] = json!(language);
     Ok(a)
+}
+
+/// The helpers hearing recordings now, by the recording's path, so one can be stopped.
+fn hearing() -> &'static std::sync::Mutex<std::collections::HashMap<String, u32>> {
+    static RUNNING: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<String, u32>>> = std::sync::OnceLock::new();
+    RUNNING.get_or_init(Default::default)
+}
+
+/// Stop hearing a recording. Its words are not kept.
+#[tauri::command]
+pub fn voice_stop(path: String) {
+    let Some(pid) = hearing().lock().unwrap().remove(&path) else { return };
+    #[cfg(windows)]
+    let _ = crate::quiet_command("taskkill").args(["/PID", &pid.to_string(), "/T", "/F"]).status();
+    #[cfg(not(windows))]
+    let _ = std::process::Command::new("kill").args(["-9", &pid.to_string()]).status();
+}
+
+/// One line to the app that runs this helper.
+fn say(line: &str) {
+    let mut o = std::io::stdout();
+    let _ = writeln!(o, "{line}");
+    let _ = o.flush();
 }
 
 /// The helper process: `duet-app --transcribe <model> <recording> <language> [prompt]`.
@@ -349,7 +382,10 @@ fn sound_of(path: &str) -> Result<Vec<f32>, String> {
 fn hear(model_path: &str, path: &str, language: &str, prompt: &str) -> Result<Vec<Value>, String> {
     use whisper_rs::{DtwMode, DtwModelPreset, DtwParameters, FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
     whisper_rs::install_logging_hooks();
+    say("stage sound");
     let sound = sound_of(path)?;
+    say(&format!("seconds {:.1}", sound.len() as f64 / 16000.0));
+    say("stage model");
     // word times come from the model's own attention (DTW), which needs to know which model it is
     let preset = if model_path.contains("turbo") { DtwModelPreset::LargeV3Turbo } else { DtwModelPreset::LargeV3 };
     let mut cp = WhisperContextParameters::default();
@@ -379,6 +415,7 @@ fn hear(model_path: &str, path: &str, language: &str, prompt: &str) -> Result<Ve
         let _ = writeln!(o, "progress {percent}");
         let _ = o.flush();
     });
+    say("stage hear");
     state.full(p, &sound).map_err(|e| format!("Voice to text could not finish: {e}"))?;
 
     // tokens into words: a token that starts with a space starts a new word. A word's bytes are

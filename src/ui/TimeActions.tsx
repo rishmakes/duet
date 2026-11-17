@@ -8,9 +8,9 @@ import SoundSection from "./SoundSection";
 import { useDismiss } from "./useDismiss";
 
 /** One action in the bar under the timeline: its icon, with its name under it. */
-export function ActButton({ icon, label, hint, on, disabled, onClick, name }: { icon: IconName; label: string; hint?: string; on?: boolean; disabled?: boolean; onClick: () => void; name: string }) {
+export function ActButton({ icon, label, hint, on, busy, disabled, onClick, name }: { icon: IconName; label: string; hint?: string; on?: boolean; busy?: boolean; disabled?: boolean; onClick: () => void; name: string }) {
   return (
-    <button type="button" className={`time-act ${on ? "on" : ""}`} data-name={name} disabled={disabled} title={hint ? `${label} (${hint})` : label} onClick={onClick}>
+    <button type="button" className={`time-act ${on ? "on" : ""} ${busy ? "busy" : ""}`} data-name={name} disabled={disabled} title={hint ? `${label} (${hint})` : label} onClick={onClick}>
       <Icon name={icon} size={18} />
       <span>{label}</span>
     </button>

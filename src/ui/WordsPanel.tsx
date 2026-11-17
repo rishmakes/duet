@@ -3,7 +3,7 @@ import { currentDoc, useStore } from "../state/store";
 import { wordsOfEdit } from "../document/words";
 import type { EditWord } from "../document/words";
 import { seek } from "../video/play";
-import { LANGUAGES, languageOf } from "./Transcribe";
+import { LANGUAGES, languageOf, useHearingAll } from "./Transcribe";
 
 /**
  * The Words tab in Video (#340): everything said in the open video, as it is cut now, in short lines with
@@ -45,13 +45,14 @@ export default function WordsPanel() {
     .filter(Boolean)
     .join(", ");
   const scene = sceneId ? doc.elements[sceneId] : null;
+  const listening = useHearingAll().length > 0;
 
   return (
     <div className="words-panel" data-name="words-panel">
       <div className="words-title">Words</div>
-      <div className="words-sub">{words.length ? [scene?.name, heardIn].filter(Boolean).join(" · ") : "Nothing heard yet"}</div>
+      <div className="words-sub">{words.length ? [scene?.name, heardIn].filter(Boolean).join(" · ") : listening ? "Listening for words…" : "Nothing heard yet"}</div>
       {!words.length ? (
-        <div className="words-foot">Press Transcribe under the timeline, and everything said in this video shows here.</div>
+        <div className="words-foot">{listening ? "Duet is listening on this computer. The words show here when it is done; the card over the video says how far it is." : "Press Transcribe under the timeline, and everything said in this video shows here."}</div>
       ) : (
         <>
           <div className="words-rows">

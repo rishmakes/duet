@@ -158,7 +158,22 @@ export function lastLanguage(): string {
 
 // ---------- the clips being heard now, by file ----------
 
-const jobs = new Map<string, number>();
+/** Where a file is in being heard: reading its sound, loading the voice model, or listening for words. */
+export type HearingStage = "sound" | "model" | "hear";
+
+export interface Hearing {
+  stage: HearingStage;
+  /** How far the speech model says it is, 0 to 100. It moves in jumps, one stretch of about 30 seconds at a time. */
+  percent: number;
+  /** How long the recording is, once its sound is read. */
+  seconds?: number;
+  /** When it started, when listening started, and when the model last said how far it was (ms). */
+  started: number;
+  hearFrom?: number;
+  lastAt?: number;
+}
+
+const jobs = new Map<string, Hearing>();
 const listeners = new Set<() => void>();
 let snapshot = new Map(jobs);
 const changed = () => {
@@ -170,9 +185,45 @@ const subscribe = (f: () => void) => {
   return () => void listeners.delete(f);
 };
 
+/**
+ * How far it is, 0 to 99, moving smoothly: the model reports only after each stretch of about 30
+ * seconds, so between reports the bar creeps on at the pace the stretches have taken so far.
+ */
+export function shownPercent(h: Hearing, now = Date.now()): number {
+  if (h.stage !== "hear") return 0;
+  const stretches = Math.max(1, Math.ceil((h.seconds ?? 30) / 30));
+  const each = 100 / stretches;
+  const from = h.hearFrom ?? now;
+  const done = h.percent;
+  // the time one stretch takes: measured once one is done, else a guess that keeps the bar moving slowly
+  const per = done > 0 && h.lastAt ? (h.lastAt - from) / (done / each) : 90_000;
+  const since = now - (h.lastAt ?? from);
+  const creep = Math.min(each * 0.9, (since / per) * each);
+  return Math.max(0, Math.min(99, Math.floor(done + creep)));
+}
+
+/** Seconds left, once one stretch has been heard and the pace is known. */
+export function secondsLeft(h: Hearing, now = Date.now()): number | null {
+  if (h.stage !== "hear" || h.hearFrom === undefined || !(h.percent > 0)) return null;
+  const elapsed = (now - h.hearFrom) / 1000;
+  const p = Math.max(h.percent, shownPercent(h, now));
+  return Math.max(1, (elapsed * (100 - p)) / p);
+}
+
 /** How far a file is through being heard, 0 to 100, or undefined when it is not being heard. */
 export function useHearing(src: string): number | undefined {
-  return useSyncExternalStore(subscribe, () => snapshot).get(src);
+  const h = useSyncExternalStore(subscribe, () => snapshot).get(src);
+  return h ? shownPercent(h) : undefined;
+}
+
+/** Every file being heard now. */
+export function useHearingAll(): [string, Hearing][] {
+  return [...useSyncExternalStore(subscribe, () => snapshot)];
+}
+
+/** Stop hearing a file. Nothing is kept. */
+export function stopHearing(src: string) {
+  void invoke("voice_stop", { path: src }).catch(() => undefined);
 }
 
 /** Is Voice to text downloaded? */
@@ -191,7 +242,10 @@ export function openVoiceInStore() {
 }
 
 /** How far a file is through being heard now, 0 to 100, or undefined when it is not being heard. */
-export const hearingNow = (src: string) => jobs.get(src);
+export const hearingNow = (src: string) => {
+  const h = jobs.get(src);
+  return h ? shownPercent(h) : undefined;
+};
 
 const running = new Map<string, Promise<void>>();
 
@@ -214,11 +268,27 @@ async function hear(src: string, languageKey: string, keep: (t: Transcript) => v
   } catch {
     /* remembering is a nicety */
   }
-  jobs.set(src, 0);
+  jobs.set(src, { stage: "sound", percent: 0, started: Date.now() });
   changed();
-  const off = listen<{ path: string; percent: number }>("voice-progress", (e) => {
-    if (e.payload.path !== src || !jobs.has(src)) return;
-    jobs.set(src, Math.max(0, Math.min(100, e.payload.percent)));
+  const off = listen<{ path: string; percent?: number; stage?: HearingStage; seconds?: number }>("voice-progress", (e) => {
+    const h = jobs.get(src);
+    if (e.payload.path !== src || !h) return;
+    const next: Hearing = { ...h };
+    if (e.payload.stage) {
+      next.stage = e.payload.stage;
+      if (e.payload.stage === "hear") next.hearFrom = Date.now();
+    }
+    if (typeof e.payload.seconds === "number") next.seconds = e.payload.seconds;
+    if (typeof e.payload.percent === "number") {
+      const p = Math.max(0, Math.min(100, e.payload.percent));
+      if (p > next.percent) {
+        next.percent = p;
+        next.lastAt = Date.now();
+      }
+      next.stage = "hear";
+      next.hearFrom ??= Date.now();
+    }
+    jobs.set(src, next);
     changed();
   });
   try {
@@ -324,9 +394,71 @@ export function TranscribeBox({ els, scene, picked, onClose, onError }: { els: E
   );
 }
 
+const STAGE_TEXT: Record<HearingStage, string> = {
+  sound: "Reading the sound",
+  model: "Loading the voice model",
+  hear: "Listening for words",
+};
+
+const shortTime = (s: number) => {
+  const n = Math.round(s);
+  return n < 60 ? `${n} s` : `${Math.floor(n / 60)} min ${n % 60} s`;
+};
+
+/** A ticking clock while anything is being heard, so the bar and the times move between reports. */
+function useTick(on: boolean) {
+  const [, set] = useState(0);
+  useEffect(() => {
+    if (!on) return;
+    const t = setInterval(() => set((n) => n + 1), 500);
+    return () => clearInterval(t);
+  }, [on]);
+}
+
+/**
+ * The card over the video while Duet listens for words (#354): which step, how far, the time so far
+ * and the time left, and Stop. Work goes on around it. On a slow computer this is the only sign that
+ * it is working, so it never sits still.
+ */
+export function HearingCard() {
+  const all = useHearingAll();
+  useTick(all.length > 0);
+  if (!all.length) return null;
+  const now = Date.now();
+  return (
+    <div className="hearing-card" data-name="hearing-card" role="status">
+      {all.map(([src, h]) => {
+        const p = shownPercent(h, now);
+        const left = secondsLeft(h, now);
+        const name = src.split(/[\\/]/).pop();
+        return (
+          <div className="hearing-row" key={src}>
+            <div className="hearing-head">
+              <span className="hearing-step">{STAGE_TEXT[h.stage]}</span>
+              <span className="hearing-pct">{h.stage === "hear" ? `${p}%` : ""}</span>
+            </div>
+            <div className={`hearing-bar ${h.stage === "hear" ? "" : "waiting"}`}>
+              <i style={{ width: h.stage === "hear" ? `${Math.max(2, p)}%` : undefined }} />
+            </div>
+            <div className="hearing-foot">
+              <span title={src}>
+                {name} · {shortTime((now - h.started) / 1000)} so far{left !== null ? ` · about ${shortTime(left)} left` : h.stage === "hear" ? " · working out the time left" : ""}
+              </span>
+              <button className="hearing-stop" data-name="stop-hearing" onClick={() => stopHearing(src)} title="Stop listening. Nothing is kept.">
+                Stop
+              </button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /** The thin line along a clip while its file is being heard. */
 export function HearingLine({ src }: { src: string }) {
   const p = useHearing(src);
+  useTick(p !== undefined);
   if (p === undefined) return null;
   return (
     <i className="time-hearing" data-name="transcribe-progress" title={`Listening for words, ${p}%`}>
