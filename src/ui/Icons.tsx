@@ -1,6 +1,6 @@
 /** One icon set for the whole app: 24 grid, round ends, same stroke weight everywhere. */
 
-export type IconName = "speed" | "blade" | "stretch" | "silence" | "cut-here" | "cut-close" | "cut-before" | "cut-after" | "move" | "frame" | "rect" | "ellipse" | "text" | "hand" | "zoom" | "image" | "film" | "scene" | "heart" | "printer" | "screens" | "plus" | "pen" | "brush" | "eraser" | "mask" | "group" | "lock" | "unlock" | "eye" | "eye-off" | "sound" | "sound-off" | "component" | "instance" | "panel-left" | "panel-right" | "arrow" | "search" | "settings" | "skills" | "new-chat" | "folder" | "trash" | "close" | "unlist" | "restore" | "dots" | "grid" | "list" | "copy" | "move-to" | "marker" | "comment" | "sun" | "moon" | "home" | "feedback" | "fold" | "skill-auto-layout" | "skill-mobile-screens" | "skill-spacing" | "skill-type-scale" | "skill-contrast" | "skill-plain-words" | "skill-bold-blocks" | "skill-bento" | "skill-calm-and-trusted" | "skill-friendly-and-modern" | "skill-prototypes" | "skill-custom" | "plugin-connect" | "plugin-voice";
+export type IconName = "speed" | "blade" | "stretch" | "silence" | "cut-here" | "cut-close" | "cut-before" | "cut-after" | "move" | "frame" | "rect" | "ellipse" | "text" | "hand" | "zoom" | "image" | "film" | "scene" | "heart" | "printer" | "screens" | "plus" | "pen" | "brush" | "eraser" | "mask" | "group" | "lock" | "unlock" | "eye" | "eye-off" | "sound" | "sound-off" | "component" | "instance" | "panel-left" | "panel-right" | "arrow" | "search" | "settings" | "skills" | "new-chat" | "folder" | "trash" | "close" | "unlist" | "restore" | "dots" | "grid" | "list" | "copy" | "move-to" | "marker" | "comment" | "sun" | "moon" | "home" | "feedback" | "fold" | "skill-auto-layout" | "skill-mobile-screens" | "skill-spacing" | "skill-type-scale" | "skill-contrast" | "skill-plain-words" | "skill-bold-blocks" | "skill-bento" | "skill-calm-and-trusted" | "skill-friendly-and-modern" | "skill-prototypes" | "skill-custom" | "plugin-connect" | "plugin-voice" | "captions";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   move: <path d="M5.5 3.5l13 6.3-5.7 1.8-1.8 5.9z" />,
@@ -341,6 +341,12 @@ const PATHS: Record<IconName, React.ReactNode> = {
     <>
       <path d="M10 14a4 4 0 005.66 0l2.83-2.83a4 4 0 00-5.66-5.66L11.5 6.85" />
       <path d="M14 10a4 4 0 00-5.66 0L5.5 12.83a4 4 0 005.66 5.66L12.5 17.15" />
+    </>
+  ),
+  captions: (
+    <>
+      <rect x="3.5" y="5.5" width="17" height="13" rx="2.5" />
+      <path d="M7 12.5h6M15 12.5h2M7 15.5h3M12 15.5h5" />
     </>
   ),
   "plugin-voice": (

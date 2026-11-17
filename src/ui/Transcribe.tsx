@@ -35,7 +35,7 @@ export const LANGUAGES: { key: string; name: string; code: string; prompt?: stri
 ];
 
 /** Every other language the speech model knows, by name, A to Z. */
-const EVERY: [string, string][] = [
+export const EVERY_LANGUAGE: [string, string][] = [
   ["af", "Afrikaans"],
   ["sq", "Albanian"],
   ["am", "Amharic"],
@@ -136,7 +136,7 @@ const EVERY: [string, string][] = [
   ["yi", "Yiddish"],
   ["yo", "Yoruba"],
 ];
-const ALL: { key: string; name: string; code: string; prompt?: string }[] = [...LANGUAGES, ...EVERY.map(([code, name]) => ({ key: code, name, code }))];
+const ALL: { key: string; name: string; code: string; prompt?: string }[] = [...LANGUAGES, ...EVERY_LANGUAGE.map(([code, name]) => ({ key: code, name, code }))];
 
 /** The language a key or a name stands for, such as "hi-en", "Hinglish" or "English". */
 export function languageOf(said: string): { key: string; name: string; code: string; prompt?: string } | undefined {
@@ -281,7 +281,7 @@ export function TranscribeBox({ el, scene, onClose, onError }: { el: El; scene: 
             </option>
           ))}
           <optgroup label="Every language">
-            {EVERY.map(([code, name]) => (
+            {EVERY_LANGUAGE.map(([code, name]) => (
               <option key={code} value={code}>
                 {name}
               </option>

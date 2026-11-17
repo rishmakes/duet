@@ -32,6 +32,7 @@ import { rowLook, trackRows } from "../document/tracks";
 import type { TrackRow } from "../document/tracks";
 import { getPickedTrack, pickTrack, usePickedTrack } from "./pickedTrack";
 import { HearingLine, TranscribeBox } from "./Transcribe";
+import { AutoCaptionsBox } from "./AutoCaptions";
 
 /** Time under the canvas: a row for each thing in a frame that plays, when it shows, and where the clock is. */
 
@@ -92,6 +93,8 @@ export default function TimeStrip() {
   const [choosing, setChoosing] = useState(false);
   // Cut silences: open while its settings show, with each file's loudness once it has been read
   const [hushing, setHushing] = useState(false);
+  // Auto captions: open while its box shows
+  const [captioning, setCaptioning] = useState(false);
   const [hush, setHush] = useState<SilenceChoice>(SILENCE_DEFAULT);
   const [hushPeaks, setHushPeaks] = useState<Map<string, Uint8Array> | null>(null);
   const projectFile = useStore((s) => s.project.file);
@@ -2061,7 +2064,10 @@ export default function TimeStrip() {
         )}
         {look === "cut" && (
           <div className="time-act-anchor hush-anchor">
-            <ActButton icon="silence" label="Cut silences" name="cut-silences" on={hushing} hint={pickedHeard.length ? "Find the pauses in the picked clips and cut them away" : "Find the pauses in the whole video and cut them away"} onClick={() => setHushing(!hushing)} />
+            <ActButton icon="silence" label="Cut silences" name="cut-silences" on={hushing} hint={pickedHeard.length ? "Find the pauses in the picked clips and cut them away" : "Find the pauses in the whole video and cut them away"} onClick={() => {
+                setCaptioning(false);
+                setHushing(!hushing);
+              }} />
             {hushing && (
               <div className="export-pop hush-pop act-pop" data-name="silence-settings">
                 <label>
@@ -2107,6 +2113,30 @@ export default function TimeStrip() {
                   Cut them
                 </button>
               </div>
+            )}
+          </div>
+        )}
+        {look === "cut" && frame && (
+          <div className="time-act-anchor" data-card="act-captions">
+            <ActButton
+              icon="captions"
+              label="Auto captions"
+              name="auto-captions"
+              on={captioning}
+              hint={pickedHeard.length ? "Make captions from what is said in the picked clips" : "Make captions from what is said in the whole video"}
+              onClick={() => {
+                setHushing(false);
+                setCaptioning(!captioning);
+              }}
+            />
+            {captioning && (
+              <AutoCaptionsBox
+                scene={frame}
+                clips={pickedHeard.length ? heard.filter((el) => pickedHeard.includes(el.id)) : heard}
+                picked={pickedHeard.length > 0}
+                onClose={() => setCaptioning(false)}
+                onError={setNote}
+              />
             )}
           </div>
         )}

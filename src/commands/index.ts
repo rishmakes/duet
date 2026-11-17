@@ -5,7 +5,9 @@ import { canBeComponent, captureOverrides, detachInstance, isDerived, syncInstan
 import { orderByPosition, relayout } from "../document/layout";
 import { MOVING, playsFile } from "../document/types";
 import type { Blend, Comment, CommentMark, Doc, El, ElementType, Key, Layout, Moving, ShapeKey, TextStyle, Transcript } from "../document/types";
-import { withWords } from "../document/words";
+import { withWords, wordsOfEdit } from "../document/words";
+import { CAPTION_LOOKS, CAPTIONS_TRACK, captionChunks, captionMiddle, captionProps, captionText } from "../document/captions";
+import type { CaptionLook } from "../document/captions";
 import { CURVES, ENTRANCES, entranceKeys, fileTimeAt, outlineOf, sceneOf, spanOf, valueAt, withKey, withShapeKey } from "../document/time";
 import type { CurveName, Entrance } from "../document/time";
 import { canGrade, mergeGrade } from "../document/grade";
@@ -2577,6 +2579,79 @@ const cutRanges: CommandDef<CutRangesArgs> = {
   },
 };
 
+// ---- add_captions ----
+export interface AddCaptionsArgs {
+  /** The frame that plays. */
+  sceneId: string;
+  /** Only the words of these clips and sounds. Left out for every one with words. */
+  clips?: string[];
+  look: CaptionLook;
+  /** How many words show at once, 1 to 6. One word always shows one. */
+  per: number;
+}
+
+/**
+ * Captions from the words heard (#71): plain texts on a Captions track at the top, each showing while its
+ * words are said. Captions made before for the same stretch are replaced, so making them again with
+ * another look or another number of words just works.
+ */
+const addCaptions: CommandDef<AddCaptionsArgs> = {
+  label: () => "Add captions",
+  run: (doc, a) => {
+    const f0 = scene(doc, a.sceneId);
+    if (!f0) return doc;
+    const look: CaptionLook = CAPTION_LOOKS.some((l) => l.key === a.look) ? a.look : "bold";
+    let words = wordsOfEdit(doc, a.sceneId);
+    if (a.clips?.length) words = words.filter((w) => a.clips!.includes(w.clip));
+    const chunks = captionChunks(words, look === "one" ? 1 : a.per);
+    if (!chunks.length) return doc;
+    let next = clone(doc);
+    const tracks = keepTracks(next, a.sceneId);
+    let track = tracks.find((t) => t.name === CAPTIONS_TRACK);
+    if (!track) {
+      track = { id: newTrackId(), name: CAPTIONS_TRACK };
+      next.elements[a.sceneId].tracks = [track, ...tracks];
+    }
+    const trackId = track.id;
+    // captions already there for this stretch make way for the new ones
+    const from = chunks[0].start;
+    const to = chunks[chunks.length - 1].end;
+    const f = next.elements[a.sceneId];
+    const old = f.childIds.filter((id) => {
+      const el = next.elements[id];
+      if (el.type !== "text" || el.track !== trackId) return false;
+      const s = spanOf(el, f);
+      return s.start < to && s.end > from;
+    });
+    if (old.length) next = deleteElements.run(next, { ids: old });
+    const props = captionProps(look, f);
+    const width = Math.round(f.width * 0.84);
+    const x = Math.round(f.width * 0.08);
+    const mid = captionMiddle(f);
+    const made: string[] = [];
+    for (const c of chunks) {
+      const id = newId("text");
+      const text = captionText(c.text, look);
+      next = createElement.run(next, {
+        type: "text",
+        id,
+        parentId: a.sceneId,
+        x,
+        y: mid,
+        width,
+        height: 10,
+        keepOrder: true,
+        props: { ...props, text, name: `Caption: ${text.slice(0, 30)}`, start: c.start, end: c.end, track: trackId },
+      });
+      const el = next.elements[id];
+      el.y = Math.round(mid - el.height / 2);
+      made.push(id);
+    }
+    stackByTrack(next, a.sceneId, made);
+    return next;
+  },
+};
+
 // ---- set_entrance ----
 export interface SetEntranceArgs {
   ids: string[];
@@ -2897,6 +2972,7 @@ export const commands = {
   split_at: splitAt,
   ripple_delete: rippleDelete,
   cut_ranges: cutRanges,
+  add_captions: addCaptions,
   add_track: addTrack,
   rename_track: renameTrack,
   delete_track: deleteTrack,

@@ -12361,3 +12361,82 @@ button.ctx-item.store-make-option:hover {
   line-height: 12px;
   font-weight: 600;
 }
+
+/* Auto captions (#71): the box under the timeline */
+.export-pop.captions-pop {
+  width: 320px;
+}
+.captions-label,
+.captions-row > span {
+  color: var(--muted);
+  font-size: 11px;
+}
+.caption-looks {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.caption-look {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 8px 4px 6px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: #111013;
+  color: #ffffff;
+  cursor: pointer;
+}
+.caption-look b {
+  font-size: 15px;
+  line-height: 18px;
+  font-weight: 900;
+  text-shadow: 0 2px 0 #000;
+}
+.caption-look.look-quiet b {
+  font-weight: 500;
+  font-size: 13px;
+  text-shadow: 0 1px 6px #000;
+}
+.caption-look.look-one b {
+  font-size: 18px;
+}
+.caption-look span {
+  font-size: 10px;
+  color: #bdb7bf;
+}
+.caption-look.on {
+  border-color: var(--accent);
+}
+.captions-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+.captions-row.off {
+  opacity: 0.5;
+}
+.captions-per {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--panel-2);
+}
+.captions-per button {
+  width: 24px;
+  height: 22px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+.captions-per button.on {
+  background: var(--accent);
+  color: #ffffff;
+}
