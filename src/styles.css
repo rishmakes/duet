@@ -12483,7 +12483,11 @@ button.ctx-item.store-make-option:hover {
   height: 92px;
   border-radius: 10px;
   border: 1px solid transparent;
-  background: #111013;
+  /* a dim, blurry room, as captions sit on footage and not on black */
+  background:
+    radial-gradient(circle at 22% 30%, rgba(214, 160, 110, 0.55), transparent 55%),
+    radial-gradient(circle at 80% 70%, rgba(70, 110, 140, 0.6), transparent 60%),
+    linear-gradient(160deg, #3a3036, #17161c);
   cursor: pointer;
 }
 .captions-tile:hover:not(:disabled) {
@@ -12517,10 +12521,33 @@ button.ctx-item.store-make-option:hover {
   animation-play-state: running;
 }
 .sample-bold i,
-.sample-one i {
+.sample-one i,
+.sample-outline i,
+.sample-dim i {
   font-weight: 900;
   text-transform: uppercase;
   text-shadow: 0 2px 0 #000;
+  -webkit-text-stroke: 1.5px #000;
+  paint-order: stroke fill;
+}
+.sample-one i {
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+.sample-outline i {
+  -webkit-text-stroke: 3px #000;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+  animation-name: lit-yellow;
+}
+.sample-dim i {
+  -webkit-text-stroke: 0;
+  color: rgba(255, 255, 255, 0.45);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+  animation-name: lit-white;
+}
+.sample-glow i {
+  font-weight: 800;
+  text-shadow: 0 0 10px #b49cff, 0 0 2px #b49cff;
 }
 .sample-bold i {
   animation-name: lit-yellow;
@@ -12576,6 +12603,8 @@ button.ctx-item.store-make-option:hover {
 .sample-quiet i:first-child { opacity: 1; }
 .sample-box i:first-child { background: #7c5cff; }
 .sample-line i:first-child { background: #e5383b; }
+.sample-outline i:first-child { color: #ffe14d; }
+.sample-dim i:first-child { color: #ffffff; }
 .captions-tile:hover .look-sample i:first-child,
 .caption-look:hover .look-sample i:first-child {
   animation-play-state: running;
@@ -12583,6 +12612,10 @@ button.ctx-item.store-make-option:hover {
 @keyframes lit-yellow {
   0% { color: #ffe14d; }
   34%, 100% { color: inherit; }
+}
+@keyframes lit-white {
+  0% { color: #ffffff; }
+  34%, 100% { color: rgba(255, 255, 255, 0.45); }
 }
 @keyframes lit-bright {
   0% { opacity: 1; }

@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { currentDoc, dispatch, useStore } from "../state/store";
 import type { El } from "../document/types";
-import { CAPTION_LOOKS, SPOKEN_COLOURS } from "../document/captions";
+import { CAPTION_FONTS, CAPTION_LOOKS, SPOKEN_COLOURS } from "../document/captions";
+import { fetchFamily } from "../project/fonts";
 import type { CaptionLook } from "../document/captions";
-import { LookSample } from "./CaptionLooks";
+import { LookSample, useCaptionFonts } from "./CaptionLooks";
 import { EVERY_LANGUAGE, LANGUAGES, lastLanguage, openVoiceInStore, transcribe, voiceReady } from "./Transcribe";
 
 /**
@@ -35,6 +36,7 @@ function remember(key: string, v: string) {
 
 
 export function AutoCaptionsBox({ scene, clips, picked, onClose, onError }: { scene: El; clips: El[]; picked: boolean; onClose: () => void; onError: (note: string) => void }) {
+  useCaptionFonts();
   const [look, setLook] = useState<CaptionLook>(() => remembered(LOOK, (v) => CAPTION_LOOKS.some((l) => l.key === v), "bold" as CaptionLook, (v) => v as CaptionLook));
   const [per, setPer] = useState(() => remembered(PER, (v) => +v >= 1 && +v <= 6, 3, Number));
   const [lang, setLang] = useState(lastLanguage);
@@ -58,6 +60,8 @@ export function AutoCaptionsBox({ scene, clips, picked, onClose, onError }: { sc
       onError(e instanceof Error ? e.message : "Voice to text could not hear this clip.");
       return;
     }
+    // the look's font comes along; the captions show in the computer's font until it is here
+    void fetchFamily(CAPTION_FONTS[look]);
     dispatch("add_captions", { sceneId: scene.id, clips: picked ? clips.map((el) => el.id) : undefined, look, per, spokenFill: lit || undefined });
   };
 

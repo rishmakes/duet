@@ -6,7 +6,7 @@ import type { EditWord } from "./words";
  * text on a Captions track, so it can be moved, restyled or deleted like any other text.
  */
 
-export type CaptionLook = "bold" | "quiet" | "pill" | "one" | "box" | "line";
+export type CaptionLook = "bold" | "quiet" | "pill" | "one" | "box" | "line" | "outline" | "glow" | "dim";
 
 /** The looks, and the colour each one lights the spoken word in when it has its own. */
 export const CAPTION_LOOKS: { key: CaptionLook; name: string; lit?: string }[] = [
@@ -16,7 +16,26 @@ export const CAPTION_LOOKS: { key: CaptionLook; name: string; lit?: string }[] =
   { key: "one", name: "One word" },
   { key: "box", name: "Box", lit: "#7c5cff" },
   { key: "line", name: "Box, one line", lit: "#e5383b" },
+  { key: "outline", name: "Outline" },
+  { key: "glow", name: "Glow" },
+  { key: "dim", name: "Dim", lit: "#ffffff" },
 ];
+
+/**
+ * The free font each look is written in, fetched the first time it is used. Until it is here, or with no
+ * internet, the words show in the computer's own font, so a caption is never missing.
+ */
+export const CAPTION_FONTS: Record<CaptionLook, string> = {
+  bold: "Montserrat",
+  quiet: "Inter",
+  pill: "Poppins",
+  one: "Anton",
+  box: "Poppins",
+  line: "Poppins",
+  outline: "Montserrat",
+  glow: "Poppins",
+  dim: "Montserrat",
+};
 
 /** A look with a box behind the spoken word, whose colour is the look's own. */
 export const boxedLook = (look: CaptionLook) => look === "box" || look === "line";
@@ -77,20 +96,27 @@ export function captionProps(look: CaptionLook, frame: { width: number; height: 
   const k = Math.min(frame.width, frame.height) / 1080;
   const px = (n: number) => Math.max(1, Math.round(n * k));
   const shadow = (y: number, blur: number): Shadow => ({ x: 0, y: px(y), blur: px(blur), color: "#000000" });
-  const base: Partial<El> = { fill: "#ffffff", textAlign: "center", textFixed: false, fontFamily: "", lineHeight: 1.15, letterSpacing: 0, caps: true, plate: undefined, spokenBox: undefined, shadow: null };
+  const base: Partial<El> = { fill: "#ffffff", textAlign: "center", textFixed: false, fontFamily: CAPTION_FONTS[look], lineHeight: 1.15, letterSpacing: 0, caps: true, plate: undefined, spokenBox: undefined, shadow: null, stroke: null, strokeWidth: 1 };
+  const edge = (n: number): Partial<El> => ({ stroke: "#000000", strokeWidth: px(n) });
   switch (look) {
+    case "outline":
+      return { ...base, fontSize: px(64), fontWeight: 900, ...edge(7), shadow: shadow(4, 10) };
+    case "glow":
+      return { ...base, fontSize: px(60), fontWeight: 800, caps: undefined, shadow: { x: 0, y: 0, blur: px(28), color: "#b49cff" } };
+    case "dim":
+      return { ...base, fill: "#ffffff73", fontSize: px(60), fontWeight: 900, shadow: shadow(3, 14) };
     case "quiet":
       return { ...base, fontSize: px(44), fontWeight: 500, caps: undefined, shadow: shadow(2, 12) };
     case "pill":
       return { ...base, fontSize: px(46), fontWeight: 700, caps: undefined, lineHeight: 1.5, plate: { fill: "#111013", radius: px(40), padX: px(26), padY: px(10) } };
     case "one":
-      return { ...base, fontSize: px(110), fontWeight: 900, shadow: shadow(5, 16) };
+      return { ...base, fontSize: px(120), fontWeight: 400, letterSpacing: px(2), ...edge(6), shadow: shadow(6, 16) };
     case "box":
       return { ...base, fontSize: px(52), fontWeight: 800, lineHeight: 1.5, spokenBox: true, plate: { fill: "#000000", radius: px(10), padX: px(12), padY: px(6), each: true } };
     case "line":
       return { ...base, fontSize: px(52), fontWeight: 800, lineHeight: 1.5, spokenBox: true, plate: { fill: "#000000", radius: px(12), padX: px(16), padY: px(8) } };
     default:
-      return { ...base, fontSize: px(68), fontWeight: 900, shadow: shadow(5, 0) };
+      return { ...base, fontSize: px(68), fontWeight: 900, ...edge(4), shadow: shadow(6, 0) };
   }
 }
 

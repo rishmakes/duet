@@ -130,4 +130,26 @@ describe("caption looks", () => {
     expect(doc.elements.t.text).toBe("Hello there");
     expect(doc.elements.v.plate).toBeUndefined();
   });
+
+  it("gives the loud looks an outline and a font, and takes them away again", async () => {
+    const { parseDoc, serializeDoc } = await import("../document/serialize");
+    let doc = runCommand(talk(), "add_captions", { sceneId: "f", look: "outline", per: 3, spokenFill: "#7cf2c9" });
+    const id = captions(doc)[0].id;
+    const saved = parseDoc(serializeDoc(doc)).elements[id];
+    expect(saved.stroke).toBe("#000000");
+    expect(saved.strokeWidth).toBeGreaterThan(1);
+    expect(saved.fontFamily).toBe("Montserrat");
+    expect(saved.spokenFill).toBe("#7cf2c9");
+    doc = runCommand(doc, "style_captions", { ids: [id], look: "quiet" });
+    expect(doc.elements[id].stroke).toBeNull();
+    expect(doc.elements[id].fontFamily).toBe("Inter");
+  });
+
+  it("Dim lights the spoken word white, and keeps text with no spoken words bright", () => {
+    let doc = runCommand(talk(), "add_captions", { sceneId: "f", look: "dim", per: 3, spokenFill: "#7cf2c9" });
+    expect(captions(doc)[0].spokenFill).toBe("#ffffff");
+    doc = runCommand(doc, "create_element", { type: "text", id: "t", parentId: "f", x: 100, y: 100, width: 200, height: 40, props: { text: "Hello" } });
+    doc = runCommand(doc, "style_captions", { ids: ["t"], look: "dim" });
+    expect(doc.elements.t.fill).toBe("#ffffff");
+  });
 });

@@ -155,6 +155,17 @@ export function fetchFont(font: OnlineFont): Promise<void> {
 
 export const isFetching = (family: string) => fetching.has(family);
 
+/** Fetch a free font by its exact name, quietly: false when there is no internet or no such font. */
+export async function fetchFamily(family: string): Promise<boolean> {
+  if (kept.has(family)) return true;
+  const hit = (await onlineFonts()).find((f) => f.family.toLowerCase() === family.toLowerCase());
+  if (!hit) return false;
+  return fetchFont(hit).then(
+    () => true,
+    () => false,
+  );
+}
+
 // ---- in the project ----
 
 async function writeFamily(family: string, dir: string) {

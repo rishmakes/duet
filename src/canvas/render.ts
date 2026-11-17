@@ -448,15 +448,36 @@ export function drawElement(ctx: CanvasRenderingContext2D, doc: Doc, el: El, ox:
     ctx.textBaseline = "top";
     const { lines } = layoutText(el);
     const step = lineStep(el);
+    // an outline round the letters, as captions have, so the words read on any footage: drawn first and twice
+    // as wide, so the fill covers its inner half and the letters keep their shape
+    const edge = el.stroke && el.strokeWidth > 0 ? el.strokeWidth : 0;
+    const write = (text: string, sx: number, sy: number) => {
+      if (edge) {
+        ctx.save();
+        ctx.strokeStyle = el.stroke!;
+        ctx.lineWidth = edge * 2;
+        ctx.lineJoin = "round";
+        ctx.miterLimit = 2;
+        ctx.strokeText(text, sx, sy);
+        ctx.restore();
+        // the shadow falls once, behind the outline, not again from the fill
+        ctx.save();
+        ctx.shadowColor = "transparent";
+        ctx.fillText(text, sx, sy);
+        ctx.restore();
+        return;
+      }
+      ctx.fillText(text, sx, sy);
+    };
     const run = (text: string, sx: number, sy: number) => {
       if (!el.letterSpacing) {
-        ctx.fillText(text, sx, sy);
+        write(text, sx, sy);
         return;
       }
       // letter by letter, so the spacing shows on every computer
       let cx = sx;
       for (const ch of text) {
-        ctx.fillText(ch, cx, sy);
+        write(ch, cx, sy);
         cx += ctx.measureText(ch).width + el.letterSpacing;
       }
     };

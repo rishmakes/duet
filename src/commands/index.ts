@@ -2665,7 +2665,8 @@ const addCaptions: CommandDef<AddCaptionsArgs> = {
     if (old.length) next = deleteElements.run(next, { ids: old });
     const props = captionProps(look, f);
     // a boxed look lights the spoken word in its own colour
-    const lit = boxedLook(look) ? CAPTION_LOOKS.find((l) => l.key === look)?.lit : a.spokenFill;
+    // a look that lives by its spoken word, like Dim, always lights it in its own colour
+    const lit = boxedLook(look) || look === "dim" ? CAPTION_LOOKS.find((l) => l.key === look)?.lit : a.spokenFill;
     const width = captionRoom(f);
     const x = Math.round((f.width - width) / 2);
     const mid = captionMiddle(f);
@@ -2728,6 +2729,9 @@ const styleCaptions: CommandDef<StyleCaptionsArgs> = {
         else if (!el.spokenFill || CAPTION_LOOKS.some((l) => l.lit === el.spokenFill)) el.spokenFill = SPOKEN_COLOURS[0];
         // one word at a time has nothing to light
         if (found.key === "one") delete el.spokenFill;
+      } else if (found.key === "dim") {
+        // text with no spoken words has nothing to light, so Dim keeps it bright
+        el.fill = "#ffffff";
       }
       el.textStyleId = "";
       hugCaption(el, centre, captionRoom(parent ?? { width: Math.max(el.width, 1080) }));

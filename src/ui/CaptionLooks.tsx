@@ -1,5 +1,7 @@
 import { useStore, currentDoc, dispatch, getState } from "../state/store";
-import { CAPTION_LOOKS, CAPTIONS_TRACK } from "../document/captions";
+import { useEffect } from "react";
+import { CAPTION_FONTS, CAPTION_LOOKS, CAPTIONS_TRACK } from "../document/captions";
+import { fetchFamily } from "../project/fonts";
 import type { CaptionLook } from "../document/captions";
 
 /**
@@ -14,7 +16,7 @@ const EXAMPLE = ["Pick", "a", "style"];
 export function LookSample({ look, words = EXAMPLE }: { look: CaptionLook; words?: string[] }) {
   const shown = look === "one" ? words.slice(-1) : words;
   return (
-    <span className={`look-sample sample-${look}`}>
+    <span className={`look-sample sample-${look}`} style={{ fontFamily: `"${CAPTION_FONTS[look]}", system-ui, sans-serif` }}>
       {shown.map((w, i) => (
         <i key={i} style={{ animationDelay: `${i * 0.45}s`, animationDuration: `${shown.length * 0.45}s` }}>
           {w}
@@ -37,7 +39,15 @@ function targets(): string[] {
 }
 
 /** The Captions tab in the left panel, in Video. */
+/** The fonts of every look, fetched once so the tiles and the captions show in them. */
+export function useCaptionFonts() {
+  useEffect(() => {
+    for (const family of new Set(Object.values(CAPTION_FONTS))) void fetchFamily(family);
+  }, []);
+}
+
 export default function CaptionsPanel() {
+  useCaptionFonts();
   // the hint follows what a click would change
   const picked = useStore((s) => s.selection.filter((id) => currentDoc(s).elements[id]?.type === "text").length);
   const all = useStore(() => targets().length);
