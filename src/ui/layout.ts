@@ -265,6 +265,18 @@ export function keepMode(path: string, mode: Mode) {
   }
 }
 
+/** A file just made for new work starts with no remembered space: a name used before, like Untitled, must not bring back an old project's space. */
+export function forgetMode(path: string) {
+  try {
+    const all = JSON.parse(localStorage.getItem(MODES) ?? "{}") as Record<string, Mode>;
+    if (!(path in all)) return;
+    delete all[path];
+    localStorage.setItem(MODES, JSON.stringify(all));
+  } catch {
+    /* ignore */
+  }
+}
+
 /* ---- a small window: the canvas keeps its room, and the panels give way ---- */
 
 /** The canvas is never narrower than this. */

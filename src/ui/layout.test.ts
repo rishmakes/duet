@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import { defaults, isColorOpen, modeOf, parseLayout, rightTabOf } from "./layout";
+import { defaults, forgetMode, isColorOpen, keepMode, modeOf, parseLayout, rightTabOf } from "./layout";
 
 const store = new Map<string, string>();
 const fakeStorage = {
@@ -185,5 +185,13 @@ describe("chat under the right panel", () => {
     expect(parseLayout({}).chatInPanel).toBe(false);
     expect(parseLayout({ chatInPanel: true, panelChatH: 20 })).toMatchObject({ chatInPanel: true, panelChatH: 160 });
     expect(parseLayout({ panelChatH: "tall" }).panelChatH).toBe(360);
+  });
+});
+
+describe("a new file does not inherit an old project's space", () => {
+  it("forgetMode clears the space kept for a name used before", () => {
+    keepMode("/Duet/Untitled.duet", "design");
+    forgetMode("/Duet/Untitled.duet");
+    expect(modeOf("/Duet/Untitled.duet")).toBeNull();
   });
 });

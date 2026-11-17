@@ -3,6 +3,7 @@ import { adoptFonts, fontFilesIn } from "./fonts";
 import { renderPng } from "./exporter";
 import { invoke } from "@tauri-apps/api/core";
 import { ask, message, open, save, showDialogsInWindow } from "../ui/dialog";
+import { forgetMode } from "../ui/layout";
 import { emptyDoc } from "../document/types";
 import type { Doc } from "../document/types";
 import { DesignFileError, parseDoc, serializeDoc } from "../document/serialize";
@@ -933,6 +934,8 @@ export function giveHome(): Promise<boolean> {
       const file = await freePath(getState().project.name);
       // the work may have gone while the name was found: an empty canvas still gets no file
       if (!hasWork() || getState().project.path || inTest) return !!getState().project.path;
+      // a name used before (Untitled) may still hold an old project's space; new work starts clean
+      forgetMode(file);
       await saveTo(file);
     } catch (e) {
       logError("give work a home", e);
