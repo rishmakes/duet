@@ -704,7 +704,19 @@ export interface DeleteArgs {
 const deleteElements: CommandDef<DeleteArgs> = {
   label: (a) => (a.ids.length > 1 ? `Delete ${a.ids.length} elements` : "Delete element"),
   run: (doc, a) => {
-    const next = clone(doc);
+    // A clip or sound taken off the timeline stays in Clips: the media is not the timeline (#378).
+    const keep: AddMediaArgs["items"] = [];
+    for (const id of a.ids) {
+      const el = doc.elements[id];
+      if (!el || isDerived(id)) continue;
+      for (const d of [id, ...descendants(doc, id)]) {
+        const e = doc.elements[d];
+        if (e && (e.type === "video" || e.type === "sound") && e.src && !keep.some((k) => k.src === e.src)) {
+          keep.push({ id: newId("clip"), name: e.name || e.src.split(/[\\/]/).pop() || "Clip", kind: e.type, src: e.src });
+        }
+      }
+    }
+    const next = clone(keep.length ? addMedia(doc, { items: keep }) : doc);
     for (const id of a.ids) {
       const el = next.elements[id];
       if (!el || isDerived(id)) continue; // the inside of a copy comes from its component

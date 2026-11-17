@@ -75,3 +75,22 @@ describe("follow_footage (#343)", () => {
     expect(runCommand(edit, "follow_footage", { id: "f", on: true })).toBe(edit);
   });
 });
+
+describe("deleting a clip keeps its file in Clips (#378)", () => {
+  it("the file stays in Clips after its clip is taken off the timeline", () => {
+    let doc = runCommand(scene(true), "create_element", clip("a", 0, 4));
+    expect(doc.media ?? []).toHaveLength(0);
+    doc = runCommand(doc, "delete_elements", { ids: ["a"] });
+    expect(doc.elements.a).toBeUndefined();
+    expect((doc.media ?? []).map((m) => m.src)).toEqual(["/m/a.mp4"]);
+  });
+
+  it("a file already in Clips is not added twice, and never mutates", () => {
+    let doc = runCommand(scene(true), "create_element", clip("a", 0, 4));
+    doc = runCommand(doc, "add_media", { items: [{ id: "k", name: "a.mp4", kind: "video", src: "/m/a.mp4" }] });
+    const before = JSON.stringify(doc);
+    const after = runCommand(doc, "delete_elements", { ids: ["a"] });
+    expect(after.media).toHaveLength(1);
+    expect(JSON.stringify(doc)).toBe(before);
+  });
+});

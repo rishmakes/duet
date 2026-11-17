@@ -32,6 +32,7 @@ Restart `tauri dev` after installing a new npm package. Vite re-bundles dependen
 
 - Website (private repo `rishmakes/duet-site`, folder `~/Desktop/DEV/duet-site`): https://duet.noisyarchitects.org. Deploy with `npm run deploy` there. Update what works in `src/content/status.ts` after each version.
 - The private part (private repo `rishmakes/duet-private`, folder `~/Desktop/DEV/duet-private`): research, plans and technology that are not released. Public issues say what a designer gets; how it works is written there. Never copy from it into this repo, its issues or its commits without the creator saying so.
+- In-app feedback lands in a Google Sheet (id in `~/.duet-keys/feedback-sheet`). When the creator says "feedback", "red flag", or "I sent something", run `python3 scripts/feedback-pull/pull.py` first and read the new rows in `ref/feedback/`. Never ask him where the sheet is. Then search issues for each row before filing.
 - Feedback form: https://forms.gle/Zs6s7bX6CpJigCCf6. Creator booking: https://cal.com/rishmakes/coffee.
 - Release: push a tag like `v0.2.0`. GitHub Actions builds Mac and Windows installers into a draft release. Publish with `gh release edit <tag> --draft=false`. Not a pre-release: installed copies look for the latest release and offer it as an update. Releases are signed with Duet's own update key, `~/.duet-keys/duet-updater.key` (also the GitHub secret TAURI_SIGNING_PRIVATE_KEY). Lose it and installed copies can never update again.
 - Licence: PolyForm Shield 1.0.0 (source available, not open source). v0.1.0 was MIT.
