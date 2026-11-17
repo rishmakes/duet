@@ -67,8 +67,17 @@ export const BUILDER_TOOLS: ToolDef[] = [
   },
   {
     name: "dev_press",
-    description: "Builder tool. Press something in the interface, by line number or by name.",
-    inputSchema: { type: "object", properties: { ...which, keys: held, double: { ...bool, description: "True for a double click." }, right: { ...bool, description: "True for a right click." } } },
+    description: "Builder tool. Press something in the interface, by line number or by name. With offset, press the bare spot that far from its middle instead, such as empty room beside a button.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ...which,
+        keys: held,
+        double: { ...bool, description: "True for a double click." },
+        right: { ...bool, description: "True for a right click." },
+        offset: { type: "array", items: num, description: "[dx, dy] in screen pixels from the middle of what is named; whatever is under that spot is pressed." },
+      },
+    },
   },
   {
     name: "dev_type",
@@ -301,12 +310,18 @@ function heldKeys(list: unknown) {
 }
 
 async function press(a: Args): Promise<ToolResult> {
-  const el = find(a);
-  if (typeof el === "string") return fail(el);
+  const named = find(a);
+  if (typeof named === "string") return fail(named);
+  const r = named.getBoundingClientRect();
+  const off = Array.isArray(a.offset) ? (a.offset as unknown[]).map(Number) : null;
+  const x = r.left + r.width / 2 + (off?.[0] || 0);
+  const y = r.top + r.height / 2 + (off?.[1] || 0);
+  const spot = off ? document.elementFromPoint(x, y) : named;
+  if (!(spot instanceof HTMLElement)) return fail(`Nothing in the window at ${Math.round(x)}, ${Math.round(y)}.`);
+  const el = spot;
   if ((el as HTMLButtonElement).disabled) return fail(`"${nameOf(el)}" is switched off and cannot be pressed.`);
-  const called = nameOf(el); // a press can change what it is called, such as Fold to Unfold
-  const r = el.getBoundingClientRect();
-  const at = { bubbles: true, cancelable: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, button: a.right ? 2 : 0, ...heldKeys(a.keys) };
+  const called = off ? `the spot ${off.join(", ")} from "${nameOf(named)}" (${el.className || el.tagName.toLowerCase()})` : nameOf(el); // a press can change what it is called, such as Fold to Unfold
+  const at = { bubbles: true, cancelable: true, clientX: x, clientY: y, button: a.right ? 2 : 0, ...heldKeys(a.keys) };
   el.dispatchEvent(new PointerEvent("pointerdown", at));
   el.dispatchEvent(new MouseEvent("mousedown", at));
   if (el.matches("input, textarea, select, [contenteditable='true']")) el.focus();
