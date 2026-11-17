@@ -995,15 +995,19 @@ export default function StorePage({ onClose, startOn }: StorePageProps) {
         </div>
       ) : (
         <>
+          {/* Back and Close both, in the same places as on every page inside the Store (#372) */}
+          <div className="skills-page-head store-thing-head">
+            <button className="pill" title="Back to where you came from" onClick={onClose}>
+              ← Back
+            </button>
+            <button className="page-close" title="Close" aria-label="Close" onClick={onClose}>
+              <Icon name="close" size={16} />
+            </button>
+          </div>
           <div className="skills-page-head">
             <div>
               <h2>Store</h2>
               <p className="store-page-about">Skills, scripts and plugins that teach Duet and its AI new things</p>
-            </div>
-            <div className="store-head-actions">
-              <button className="page-close" title="Close" aria-label="Close" onClick={onClose}>
-                <Icon name="close" size={16} />
-              </button>
             </div>
           </div>
 
