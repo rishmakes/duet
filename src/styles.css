@@ -3023,7 +3023,7 @@ option {
   max-height: 170px;
   overflow-y: auto;
   overflow-x: auto;
-  padding: 0 16px 6px 0;
+  padding: 0 16px 0 0;
 }
 /* holds the rows and the playhead, so the playhead is as tall as everything in the lanes, not only as what shows */
 .time-inner {
@@ -3032,6 +3032,9 @@ option {
   min-width: 100%;
   /* with few tracks the playhead still runs to the bottom of the timeline (#327) */
   min-height: 100%;
+  /* the room under the last row sits inside, so the playhead runs through it to the very bottom */
+  padding-bottom: 6px;
+  box-sizing: border-box;
 }
 .time-row {
   display: flex;
