@@ -93,6 +93,38 @@ describe("tracks", () => {
     expect(row("v")).toBeGreaterThan(row("c"));
   });
 
+  /** Every pair of things that show at the same time and are not sounds: the one in front is on a row above. */
+  const agrees = (doc: Doc) => {
+    const frame = doc.elements.f;
+    const rows = trackRows(doc, frame);
+    const rowOf = (id: string) => rows.findIndex((r) => r.items.some((el) => el.id === id));
+    const sees = frame.childIds.filter((id) => doc.elements[id].type !== "sound");
+    for (const a of sees) for (const b of sees) {
+      const x = doc.elements[a];
+      const y = doc.elements[b];
+      const together = x.start < (y.end || 20) && y.start < (x.end || 20);
+      // later in childIds is in front
+      if (a !== b && together && frame.childIds.indexOf(a) > frame.childIds.indexOf(b)) if (rowOf(a) >= rowOf(b)) return false;
+    }
+    return true;
+  };
+
+  it("Edit shows what Motion draws: bringing a clip to the front moves it above the ones it covers", () => {
+    let doc = runCommand(scene(), "add_track", { id: "f" });
+    expect(agrees(doc)).toBe(true);
+    // a covers b and is behind it on its own track: bring it to the front in Motion
+    doc = runCommand(doc, "arrange_elements", { ids: ["a"], to: "top" });
+    expect(agrees(doc)).toBe(true);
+    const rows = trackRows(doc, doc.elements.f);
+    expect(rows.findIndex((r) => r.items.some((el) => el.id === "a"))).toBeLessThan(rows.findIndex((r) => r.items.some((el) => el.id === "b")));
+  });
+
+  it("Edit shows what Motion draws: sending a clip to the back moves it below the ones that cover it", () => {
+    let doc = runCommand(scene(), "add_track", { id: "f" });
+    doc = runCommand(doc, "arrange_elements", { ids: ["b"], to: "bottom" });
+    expect(agrees(doc)).toBe(true);
+  });
+
   it("renames a track, and a track with no clips can be taken away", () => {
     let doc = runCommand(scene(), "add_track", { id: "f" });
     doc = runCommand(doc, "rename_track", { id: "f", track: { index: 0 }, name: "60s idea" });
@@ -134,7 +166,7 @@ describe("tracks", () => {
 
   it("a file saved when each track held one kind of thing opens with the same rows, as plain tracks", () => {
     let doc = scene();
-    for (const [id, start, end] of [["w1", 0, 1], ["w3", 0.5, 1.5]] as const) doc = runCommand(doc, "create_element", { type: "text", id, parentId: "f", x: 0, y: 0, width: 10, height: 10, props: { start, end } });
+    for (const [id, start, end] of [["w3", 0.5, 1.5], ["w1", 0, 1]] as const) doc = runCommand(doc, "create_element", { type: "text", id, parentId: "f", x: 0, y: 0, width: 10, height: 10, props: { start, end } });
     // as 0.14 saved it: sound first in the list, a clip and a word on no track yet
     const old = structuredClone(doc);
     const f = old.elements.f as unknown as { tracks: unknown[] };

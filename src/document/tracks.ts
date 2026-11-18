@@ -133,8 +133,34 @@ export function trackRows(doc: Doc, frame: El): TrackRow[] {
   const names = [...frame.tracks];
   const rowOf = new Map<El, TrackRow>();
   for (const row of rows) for (const el of row.items) rowOf.set(el, row);
+  // what is drawn is the truth, so a saved row that says otherwise is a mistake: the thing it hurts most goes loose, to be placed again below
+  const sight = (el: El) => el.type !== "sound";
+  const wrong = (a: El, b: El) => {
+    // a is in front of b when it comes first in the list, and it must then sit on a row above
+    const [front, back] = items.indexOf(a) < items.indexOf(b) ? [a, b] : [b, a];
+    return sight(a) && sight(b) && overlap(a, b, frame) && rows.indexOf(rowOf.get(front)!) > rows.indexOf(rowOf.get(back)!);
+  };
+  const evicted = new Set<El>();
+  for (;;) {
+    const placed = [...rowOf.keys()];
+    let worst: El | null = null;
+    let most = 0;
+    for (const a of placed) {
+      const count = placed.filter((b) => b !== a && wrong(a, b)).length;
+      // the one with most quarrels moved; at a tie, the one further back
+      if (count > most || (count === most && count > 0 && items.indexOf(a) > items.indexOf(worst!))) {
+        worst = a;
+        most = count;
+      }
+    }
+    if (!worst) break;
+    const row = rowOf.get(worst)!;
+    row.items = row.items.filter((el) => el !== worst);
+    rowOf.delete(worst);
+    evicted.add(worst);
+  }
   // the oldest first, so a thing put in later never pushes an earlier one off its row
-  for (const el of items.filter((el) => !ids.has(el.track ?? "") || bumped.has(el)).reverse()) {
+  for (const el of items.filter((el) => !ids.has(el.track ?? "") || bumped.has(el) || evicted.has(el)).reverse()) {
     // a row above every row of what it covers in time and behind it, and below every row of what is in front of it, so Edit and the layers agree
     const at = items.indexOf(el);
     let lo = 0;
