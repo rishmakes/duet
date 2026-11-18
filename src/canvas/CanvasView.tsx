@@ -3,6 +3,7 @@ import { onOpenBoard, openBoard, pinnedOn } from "../document/boards";
 import { linkDot, onLinkDot, screenAt, screenOf } from "./links";
 import { clipKind, dropClips, keepDropped } from "../video/scene";
 import { getLayout, setLayout, useLayout } from "../ui/layout";
+import { isMouseWheel, wheelZoomFactor } from "../ui/wheel";
 import { RULER, gapsAround, snapEqualGaps, snapToGuides } from "./guides";
 import type { Gap } from "./guides";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -1038,7 +1039,6 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
 
     // beside the chat the canvas only looks: any drag moves the view
     if (viewOnly || e.button === 1 || spaceRef.current || s.tool === "hand") {
-      if (lockedRef.current) return;
       // the middle button drags the view in every tool and in Motion too, as in other video and design tools
       if (e.button === 1) e.preventDefault();
       stopGlide();
@@ -1368,6 +1368,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
 
     if (d.kind === "pan") {
       setViewport({ ...s.viewport, x: d.vx + (p.sx - d.sx), y: d.vy + (p.sy - d.sy) });
+      settleSoon();
       return;
     }
 
@@ -1769,39 +1770,39 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
   };
 
   // ---------- wheel, pinch ----------
+  // In Motion: while any edge of the scene is off screen you are free. Once all four edges are in view,
+  // every step of the zoom or move eases the scene a little toward the middle. The zoom level is never changed.
+  // Zoomed in, it can be moved only until an edge of the scene meets the edge of the view.
+  const settleSoon = () => {
+    if (!lockedRef.current) return;
+    const id = getState().clock.scene;
+    const doc = workDoc(getState());
+    if (!id || !doc.elements[id]) return;
+    const b = worldBounds(doc, id);
+    const { w, h } = sizeRef.current;
+    const vp = getState().viewport;
+    const sw = b.width * vp.zoom;
+    const sh = b.height * vp.zoom;
+    const left = b.x * vp.zoom + vp.x;
+    const top = b.y * vp.zoom + vp.y;
+    if (left < 0 || top < 0 || left + sw > w || top + sh > h) {
+      // zoomed in: panning stops when an edge of the scene reaches the edge of the view, so you never get lost
+      const x = sw > w ? Math.min(-b.x * vp.zoom, Math.max(w - sw - b.x * vp.zoom, vp.x)) : vp.x;
+      const y = sh > h ? Math.min(-b.y * vp.zoom, Math.max(h - sh - b.y * vp.zoom, vp.y)) : vp.y;
+      if (x !== vp.x || y !== vp.y) setViewport({ ...vp, x, y });
+      return;
+    }
+    const pull = 0.22;
+    const x = vp.x + ((w - sw) / 2 - b.x * vp.zoom - vp.x) * pull;
+    const y = vp.y + ((h - sh) / 2 - b.y * vp.zoom - vp.y) * pull;
+    if (Math.abs(x - vp.x) > 0.01 || Math.abs(y - vp.y) > 0.01) setViewport({ ...vp, x, y });
+  };
   useEffect(() => {
     // listened for on the whole canvas area, so a scroll or pinch over a comment still moves the design
     const canvas = wrapRef.current!;
     // A pinch on a Mac trackpad arrives as gesture events. While one is running, ignore wheel zoom,
     // so the same pinch is never counted twice.
     let pinch: { zoom: number; wx: number; wy: number } | null = null;
-    // In Motion: while any edge of the scene is off screen you are free. Once all four edges are in view,
-    // every step of the zoom or move eases the scene a little toward the middle. The zoom level is never changed.
-    // Zoomed in, it can be moved only until an edge of the scene meets the edge of the view.
-    const settleSoon = () => {
-      if (!lockedRef.current) return;
-      const id = getState().clock.scene;
-      const doc = workDoc(getState());
-      if (!id || !doc.elements[id]) return;
-      const b = worldBounds(doc, id);
-      const { w, h } = sizeRef.current;
-      const vp = getState().viewport;
-      const sw = b.width * vp.zoom;
-      const sh = b.height * vp.zoom;
-      const left = b.x * vp.zoom + vp.x;
-      const top = b.y * vp.zoom + vp.y;
-      if (left < 0 || top < 0 || left + sw > w || top + sh > h) {
-        // zoomed in: panning stops when an edge of the scene reaches the edge of the view, so you never get lost
-        const x = sw > w ? Math.min(-b.x * vp.zoom, Math.max(w - sw - b.x * vp.zoom, vp.x)) : vp.x;
-        const y = sh > h ? Math.min(-b.y * vp.zoom, Math.max(h - sh - b.y * vp.zoom, vp.y)) : vp.y;
-        if (x !== vp.x || y !== vp.y) setViewport({ ...vp, x, y });
-        return;
-      }
-      const pull = 0.22;
-      const x = vp.x + ((w - sw) / 2 - b.x * vp.zoom - vp.x) * pull;
-      const y = vp.y + ((h - sh) / 2 - b.y * vp.zoom - vp.y) * pull;
-      if (Math.abs(x - vp.x) > 0.01 || Math.abs(y - vp.y) > 0.01) setViewport({ ...vp, x, y });
-    };
     const onWheel = (e: WheelEvent) => {
       // words being typed scroll their own box
       if ((e.target as Element).closest?.("textarea, input")) return;
@@ -1809,14 +1810,12 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
       if (getState().editingId) return;
       stopGlide();
       const p = point(e);
-      // A mouse wheel turns in whole notches of 120 (or by lines); a trackpad slides in small steps.
-      const notched = e.deltaMode !== 0 || (e.deltaX === 0 && (e as WheelEvent & { wheelDeltaY?: number }).wheelDeltaY !== 0 && ((e as WheelEvent & { wheelDeltaY?: number }).wheelDeltaY ?? 1) % 120 === 0);
+      // a mouse wheel and a trackpad slide look different (see ui/wheel.ts)
+      const notched = isMouseWheel(e);
       const mouseZoom = notched && !e.shiftKey && getLayout().wheelZooms;
       if (e.ctrlKey || e.metaKey || mouseZoom) {
         if (pinch) return;
-        // one notch of a mouse wheel is about a fifth more or less
-        const step = mouseZoom && !(e.ctrlKey || e.metaKey) ? Math.sign(e.deltaY) * 20 : Math.max(-40, Math.min(40, e.deltaY));
-        zoomAt(p.sx, p.sy, Math.exp(-step * 0.01));
+        zoomAt(p.sx, p.sy, mouseZoom && !(e.ctrlKey || e.metaKey) ? wheelZoomFactor(e) : Math.exp(-Math.max(-40, Math.min(40, e.deltaY)) * 0.01));
       } else {
         const vp = getState().viewport;
         // Shift with a mouse wheel slides sideways

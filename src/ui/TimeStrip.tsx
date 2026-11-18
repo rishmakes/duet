@@ -26,6 +26,7 @@ import type { TimeTool } from "./TimeActions";
 import type { ExportChoice } from "../video/scene";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { DEFAULT_TRACK_H, NO_HEIGHTS, TIME_MIN_H, TRACK_MAX_H, TRACK_MIN_H, getLayout, isColorOpen, setLayout, useLayout } from "./layout";
+import { isMouseWheel, wheelZoomFactor } from "./wheel";
 import { useDismiss } from "./useDismiss";
 import { openBoard, pinnedOn } from "../document/boards";
 import { showComment } from "./commentFocus";
@@ -487,7 +488,10 @@ export default function TimeStrip() {
     const next = Math.max(1, Math.min(MOST_ZOOM, z * factor));
     if (next === z) return;
     const left = box.getBoundingClientRect().left;
-    hold.current = { t: (clientX - left + box.scrollLeft - NAMES) / per, at: clientX - left };
+    // several zoom steps can arrive before the screen catches up, so measure from where the last one is going
+    const was = hold.current;
+    const scroll = was ? Math.max(0, was.t * per + NAMES - was.at) : box.scrollLeft;
+    hold.current = { t: (clientX - left + scroll - NAMES) / per, at: clientX - left };
     zoomNow.current = { zoom: next, pps: (per * next) / z };
     setZoom(next);
   };
@@ -511,10 +515,11 @@ export default function TimeStrip() {
     // a pinch on a Mac trackpad arrives as gesture events; while one runs, the wheel's zoom is ignored
     let pinching: { zoom: number } | null = null;
     const onWheel = (e: WheelEvent) => {
-      if (e.ctrlKey || e.metaKey) {
+      const mouseZoom = !e.shiftKey && getLayout().wheelZooms && isMouseWheel(e);
+      if (e.ctrlKey || e.metaKey || mouseZoom) {
         e.preventDefault();
         if (pinching) return;
-        zoomTo(e.clientX, Math.exp(-Math.max(-40, Math.min(40, e.deltaY)) * 0.01));
+        zoomTo(e.clientX, mouseZoom && !(e.ctrlKey || e.metaKey) ? wheelZoomFactor(e) : Math.exp(-Math.max(-40, Math.min(40, e.deltaY)) * 0.01));
       } else if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
         e.preventDefault();
         box.scrollLeft += e.deltaX;
