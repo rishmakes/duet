@@ -2543,9 +2543,7 @@ const rippleDelete: CommandDef<RippleDeleteArgs> = {
         const el = next.elements[c];
         const by = round(gaps.filter((g) => g.end <= el.start + 0.004).reduce((sum, g) => sum + (g.end - g.start), 0));
         if (!by) continue;
-        el.start = round(el.start - by);
-        if (el.end) el.end = round(el.end - by);
-        for (const prop of MOVING) if (el.keys[prop]) el.keys[prop] = el.keys[prop]!.map((k) => ({ ...k, t: round(k.t - by) }));
+        shiftTime(el, -by);
       }
       // the video is shorter by what was taken out
       frame.duration = Math.max(0.1, round(frame.duration - gaps.reduce((sum, g) => sum + (g.end - g.start), 0)));

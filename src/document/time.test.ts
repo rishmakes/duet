@@ -131,6 +131,18 @@ describe("time", () => {
     expect(doc.elements.f.duration).toBe(7);
   });
 
+  it("closing a gap also moves a shape's points in time, so its outline changes at the same moments", () => {
+    let doc = runCommand(emptyDoc(), "create_element", { type: "frame", id: "f", x: 0, y: 0, width: 100, height: 100 });
+    doc = runCommand(doc, "set_duration", { id: "f", seconds: 9 });
+    for (const [id, start, end] of [["a", 0, 3], ["b", 3, 5]] as const) doc = runCommand(doc, "create_element", { type: "video", id, parentId: "f", x: 0, y: 0, width: 10, height: 10, props: { src: "/a.mp4", start, end } });
+    doc = runCommand(doc, "create_element", { type: "path", id: "p", parentId: "f", x: 0, y: 0, width: 10, height: 10, props: { start: 5, end: 9 } });
+    const shapeKeys = [{ t: 5.5, points: [], ease: "in-out" as const }, { t: 7, points: [], ease: "in-out" as const }];
+    doc = { ...doc, elements: { ...doc.elements, p: { ...doc.elements.p, shapeKeys } } };
+    doc = runCommand(doc, "ripple_delete", { ids: ["b"] });
+    expect(doc.elements.p.start).toBe(3);
+    expect(doc.elements.p.shapeKeys.map((k) => k.t)).toEqual([3.5, 5]);
+  });
+
   it("a change by hand at another moment becomes a mark there, once a thing has been marked", () => {
     resetStore();
     loadDoc(scene());
