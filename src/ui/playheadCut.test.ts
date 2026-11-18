@@ -16,9 +16,10 @@ describe("the playhead never shows in the names column", () => {
     expect(tsx).toMatch(/onScroll=\{\(e\) => e\.currentTarget\.style\.setProperty\("--sl"/);
   });
 
-  it("has a head in the ruler and a line below it, both at one whole-pixel position (#389)", () => {
-    expect(headX(150, 1.234, 100)).toBe(273);
-    expect(tsx).toMatch(/className="time-head-top" style=\{\{ left: headX\(NAMES, clock\.t, pps\) - NAMES \}\}/);
+  it("is one line with its head on it, on one whole-pixel position that matches the clips (#389)", () => {
+    expect(headX(150, 1.234, 100)).toBe(274);
+    expect(tsx).not.toContain("time-head-top");
+    expect(tsx.match(/className="time-head"/g)).toHaveLength(1);
     expect(tsx).toMatch(/className="time-head" style=\{\{ left: headX\(NAMES, clock\.t, pps\) \}\}/);
   });
 });

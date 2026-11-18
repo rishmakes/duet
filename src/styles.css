@@ -3083,7 +3083,7 @@ option {
   position: sticky;
   top: 0;
   background: var(--panel);
-  /* above the playhead line, so the names corner always covers it; the ruler draws its own piece of it; above the names of the rows scrolled under it */
+  /* above the playhead line, so the names corner always covers it; above the names of the rows scrolled under it */
   z-index: 6;
   width: max-content;
   min-width: 100%;
@@ -3349,35 +3349,12 @@ option {
   inset: -4px;
 }
 /* the playhead's own window: it shows only from the right edge of the names, however far the timeline is scrolled */
-.time-head-top {
-  position: absolute;
-  top: 0;
-  /* a pixel past the ruler, so it overlaps the line below and no seam shows (#389) */
-  bottom: -1px;
-  width: 1px;
-  background: var(--accent, var(--text));
-  pointer-events: none;
-  z-index: 1;
-}
-/* the head: white, lightly raised, with two thin grip lines like the work area's ends, in the playhead's own shape (#389) */
-.time-head-top::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: -6px;
-  width: 13px;
-  height: 15px;
-  background:
-    linear-gradient(90deg, transparent 4.2px, rgba(0, 0, 0, 0.2) 4.2px 4.8px, transparent 4.8px 7.7px, rgba(0, 0, 0, 0.2) 7.7px 8.3px, transparent 8.3px) 0 2px / 100% 6px no-repeat,
-    linear-gradient(180deg, #ffffff, #d9d9de);
-  clip-path: polygon(0 0, 100% 0, 100% 55%, 50% 100%, 0 55%);
-  border-radius: 2px;
-}
 .time-head-clip {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 3;
+  /* above the ruler: the line is drawn once, from the top to the bottom, so there are no two pieces to disagree (#389) */
+  z-index: 7;
 }
 .time-head {
   position: absolute;
@@ -3386,6 +3363,22 @@ option {
   width: 1px;
   background: var(--accent, var(--text));
   pointer-events: none;
+}
+
+/* the head: white, lightly raised, with two thin grip lines like the work area's ends, in the playhead's own shape. It sticks to the top of the timeline when the tracks scroll (#389) */
+.time-head::before {
+  content: "";
+  display: block;
+  position: sticky;
+  top: 0;
+  margin-left: -6px;
+  width: 13px;
+  height: 15px;
+  background:
+    linear-gradient(90deg, transparent 4.2px, rgba(0, 0, 0, 0.2) 4.2px 4.8px, transparent 4.8px 7.7px, rgba(0, 0, 0, 0.2) 7.7px 8.3px, transparent 8.3px) 0 2px / 100% 6px no-repeat,
+    linear-gradient(180deg, #ffffff, #d9d9de);
+  clip-path: polygon(0 0, 100% 0, 100% 55%, 50% 100%, 0 55%);
+  border-radius: 2px;
 }
 
 /* settings screen */
