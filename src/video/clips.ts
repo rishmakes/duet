@@ -116,6 +116,19 @@ function letGoOfOldClips(keep: Set<string>, playing: boolean) {
 
 const fullPlayer = (id: string, src: string) => fullPlayers.get(id) ?? makePlayer(src, fullPlayers, id);
 
+/** Point a paused player at the light copy of its file, and put it back where it was. */
+function moveToCopy(v: HTMLMediaElement, copy: string) {
+  const at = v.currentTime;
+  v.addEventListener(
+    "loadedmetadata",
+    () => {
+      v.currentTime = at;
+    },
+    { once: true },
+  );
+  v.src = convertFileSrc(copy);
+}
+
 /** Have Duet make the light copy in the background, then move every player of the file over to it where it was. */
 function askPreview(src: string) {
   // a sound is already light, and has no picture to make smaller
@@ -126,17 +139,17 @@ function askPreview(src: string) {
       copies.set(src, copy);
       for (const v of [...players.values(), ...clipPlayers.values()]) {
         if (fileOf.get(v) !== src) continue;
-        const at = v.currentTime;
-        const wasPlaying = !v.paused;
-        v.addEventListener(
-          "loadedmetadata",
-          () => {
-            v.currentTime = at;
-            if (wasPlaying) void v.play().catch(() => undefined);
-          },
-          { once: true },
-        );
-        v.src = convertFileSrc(copy);
+        // swapping a source under a player that is playing makes it start over and play some of the sound twice,
+        // so a playing player moves to the light copy when it next pauses
+        if (v.paused) moveToCopy(v, copy);
+        else
+          v.addEventListener(
+            "pause",
+            () => {
+              if (fileOf.get(v) === src) moveToCopy(v, copy);
+            },
+            { once: true },
+          );
       }
     })
     // without a copy the original keeps playing, as before
@@ -294,6 +307,8 @@ const LOOK_AHEAD = 2;
  * moving when the playhead reaches it. A player takes a moment to get going, and the clock never waits.
  */
 const ROLL_IN = 0.3;
+/** How far behind the clock a clip may be and still set its pace, in seconds: about two pictures. */
+const LATE = 0.07;
 /** Players of clips coming next that are already rolling silently towards their cut. */
 const rolling = new Set<HTMLMediaElement>();
 
@@ -387,6 +402,15 @@ export function clipReport(doc: Doc, sceneId: string, t: number): string {
   return out.join("; ") || "no clip here";
 }
 
+/**
+ * The time a clip puts the clock at, or null when it should not lead. A clip that is late, has not started yet
+ * or has run out does not hold the clock: the clock runs on and another clip, or its own timer, sets the pace.
+ */
+export function clockLead(at: number, t: number): number | null {
+  if (at < t - LATE || at > t + 1) return null;
+  return Math.max(t, at);
+}
+
 export function clockFromClip(doc: Doc, sceneId: string, t: number): number | null {
   const scene = doc.elements[sceneId];
   if (!scene?.duration) return null;
@@ -399,9 +423,9 @@ export function clockFromClip(doc: Doc, sceneId: string, t: number): number | nu
     // a clip that is late does not hold the clock: the clock runs on, as in any editor
     if (v.paused || v.seeking || v.readyState < 3) continue;
     const at = frameTimeAt(el, start, v.currentTime);
-    // a clip that has not started yet, or has run out, does not lead
-    if (at < t - 1 || at > t + 1) continue;
-    return Math.max(t, at);
+    const lead = clockLead(at, t);
+    if (lead === null) continue;
+    return lead;
   }
   return null;
 }
