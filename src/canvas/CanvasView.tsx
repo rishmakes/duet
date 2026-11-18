@@ -4,6 +4,7 @@ import { linkDot, onLinkDot, screenAt, screenOf } from "./links";
 import { clipKind, dropClips, keepDropped } from "../video/scene";
 import { getLayout, setLayout, useLayout } from "../ui/layout";
 import { isMouseWheel, wheelZoomFactor } from "../ui/wheel";
+import ZoomControl from "../ui/ZoomControl";
 import { RULER, gapsAround, snapEqualGaps, snapToGuides } from "./guides";
 import type { Gap } from "./guides";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -2386,6 +2387,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
           </button>
         );
       })()}
+      {!viewOnly && <ZoomControl />}
       {lost && (
         <button className="find" onClick={() => zoomToFit(sizeRef.current.w, sizeRef.current.h)}>
           Find your design

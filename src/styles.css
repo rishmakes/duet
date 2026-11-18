@@ -1697,6 +1697,16 @@ body.eyedropping * {
 .zoomwrap {
   position: relative;
 }
+.zoom-control {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 20;
+}
+.zmenu.up {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
 .zmenu {
   position: absolute;
   right: 0;

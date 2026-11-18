@@ -1,6 +1,5 @@
 import PageFlipButton from "./ui/PageFlip";
 import { useEffect, useState, useRef } from "react";
-import { useDismiss } from "./ui/useDismiss";
 import { detectAgent, startAgentListeners, stopAll, workingNow } from "./ai/agent";
 import { ask } from "./ui/dialog";
 import { startMcp } from "./ai/mcp";
@@ -135,7 +134,6 @@ wireKeys();
 const MAC = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
 
 export default function App() {
-  const zoom = useStore((s) => s.viewport.zoom);
   const project = useStore((s) => s.project);
   // a project opens in the space it was left in, and another tab keeps its own
   const spaceMode = useLayout((d) => d.mode);
@@ -153,9 +151,7 @@ export default function App() {
   useEffect(() => {
     if (project.path) keepMode(project.path, spaceMode);
   }, [spaceMode]);
-  const [zoomMenu, setZoomMenu] = useState(false);
   const [theme] = useTheme();
-  useDismiss(zoomMenu, () => setZoomMenu(false), ".zoomwrap.zoomonly");
   const [presenting, setPresenting] = useState(false);
   // Home shows from the first moment, so the studio never flashes up empty while the last design loads behind it
   const [homeOpen, setHomeOpen] = useState(true);
@@ -399,26 +395,6 @@ export default function App() {
             </button>
           )}
           <ExportMenu />
-          <div className="zoomwrap zoomonly">
-            <button className="pill" onClick={() => setZoomMenu(!zoomMenu)} title="Zoom">
-              {Math.round(zoom * 100)}%
-            </button>
-            {zoomMenu && (
-              <div className="zmenu" onClick={() => setZoomMenu(false)}>
-                <div onClick={() => window.dispatchEvent(new Event("duet:fit"))}>
-                  Fit everything <kbd>Shift 1</kbd>
-                </div>
-                <div onClick={() => window.dispatchEvent(new CustomEvent("duet:fit-selection"))}>
-                  Zoom to selection <kbd>Shift 2</kbd>
-                </div>
-                {[0.25, 0.5, 1, 2].map((z) => (
-                  <div key={z} onClick={() => window.dispatchEvent(new CustomEvent("duet:zoom", { detail: z }))}>
-                    {z * 100}%
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
       </header>
       {/* in every space, down the left: your projects, open ones first; they take the place of tabs */}
