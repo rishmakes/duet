@@ -29,3 +29,12 @@ describe("wheelZoomFactor", () => {
     expect(wheelZoomFactor(wheel(40, 0)) * wheelZoomFactor(wheel(-40, 0))).toBeCloseTo(1);
   });
 });
+
+describe("a whole notch of the creator's mouse", () => {
+  it("zooms about one and a half times, not more", () => {
+    const steps = [4, 35, 130, 150];
+    const total = steps.reduce((z, d) => z * wheelZoomFactor(wheel(-d, 0)), 1);
+    expect(total).toBeGreaterThan(1.4);
+    expect(total).toBeLessThan(1.9);
+  });
+});

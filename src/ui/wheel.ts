@@ -18,8 +18,8 @@ export function isMouseWheel(e: WheelEvent): boolean {
   return now < wheelUntil;
 }
 
-/** How much one wheel step zooms: more than 1 zooms in. */
+/** How much one wheel step zooms: more than 1 zooms in. A whole notch of this mouse adds up to about 1.5 times, since big steps are capped. */
 export function wheelZoomFactor(e: WheelEvent): number {
   const lines = e.deltaMode !== 0 ? e.deltaY * 16 : e.deltaY;
-  return Math.exp(-Math.max(-60, Math.min(60, lines)) * 0.004);
+  return Math.exp(-Math.max(-60, Math.min(60, lines)) * 0.0025);
 }

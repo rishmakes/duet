@@ -374,7 +374,11 @@ export function glideTo(target: { x: number; y: number; zoom: number; zoomIn?: b
   glideRaf = animFrame(tick);
 }
 
-function fitBox(box: Rect, width: number, height: number, maxZoom: number, pad = 120) {
+/** The room left around what Fit frames: a twentieth of the view's smaller side, never under 12 or over 120 pixels. */
+export const fitMargin = (width: number, height: number) => Math.max(12, Math.min(120, Math.min(width, height) * 0.05));
+
+function fitBox(box: Rect, width: number, height: number, maxZoom: number) {
+  const pad = fitMargin(width, height);
   const zoom = Math.max(MIN_ZOOM, Math.min(maxZoom, (width - pad * 2) / box.width, (height - pad * 2) / box.height));
   glideTo({
     zoom,
@@ -1770,9 +1774,8 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
   };
 
   // ---------- wheel, pinch ----------
-  // In Motion: while any edge of the scene is off screen you are free. Once all four edges are in view,
-  // every step of the zoom or move eases the scene a little toward the middle. The zoom level is never changed.
-  // Zoomed in, it can be moved only until an edge of the scene meets the edge of the view.
+  // In Motion you zoom and move freely and nothing moves by itself; Fit brings the scene back.
+  // Zoomed in on a scene, it can be moved only until an edge of it meets the edge of the view, so you never get lost.
   const settleSoon = () => {
     if (!lockedRef.current) return;
     const id = getState().clock.scene;
@@ -1792,10 +1795,6 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
       if (x !== vp.x || y !== vp.y) setViewport({ ...vp, x, y });
       return;
     }
-    const pull = 0.22;
-    const x = vp.x + ((w - sw) / 2 - b.x * vp.zoom - vp.x) * pull;
-    const y = vp.y + ((h - sh) / 2 - b.y * vp.zoom - vp.y) * pull;
-    if (Math.abs(x - vp.x) > 0.01 || Math.abs(y - vp.y) > 0.01) setViewport({ ...vp, x, y });
   };
   useEffect(() => {
     // listened for on the whole canvas area, so a scroll or pinch over a comment still moves the design

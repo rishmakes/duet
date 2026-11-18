@@ -411,7 +411,7 @@ export default function App() {
                 <div onClick={() => window.dispatchEvent(new CustomEvent("duet:fit-selection"))}>
                   Zoom to selection <kbd>Shift 2</kbd>
                 </div>
-                {[0.5, 1, 2].map((z) => (
+                {[0.25, 0.5, 1, 2].map((z) => (
                   <div key={z} onClick={() => window.dispatchEvent(new CustomEvent("duet:zoom", { detail: z }))}>
                     {z * 100}%
                   </div>
