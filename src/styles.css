@@ -3348,27 +3348,6 @@ option {
   position: absolute;
   inset: -4px;
 }
-.time-head-top {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background: var(--accent, var(--text));
-  pointer-events: none;
-  z-index: 1;
-}
-/* a handle on the ruler, so the playhead is easy to see and to find (#327) */
-.time-head-top::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: -6px;
-  width: 13px;
-  height: 15px;
-  background: var(--accent, var(--text));
-  clip-path: polygon(0 0, 100% 0, 100% 55%, 50% 100%, 0 55%);
-  border-radius: 2px;
-}
 /* the playhead's own window: it shows only from the right edge of the names, however far the timeline is scrolled */
 .time-head-clip {
   position: absolute;
@@ -3383,6 +3362,18 @@ option {
   width: 1px;
   background: var(--accent, var(--text));
   pointer-events: none;
+}
+/* a handle on the ruler, so the playhead is easy to see and to find (#327) */
+.time-head::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -6px;
+  width: 13px;
+  height: 15px;
+  background: var(--accent, var(--text));
+  clip-path: polygon(0 0, 100% 0, 100% 55%, 50% 100%, 0 55%);
+  border-radius: 2px;
 }
 
 /* settings screen */

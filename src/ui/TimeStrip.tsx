@@ -1783,7 +1783,6 @@ export default function TimeStrip() {
             <i className="names-grip" onPointerDown={pullNames} title="Pull to make the names wider or narrower" />
           </span>
           <div className="time-lane" onPointerDown={scrub} style={{ width: laneWidth }}>
-            <b className="time-head-top" style={{ left: clock.t * pps }} />
             {marks.map((t) => (
               <i key={t} style={{ left: t * pps }}>
                 {clockText(t).replace(/\.0$/, "")}
@@ -2084,8 +2083,9 @@ export default function TimeStrip() {
         {(frame.markers ?? []).map((m) => (
           <div key={m.id} className="time-marker-line" style={{ left: NAMES + m.t * pps, "--marker": m.color } as React.CSSProperties} />
         ))}
+        {/* one playhead line from the handle to the bottom, on a whole pixel, so it never looks broken (#389) */}
         <div className="time-head-clip" style={{ clipPath: HEAD_WINDOW }}>
-          <div className="time-head" style={{ left: NAMES + clock.t * pps }} />
+          <div className="time-head" style={{ left: Math.round(NAMES + clock.t * pps) }} />
         </div>
         {snap !== null && <div className="time-snap" style={{ left: NAMES + snap * pps }} />}
         </div>

@@ -15,4 +15,9 @@ describe("the playhead never shows in the names column", () => {
     expect(tsx).toMatch(/<div className="time-head-clip" style=\{\{ clipPath: HEAD_WINDOW \}\}>\s*<div className="time-head"/);
     expect(tsx).toMatch(/onScroll=\{\(e\) => e\.currentTarget\.style\.setProperty\("--sl"/);
   });
+
+  it("is one line, from the handle to the bottom, on a whole pixel (#389)", () => {
+    expect(tsx).not.toContain("time-head-top");
+    expect(tsx).toMatch(/className="time-head" style=\{\{ left: Math\.round\(/);
+  });
 });
