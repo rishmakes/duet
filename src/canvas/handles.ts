@@ -14,6 +14,17 @@ export const HANDLES: { key: HandleKey; fx: number; fy: number; cursor: string }
   { key: "w", fx: 0, fy: 0.5, cursor: "ew-resize" },
 ];
 
+/** How far the typing box reaches out from the words' own box, in screen pixels: its border and padding together. */
+export const EDIT_EDGE = 3.5;
+/** The typing box's border is 1.5 pixels wide, so its outline runs through the middle of it. */
+const TYPING_BORDER = 1.5;
+
+/** The box the handles sit on while words are typed: the outline of the typing box, which is a little outside the words' own box. */
+export function typingBox(r: Rect): Rect {
+  const out = EDIT_EDGE - TYPING_BORDER / 2;
+  return { x: r.x - out, y: r.y - out, width: r.width + out * 2, height: r.height + out * 2 };
+}
+
 /** How far outside a corner, in screen pixels, the pointer can be and still turn the shape. */
 export const TURN_REACH = 22;
 

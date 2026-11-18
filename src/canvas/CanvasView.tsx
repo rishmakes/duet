@@ -56,7 +56,7 @@ import {
   useStore,
 } from "../state/store";
 import type { Tool } from "../state/store";
-import { HANDLES, TURN_CURSOR, TURN_REACH, handleCursor, resizeTurned } from "./handles";
+import { EDIT_EDGE, HANDLES, TURN_CURSOR, TURN_REACH, handleCursor, resizeTurned, typingBox } from "./handles";
 import type { HandleKey } from "./handles";
 import { pickImages, placeFiles } from "../project/imageImport";
 import {
@@ -980,7 +980,9 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     const doc = workDoc(s);
     const box = manyBox(doc, s.selection);
     if (editing() || (s.selection.length !== 1 && !box) || !doc.elements[s.selection[0]]) return null;
-    const r = screenRect(s, box ?? worldRect(doc, s.selection[0]));
+    const rect = screenRect(s, box ?? worldRect(doc, s.selection[0]));
+    // while its words are typed, the handles sit on the typing box, a little outside the words' own box
+    const r = s.editingId === s.selection[0] ? typingBox(rect) : rect;
     // the handles of a turned shape are turned with it, so turn the pointer back to meet them
     const p = box ? { x: sx, y: sy } : turnPoint(sx, sy, r.x + r.width / 2, r.y + r.height / 2, -turnOf(doc.elements[s.selection[0]]));
     for (const hd of HANDLES) {
@@ -2618,8 +2620,6 @@ function CommentText({ start, onDone }: { start: string; onDone: (text: string) 
   );
 }
 
-/** Space between the edge of the typing box and its words: its padding and its border. */
-const EDIT_EDGE = 3.5;
 
 function TextEditor({
   id,

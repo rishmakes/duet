@@ -12,7 +12,7 @@ import { graded } from "./grade";
 import { applyEffects } from "./effects";
 import { getChat } from "../ai/chat";
 import { nameOf } from "../ai/names";
-import { HANDLES } from "./handles";
+import { HANDLES, typingBox } from "./handles";
 import { drawLinks } from "./links";
 import { agentColour } from "../ai/colours";
 import { RULER, rulerTicks } from "./guides";
@@ -945,7 +945,9 @@ export function draw(ctx: CanvasRenderingContext2D, s: State, w: number, h: numb
     ctx.restore();
   }
   if (sel.length === 1 && !s.overlay.nodeEdit) {
-    const r = screenRect(s, worldRect(doc, sel[0]));
+    const rect = screenRect(s, worldRect(doc, sel[0]));
+    // while its words are typed, the handles sit on the typing box, a little outside the words' own box
+    const r = sel[0] === s.editingId ? typingBox(rect) : rect;
     turned(ctx, r, turnOf(doc.elements[sel[0]]), () => {
       for (const hd of HANDLES) {
         const hx = r.x + r.width * hd.fx;
