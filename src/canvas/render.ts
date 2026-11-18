@@ -858,6 +858,8 @@ export function draw(ctx: CanvasRenderingContext2D, s: State, w: number, h: numb
   ctx.strokeStyle = COLORS.accent;
   ctx.lineWidth = 1.5;
   for (const id of sel) {
+    // the words being typed have their own outline, the typing box: one box, not two
+    if (id === s.editingId) continue;
     const r = screenRect(s, worldRect(doc, id));
     turned(ctx, r, turnOf(doc.elements[id]), () => ctx.strokeRect(r.x, r.y, r.width, r.height));
   }
@@ -979,7 +981,7 @@ export function draw(ctx: CanvasRenderingContext2D, s: State, w: number, h: numb
       ctx.stroke();
     }
   }
-  if (sel.length > 0) {
+  if (sel.length > 0 && !(sel.length === 1 && sel[0] === s.editingId)) {
     const rects = sel.map((id) => screenRect(s, worldBounds(doc, id)));
     const x1 = Math.min(...rects.map((r) => r.x));
     const x2 = Math.max(...rects.map((r) => r.x + r.width));

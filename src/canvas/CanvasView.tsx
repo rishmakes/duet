@@ -119,9 +119,10 @@ function playingNow(doc: Doc): Doc {
 }
 
 /** What is under the pointer, leaving out what is not on show while one frame is looked at alone, or not playing yet. */
-function hitTest(doc: Doc, x: number, y: number, ignore?: Set<string>, deep?: boolean): string | null {
-  const id = hitAnything(playingNow(doc), x, y, ignore, deep);
-  return id && shownOn(doc, id) ? id : null;
+export function hitTest(doc: Doc, x: number, y: number, ignore?: Set<string>, deep?: boolean): string | null {
+  // what is not on show is skipped while looking, so a picture left beside the video cannot swallow a click meant for what is under it
+  const off = doc.rootIds.filter((id) => !shownOn(doc, id));
+  return hitAnything(playingNow(doc), x, y, off.length ? new Set([...(ignore ?? []), ...off]) : ignore, deep);
 }
 
 type Drag =
@@ -1036,8 +1037,29 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
   };
 
   // ---------- pointer ----------
+  /** While words are typed, the handles of their box still work: a press on one starts a resize and the typing goes on. */
+  const overTypingHandle = (e: { clientX: number; clientY: number }): HandleKey | null => {
+    const s = getState();
+    if (!s.editingId || s.selection.length !== 1 || s.selection[0] !== s.editingId) return null;
+    const p = point(e);
+    return handleAt(p.sx, p.sy);
+  };
+  const pressTypingHandle = (e: React.PointerEvent): boolean => {
+    const handle = e.button === 0 ? overTypingHandle(e) : null;
+    if (!handle) return false;
+    e.preventDefault();
+    hold(e.pointerId);
+    const p = point(e);
+    const id = getState().selection[0];
+    const doc = workDoc();
+    dragRef.current = { kind: "resize", handle, id, orig: worldRect(doc, id), turn: turnOf(doc.elements[id]), sx: p.sx, sy: p.sy, start: { x: p.x, y: p.y } };
+    return true;
+  };
   const onPointerDown = (e: React.PointerEvent) => {
-    if (getState().editingId) return;
+    if (getState().editingId) {
+      pressTypingHandle(e);
+      return;
+    }
     const p = point(e);
     const s = getState();
     hold(e.pointerId);
@@ -2291,6 +2313,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
         ref={canvasRef}
         data-canvas="design"
         onPointerDown={onPointerDown}
+        onMouseDown={(e) => overTypingHandle(e) && e.preventDefault()}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onDoubleClick={viewOnly ? undefined : onDoubleClick}
@@ -2393,7 +2416,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
           Find your design
         </button>
       )}
-      {editingId && <TextEditor key={editingId} id={editingId} zoom={viewport.zoom} vx={viewport.x} vy={viewport.y} />}
+      {editingId && <TextEditor key={editingId} id={editingId} zoom={viewport.zoom} vx={viewport.x} vy={viewport.y} onHandlePress={pressTypingHandle} overHandle={overTypingHandle} />}
       {!viewOnly && <Comments zoom={viewport.zoom} vx={viewport.x} vy={viewport.y} draft={draft} drawingMark={drawingMark} onDraftDone={() => setDraft(null)} />}
     </div>
   );
@@ -2598,7 +2621,21 @@ function CommentText({ start, onDone }: { start: string; onDone: (text: string) 
 /** Space between the edge of the typing box and its words: its padding and its border. */
 const EDIT_EDGE = 3.5;
 
-function TextEditor({ id, zoom, vx, vy }: { id: string; zoom: number; vx: number; vy: number }) {
+function TextEditor({
+  id,
+  zoom,
+  vx,
+  vy,
+  onHandlePress,
+  overHandle,
+}: {
+  id: string;
+  zoom: number;
+  vx: number;
+  vy: number;
+  onHandlePress: (e: React.PointerEvent) => boolean;
+  overHandle: (e: { clientX: number; clientY: number }) => unknown;
+}) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const cancelled = useRef(false);
   const doc = workDoc();
@@ -2659,6 +2696,11 @@ function TextEditor({ id, zoom, vx, vy }: { id: string; zoom: number; vx: number
         transformOrigin: `${EDIT_EDGE + (el.width * zoom) / 2}px ${EDIT_EDGE - lift + (el.height * zoom) / 2}px`,
       }}
       onChange={(e) => setValue(e.target.value)}
+      // the handles sit half under this box: a press on one resizes, and the typing goes on
+      onPointerDown={(e) => {
+        if (onHandlePress(e)) e.stopPropagation();
+      }}
+      onMouseDown={(e) => overHandle(e) && e.preventDefault()}
       onBlur={finish}
       onKeyDown={(e) => {
         e.stopPropagation();
