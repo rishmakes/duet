@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import tsx from "./TimeStrip.tsx?raw";
-import { HEAD_WINDOW } from "./TimeStrip";
+import { HEAD_WINDOW, headX } from "./TimeStrip";
 
 /**
  * The playhead on the timeline lanes must be cut off at the names column by how far the timeline has scrolled,
@@ -16,8 +16,9 @@ describe("the playhead never shows in the names column", () => {
     expect(tsx).toMatch(/onScroll=\{\(e\) => e\.currentTarget\.style\.setProperty\("--sl"/);
   });
 
-  it("is one line, from the handle to the bottom, on a whole pixel (#389)", () => {
-    expect(tsx).not.toContain("time-head-top");
-    expect(tsx).toMatch(/className="time-head" style=\{\{ left: Math\.round\(/);
+  it("has a head in the ruler and a line below it, both at one whole-pixel position (#389)", () => {
+    expect(headX(150, 1.234, 100)).toBe(273);
+    expect(tsx).toMatch(/className="time-head-top" style=\{\{ left: headX\(NAMES, clock\.t, pps\) - NAMES \}\}/);
+    expect(tsx).toMatch(/className="time-head" style=\{\{ left: headX\(NAMES, clock\.t, pps\) \}\}/);
   });
 });

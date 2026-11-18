@@ -36,6 +36,8 @@ import { HearingCard, HearingLine, TranscribeBox, useHearingAll } from "./Transc
 import { AutoCaptionsBox } from "./AutoCaptions";
 
 /** The playhead shows only from the right edge of the names, however far the lanes have scrolled (--sl is set on scroll). #327 */
+/** Where the playhead's line is, in whole pixels, counted from the left of the timeline. The ruler's piece and the body's piece both use this, so they always meet. */
+export const headX = (names: number, t: number, pps: number) => Math.round(names + t * pps);
 export const HEAD_WINDOW = "inset(0 0 0 calc(var(--sl, 0px) + var(--names, 150px)))";
 
 /** Time under the canvas: a row for each thing in a frame that plays, when it shows, and where the clock is. */
@@ -1783,6 +1785,8 @@ export default function TimeStrip() {
             <i className="names-grip" onPointerDown={pullNames} title="Pull to make the names wider or narrower" />
           </span>
           <div className="time-lane" onPointerDown={scrub} style={{ width: laneWidth }}>
+            {/* the playhead's head and its piece of the line, on the same whole pixel as the line below the ruler (#389) */}
+            <b className="time-head-top" style={{ left: headX(NAMES, clock.t, pps) - NAMES }} />
             {marks.map((t) => (
               <i key={t} style={{ left: t * pps }}>
                 {clockText(t).replace(/\.0$/, "")}
@@ -2085,7 +2089,7 @@ export default function TimeStrip() {
         ))}
         {/* one playhead line from the handle to the bottom, on a whole pixel, so it never looks broken (#389) */}
         <div className="time-head-clip" style={{ clipPath: HEAD_WINDOW }}>
-          <div className="time-head" style={{ left: Math.round(NAMES + clock.t * pps) }} />
+          <div className="time-head" style={{ left: headX(NAMES, clock.t, pps) }} />
         </div>
         {snap !== null && <div className="time-snap" style={{ left: NAMES + snap * pps }} />}
         </div>
