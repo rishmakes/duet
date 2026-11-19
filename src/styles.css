@@ -12740,15 +12740,16 @@ button.ctx-item.store-make-option:hover {
   position: relative;
 }
 .words-export-btn {
-  padding: 4px 12px;
-  border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--text);
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: transparent;
   font-size: 12px;
-  font-weight: 600;
+  cursor: pointer;
 }
-.words-export-btn:hover {
-  background: var(--panel-3);
+.words-export-btn:hover,
+.words-export-btn[aria-expanded="true"] {
+  border-color: var(--accent);
 }
 .words-export-menu {
   position: absolute;
