@@ -105,7 +105,7 @@ export default function WordsPanel() {
               </div>
             ))}
           </div>
-          <div className="words-foot">{note || "Lit = playing now. Click a word to go there."}</div>
+          {note && <div className="words-foot">{note}</div>}
         </>
       )}
     </div>
