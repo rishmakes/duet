@@ -68,23 +68,25 @@ export default function WordsPanel() {
 
   return (
     <div className="words-panel" data-name="words-panel">
-      <div className="words-head">
-        <div className="words-title">Words</div>
-        {words.length > 0 && (
-          <div className="words-export" data-name="words-export">
-            <button className="words-export-btn" data-name="words-export-button" aria-expanded={menu} onClick={() => setMenu(!menu)}>
-              Export
-            </button>
-            {menu && (
-              <div className="words-export-menu">
-                <button data-name="words-export-srt" onClick={() => void exportAs("srt")}>Save as SRT</button>
-                <button data-name="words-export-txt" onClick={() => void exportAs("txt")}>Save as TXT</button>
-              </div>
-            )}
-          </div>
-        )}
+      <div className="words-top">
+        <div className="words-head">
+          <div className="words-title">Words</div>
+          {words.length > 0 && (
+            <div className="words-export" data-name="words-export">
+              <button className="words-export-btn" data-name="words-export-button" aria-expanded={menu} onClick={() => setMenu(!menu)}>
+                Export
+              </button>
+              {menu && (
+                <div className="words-export-menu">
+                  <button data-name="words-export-srt" onClick={() => void exportAs("srt")}>Save as SRT</button>
+                  <button data-name="words-export-txt" onClick={() => void exportAs("txt")}>Save as TXT</button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="words-sub">{words.length ? [scene?.name, heardIn].filter(Boolean).join(" · ") : listening ? "Listening for words…" : "Nothing heard yet"}</div>
       </div>
-      <div className="words-sub">{words.length ? [scene?.name, heardIn].filter(Boolean).join(" · ") : listening ? "Listening for words…" : "Nothing heard yet"}</div>
       {!words.length ? (
         <div className="words-foot">{listening ? "Duet is listening on this computer. The words show here when it is done; the card over the video says how far it is." : "Press Transcribe under the timeline, and everything said in this video shows here."}</div>
       ) : (
