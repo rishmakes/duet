@@ -5,7 +5,8 @@ import { canBeComponent, captureOverrides, detachInstance, isDerived, syncInstan
 import { orderByPosition, relayout } from "../document/layout";
 import { MOVING, playsFile } from "../document/types";
 import type { Blend, Comment, CommentMark, Doc, El, ElementType, Key, Layout, Moving, ShapeKey, TextStyle, Transcript } from "../document/types";
-import { withWords, wordsOfEdit } from "../document/words";
+import { fixWords, withWords, wordsOfEdit } from "../document/words";
+import type { WordFix } from "../document/words";
 import { CAPTION_LOOKS, CAPTIONS_TRACK, SPOKEN_COLOURS, boxedLook, captionChunks, captionMiddle, captionProps, captionRoom, captionText } from "../document/captions";
 import type { CaptionLook } from "../document/captions";
 import { CURVES, ENTRANCES, entranceKeys, fileTimeAt, outlineOf, sceneOf, spanOf, valueAt, withKey, withShapeKey } from "../document/time";
@@ -2876,6 +2877,17 @@ const setWordsDef: CommandDef<SetWordsArgs> = {
   run: (doc, a) => withWords(doc, a.src, a.transcript),
 };
 
+// ---- fix_words ----
+export interface FixWordsArgs {
+  fixes: WordFix[];
+}
+
+/** Fix misheard words, or take out words never said, in the transcript only (#397). The video is not cut. */
+const fixWordsDef: CommandDef<FixWordsArgs> = {
+  label: (a) => (a.fixes.length === 1 ? (a.fixes[0].text.trim() ? `Fix a word: ${a.fixes[0].text.trim()}` : "Remove a word from the words") : "Fix the words"),
+  run: (doc, a) => fixWords(doc, a.fixes),
+};
+
 // ---- Clips: the clips, sounds, pictures and folders a video is made from ----
 const addMediaDef: CommandDef<AddMediaArgs> = {
   label: (a) => (a.items.length === 1 ? `Add ${a.items[0].name} to Clips` : "Add to Clips"),
@@ -2993,6 +3005,7 @@ export const commands = {
   make_brand_kit: makeBrandKitDef,
   add_media: addMediaDef,
   set_words: setWordsDef,
+  fix_words: fixWordsDef,
   remove_media: removeMediaDef,
   new_folder: newFolderDef,
   rename_media: renameMediaDef,

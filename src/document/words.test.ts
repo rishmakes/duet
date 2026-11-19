@@ -75,3 +75,35 @@ describe("words of an edit", () => {
     expect(back.words).toEqual(doc.words);
   });
 });
+
+describe("fixing words by hand (#397)", () => {
+  it("changes a misheard word and keeps its time, with undo through the old doc", () => {
+    const { doc, sceneId } = scene();
+    const fixed = runCommand(doc, "fix_words", { fixes: [{ src: "/talk.mp4", s: 1.0, e: 1.3, text: "aaj hi" }] });
+    expect(wordsOfEdit(fixed, sceneId).map((w) => w.w)).toEqual(["Toh", "toh", "aaj", "hi", "hum", "baat", "karenge"]);
+    // two words share the time of the one heard
+    const words = fixed.words!["/talk.mp4"].words;
+    expect(words[2]).toEqual({ w: "aaj", s: 1.0, e: 1.15 });
+    expect(words[3]).toEqual({ w: "hi", s: 1.15, e: 1.3 });
+    // the old doc is untouched
+    expect(doc.words!["/talk.mp4"].words).toHaveLength(6);
+  });
+
+  it("takes words out of the transcript only, never cutting the video", () => {
+    const { doc, sceneId, clipId } = scene();
+    const fixed = runCommand(doc, "fix_words", { fixes: [{ src: "/talk.mp4", s: 0.1, e: 0.8, text: "" }] });
+    expect(wordsOfEdit(fixed, sceneId).map((w) => w.w)).toEqual(["aaj", "hum", "baat", "karenge"]);
+    expect(fixed.elements[clipId]).toEqual(doc.elements[clipId]);
+  });
+
+  it("drops noise like oooo from new transcripts and from older files", () => {
+    const noisy: Transcript = { ...talk, words: [{ w: "oooooooo", s: 0, e: 0.05 }, ...talk.words, { w: "ooo,", s: 4.1, e: 4.2 }, { w: "oo", s: 4.3, e: 4.4 }] };
+    const { doc } = scene();
+    const heard = runCommand(doc, "set_words", { src: "/talk.mp4", transcript: noisy });
+    expect(heard.words!["/talk.mp4"].words.map((w) => w.w)).toEqual([...talk.words.map((w) => w.w), "oo"]);
+    // an older file saved with the noise opens clean
+    const old = JSON.parse(serializeDoc(doc));
+    old.words["/talk.mp4"].words = noisy.words;
+    expect(parseDoc(JSON.stringify(old)).words!["/talk.mp4"].words.map((w) => w.w)).not.toContain("oooooooo");
+  });
+});

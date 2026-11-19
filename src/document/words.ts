@@ -179,10 +179,53 @@ export function trimPoints(words: Word[], edge: "start" | "end", keep = BREATH):
 /** A word as compared when checking the AI means the word it named: letters and digits only, lower case. */
 export const plainWord = (w: string) => w.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
 
+/**
+ * Noise the speech model writes over music or silence (#397): one letter three times or more, like "oooo"
+ * or "mmm". Nobody says it as a word, so Duet never keeps it. "aa" and "oo" stay: they can be real words.
+ */
+export const isNoise = (w: string) => /^(\p{L})\1{2,}$/u.test(plainWord(w));
+
+/** Words in English letters, with the noise taken out. */
+const cleanWords = (words: Word[]): Word[] => words.map((w) => ({ w: inEnglishLetters(w.w), s: w.s, e: w.e })).filter((w) => !isNoise(w.w));
+
+/** One fix to a recording's words: the words whose middle is from `s` to `e` (seconds of the file) become `text`. */
+export interface WordFix {
+  src: string;
+  s: number;
+  e: number;
+  /** The right words, or empty to take them out. */
+  text: string;
+}
+
+/**
+ * The doc with words fixed by hand or by the AI (#397). The new words take the time the old ones were heard
+ * in, shared evenly when there are more or fewer of them. An empty fix takes the words out of the transcript
+ * only: the video is never cut. Never mutates.
+ */
+export function fixWords(doc: Doc, fixes: WordFix[]): Doc {
+  let next = doc;
+  for (const f of fixes) {
+    const t = next.words?.[f.src];
+    if (!t) continue;
+    const hit = t.words.map((w, i) => (inside(w, f.s, f.e) ? i : -1)).filter((i) => i >= 0);
+    if (!hit.length) continue;
+    const first = hit[0];
+    const last = hit[hit.length - 1];
+    const from = t.words[first].s;
+    const to = t.words[last].e;
+    const said = f.text.trim().split(/\s+/).filter(Boolean);
+    const each = (to - from) / Math.max(1, said.length);
+    const made = said.map((w, i) => ({ w, s: round(from + each * i), e: i === said.length - 1 ? to : round(from + each * (i + 1)) }));
+    const words = [...t.words.slice(0, first), ...made, ...t.words.slice(last + 1)];
+    next = withWords(next, f.src, { ...t, words });
+  }
+  return next;
+}
+
 /** The doc with a recording's words set, or taken away when `transcript` is null. Never mutates. */
 export function withWords(doc: Doc, src: string, transcript: Transcript | null): Doc {
   const words = { ...(doc.words ?? {}) };
-  if (transcript) words[src] = { language: transcript.language, model: transcript.model, words: transcript.words.map((w) => ({ w: inEnglishLetters(w.w), s: w.s, e: w.e })) };
+  if (transcript) words[src] = { language: transcript.language, model: transcript.model, words: cleanWords(transcript.words) };
   else delete words[src];
   if (Object.keys(words).length) return { ...doc, words };
   const { words: _w, ...rest } = doc;
@@ -195,7 +238,7 @@ export function readWords(raw: unknown): Record<string, Transcript> | undefined 
   const out: Record<string, Transcript> = {};
   for (const [src, t] of Object.entries(raw as Record<string, Partial<Transcript>>)) {
     if (!t || !Array.isArray(t.words)) continue;
-    const words = t.words.filter((w): w is Word => !!w && typeof w.w === "string" && Number.isFinite(w.s) && Number.isFinite(w.e)).map((w) => ({ ...w, w: inEnglishLetters(w.w) }));
+    const words = cleanWords(t.words.filter((w): w is Word => !!w && typeof w.w === "string" && Number.isFinite(w.s) && Number.isFinite(w.e)));
     out[src] = { language: typeof t.language === "string" ? t.language : "", model: typeof t.model === "string" ? t.model : "", words };
   }
   return Object.keys(out).length ? out : undefined;

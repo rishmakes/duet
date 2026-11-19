@@ -97,6 +97,14 @@ describe("the AI's words tools", () => {
     expect(after.text).toContain("um,");
   });
 
+  it("fixes and takes out words in the transcript only, never cutting the video (#397)", async () => {
+    const r = await callTool("fix_words", { id: "f", fixes: [{ from: 4, to: 4, says: "talk", text: "talk" }, { from: 3, to: 3, says: "um,", text: "" }, { from: 0, to: 1, says: "So today", text: "Today" }] });
+    expect(r.isError).toBeFalsy();
+    expect(wordsOfEdit(currentDoc(), "f").map((w) => w.w)).toEqual(["Today", "we", "talk", "about", "money."]);
+    expect(currentDoc().elements.f.duration).toBe(6);
+    expect((await callTool("fix_words", { id: "f", fixes: [{ from: 1, to: 1, says: "money", text: "x" }] })).isError).toBe(true);
+  });
+
   it("refuses words that are not the ones it read, and cuts nothing", async () => {
     const r = await callTool("cut_words", { id: "f", cuts: [{ from: 3, to: 3, says: "talk" }] });
     expect(r.isError).toBe(true);

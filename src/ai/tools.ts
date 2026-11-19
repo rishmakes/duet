@@ -20,6 +20,7 @@ import { PEAK_SLICE, peaksOf } from "../video/faces";
 import { SILENCE_DEFAULT, findSilences, loudnessAt } from "../video/silence";
 import { hearingNow, languageOf, lastLanguage, transcribe, voiceReady } from "../ui/Transcribe";
 import { BREATH, cutOutOfEdit, cutsForWords, plainWord, wordsOfEdit } from "../document/words";
+import type { WordFix } from "../document/words";
 import { MOVING, emptyDoc, playsFile } from "../document/types";
 import { boardsOf, commentsHere, describeMark, onOpenBoard, openBoard } from "../document/boards";
 import { GRADE_CONTROLS, canGrade, gradeChanges } from "../document/grade";
@@ -691,6 +692,26 @@ export const TOOLS: ToolDef[] = [
     },
   },
   {
+    name: "fix_words",
+    description:
+      "Fix misheard words in a frame's transcript, or take out words never said (like noise the speech model wrote over music), by the numbers get_transcript gave them, in one step. Each fix is from one word to another, with says: those words as you read them, so Duet checks they are still those words, and text: the right words, or empty to take them out. The new words take the time the old ones were heard in. This changes the transcript only, never the video: to cut speech out of the video use cut_words. Read get_transcript again after. One undo brings everything back.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { ...str, description: "A frame that plays." },
+        fixes: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: { from: num, to: num, says: { ...str, description: "The words from from to to, as get_transcript shows them." }, text: { ...str, description: "The right words. Empty takes them out." } },
+            required: ["from", "to", "says", "text"],
+          },
+        },
+      },
+      required: ["id", "fixes"],
+    },
+  },
+  {
     name: "resolve_comment",
     description:
       "Mark a comment the designer pinned on the canvas as dealt with, once you have done what it asks. get_context lists the open ones under comments, each with where it points, the thing under it and what is near. Say in reply what you did, in a few words.",
@@ -719,7 +740,7 @@ export const TOOLS: ToolDef[] = [
 
 /** Tools that make or change the brand kit or the design system: the designer always says yes first. */
 const KIT_TOOLS = new Set(["make_brand_kit", "change_brand_kit", "make_design_system", "change_design_system", "use_kit"]);
-const EDITS = new Set(["apply_text_style", "add_board", "open_board", "rename_board", "move_to_board", "resolve_comment", "add_comment", "set_grade", "copy_grade", "create_instance", "create_element", "create_elements", "set_props", "duplicate_elements", "move_elements", "resize_element", "reparent_elements", "make_mask", "trace_image", "set_duration", "set_work_area", "set_timing", "set_speed", "set_entrance", "animate", "change_volume_between", "cut_silences", "cut_words", "set_curve"]);
+const EDITS = new Set(["apply_text_style", "add_board", "open_board", "rename_board", "move_to_board", "resolve_comment", "add_comment", "set_grade", "copy_grade", "create_instance", "create_element", "create_elements", "set_props", "duplicate_elements", "move_elements", "resize_element", "reparent_elements", "make_mask", "trace_image", "set_duration", "set_work_area", "set_timing", "set_speed", "set_entrance", "animate", "change_volume_between", "cut_silences", "cut_words", "fix_words", "set_curve"]);
 /** Things the designer is asked about first in Ask first mode: losing work, and reading or writing a file on the computer. */
 const RISKY = new Set(["load_look", "delete_elements", "delete_board", "place_image", "import_svg", "find_fonts", "find_icons", "place_icon", "place_video", "place_sound", "export_frame", "export_video"]);
 
@@ -842,6 +863,11 @@ export function summarise(tool: string, a: Args): string {
       const r = Array.isArray(a.ranges) ? (a.ranges as { start: number; end: number }[]) : [];
       const said = typeof a.says === "string" && a.says ? `: "${a.says.length > 80 ? `${a.says.slice(0, 77)}…` : a.says}"` : "";
       return `Cut ${r.length === 1 ? "one bit" : `${r.length} bits`} of speech (${Math.round(r.reduce((t, x) => t + x.end - x.start, 0) * 10) / 10} s) out of ${nameOf(a.id ?? a.sceneId)}${said}`;
+    }
+    case "fix_words": {
+      const f = Array.isArray(a.fixes) ? (a.fixes as { text: string }[]) : [];
+      const gone = f.filter((x) => !x.text.trim()).length;
+      return f.length - gone === 0 ? `Take ${gone === 1 ? "a word" : `${gone} words`} out of the words` : `Fix ${f.length === 1 ? `a word: ${f[0].text.trim()}` : `${f.length} bits of the words`}`;
     }
     case "set_speed":
       return `Play ${namesOf(a.ids)} at ${Math.round(Number(a.speed) * 100)}% speed`;
@@ -1266,6 +1292,11 @@ function prepare(tool: string, raw: Args, doc = R.currentDoc()): { args: Args } 
       const ranges = Array.isArray(a.ranges) ? (a.ranges as { start: unknown; end: unknown }[]) : [];
       if (!ranges.length || ranges.some((r) => typeof r?.start !== "number" || typeof r?.end !== "number" || r.end <= r.start)) return { error: tool === "cut_words" ? "No words to cut." : "No pauses to cut." };
       return { args: tool === "cut_words" ? { id: el.id, ranges, says: typeof a.says === "string" ? a.says : "" } : { id: el.id, ranges } };
+    }
+    case "fix_words": {
+      const fixes = Array.isArray(a.fixes) ? (a.fixes as { src: unknown; s: unknown; e: unknown; text: unknown }[]) : [];
+      if (!fixes.length || fixes.some((f) => typeof f?.src !== "string" || typeof f.s !== "number" || typeof f.e !== "number" || typeof f.text !== "string")) return { error: "No words to fix." };
+      return { args: { fixes } };
     }
     case "set_speed": {
       const bad = missing(a.ids);
@@ -1747,6 +1778,36 @@ function transcriptOf(a: Args): ToolResult {
   return { text: out.join("\n") };
 }
 
+/** The fixes fix_words makes, by the file each word belongs to, after checking each still names the words the AI read. */
+function wordFixes(a: Args): { fixes: WordFix[] } | { error: string } {
+  const doc = R.currentDoc();
+  const scene = typeof a.id === "string" ? doc.elements[a.id] : undefined;
+  if (!scene || scene.type !== "frame" || !(scene.duration > 0)) return { error: `${String(a.id)} is not a frame that plays.` };
+  if (!Array.isArray(a.fixes) || !a.fixes.length) return { error: "Give fixes: from, to, says and text for each." };
+  const words = wordsOfEdit(doc, scene.id);
+  if (!words.length) return { error: `No words are heard in ${scene.name}. Read get_transcript first.` };
+  const fixes: WordFix[] = [];
+  const taken = new Set<number>();
+  for (const c of a.fixes as { from?: unknown; to?: unknown; says?: unknown; text?: unknown }[]) {
+    const f = c?.from;
+    const t = c?.to;
+    if (!Number.isInteger(f) || !Number.isInteger(t) || (f as number) < 0 || (t as number) < (f as number) || (t as number) >= words.length) return { error: `Each fix needs whole numbers from and to, from 0 to ${words.length - 1}, with to not before from.` };
+    if (typeof c.text !== "string") return { error: "Each fix needs text: the right words, or empty to take them out." };
+    const these = words.slice(f as number, (t as number) + 1);
+    const named = String(c.says ?? "").split(/\s+/).map(plainWord).filter(Boolean);
+    if (!named.length || named[0] !== plainWord(these[0].w) || named[named.length - 1] !== plainWord(these[these.length - 1].w)) return { error: `Words ${String(f)} to ${String(t)} now say "${these.map((w) => w.w).join(" ")}", not "${String(c.says ?? "")}". Read get_transcript again.` };
+    for (let i = f as number; i <= (t as number); i++) {
+      if (taken.has(i)) return { error: `Fix ${String(f)} to ${String(t)} overlaps another fix. Join them into one.` };
+      taken.add(i);
+    }
+    // a fix stays inside one clip, so words cut out between two clips are never fixed by mistake
+    const src = doc.elements[these[0].clip]?.src;
+    if (!src || these.some((w) => w.clip !== these[0].clip)) return { error: `Words ${String(f)} to ${String(t)} are in more than one clip. Fix each clip's part on its own.` };
+    fixes.push({ src, s: Math.min(...these.map((w) => w.fs)), e: Math.max(...these.map((w) => w.fe)), text: c.text });
+  }
+  return { fixes };
+}
+
 /** The stretches of a frame cut_words takes out, after checking each cut still names the words the AI read. */
 async function wordCuts(a: Args): Promise<{ ranges: { start: number; end: number }[]; says: string } | { error: string }> {
   const doc = R.currentDoc();
@@ -2201,7 +2262,7 @@ function changedIds(a: Doc, b: Doc): string[] {
  * What a script may change: the design, through the same commands as the AI and the designer.
  * Files, pictures from the computer, exports and the internet are doors a script does not have.
  */
-const SCRIPT_EDITS = new Set([...EDITS, "delete_elements", "delete_board"].filter((t) => t !== "trace_image" && t !== "duplicate_elements" && t !== "cut_silences" && t !== "cut_words"));
+const SCRIPT_EDITS = new Set([...EDITS, "delete_elements", "delete_board"].filter((t) => t !== "trace_image" && t !== "duplicate_elements" && t !== "cut_silences" && t !== "cut_words" && t !== "fix_words"));
 const SCRIPT_READS = new Set(["get_document", "get_outline"]);
 export const scriptTools = () => [...SCRIPT_READS, ...SCRIPT_EDITS];
 
@@ -2393,6 +2454,11 @@ async function answerTool(name: string, raw: unknown, by?: string): Promise<Tool
     if (a.find === true) return { text: JSON.stringify(found) };
     if (!found.pauses.length) return fail("No pauses found, so nothing was cut. Try a higher quiet or a shorter shortest.");
     a.ranges = found.pauses;
+  }
+  if (name === "fix_words") {
+    const found = wordFixes(a);
+    if ("error" in found) return fail(found.error);
+    a.fixes = found.fixes;
   }
   if (name === "cut_words") {
     const found = await wordCuts(a);
