@@ -1,7 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { currentDoc, useStore } from "../state/store";
 import { wordsOfEdit } from "../document/words";
-import type { EditWord } from "../document/words";
+import { toSrt, toTxt, transcriptLines } from "../document/transcriptFile";
+import { message, save } from "./dialog";
 import { seek } from "../video/play";
 import { LANGUAGES, languageOf, useHearingAll } from "./Transcribe";
 
@@ -10,24 +12,6 @@ import { LANGUAGES, languageOf, useHearingAll } from "./Transcribe";
  * their time. The word playing now is lit; a click on a word moves the playhead to it.
  */
 
-/** A pause this long, or the end of a sentence, starts a new line. */
-const BREAK = 0.7;
-
-function lines(words: EditWord[]): EditWord[][] {
-  const out: EditWord[][] = [];
-  let run: EditWord[] = [];
-  for (const w of words) {
-    const last = run[run.length - 1];
-    if (last && (w.s - last.e > BREAK || /[.?!]$/.test(last.w) || run.length >= 14)) {
-      out.push(run);
-      run = [];
-    }
-    run.push(w);
-  }
-  if (run.length) out.push(run);
-  return out;
-}
-
 const clockText = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
 
 export default function WordsPanel() {
@@ -35,7 +19,8 @@ export default function WordsPanel() {
   const doc = useStore((s) => currentDoc(s));
   const t = useStore((s) => s.clock.t);
   const words = useMemo(() => (sceneId ? wordsOfEdit(doc, sceneId) : []), [doc, sceneId]);
-  const rows = useMemo(() => lines(words), [words]);
+  const rows = useMemo(() => transcriptLines(words), [words]);
+  const [note, setNote] = useState("");
   const now = words.findIndex((w) => t >= w.s && t < w.e);
   const nowWord = now >= 0 ? words[now] : null;
 
@@ -46,6 +31,23 @@ export default function WordsPanel() {
     .join(", ");
   const scene = sceneId ? doc.elements[sceneId] : null;
   const listening = useHearingAll().length > 0;
+
+  const exportAs = async (kind: "srt" | "txt") => {
+    try {
+      const path = await save({
+        title: "Export transcript",
+        defaultPath: `${(scene?.name || "Transcript").replace(/[\\/:*?"<>|]/g, "-")}.${kind}`,
+        filters: [{ name: kind.toUpperCase(), extensions: [kind] }],
+      });
+      if (!path) return;
+      const final = path.toLowerCase().endsWith(`.${kind}`) ? path : `${path}.${kind}`;
+      await invoke("write_text_file", { path: final, contents: kind === "srt" ? toSrt(words) : toTxt(words) });
+      setNote(`Saved ${final.split(/[\\/]/).pop()}`);
+    } catch (e) {
+      await message(String(e), { title: "Duet", kind: "error" });
+      setNote("Could not export.");
+    }
+  };
 
   return (
     <div className="words-panel" data-name="words-panel">
@@ -69,7 +71,12 @@ export default function WordsPanel() {
               </div>
             ))}
           </div>
-          <div className="words-foot">Lit = playing now. Click a word to go there.</div>
+          <div className="words-export" data-name="words-export">
+            <span>Export transcript</span>
+            <button className="mini" data-name="words-export-srt" onClick={() => void exportAs("srt")}>SRT</button>
+            <button className="mini" data-name="words-export-txt" onClick={() => void exportAs("txt")}>TXT</button>
+          </div>
+          <div className="words-foot">{note || "Lit = playing now. Click a word to go there."}</div>
         </>
       )}
     </div>

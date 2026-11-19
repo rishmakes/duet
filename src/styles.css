@@ -12731,6 +12731,24 @@ button.ctx-item.store-make-option:hover {
   color: var(--text);
   font-weight: 600;
 }
+.words-export {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--panel-3);
+  color: var(--muted);
+  font-size: 11px;
+}
+.words-export span {
+  flex: 1;
+}
+.words-export + .words-foot {
+  margin-top: 12px;
+  border-top: 0;
+  padding-top: 0;
+}
 .words-foot {
   margin-top: 16px;
   padding-top: 12px;
