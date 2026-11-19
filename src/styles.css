@@ -12682,13 +12682,19 @@ button.ctx-item.store-make-option:hover {
   background: var(--panel-2);
   overflow-y: auto;
 }
-/* title, Export and language line stay at the top while the words scroll under them */
+/* title, Export and language line stay at the top: the list scrolls inside the panel, under them */
+.left.words-tab {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.left.words-tab .words-panel {
+  flex: 1;
+  overflow: hidden;
+}
 .words-top {
-  position: sticky;
-  top: 0;
-  z-index: 10;
+  flex: none;
   padding: 16px 0 10px;
-  background: var(--panel-2);
 }
 .words-title {
   font-size: 14px;
@@ -12700,7 +12706,10 @@ button.ctx-item.store-make-option:hover {
   font-size: 11px;
 }
 .words-rows {
-  margin-top: 14px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin-top: 4px;
   display: flex;
   flex-direction: column;
   gap: 12px;

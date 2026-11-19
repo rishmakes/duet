@@ -502,7 +502,7 @@ export default function LayersPanel() {
   };
 
   return (
-    <aside className="left">
+    <aside className={`left${tab === "words" && video ? " words-tab" : ""}`}>
       {/* the tabs and the hint stay put while the list under them scrolls */}
       <div className="left-head">
       <div className="tabs">
