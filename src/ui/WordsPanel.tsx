@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { currentDoc, useStore } from "../state/store";
 import { wordsOfEdit } from "../document/words";
@@ -21,6 +21,7 @@ export default function WordsPanel() {
   const words = useMemo(() => (sceneId ? wordsOfEdit(doc, sceneId) : []), [doc, sceneId]);
   const rows = useMemo(() => transcriptLines(words), [words]);
   const [note, setNote] = useState("");
+  const [menu, setMenu] = useState(false);
   const now = words.findIndex((w) => t >= w.s && t < w.e);
   const nowWord = now >= 0 ? words[now] : null;
 
@@ -32,7 +33,23 @@ export default function WordsPanel() {
   const scene = sceneId ? doc.elements[sceneId] : null;
   const listening = useHearingAll().length > 0;
 
+  // the Export menu closes on a click anywhere else, or Escape
+  useEffect(() => {
+    if (!menu) return;
+    const away = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest("[data-name=words-export]")) setMenu(false);
+    };
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setMenu(false);
+    window.addEventListener("mousedown", away);
+    window.addEventListener("keydown", esc);
+    return () => {
+      window.removeEventListener("mousedown", away);
+      window.removeEventListener("keydown", esc);
+    };
+  }, [menu]);
+
   const exportAs = async (kind: "srt" | "txt") => {
+    setMenu(false);
     try {
       const path = await save({
         title: "Export transcript",
@@ -51,7 +68,22 @@ export default function WordsPanel() {
 
   return (
     <div className="words-panel" data-name="words-panel">
-      <div className="words-title">Words</div>
+      <div className="words-head">
+        <div className="words-title">Words</div>
+        {words.length > 0 && (
+          <div className="words-export" data-name="words-export">
+            <button className="words-export-btn" data-name="words-export-button" aria-expanded={menu} onClick={() => setMenu(!menu)}>
+              Export
+            </button>
+            {menu && (
+              <div className="words-export-menu">
+                <button data-name="words-export-srt" onClick={() => void exportAs("srt")}>Save as SRT</button>
+                <button data-name="words-export-txt" onClick={() => void exportAs("txt")}>Save as TXT</button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
       <div className="words-sub">{words.length ? [scene?.name, heardIn].filter(Boolean).join(" · ") : listening ? "Listening for words…" : "Nothing heard yet"}</div>
       {!words.length ? (
         <div className="words-foot">{listening ? "Duet is listening on this computer. The words show here when it is done; the card over the video says how far it is." : "Press Transcribe under the timeline, and everything said in this video shows here."}</div>
@@ -70,11 +102,6 @@ export default function WordsPanel() {
                 </span>
               </div>
             ))}
-          </div>
-          <div className="words-export" data-name="words-export">
-            <span>Export transcript</span>
-            <button className="mini" data-name="words-export-srt" onClick={() => void exportAs("srt")}>SRT</button>
-            <button className="mini" data-name="words-export-txt" onClick={() => void exportAs("txt")}>TXT</button>
           </div>
           <div className="words-foot">{note || "Lit = playing now. Click a word to go there."}</div>
         </>
