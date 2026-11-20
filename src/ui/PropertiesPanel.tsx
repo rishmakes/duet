@@ -10,8 +10,7 @@ import { canBeComponent, isLooseCopy } from "../document/components";
 import { canTurn } from "../document/geometry";
 import { defaultLayout } from "../document/layout";
 import { newId } from "../commands";
-import { captionMates, isCaption, lookOf } from "../document/captions";
-import { saveMyLook } from "./myLooks";
+import { captionMates, isCaption } from "../document/captions";
 import type { AlignHow } from "../commands";
 import { useLayout, setLayout, getLayout } from "./layout";
 import type { RightTab } from "./layout";
@@ -359,11 +358,7 @@ function TextSection({ els }: { els: El[] }) {
   const saveStyle = () => {
     const name = styleName.trim();
     if (!name) return;
-    // a caption is saved as a caption look, for the Captions tab in every project
-    if (caption) {
-      const frame = doc.elements[first.parentId!];
-      saveMyLook({ id: newId("look"), name, props: lookOf(first, frame) });
-    } else dispatch("create_text_style", { styleId: newId("style"), fromId: first.id, name });
+    dispatch("create_text_style", { styleId: newId("style"), fromId: first.id, name });
     setNaming(false);
     setStyleName("");
   };
@@ -385,7 +380,7 @@ function TextSection({ els }: { els: El[] }) {
         </select>
       </label>
       {linked && <div className="hint2">Changes here change every text that uses {doc.styles?.[linked]?.name}.</div>}
-      {!linked && caption && <div className="hint2">A caption's look changes every caption in this video. Its words stay its own.</div>}
+      {!linked && caption && <div className="hint2">A caption's look changes every caption in this video. Its words stay its own. Save the look in the Captions tab.</div>}
       <div className="gap" />
       <label className="f">
         <span>Font</span>
@@ -422,7 +417,7 @@ function TextSection({ els }: { els: El[] }) {
             className="f"
             autoFocus
             value={styleName}
-            placeholder={caption ? "Name, like My captions" : "Name, like Heading"}
+            placeholder="Name, like Heading"
             onChange={(e) => setStyleName(e.target.value)}
             onKeyDown={(e) => {
               e.stopPropagation();
@@ -436,9 +431,10 @@ function TextSection({ els }: { els: El[] }) {
           </div>
         </div>
       ) : (
-        els.length === 1 && (
-          <div className="linkbtn" data-name={caption ? "save-caption-look" : "save-text-style"} onClick={() => setNaming(true)}>
-            {caption ? "+ Save as my caption look" : "+ Save as a text style"}
+        els.length === 1 &&
+        !caption && (
+          <div className="linkbtn" data-name="save-text-style" onClick={() => setNaming(true)}>
+            + Save as a text style
           </div>
         )
       )}

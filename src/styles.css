@@ -13093,3 +13093,42 @@ button.ctx-item.store-make-option:hover {
 .captions-tile-remove:hover {
   color: var(--text);
 }
+
+/* the Captions tab in two groups: the designer's own looks first, with the tile that saves one, then Duet's */
+.captions-group {
+  margin: 14px 0 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.captions-panel-hint + .captions-group {
+  margin-top: 4px;
+}
+.captions-tile.captions-save {
+  background: transparent;
+  border: 1px dashed var(--line);
+}
+.captions-tile.captions-save:disabled {
+  opacity: 0.5;
+}
+.captions-save-plus {
+  font-size: 22px;
+  line-height: 1;
+  color: var(--accent);
+}
+.captions-tile.captions-save.naming {
+  border-style: solid;
+  border-color: var(--accent);
+  padding: 0 10px;
+}
+.captions-save.naming input {
+  width: 100%;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 12px;
+}
