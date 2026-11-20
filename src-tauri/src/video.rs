@@ -125,6 +125,11 @@ pub struct Clip {
     end: f64,
 }
 
+/// How a clip's sound is read: at 48 kHz stereo, starting where the picture starts. Many camera files begin
+/// their sound a little after the picture (0.1 s in Prompt Cam's .mov); first_pts=0 keeps that gap as silence
+/// instead of pulling the voice early, so the voice never slips at the first cut (#401).
+const SOUND_IN: &str = "aresample=48000:async=1:first_pts=0,aformat=channel_layouts=stereo";
+
 /// The ffmpeg arguments that join the kept part of each clip into one file of the given size.
 /// Every clip is fitted inside the frame with black around it, so mixed shapes still join.
 fn join_args(clips: &[(Clip, bool)], width: u32, height: u32, out: &str) -> Vec<String> {
@@ -136,7 +141,7 @@ fn join_args(clips: &[(Clip, bool)], width: u32, height: u32, out: &str) -> Vec<
         args.extend(["-ss".into(), format!("{:.3}", clip.start.max(0.0)), "-t".into(), format!("{length:.3}"), "-i".into(), clip.path.clone()]);
         graph += &format!("[{i}:v]scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30,format=yuv420p[v{i}];");
         if *sound {
-            graph += &format!("[{i}:a]aresample=48000,aformat=channel_layouts=stereo[a{i}];");
+            graph += &format!("[{i}:a]{SOUND_IN}[a{i}];");
         } else {
             // a silent clip still needs sound of its own length, or the join fails
             graph += &format!("anullsrc=r=48000:cl=stereo,atrim=duration={length:.3}[a{i}];");
@@ -354,7 +359,7 @@ fn scene_args(fps: u32, seconds: f64, quality: u32, sounds: &[Sound], out: &str,
         args.extend(["-ss".into(), format!("{:.3}", s.from.max(0.0)), "-t".into(), format!("{:.3}", s.length.max(0.05) * s.speed), "-i".into(), s.path.clone()]);
         let wait = (s.at.max(0.0) * 1000.0).round() as u64;
         let pace = if (s.speed - 1.0).abs() > 0.0001 { format!("{},", tempo(s.speed)) } else { String::new() };
-        graph += &format!("[{}:a]aresample=48000,aformat=channel_layouts=stereo,{pace}{},adelay={wait}:all=1[a{i}];", i + 1, volume_filter(s));
+        graph += &format!("[{}:a]{SOUND_IN},{pace}{},adelay={wait}:all=1[a{i}];", i + 1, volume_filter(s));
     }
     args.extend(["-map".into(), "0:v".into()]);
     if !sounds.is_empty() {
@@ -764,7 +769,7 @@ mod tests {
         let graph = &args[at("-filter_complex") + 1];
         // an odd size is made even, which the video format needs
         assert!(graph.contains("scale=1080:1920"));
-        assert!(graph.contains("[0:a]aresample"));
+        assert!(graph.contains("[0:a]aresample=48000:async=1:first_pts=0,"));
         assert!(graph.contains("anullsrc=r=48000:cl=stereo,atrim=duration=2.000[a1]"));
         assert!(graph.ends_with("[v0][a0][v1][a1]concat=n=2:v=1:a=1[v][a]"));
         assert_eq!(args.last().unwrap(), "out.mp4");
@@ -778,6 +783,8 @@ mod tests {
         assert!(args.contains("format=yuv420p") && args.contains("-color_primaries bt709"));
         assert!(args.contains("-ss 1.000 -t 3.000 -i a.mp4"));
         assert!(args.contains("volume=0.5000,adelay=2500:all=1[a0]"));
+        // a file whose sound starts after its picture keeps that gap, so the voice does not slip (#401)
+        assert!(args.contains("[1:a]aresample=48000:async=1:first_pts=0,"));
         assert!(args.contains("atrim=duration=10.000[a]"));
         let silent = scene_args(30, 10.0, 18, &[], "out.mp4", 1920, 1080, false).join(" ");
         assert!(!silent.contains("filter_complex"));
