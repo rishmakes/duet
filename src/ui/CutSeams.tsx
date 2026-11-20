@@ -5,7 +5,7 @@ import { spanOf } from "../document/time";
 import { CUT_MOVES } from "../document/types";
 import type { CutMoveKind, Doc, El } from "../document/types";
 import { dispatch } from "../state/store";
-import { pickCut, usePickedCut } from "./pickedCut";
+import { copyCut, getCopiedCut, pasteCut, pickCut, usePickedCut } from "./pickedCut";
 import { useDismiss } from "./useDismiss";
 
 /** The ready-made transitions a cut can have. */
@@ -47,6 +47,7 @@ export default function CutSeams({
     pickCut(kind === "cut" ? null : id);
   };
   const open = menu ? doc.elements[menu.id] : null;
+  const copied = getCopiedCut();
   return (
     <>
       {seams.map(({ a, b, at }) => {
@@ -122,9 +123,34 @@ export default function CutSeams({
                 {name}
               </div>
             ))}
+            {(open.cutIn || copied) && <div className="ctx-line" />}
+            {open.cutIn && (
+              <div
+                className="ctx-item"
+                data-name="cut-copy"
+                onClick={() => {
+                  copyCut(open.id);
+                  setMenu(null);
+                }}
+              >
+                Copy transition<kbd>⌘C</kbd>
+              </div>
+            )}
+            {copied && (
+              <div
+                className="ctx-item"
+                data-name="cut-paste"
+                onClick={() => {
+                  setMenu(null);
+                  pasteCut(open.id);
+                }}
+              >
+                Paste {CUT_MOVE_NAMES[copied.kind]}, {copied.seconds} s
+                {open.cutIn && <kbd>⌘V</kbd>}
+              </div>
+            )}
             {open.cutIn && (
               <>
-                <div className="ctx-line" />
                 <div
                   className="ctx-item"
                   data-name="cut-remove"
