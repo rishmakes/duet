@@ -56,13 +56,15 @@ export default function CutSeams({
           return (
             <button
               key={b.id}
-              className={`cut-plus ${menu?.id === b.id ? "open" : ""}`}
+              className={`cut-plus ${menu?.id === b.id ? "open" : ""} ${picked === b.id ? "picked" : ""}`}
               data-name={`cut-plus-${b.name}`}
               style={{ left: at * pps }}
               title="Add a transition at this cut"
               onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
+                // the cut is picked too, so Cmd+V pastes a copied transition onto it
+                pickCut(b.id);
                 const r = e.currentTarget.getBoundingClientRect();
                 setMenu(
                   menu?.id === b.id
@@ -146,7 +148,7 @@ export default function CutSeams({
                 }}
               >
                 Paste {CUT_MOVE_NAMES[copied.kind]}, {copied.seconds} s
-                {open.cutIn && <kbd>⌘V</kbd>}
+                <kbd>⌘V</kbd>
               </div>
             )}
             {open.cutIn && (

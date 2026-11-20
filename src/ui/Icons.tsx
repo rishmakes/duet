@@ -1,6 +1,6 @@
 /** One icon set for the whole app: 24 grid, round ends, same stroke weight everywhere. */
 
-export type IconName = "speed" | "blade" | "stretch" | "silence" | "cut-here" | "cut-close" | "cut-before" | "cut-after" | "move" | "frame" | "rect" | "ellipse" | "text" | "hand" | "zoom" | "image" | "film" | "scene" | "heart" | "printer" | "screens" | "plus" | "pen" | "brush" | "eraser" | "mask" | "group" | "lock" | "unlock" | "eye" | "eye-off" | "sound" | "sound-off" | "component" | "instance" | "panel-left" | "panel-right" | "arrow" | "search" | "settings" | "skills" | "new-chat" | "folder" | "trash" | "close" | "unlist" | "restore" | "dots" | "grid" | "list" | "copy" | "move-to" | "marker" | "comment" | "sun" | "moon" | "home" | "feedback" | "fold" | "skill-auto-layout" | "skill-mobile-screens" | "skill-spacing" | "skill-type-scale" | "skill-contrast" | "skill-plain-words" | "skill-bold-blocks" | "skill-bento" | "skill-calm-and-trusted" | "skill-friendly-and-modern" | "skill-prototypes" | "skill-custom" | "plugin-connect" | "plugin-voice" | "captions";
+export type IconName = "speed" | "blade" | "stretch" | "silence" | "cut-here" | "cut-close" | "cut-before" | "cut-after" | "move" | "frame" | "rect" | "ellipse" | "text" | "hand" | "zoom" | "image" | "film" | "scene" | "heart" | "printer" | "screens" | "plus" | "pen" | "brush" | "eraser" | "mask" | "group" | "lock" | "unlock" | "eye" | "eye-off" | "sound" | "sound-off" | "component" | "instance" | "panel-left" | "panel-right" | "arrow" | "search" | "settings" | "skills" | "new-chat" | "folder" | "trash" | "close" | "unlist" | "restore" | "dots" | "grid" | "list" | "copy" | "move-to" | "marker" | "comment" | "sun" | "moon" | "home" | "feedback" | "fold" | "skill-auto-layout" | "skill-mobile-screens" | "skill-spacing" | "skill-type-scale" | "skill-contrast" | "skill-plain-words" | "skill-bold-blocks" | "skill-bento" | "skill-calm-and-trusted" | "skill-friendly-and-modern" | "skill-prototypes" | "skill-custom" | "plugin-connect" | "plugin-voice" | "captions" | "cuts-all" | "cut-remove";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   move: <path d="M5.5 3.5l13 6.3-5.7 1.8-1.8 5.9z" />,
@@ -152,6 +152,21 @@ const PATHS: Record<IconName, React.ReactNode> = {
       <path d="M12 3.5v17" />
       <rect x="3.5" y="8.5" width="5.5" height="7" rx="1.5" />
       <rect x="15" y="8.5" width="5.5" height="7" rx="1.5" />
+    </>
+  ),
+  // three cuts in a row, each with its transition mark
+  "cuts-all": (
+    <>
+      <path d="M5 6v12M12 6v12M19 6v12" />
+      <path d="M3.5 12h3M10.5 12h3M17.5 12h3" />
+    </>
+  ),
+  // one cut with a stroke through it
+  "cut-remove": (
+    <>
+      <path d="M12 5v14" />
+      <path d="M9 12h6" />
+      <path d="M5.5 18.5l13-13" />
     </>
   ),
   "cut-close": (

@@ -12983,12 +12983,14 @@ button.ctx-item.store-make-option:hover {
   transition: opacity 0.12s ease, transform 0.12s ease;
 }
 .time-lane:hover .cut-plus,
-.cut-plus.open {
+.cut-plus.open,
+.cut-plus.picked {
   opacity: 1;
   transform: translateY(-50%) scale(1);
 }
 .cut-plus:hover,
-.cut-plus.open {
+.cut-plus.open,
+.cut-plus.picked {
   border-color: var(--accent);
   color: var(--accent);
 }
@@ -13014,6 +13016,16 @@ button.ctx-item.store-make-option:hover {
 }
 .cut-menu {
   z-index: 1000;
+}
+.transition-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.transition-actions .mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 .cut-menu .ctx-item {
   cursor: pointer;

@@ -3,6 +3,7 @@ import { CUT_MOVES } from "../document/types";
 import type { CutMoveKind, Doc, El } from "../document/types";
 import { dispatch, dragCancel, dragPreview } from "../state/store";
 import { clipLength } from "../video/clips";
+import Icon from "./Icons";
 import { pickCut } from "./pickedCut";
 
 /**
@@ -58,18 +59,22 @@ export default function TransitionSection({ doc, el, scene }: { doc: Doc; el: El
       {real < seconds - 0.005 && <p className="hint">Shortened to {Math.round(real * 100) / 100} s here, so it fits inside the shorter clip.</p>}
       {still && <p className="hint">One of these clips has no more footage past the cut, so its end picture holds still for part of the dissolve.</p>}
       <div className="gap" />
-      <button
-        className="mini"
-        data-name="transition-every-cut"
-        disabled={others.length < 2}
-        title={others.length < 2 ? "This is the only cut in the scene" : `Put this ${CUT_MOVE_NAMES[move.kind].toLowerCase()} on all ${others.length} cuts in the scene`}
-        onClick={() => dispatch("set_transition", { ids: others, kind: move.kind, seconds })}
-      >
-        Use on every cut
-      </button>
-      <button className="mini" data-name="transition-remove" title="Take this transition away and leave a plain cut. Delete does the same" onClick={() => (set("cut"), pickCut(null))}>
-        Remove transition
-      </button>
+      <div className="transition-actions">
+        <button
+          className="mini"
+          data-name="transition-every-cut"
+          disabled={others.length < 2}
+          title={others.length < 2 ? "This is the only cut in the scene" : `Put this ${CUT_MOVE_NAMES[move.kind].toLowerCase()} on all ${others.length} cuts in the scene`}
+          onClick={() => dispatch("set_transition", { ids: others, kind: move.kind, seconds })}
+        >
+          <Icon name="cuts-all" size={14} />
+          Apply to all cuts
+        </button>
+        <button className="mini" data-name="transition-remove" title="Take this transition away and leave a plain cut. Delete does the same" onClick={() => (set("cut"), pickCut(null))}>
+          <Icon name="cut-remove" size={14} />
+          Remove
+        </button>
+      </div>
     </div>
   );
 }
