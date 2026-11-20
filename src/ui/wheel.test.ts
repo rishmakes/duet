@@ -9,8 +9,11 @@ describe("isMouseWheel, with numbers taken from a real mouse and trackpad", () =
     expect(isMouseWheel(wheel(39.84, 1016))).toBe(true);
     expect(isMouseWheel(wheel(131.68, 1076))).toBe(true);
   });
-  it("takes a big whole step with nothing sideways as a wheel", () => {
-    expect(isMouseWheel(wheel(-120, 5000))).toBe(true);
+  it("takes a big whole step with nothing sideways as a wheel, off a Mac (a Windows notch)", () => {
+    expect(isMouseWheel(wheel(-120, 5000), false)).toBe(true);
+  });
+  it("on a Mac, a fast trackpad flick of big whole steps scrolls and never zooms (#402)", () => {
+    for (const [d, t] of [[48, 30000], [77, 30033], [112, 30066], [63, 30100]]) expect(isMouseWheel(wheel(d, t), true)).toBe(false);
   });
   it("takes the trackpad's small whole steps as a slide, sideways or not", () => {
     expect(isMouseWheel(wheel(7, 9000))).toBe(false);
