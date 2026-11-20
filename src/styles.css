@@ -1665,23 +1665,6 @@ body.eyedropping * {
 .find:hover {
   background: var(--accent);
 }
-.scene-fit {
-  position: absolute;
-  z-index: 6;
-  width: 26px;
-  height: 26px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border-radius: 8px;
-  border: 1px solid var(--border, rgba(127, 127, 127, 0.3));
-  background: var(--panel);
-  color: var(--text);
-  cursor: pointer;
-}
-.scene-fit:hover {
-  background: var(--accent);
-}
 /* the top of the left panel: its tabs and hint, pinned while the list scrolls under them */
 .left-head {
   position: sticky;
@@ -1702,6 +1685,16 @@ body.eyedropping * {
   right: 12px;
   bottom: 12px;
   z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* the fit button, beside the percentage: all the zoom in one corner */
+.zoom-fit {
+  display: grid;
+  place-items: center;
+  align-self: stretch;
+  padding: 0 9px;
 }
 .zmenu.up {
   top: auto;

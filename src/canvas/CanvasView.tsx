@@ -470,7 +470,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
   lockedRef.current = motion && !!scene && !viewOnly;
   const pageShownRef = useRef(false);
   pageShownRef.current = isPageLocked;
-  // the page on show, so Fit and Zoom to selection frame it and not the empty room around it
+  // the page on show, so Show everything and Show what's picked frame it and not the empty room around it
   const shownPageRef = useRef<string | null>(null);
   shownPageRef.current = isPageLocked ? activePageId : null;
 
@@ -2391,28 +2391,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
           </div>
         );
       })()}
-      {motion && scene && !viewOnly && doc.elements[scene] && (() => {
-        // Fit: one click brings the scene back to the middle, sitting at the end of its own title row
-        const b = worldBounds(doc, scene);
-        const left = b.x * viewport.zoom + viewport.x;
-        const top = b.y * viewport.zoom + viewport.y;
-        const x = Math.max(8, Math.min(sizeRef.current.w - 34, left + b.width * viewport.zoom - 26));
-        const y = Math.max(8, Math.min(sizeRef.current.h - 34, top - 30));
-        return (
-          <button
-            className="scene-fit"
-            style={{ left: x, top: y }}
-            title="Fit the scene in the middle"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => zoomToElements([scene], sizeRef.current.w, sizeRef.current.h)}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
-            </svg>
-          </button>
-        );
-      })()}
-      {!viewOnly && <ZoomControl />}
+      {!viewOnly && <ZoomControl fit={motion && scene && doc.elements[scene] ? () => zoomToElements([scene], sizeRef.current.w, sizeRef.current.h) : undefined} />}
       {lost && (
         <button className="find" onClick={() => zoomToFit(sizeRef.current.w, sizeRef.current.h)}>
           Find your design
