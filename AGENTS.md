@@ -33,13 +33,15 @@ Restart `tauri dev` after installing a new npm package. Vite re-bundles dependen
 - Website (private repo `rishmakes/duet-site`, folder `~/Desktop/DEV/duet-site`): https://duet.noisyarchitects.org. Deploy with `npm run deploy` there. Update what works in `src/content/status.ts` after each version.
 - The private part (private repo `rishmakes/duet-private`, folder `~/Desktop/DEV/duet-private`): research, plans and technology that are not released. Public issues say what a designer gets; how it works is written there. Never copy from it into this repo, its issues or its commits without the creator saying so.
 - In-app feedback lands in a Google Sheet (id in `~/.duet-keys/feedback-sheet`). When the creator says "feedback", "red flag", or "I sent something", run `python3 scripts/feedback-pull/pull.py` first and read the new rows in `ref/feedback/`. Never ask him where the sheet is. Then search issues for each row before filing.
-- Feedback form: https://forms.gle/Zs6s7bX6CpJigCCf6. Creator booking: https://cal.com/rishmakes/coffee.
+- Feedback form: https://forms.gle/Zs6s7bX6CpJigCCf6. Creator booking: https://cal.com/rishmakes/talk-duet.
 - Release: push a tag like `v0.2.0`. GitHub Actions builds Mac and Windows installers into a draft release. Publish with `gh release edit <tag> --draft=false`. Not a pre-release: installed copies look for the latest release and offer it as an update. Releases are signed with Duet's own update key, `~/.duet-keys/duet-updater.key` (also the GitHub secret TAURI_SIGNING_PRIVATE_KEY). Lose it and installed copies can never update again.
 - Licence: PolyForm Shield 1.0.0 (source available, not open source). v0.1.0 was MIT.
 - Use the GitHub noreply email in this repo: `10191373+rishmakes@users.noreply.github.com`.
 - The app id `com.justsourish.duet` in `src-tauri/tauri.conf.json` stays as it is after the move to `rishmakes`: changing it would cut installed copies off from their projects and settings.
 
 ## Rules
+
+- One working branch: `next`. All work lands there; `main` holds only released work. Release: the creator tests on Windows from a test list, then `next` merges into `main` and is tagged.
 
 - Every design change goes through a command in `src/commands/`. The interface and the AI use the same ones. Never edit the document any other way.
 - Commands never mutate. Add a test when you add one.
@@ -49,7 +51,7 @@ Restart `tauri dev` after installing a new npm package. Vite re-bundles dependen
 - Nothing copied from other design tools. Own icons, colours and code.
 - Commits carry the author's identity only. No tool names or attribution lines.
 - Every commit names its issue (`#123`). The same day, move that issue to "Built - not tested" on the board "Duet: where everything stands" (project 6).
-- Where an issue stands is its board column only (Idea, Planned, In Progress, Built - not tested, Tested, Shipped). Labels say what kind of thing it is (bug, enhancement, Design, AI, Video, Photo, Files, Windows). Milestones are the initiatives it belongs to. Never use a label for status.
+- Where an issue stands is its board column only (Idea, Parked for now, Planned, In Progress, Built - not tested, Tested, Shipped). Parked for now means thought through, not built until a user asks. Labels say what kind of thing it is (bug, enhancement, Design, AI, Video, Photo, Files, Windows). Milestones are the initiatives it belongs to. Never use a label for status.
 - The board never lies. Every move needs proof on the issue: In Progress says what is built and what is missing; Built - not tested names the commit; Tested has Antigravity's step-by-step report from Duet dev (a fail goes back to In Progress with the reason); Shipped means it is in a published release.
 - Antigravity tests each fix step by step in Duet dev and posts its report on the issue. If it all passes, Claude closes the issue and moves it to Tested. The creator gives one-line verdicts from using Duet and can reopen anything.
 - The day a release is published, everything in it moves from Tested to Shipped. Before each session, compare the board with the code and releases and fix any card in the wrong column.
@@ -62,7 +64,7 @@ Restart `tauri dev` after installing a new npm package. Vite re-bundles dependen
 Some tasks are handed to a smaller, cheaper agent. If your task came from an issue comment titled "Task for a helper agent", these rules are yours.
 
 - Do only what the task says. If something else looks wrong, write it in your report and leave it.
-- Work on a branch named `helper/<issue number>-<two words>`. Never on `main`. Never push.
+- Work on a branch named `helper/<issue number>-<two words>`, started from `next`. Never on `next` or `main`. Never push. Claude reviews your branch and merges it into `next`.
 - Run `git config core.hooksPath .githooks` once. A check then runs before every save. If it refuses, fix the cause. Never skip it with `--no-verify`.
 - Do not touch: `src-tauri/`, `src/project/`, `src/memory/`, `src/state/`, `src/document/serialize.ts`, `src/ai/tools.ts`, `.github/`, `.githooks/`, `AGENTS.md`, `LICENSE`, `package.json`. If the task seems to need one of them, stop and say so.
 - No new packages. No renaming or moving files. No tidying code you were not asked to change.
