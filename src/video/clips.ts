@@ -1,4 +1,5 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { shownSpanOf } from "../document/moves";
 import { fileTimeAt, frameTimeAt, spanOf } from "../document/time";
 import { playsFile } from "../document/types";
 import type { Doc } from "../document/types";
@@ -321,12 +322,23 @@ export function syncClips(doc: Doc, sceneId: string | null, t: number, playing: 
     for (const id of clipsIn(doc, scene.id)) {
       const el = doc.elements[id];
       const { start, end } = spanOf(el, scene);
-      if (t < start || t >= end) continue;
+      const shown = shownSpanOf(doc, el, scene);
+      if (t < shown.start || t >= shown.end) continue;
       live.add(id);
       const v = clipPlayer(el);
       const at = fileTimeAt(el, start, t);
-      v.volume = gainAt(doc, el, scene, t);
+      // shown past its ends in a dissolve, it is not heard there: transitions change only the picture
+      v.volume = t >= start && t < end ? gainAt(doc, el, scene, t) : 0;
       v.playbackRate = el.speed || 1;
+      // in a dissolve past where its file has footage, a clip holds its end picture still
+      const last = Number.isFinite(v.duration) && v.duration > 0 ? v.duration - 0.04 : Infinity;
+      if ((t < start || t >= end) && (at < 0 || at > last)) {
+        rolling.delete(v);
+        if (!v.paused) v.pause();
+        const hold = at < 0 ? 0 : last;
+        if (Math.abs(v.currentTime - hold) > 0.02) seekTo(v, hold);
+        continue;
+      }
       if (playing) {
         // while playing, the clip leads the clock (see clockFromClip); only a big gap means a jump.
         // A player already on its picture is not moved again, or it would stall to find the same spot.
@@ -347,14 +359,15 @@ export function syncClips(doc: Doc, sceneId: string | null, t: number, playing: 
     if (playing) {
       for (const id of clipsIn(doc, scene.id)) {
         const el = doc.elements[id];
-        const { start } = spanOf(el, scene);
+        const real = spanOf(el, scene).start;
+        const start = shownSpanOf(doc, el, scene).start;
         if (start <= t || start > t + LOOK_AHEAD || live.has(id)) continue;
         live.add(id);
         const v = clipPlayer(el);
         const rate = el.speed || 1;
         const lead = start - t;
         // close to the cut, it starts playing early from just before its first picture, when the file has that much
-        const from = el.clipFrom - lead * rate;
+        const from = fileTimeAt(el, real, t);
         if (lead <= ROLL_IN && from >= 0 && v.paused && !v.seeking && v.readyState >= 2) {
           v.volume = 0;
           v.playbackRate = rate;
@@ -364,7 +377,7 @@ export function syncClips(doc: Doc, sceneId: string | null, t: number, playing: 
           continue;
         }
         if (rolling.has(v)) continue;
-        const at = fileTimeAt(el, start, start);
+        const at = Math.max(0, fileTimeAt(el, real, start));
         if (v.paused && !v.seeking && v.readyState >= 1 && Math.abs(v.currentTime - at) > 0.05) {
           wanted.set(v, at);
           jump(v, at, false);
@@ -375,7 +388,7 @@ export function syncClips(doc: Doc, sceneId: string | null, t: number, playing: 
   // a clip waiting to come next is held on its first picture, not played
   for (const [id, v] of clipPlayers) {
     const el = doc.elements[id];
-    if (live.has(id) && el && scene && (t >= spanOf(el, scene).start || (playing && rolling.has(v)))) continue;
+    if (live.has(id) && el && scene && (t >= shownSpanOf(doc, el, scene).start || (playing && rolling.has(v)))) continue;
     rolling.delete(v);
     if (!v.paused) v.pause();
   }
@@ -436,11 +449,12 @@ export async function seekClips(doc: Doc, sceneId: string, t: number) {
   const waits: Promise<void>[] = [];
   for (const id of clipsIn(doc, sceneId)) {
     const el = doc.elements[id];
-    const { start, end } = spanOf(el, scene);
-    if (el.type !== "video" || t < start || t >= end) continue;
+    const { start } = spanOf(el, scene);
+    const shown = shownSpanOf(doc, el, scene);
+    if (el.type !== "video" || t < shown.start || t >= shown.end) continue;
     const v = fullPlayer(id, el.src);
     v.pause();
-    const at = Math.min(fileTimeAt(el, start, t), (v.duration || Infinity) - 0.001);
+    const at = Math.max(0, Math.min(fileTimeAt(el, start, t), (v.duration || Infinity) - 0.001));
     waits.push(
       new Promise<void>((resolve) => {
         const ready = () => v.readyState >= 2 && !v.seeking && Math.abs(v.currentTime - at) < 0.001;

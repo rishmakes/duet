@@ -21,11 +21,12 @@ import { SILENCE_DEFAULT, findSilences, loudnessAt } from "../video/silence";
 import { hearingNow, languageOf, lastLanguage, transcribe, voiceReady } from "../ui/Transcribe";
 import { BREATH, cutOutOfEdit, cutsForWords, plainWord, wordsOfEdit } from "../document/words";
 import type { WordFix } from "../document/words";
-import { MOVING, emptyDoc, playsFile } from "../document/types";
+import { CUT_MOVES, MOVING, emptyDoc, playsFile } from "../document/types";
+import { CUT_MOVE_NAMES, clipBefore } from "../document/moves";
 import { boardsOf, commentsHere, describeMark, onOpenBoard, openBoard } from "../document/boards";
 import { GRADE_CONTROLS, canGrade, gradeChanges } from "../document/grade";
 import { readings as gradeReadings } from "../canvas/grade";
-import type { Doc, El, Transcript } from "../document/types";
+import type { CutMoveKind, Doc, El, Transcript } from "../document/types";
 import { invoke } from "@tauri-apps/api/core";
 import { addPicture, mimeFor, pictureOf, preloadPictures } from "../project/assets";
 import { renderPng } from "../project/exporter";
@@ -401,6 +402,12 @@ export const TOOLS: ToolDef[] = [
     inputSchema: { type: "object", properties: { ids, when: { ...str, description: "in or out." }, kind: str, seconds: num }, required: ["ids", "when", "kind"] },
   },
   {
+    name: "set_transition",
+    description:
+      "A transition at a cut in a video: where one clip ends and the next clip starts on the same track. ids are the clips coming in (the one after each cut). kind is dissolve, dip-black, dip-white, or cut to take a transition away. seconds is how long it lasts, half before the cut and half after, 0.5 if left out, from 0.1 to 2. The clips keep their places; a dissolve uses the footage past each end of the cut. Only the picture changes, not the sound. The outline marks a clip with a cut before it as \"cut before\" and shows its transition.",
+    inputSchema: { type: "object", properties: { ids, kind: str, seconds: num }, required: ["ids", "kind"] },
+  },
+  {
     name: "animate",
     description:
       "Make one property of one thing change over time, inside a frame that plays. prop is x, y, width, height, opacity, rotation or volume (a clip or sound: 0 to 1, how loud over time). keys is the whole list of moments for that property, replacing what was there: each has t (seconds from the start of the frame), v (the value then) and ease (linear, in, out or in-out, which is used if left out; it shapes the way into that moment). x and y are relative to the parent, like everywhere else. Before the first moment the first value holds, after the last the last holds. An empty list makes it stay as it is. Give several calls for several properties.",
@@ -740,7 +747,7 @@ export const TOOLS: ToolDef[] = [
 
 /** Tools that make or change the brand kit or the design system: the designer always says yes first. */
 const KIT_TOOLS = new Set(["make_brand_kit", "change_brand_kit", "make_design_system", "change_design_system", "use_kit"]);
-const EDITS = new Set(["apply_text_style", "add_board", "open_board", "rename_board", "move_to_board", "resolve_comment", "add_comment", "set_grade", "copy_grade", "create_instance", "create_element", "create_elements", "set_props", "duplicate_elements", "move_elements", "resize_element", "reparent_elements", "make_mask", "trace_image", "set_duration", "set_work_area", "set_timing", "set_speed", "set_entrance", "animate", "change_volume_between", "cut_silences", "cut_words", "fix_words", "set_curve"]);
+const EDITS = new Set(["apply_text_style", "add_board", "open_board", "rename_board", "move_to_board", "resolve_comment", "add_comment", "set_grade", "copy_grade", "create_instance", "create_element", "create_elements", "set_props", "duplicate_elements", "move_elements", "resize_element", "reparent_elements", "make_mask", "trace_image", "set_duration", "set_work_area", "set_timing", "set_speed", "set_entrance", "set_transition", "animate", "change_volume_between", "cut_silences", "cut_words", "fix_words", "set_curve"]);
 /** Things the designer is asked about first in Ask first mode: losing work, and reading or writing a file on the computer. */
 const RISKY = new Set(["load_look", "delete_elements", "delete_board", "place_image", "import_svg", "find_fonts", "find_icons", "place_icon", "place_video", "place_sound", "export_frame", "export_video"]);
 
@@ -873,6 +880,8 @@ export function summarise(tool: string, a: Args): string {
       return `Play ${namesOf(a.ids)} at ${Math.round(Number(a.speed) * 100)}% speed`;
     case "set_entrance":
       return `${namesOf(a.ids)}: ${a.when === "out" ? "leave" : "arrive"} with ${String(a.kind)}`;
+    case "set_transition":
+      return a.kind === "cut" ? `Plain cut before ${namesOf(a.ids)}` : `${CUT_MOVE_NAMES[a.kind as CutMoveKind] ?? String(a.kind)} at the cut before ${namesOf(a.ids)}`;
     case "set_curve":
       return `Change how ${namesOf(a.ids)} speeds up and slows down`;
     case "animate":
@@ -1283,6 +1292,19 @@ function prepare(tool: string, raw: Args, doc = R.currentDoc()): { args: Args } 
         if (a.when !== "in" && a.when !== "out") return { error: "when must be in or out." };
         if (!(ENTRANCES as readonly string[]).includes(String(a.kind))) return { error: `kind must be one of: ${ENTRANCES.join(", ")}.` };
       }
+      return { args: a };
+    }
+    case "set_transition": {
+      const bad = missing(a.ids);
+      if (bad.length) return { error: `No element with id: ${bad.join(", ")}.` };
+      if (a.kind !== "cut" && !(CUT_MOVES as readonly string[]).includes(String(a.kind))) return { error: `kind must be cut or one of: ${CUT_MOVES.join(", ")}.` };
+      if (a.seconds != null && !(typeof a.seconds === "number" && a.seconds > 0)) return { error: "seconds must be a number above 0." };
+      const none = (a.ids as string[]).filter((i) => {
+        const el = doc.elements[i];
+        const scene = sceneOf(doc, i);
+        return !el || !scene || !clipBefore(doc, el, scene);
+      });
+      if (none.length) return { error: `${namesOf(none)} has no cut before it: no clip on the same track ends where it starts.` };
       return { args: a };
     }
     case "cut_silences":

@@ -257,10 +257,14 @@ function drawClip(ctx: CanvasRenderingContext2D, el: El, x: number, y: number) {
   ctx.save();
   roundedPath(ctx, x, y, el.width, el.height, el.radius);
   ctx.clip();
-  ctx.fillStyle = "#000000";
-  ctx.fillRect(x, y, el.width, el.height);
   const pw = pic instanceof HTMLVideoElement ? pic.videoWidth : (pic?.width ?? 0);
   const ph = pic instanceof HTMLVideoElement ? pic.videoHeight : (pic?.height ?? 0);
+  // black only where there is no picture yet: the picture fills the box, and black under a clip that is
+  // fading in a dissolve would darken the clip behind it
+  if (!(pic && pw && ph)) {
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(x, y, el.width, el.height);
+  }
   if (pic && pw && ph) {
     try {
       const k = Math.max(el.width / pw, el.height / ph);
@@ -288,6 +292,13 @@ function drawClip(ctx: CanvasRenderingContext2D, el: El, x: number, y: number) {
     } catch (e) {
       logError("draw clip", e);
     }
+  }
+  // a dip to a colour at a cut covers the clip with that colour
+  if (el.wash && el.wash.amount > 0) {
+    ctx.globalAlpha *= Math.min(1, el.wash.amount);
+    ctx.globalCompositeOperation = "source-over";
+    ctx.fillStyle = el.wash.color;
+    ctx.fillRect(x, y, el.width, el.height);
   }
   ctx.restore();
 }

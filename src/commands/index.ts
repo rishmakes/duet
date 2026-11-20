@@ -3,8 +3,9 @@ import type { ClipPayload } from "../document/clipboard";
 import { ancestors, canMask, canTurn, descendants, tidyAngle, topLevelOnly, turnCentre, turnPoint, worldBounds, worldPos, worldRect } from "../document/geometry";
 import { canBeComponent, captureOverrides, detachInstance, isDerived, syncInstances } from "../document/components";
 import { orderByPosition, relayout } from "../document/layout";
-import { MOVING, playsFile } from "../document/types";
-import type { Blend, Comment, CommentMark, Doc, El, ElementType, Key, Layout, Moving, ShapeKey, TextStyle, Transcript } from "../document/types";
+import { CUT_MOVES, MOVING, playsFile } from "../document/types";
+import { CUT_MOVE_MAX, CUT_MOVE_MIN, CUT_MOVE_NAMES, CUT_MOVE_SECONDS, clipBefore } from "../document/moves";
+import type { Blend, Comment, CommentMark, CutMoveKind, Doc, El, ElementType, Key, Layout, Moving, ShapeKey, TextStyle, Transcript } from "../document/types";
 import { fixWords, withWords, wordsOfEdit } from "../document/words";
 import type { WordFix } from "../document/words";
 import { CAPTION_LOOKS, CAPTIONS_TRACK, SPOKEN_COLOURS, boxedLook, captionChunks, captionMiddle, captionProps, captionRoom, captionText } from "../document/captions";
@@ -2779,6 +2780,42 @@ const setEntrance: CommandDef<SetEntranceArgs> = {
   },
 };
 
+// ---- set_transition ----
+export interface SetTransitionArgs {
+  /** The clips coming in: each has the transition at the cut just before it. */
+  ids: string[];
+  /** "cut" takes the transition away and leaves a plain cut. */
+  kind: CutMoveKind | "cut";
+  /** How long it lasts, in seconds. Left out, it keeps its length, or a new one gets the usual length. */
+  seconds?: number;
+}
+
+const setTransition: CommandDef<SetTransitionArgs> = {
+  label: (a) => (a.kind === "cut" ? "Take the transition away" : `${CUT_MOVE_NAMES[a.kind] ?? "Transition"} at the cut`),
+  run: (doc, a) => {
+    if (a.kind !== "cut" && !CUT_MOVES.includes(a.kind)) return doc;
+    const next = clone(doc);
+    let changed = false;
+    for (const id of a.ids) {
+      const el = next.elements[id];
+      const scene = sceneOf(next, id);
+      if (!el || !scene || el.type !== "video") continue;
+      if (a.kind === "cut") {
+        if (!el.cutIn) continue;
+        delete el.cutIn;
+        changed = true;
+        continue;
+      }
+      if (!clipBefore(next, el, scene)) continue;
+      const asked = Number(a.seconds);
+      const seconds = Math.min(CUT_MOVE_MAX, Math.max(CUT_MOVE_MIN, Number.isFinite(asked) && asked > 0 ? asked : (el.cutIn?.seconds ?? CUT_MOVE_SECONDS)));
+      el.cutIn = { kind: a.kind, seconds: Math.round(seconds * 100) / 100 };
+      changed = true;
+    }
+    return changed ? next : doc;
+  },
+};
+
 const createPresetFrameDef: CommandDef<CreatePresetFrameArgs> = {
   label: (a) => `Add ${a.preset.name.toLowerCase()} frame`,
   run: (doc, a) => {
@@ -3081,6 +3118,7 @@ export const commands = {
   remove_key: removeKey,
   move_key: moveKey,
   set_entrance: setEntrance,
+  set_transition: setTransition,
   split_at: splitAt,
   ripple_delete: rippleDelete,
   cut_ranges: cutRanges,

@@ -1,3 +1,4 @@
+import { cutLookAt, shownSpanOf } from "./moves";
 import { fromAbs, toAbs } from "./path";
 import type { Doc, El, Key, Moving, ShapeKey } from "./types";
 import { MOVING } from "./types";
@@ -170,7 +171,7 @@ export function docAt(doc: Doc, sceneId: string, t: number): Doc {
     const kept = el.childIds.filter((c) => {
       const child = doc.elements[c];
       if (!child) return false;
-      const span = spanOf(child, scene);
+      const span = shownSpanOf(doc, child, scene);
       // the last moment still shows what was there at the end
       return t >= span.start && (t < span.end || (t >= scene.duration && span.end >= scene.duration));
     });
@@ -180,7 +181,11 @@ export function docAt(doc: Doc, sceneId: string, t: number): Doc {
       elements[id] = { ...el, childIds: kept, ...(emptied ? { hidden: true } : {}) };
     }
     for (const c of kept) {
-      elements[c] = litAt(elAt(doc.elements[c], t), t - spanOf(doc.elements[c], scene).start);
+      let now = litAt(elAt(doc.elements[c], t), t - spanOf(doc.elements[c], scene).start);
+      // a clip in a transition shows partly, or under a colour
+      const look = cutLookAt(doc, doc.elements[c], scene, t);
+      if (look && (look.show < 1 || look.wash)) now = { ...now, opacity: now.opacity * look.show, ...(look.wash ? { wash: look.wash } : {}) };
+      elements[c] = now;
       walk(c);
     }
   };

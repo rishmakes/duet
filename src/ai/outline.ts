@@ -2,6 +2,8 @@ import { onOpenBoard } from "../document/boards";
 import { gradeChanges } from "../document/grade";
 import { isDerived } from "../document/components";
 import type { Doc, El } from "../document/types";
+import { clipBefore } from "../document/moves";
+import { sceneOf } from "../document/time";
 
 /**
  * A short, plain outline of a design for the AI. It lists only what matters on each thing, so
@@ -31,6 +33,10 @@ function describe(doc: Doc, el: El): string {
   }
   if (el.type === "sound") bits.push(`sound ${el.src}${el.clipFrom ? ` from ${el.clipFrom}s of the file` : ""}${el.volume !== 1 ? ` volume ${el.volume}` : ""}${el.fadeIn ? ` fades in ${el.fadeIn}s` : ""}${el.fadeOut ? ` fades out ${el.fadeOut}s` : ""} (only heard, its position and size mean nothing)`);
   if (el.type === "video") bits.push(`clip ${el.src}${el.clipFrom ? ` from ${el.clipFrom}s of the file` : ""}${el.volume !== 1 ? ` volume ${el.volume}` : ""}${el.fadeIn ? ` fades in ${el.fadeIn}s` : ""}${el.fadeOut ? ` fades out ${el.fadeOut}s` : ""}${el.speed !== 1 ? ` speed ${el.speed}` : ""}`);
+  if (el.type === "video") {
+    const scene = sceneOf(doc, el.id);
+    if (scene && clipBefore(doc, el, scene)) bits.push(el.cutIn ? `cut before: ${el.cutIn.kind} ${el.cutIn.seconds}s` : "cut before");
+  }
   if (el.grade) bits.push(`colour ${Object.entries(gradeChanges(el.grade)).map(([k, v]) => (k === "look" ? `look ${String(v).split(/[\\/]/).pop()}` : `${k} ${v}`)).join(", ")}`);
   if (el.duration > 0) bits.push(`PLAYS ${el.duration}s${el.followsFootage ? " (ends where its footage ends)" : ""}`);
   if (el.start || el.end) bits.push(`shows ${el.start}s to ${el.end ? `${el.end}s` : "the end"}`);

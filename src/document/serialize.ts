@@ -2,7 +2,7 @@ import { isDerived, syncInstances } from "./components";
 import { relayout } from "./layout";
 import { keepTracks, oldTracks } from "./tracks";
 import { readWords } from "./words";
-import { playsFile } from "./types";
+import { CUT_MOVES, playsFile } from "./types";
 import type { Board, Comment, Doc, El, MediaItem } from "./types";
 
 /** Property order inside each element, so Git diffs stay small and stable. */
@@ -74,6 +74,7 @@ const EL_KEYS: (keyof El)[] = [
   "fadeIn",
   "fadeOut",
   "speed",
+  "cutIn",
   "spoken",
   "spokenFill",
   "plate",
@@ -162,7 +163,7 @@ export function serializeDoc(doc: Doc): string {
     const ordered: Record<string, unknown> = {};
     for (const k of EL_KEYS) if (TEXT_ONLY.has(k) && (el.type !== "text" || el[k] === (FALLBACK as Record<string, unknown>)[k])) continue;
     else if (k === "childIds" && el.type === "instance") ordered[k] = [];
-    else if ((k !== "component" || el.component) && ((k !== "componentId" && k !== "overrides") || el.type === "instance") && (!PROTOTYPE_ONLY.has(k) || el[k] !== (FALLBACK as Record<string, unknown>)[k]) && (k !== "locked" || el.locked) && (k !== "hidden" || el.hidden) && (k !== "grade" || el.grade) && (k !== "effects" || (el.effects && el.effects.length > 0)) && (k !== "effectMask" || el.effectMask) && (k !== "effectMaskInvert" || el.effectMaskInvert) && (k !== "mask" || el.mask) && ((k !== "maskFeather" && k !== "maskInvert" && k !== "maskGrow") || el.mask && el[k]) && (k !== "layout" || el.layout) && (k !== "grow" || el.grow) && (k !== "blend" || el.blend !== "normal") && (k !== "rotation" || el.rotation) && (k !== "src" || el.type === "image" || playsFile(el)) && (k !== "paint" || (el.type === "image" && Object.keys(el.paint ?? {}).length)) && (!TIME_ONLY.has(k) || el[k]) && (k !== "keys" || Object.keys(el.keys).length) && (k !== "shapeKeys" || el.shapeKeys.length) && (k !== "markers" || el.markers?.length) && (k !== "workArea" || el.workArea) && (k !== "tracks" || el.tracks?.length) && (k !== "followsFootage" || el.followsFootage) &&(k !== "track" || el.track) && (k !== "volume" || playsFile(el)) && ((k !== "fadeIn" && k !== "fadeOut") || (playsFile(el) && el[k])) && (k !== "speed" || (playsFile(el) && el.speed !== 1)) && ((k !== "nodes" && k !== "closed") || el.type === "path") && (k !== "holes" || (el.type === "path" && el.holes && el.holes.length > 0)) && ((k !== "spoken" && k !== "spokenFill") || (el.type === "text" && !!el.spoken?.length)) && ((k !== "plate" && k !== "spokenBox" && k !== "caps") || (el.type === "text" && !!el[k]))) ordered[k] = el[k];
+    else if ((k !== "component" || el.component) && ((k !== "componentId" && k !== "overrides") || el.type === "instance") && (!PROTOTYPE_ONLY.has(k) || el[k] !== (FALLBACK as Record<string, unknown>)[k]) && (k !== "locked" || el.locked) && (k !== "hidden" || el.hidden) && (k !== "grade" || el.grade) && (k !== "effects" || (el.effects && el.effects.length > 0)) && (k !== "effectMask" || el.effectMask) && (k !== "effectMaskInvert" || el.effectMaskInvert) && (k !== "mask" || el.mask) && ((k !== "maskFeather" && k !== "maskInvert" && k !== "maskGrow") || el.mask && el[k]) && (k !== "layout" || el.layout) && (k !== "grow" || el.grow) && (k !== "blend" || el.blend !== "normal") && (k !== "rotation" || el.rotation) && (k !== "src" || el.type === "image" || playsFile(el)) && (k !== "paint" || (el.type === "image" && Object.keys(el.paint ?? {}).length)) && (!TIME_ONLY.has(k) || el[k]) && (k !== "keys" || Object.keys(el.keys).length) && (k !== "shapeKeys" || el.shapeKeys.length) && (k !== "markers" || el.markers?.length) && (k !== "workArea" || el.workArea) && (k !== "tracks" || el.tracks?.length) && (k !== "followsFootage" || el.followsFootage) &&(k !== "track" || el.track) && (k !== "volume" || playsFile(el)) && ((k !== "fadeIn" && k !== "fadeOut") || (playsFile(el) && el[k])) && (k !== "speed" || (playsFile(el) && el.speed !== 1)) && (k !== "cutIn" || (el.type === "video" && !!el.cutIn)) && ((k !== "nodes" && k !== "closed") || el.type === "path") && (k !== "holes" || (el.type === "path" && el.holes && el.holes.length > 0)) && ((k !== "spoken" && k !== "spokenFill") || (el.type === "text" && !!el.spoken?.length)) && ((k !== "plate" && k !== "spokenBox" && k !== "caps") || (el.type === "text" && !!el[k]))) ordered[k] = el[k];
     elements[id] = ordered;
   }
   const out: Record<string, unknown> = { version: doc.version, rootIds: doc.rootIds, elements };
@@ -232,6 +233,10 @@ export function parseDoc(text: string): Doc {
     if (!v || !TYPES.has(v.type as string)) throw new DesignFileError(`Element ${id} has an unknown type.`);
     // its own copy of the empty lists, so a change to one thing's keys or children never reaches another's
     elements[id] = { ...structuredClone(FALLBACK), ...v, id, type: v.type as El["type"] };
+    // a transition this version does not know, or with no length, is read as a plain cut
+    const move = elements[id].cutIn;
+    if (move !== undefined && !(move && (CUT_MOVES as readonly string[]).includes(move.kind) && Number.isFinite(move.seconds) && move.seconds > 0)) delete elements[id].cutIn;
+    delete elements[id].wash;
   }
   for (const id of r.rootIds) if (!elements[id]) throw new DesignFileError(`Page lists ${id}, but it does not exist.`);
   for (const el of Object.values(elements)) {

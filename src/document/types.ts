@@ -73,6 +73,16 @@ export interface Key {
   lift?: [number, number];
 }
 
+/** The ready-made ways the picture can change at a cut. A plain cut has none. */
+export const CUT_MOVES = ["dissolve", "dip-black", "dip-white"] as const;
+export type CutMoveKind = (typeof CUT_MOVES)[number];
+
+/** A transition at a cut: what kind, and how long it lasts in seconds, half before the cut and half after. */
+export interface CutMove {
+  kind: CutMoveKind;
+  seconds: number;
+}
+
 /** A note on the timeline of a frame that plays: a moment with a name and a colour, for the editor. It changes nothing in the picture. */
 export interface Marker {
   id: string;
@@ -244,6 +254,10 @@ export interface El {
   fadeOut: number;
   /** A video clip or a sound only: how fast its file plays. 1 is normal, 2 is twice as fast, 0.5 is half. The clip's bar is as long as it takes. */
   speed: number;
+  /** A video clip only: how the picture changes from the clip that ends where this one starts, on the same track. Left out for a plain cut. */
+  cutIn?: CutMove;
+  /** Never saved: set only on the design as it looks at one moment, while a dip covers a clip with a colour, from 0 (none) to 1 (all colour). */
+  wash?: { color: string; amount: number };
   childIds: string[];
 }
 

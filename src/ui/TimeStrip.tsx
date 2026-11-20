@@ -35,6 +35,7 @@ import type { TrackRow } from "../document/tracks";
 import { getPickedTrack, pickTrack, usePickedTrack } from "./pickedTrack";
 import { HearingCard, HearingLine, TranscribeBox, useHearingAll } from "./Transcribe";
 import { AutoCaptionsBox } from "./AutoCaptions";
+import CutSeams from "./CutSeams";
 
 /** The playhead shows only from the right edge of the names, however far the lanes have scrolled (--sl is set on scroll). #327 */
 /**
@@ -2027,6 +2028,7 @@ export default function TimeStrip() {
                   return (
                     <>
                       {row.items.map((el) => renderBar(el, rowH, push))}
+                      {look === "cut" && !push && <CutSeams doc={doc} frame={frame} items={row.items} pps={pps} />}
                       {push &&
                         row.items
                           .filter((el) => el.type !== "sound")

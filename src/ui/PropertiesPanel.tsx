@@ -32,6 +32,8 @@ import type { Effect, EffectControl } from "../document/effects";
 import { assetUrl } from "../project/assets";
 import { setBrushSettings, useBrushSettings } from "../canvas/brushSettings";
 import { COLORS } from "../canvas/render";
+import TransitionSection from "./TransitionSection";
+import { usePickedCut } from "./pickedCut";
 
 function NumField({
   label,
@@ -1039,6 +1041,8 @@ export default function PropertiesPanel() {
   const swapped = useLayout((d) => d.swapped);
   const doc = workDoc();
   const els = selection.map((id) => doc.elements[id]).filter(Boolean) as El[];
+  // a transition badge picked on the timeline: its settings, in place of the clip's
+  const cutId = usePickedCut();
 
   const tab: RightTab = mode === "photo" ? (photoTab ?? "color") : mode === "motion" ? (videoTab ?? "properties") : "properties";
   const setTab = (next: RightTab) => {
@@ -1097,6 +1101,18 @@ export default function PropertiesPanel() {
       );
     }
     return <ColorPanel els={els} top={topElement} />;
+  }
+
+  const cutClip = cutId ? doc.elements[cutId] : null;
+  const cutScene = cutClip?.cutIn ? sceneOf(doc, cutClip.id) : null;
+  if (cutClip && cutScene) {
+    return (
+      <aside className="right">
+        {switchElement}
+        <div className="panel-title">Transition</div>
+        <TransitionSection doc={doc} el={cutClip} scene={cutScene} />
+      </aside>
+    );
   }
 
   if (prototyping && mode === "design" && els.length !== 1) {

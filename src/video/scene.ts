@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "../ui/dialog";
 import { drawElement } from "../canvas/render";
+import { shownSpanOf } from "../document/moves";
 import { docAt, fileTimeAt, spanOf } from "../document/time";
 import { playsFile } from "../document/types";
 import type { Doc } from "../document/types";
@@ -280,6 +281,9 @@ export function exportSize(scene: { width: number; height: number }, longSide: n
   return [even(scene.width * k), even(scene.height * k)];
 }
 
+/** Where in a file to read: in a dissolve past where the file has footage, its end picture holds still. */
+const heldAt = (at: number, length: number) => Math.max(0, length > 0 ? Math.min(at, length - 0.04) : at);
+
 /**
  * The clip at the bottom of a picture of the video, when it fills the whole picture. That clip is then
  * read from its own file at full quality and graded by the export engine, and only what lies over it
@@ -289,7 +293,7 @@ async function baseClip(doc: Doc, now: Doc, sceneId: string, t: number, sizes: M
   const scene = now.elements[sceneId];
   const shown = scene.childIds.map((id) => now.elements[id]).filter((e) => e && !hiddenHere(now, e) && e.type !== "sound");
   const el = shown[0];
-  if (!el || el.type !== "video" || el.rotation || el.opacity < 0.999 || (el.blend ?? "normal") !== "normal" || el.radius || el.mask) return null;
+  if (!el || el.type !== "video" || el.rotation || el.opacity < 0.999 || (el.blend ?? "normal") !== "normal" || el.radius || el.mask || el.wash) return null;
   if (el.x > 0.01 || el.y > 0.01 || el.x + el.width < scene.width - 0.01 || el.y + el.height < scene.height - 0.01) return null;
   let info = sizes.get(el.src);
   if (!info) {
@@ -306,10 +310,10 @@ async function baseClip(doc: Doc, now: Doc, sceneId: string, t: number, sizes: M
   const ch = Math.min(info.height, even(scene.height / k));
   const cx = Math.min(info.width - cw, even(-left / k));
   const cy = Math.min(info.height - ch, even(-top / k));
-  const { start } = spanOf(doc.elements[el.id], doc.elements[sceneId]);
+  const { start, end } = spanOf(doc.elements[el.id], doc.elements[sceneId]);
   const without = { ...now, elements: { ...now.elements, [el.id]: { ...el, hidden: true }, [sceneId]: { ...scene, fill: "#00000000", gradient: null } } };
   return {
-    base: { id: el.id, path: el.src, speed: el.speed || 1, at: Math.max(0, fileTimeAt(el, start, t)), crop: [cx, cy, cw, ch], matrix: info.height <= 576 ? "bt601" : "bt709", grade: el.grade },
+    base: { id: el.id, path: el.src, speed: el.speed || 1, at: t >= start && t < end ? Math.max(0, fileTimeAt(el, start, t)) : heldAt(fileTimeAt(el, start, t), info.duration), crop: [cx, cy, cw, ch], matrix: info.height <= 576 ? "bt601" : "bt709", grade: el.grade },
     over: shown.length > 1,
     without,
   };
@@ -325,7 +329,8 @@ async function readClips(doc: Doc, now: Doc, sceneId: string, t: number, sx: num
   for (const id of clipsIn(now, sceneId)) {
     const el = now.elements[id];
     const { start, end } = spanOf(doc.elements[id], scene);
-    if (el.type !== "video" || id === skip || t < start || t >= end) {
+    const shown = shownSpanOf(doc, doc.elements[id], scene);
+    if (el.type !== "video" || id === skip || t < shown.start || t >= shown.end) {
       setMadePicture(id, 0, 0, null);
       continue;
     }
@@ -339,7 +344,8 @@ async function readClips(doc: Doc, now: Doc, sceneId: string, t: number, sx: num
     const k = Math.max((el.width * sx) / info.width, (el.height * sy) / info.height);
     const w = Math.max(1, Math.min(8192, Math.round(info.width * k)));
     const h = Math.max(1, Math.min(8192, Math.round(info.height * k)));
-    const at = Math.max(0, fileTimeAt(doc.elements[id], start, t));
+    const file = fileTimeAt(doc.elements[id], start, t);
+    const at = t >= start && t < end ? Math.max(0, file) : heldAt(file, info.duration);
     const bytes = await invoke<ArrayBuffer>(reader, { ask: { id, path: el.src, at, speed: el.speed || 1, width: w, height: h, matrix: info.height <= 576 ? "bt601" : "bt709" } });
     // an empty answer means the file ended before the clip did, and the clip shows black, as on the canvas
     const got = bytes instanceof ArrayBuffer ? bytes.byteLength : -1;
