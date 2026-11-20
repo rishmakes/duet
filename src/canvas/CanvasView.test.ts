@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { runCommand } from "../commands";
 import { emptyDoc } from "../document/types";
-import { drawnBox, isMovable, prepareDuplicate } from "./CanvasView";
+import { drawnBox, fitView, isMovable, prepareDuplicate } from "./CanvasView";
 
 describe("option drag duplication helpers", () => {
   describe("isMovable", () => {
@@ -160,5 +160,15 @@ describe("drawing a new shape", () => {
   it("Option draws out from where the drag started", () => {
     expect(drawnBox(start, { x: 130, y: 110 }, false, true)).toEqual({ x: 70, y: 90, width: 60, height: 20 });
     expect(drawnBox(start, { x: 130, y: 110 }, true, true)).toEqual({ x: 70, y: 70, width: 60, height: 60 });
+  });
+});
+
+describe("fitting the view", () => {
+  it("waits while the canvas has no size, instead of leaving the design tiny in a corner", () => {
+    const video = { x: 0, y: 0, width: 1080, height: 1920 };
+    expect(fitView(video, 0, 0, 4)).toBeNull();
+    const to = fitView(video, 660, 480, 4)!;
+    expect(to.zoom).toBeGreaterThan(0.1);
+    expect(to.x + 540 * to.zoom).toBeCloseTo(330);
   });
 });

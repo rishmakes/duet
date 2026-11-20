@@ -366,14 +366,22 @@ export function glideTo(target: { x: number; y: number; zoom: number; zoomIn?: b
 /** The room left around what Fit frames: a twentieth of the view's smaller side, never under 12 or over 120 pixels. */
 export const fitMargin = (width: number, height: number) => Math.max(12, Math.min(120, Math.min(width, height) * 0.05));
 
-function fitBox(box: Rect, width: number, height: number, maxZoom: number) {
+/** A fit asked for before the canvas had a size: it runs as soon as the canvas is measured. */
+let fitLater: { box: Rect; maxZoom: number } | null = null;
+
+/** Where the view goes to show a box, or null while the canvas has no size yet. */
+export function fitView(box: Rect, width: number, height: number, maxZoom: number): { x: number; y: number; zoom: number } | null {
+  // a project opening can ask before the canvas has its size; fitting into nothing left the design tiny in a corner
+  if (width <= 0 || height <= 0) return null;
   const pad = fitMargin(width, height);
   const zoom = Math.max(MIN_ZOOM, Math.min(maxZoom, (width - pad * 2) / box.width, (height - pad * 2) / box.height));
-  glideTo({
-    zoom,
-    x: width / 2 - (box.x + box.width / 2) * zoom,
-    y: height / 2 - (box.y + box.height / 2) * zoom,
-  });
+  return { zoom, x: width / 2 - (box.x + box.width / 2) * zoom, y: height / 2 - (box.y + box.height / 2) * zoom };
+}
+
+function fitBox(box: Rect, width: number, height: number, maxZoom: number) {
+  const to = fitView(box, width, height, maxZoom);
+  fitLater = to ? null : { box, maxZoom };
+  if (to) glideTo(to);
 }
 
 /** Show everything on the page. */
@@ -933,6 +941,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
       // read fresh each time: this runs long after the canvas first appeared
       const open = lockedRef.current ? getState().clock.scene : shownPageRef.current;
       if (open) zoomToElements([open], w, h);
+      else if (fitLater && w > 0 && h > 0) fitBox(fitLater.box, w, h, fitLater.maxZoom);
       schedule();
     };
     resize();
