@@ -110,6 +110,22 @@ export const BUILDER_TOOLS: ToolDef[] = [
     },
   },
   {
+    name: "dev_drop_footage",
+    description:
+      "Builder tool. Drag footage from Media onto the timeline in Edit, the way a hand would, and let go on a track at a second. keys are held (cmd pushes clips along instead of covering them). top true drops on the top edge of the track, which makes a new track above. The answer says what the timeline said and where every clip is after it.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        item: { ...str, description: "The footage's name as Media shows it." },
+        track: { ...str, description: "The name of the track to drop it on." },
+        at: { ...num, description: "The second on the timeline where it lands." },
+        keys: held,
+        top: { ...bool, description: "True to drop on the top edge of the track: a new track above it." },
+      },
+      required: ["item", "track", "at"],
+    },
+  },
+  {
     name: "dev_drag",
     description: "Builder tool. Drag across the canvas with the current tool, through points in design coordinates (the same as x and y of elements on the page). Two points or more.",
     inputSchema: {
@@ -456,6 +472,46 @@ async function dragClip(a: Args): Promise<ToolResult> {
   return { text: `Dragged "${a.clip}" by its ${part} ${by} s${a.track ? ` onto ${a.track}` : ""}. During the drag the timeline said: ${said ? `"${said}"` : "nothing"}.\nNow:\n${timelineNow()}` };
 }
 
+async function dropFootage(a: Args): Promise<ToolResult> {
+  // a row in Media, by the name it shows (its length shows beside it)
+  const source = Array.from(document.querySelectorAll<HTMLElement>(".clip-row[draggable='true']")).find((r) => r.textContent?.trim().startsWith(String(a.item ?? "")));
+  if (!source) return fail(`Nothing in Media is called "${a.item}".`);
+  const row = Array.from(document.querySelectorAll<HTMLElement>("[data-row]")).find((r) => r.querySelector(".time-name")?.textContent?.trim().startsWith(String(a.track ?? "")));
+  const lane = row?.querySelector<HTMLElement>(".time-lane");
+  if (!row || !lane) return fail(`No track called "${a.track}" on the timeline. Open the video in Edit first.`);
+  const s = getState();
+  const frame = s.clock.scene ? currentDoc(s).elements[s.clock.scene] : null;
+  if (!frame?.duration) return fail("No video is open on the timeline.");
+  const at = Math.max(0, Number(a.at) || 0);
+  // that second is scrolled into sight first, the way a hand would
+  const lanes = row.closest<HTMLElement>(".time-lanes");
+  if (lanes) {
+    const lw = lane.getBoundingClientRect().width;
+    lanes.scrollLeft = Math.max(0, (at * lw) / frame.duration - lanes.clientWidth / 2);
+    await settle();
+  }
+  const lr = lane.getBoundingClientRect();
+  const rr = row.getBoundingClientRect();
+  const x = lr.left + (at * lr.width) / frame.duration;
+  const y = a.top ? rr.top + 3 : rr.top + rr.height * 0.6;
+  const spot = document.elementFromPoint(x, y);
+  if (!(spot instanceof HTMLElement) || !row.contains(spot)) return fail(`Second ${at} of "${a.track}" is not in sight. Scroll the timeline to it first.`);
+  const data = new DataTransfer();
+  const init = { bubbles: true, cancelable: true, dataTransfer: data, clientX: x, clientY: y, ...heldKeys(a.keys) };
+  source.dispatchEvent(new DragEvent("dragstart", { ...init, clientX: 0, clientY: 0 }));
+  if (!data.types.length) return fail(`"${a.item}" cannot be dragged to the timeline.`);
+  spot.dispatchEvent(new DragEvent("dragenter", init));
+  spot.dispatchEvent(new DragEvent("dragover", init));
+  await settle();
+  const said = row.querySelector(".time-ghost span")?.textContent?.trim();
+  spot.dispatchEvent(new DragEvent("drop", init));
+  source.dispatchEvent(new DragEvent("dragend", init));
+  // the footage is read from the disk before it lands
+  await new Promise((done) => setTimeout(done, 800));
+  await settle();
+  return { text: `Dropped "${a.item}" on ${a.track}${a.top ? " (top edge)" : ""} at ${at} s. While over it the ghost said: ${said ? `"${said}"` : "nothing"}.\nNow:\n${timelineNow()}` };
+}
+
 async function drag(a: Args): Promise<ToolResult> {
   const pts = Array.isArray(a.points) ? (a.points as unknown[]).filter((p): p is [number, number] => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1])) : [];
   if (pts.length < 2) return fail("Give two points or more, as [[x, y], ...].");
@@ -555,6 +611,7 @@ export async function callBuilderTool(name: string, raw: unknown, by?: string): 
   if (name === "dev_key") return key(a);
   if (name === "dev_drag") return drag(a);
   if (name === "dev_drag_clip") return dragClip(a);
+  if (name === "dev_drop_footage") return dropFootage(a);
   if (name === "dev_history") {
     const s = getState();
     const from = Math.max(0, s.timeline.length - (typeof a.last === "number" && a.last > 0 ? Math.floor(a.last) : 12));
