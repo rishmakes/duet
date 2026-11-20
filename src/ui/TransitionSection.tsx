@@ -3,6 +3,7 @@ import { CUT_MOVES } from "../document/types";
 import type { CutMoveKind, Doc, El } from "../document/types";
 import { dispatch, dragCancel, dragPreview } from "../state/store";
 import { clipLength } from "../video/clips";
+import { pickCut } from "./pickedCut";
 
 /**
  * The settings of the transition at a cut, picked by its badge on the timeline: what kind, how long, and
@@ -28,7 +29,6 @@ export default function TransitionSection({ doc, el, scene }: { doc: Doc; el: El
       <label className="f">
         <span>Kind</span>
         <select value={move.kind} data-name="transition-kind" onChange={(e) => set(e.target.value as CutMoveKind | "cut")}>
-          <option value="cut">Cut</option>
           {CUT_MOVES.map((k) => (
             <option key={k} value={k}>
               {CUT_MOVE_NAMES[k]}
@@ -66,6 +66,9 @@ export default function TransitionSection({ doc, el, scene }: { doc: Doc; el: El
         onClick={() => dispatch("set_transition", { ids: others, kind: move.kind, seconds })}
       >
         Use on every cut
+      </button>
+      <button className="mini" data-name="transition-remove" title="Take this transition away and leave a plain cut. Delete does the same" onClick={() => (set("cut"), pickCut(null))}>
+        Remove transition
       </button>
     </div>
   );

@@ -12964,17 +12964,17 @@ button.ctx-item.store-make-option:hover {
   z-index: 3;
   display: grid;
   place-items: center;
-  height: 16px;
+  height: 18px;
   padding: 0;
-  border-radius: 8px;
+  border-radius: 9px;
   font-size: 12px;
   font-weight: 600;
   line-height: 1;
   cursor: pointer;
 }
 .cut-plus {
-  width: 16px;
-  margin-left: -8px;
+  width: 18px;
+  margin-left: -9px;
   transform: translateY(-50%) scale(0.85);
   background: var(--panel);
   color: var(--text);
@@ -13004,10 +13004,13 @@ button.ctx-item.store-make-option:hover {
 .cut-badge.dip-white {
   background: #fff;
 }
-.cut-badge.picked,
 .cut-badge:hover {
+  background: var(--accent-soft);
+}
+.cut-badge.picked {
   background: var(--accent);
   color: #fff;
+  box-shadow: 0 0 0 2px var(--panel), 0 0 0 3px var(--accent);
 }
 .cut-menu .ctx-item.on {
   color: var(--accent);
