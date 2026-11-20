@@ -3,9 +3,11 @@ import { runCommand } from "../commands";
 import { emptyDoc } from "../document/types";
 import { inTestDesign, keepTestDesign, leaveTestDesign, startTestDesign } from "../project/project";
 import { invoke } from "@tauri-apps/api/core";
-import { getState, seenDoc } from "../state/store";
+import { currentDoc, getState, seenDoc } from "../state/store";
 import { clipPictureOf, clipState } from "../video/clips";
 import { seek } from "../video/play";
+import { spanOf } from "../document/time";
+import { trackRows } from "../document/tracks";
 import { defaultChoice, exportScene } from "../video/scene";
 import { addClip, getCut, emptyCut, setCut, sizeOf } from "../video/cut";
 import type { Info } from "../video/cut";
@@ -88,6 +90,24 @@ export const BUILDER_TOOLS: ToolDef[] = [
     name: "dev_key",
     description: "Builder tool. Press a key, such as f, Escape, Delete or ArrowLeft, as if the canvas had the attention.",
     inputSchema: { type: "object", properties: { key: str, keys: held }, required: ["key"] },
+  },
+  {
+    name: "dev_drag_clip",
+    description:
+      "Builder tool. Drag a clip on the timeline in Edit, the way a hand would: by its middle to move it, or by its start or end to trim it. by is how many seconds along (minus for earlier). track names another track to move it onto. keys are held the whole way (cmd pushes clips along instead of covering them); noSnap holds S so it does not snap. The answer says what the timeline said during the drag and where every clip is after it.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        clip: { ...str, description: "The clip's name as the timeline shows it." },
+        nth: { ...num, description: "When several clips share the name: which one, counting from the left, from 1." },
+        part: { type: "string", enum: ["middle", "start", "end"], description: "Where to hold it. middle if left out." },
+        by: { ...num, description: "Seconds to drag along: plus is later, minus is earlier." },
+        track: { ...str, description: "The name of a track to drop it on. Left out, it stays on its own." },
+        keys: held,
+        noSnap: { ...bool, description: "True to hold S during the drag, so it does not snap to edges." },
+      },
+      required: ["clip", "by"],
+    },
   },
   {
     name: "dev_drag",
@@ -372,6 +392,70 @@ async function key(a: Args): Promise<ToolResult> {
 }
 
 /** Drag across the canvas through points in design coordinates, with the tool that is picked. */
+/** Every track on the open timeline and the clips on it, with their times, as words. */
+function timelineNow(): string {
+  const s = getState();
+  const id = s.clock.scene;
+  // the whole design, not only what shows at the playhead
+  const doc = currentDoc(s);
+  const frame = id ? doc.elements[id] : null;
+  if (!frame) return "No timeline is open.";
+  const t = (n: number) => Math.round(n * 1000) / 1000;
+  return trackRows(doc, frame)
+    .map((r) => `${r.name}: ${[...r.items].map((el) => ({ el, sp: spanOf(el, frame) })).sort((x, y) => x.sp.start - y.sp.start).map(({ el, sp }) => `${el.name} ${t(sp.start)}-${t(sp.end)}s`).join(", ") || "empty"}`)
+    .join("\n");
+}
+
+async function dragClip(a: Args): Promise<ToolResult> {
+  const bars = Array.from(document.querySelectorAll<HTMLElement>(`.time-span[data-name="span-${CSS.escape(String(a.clip ?? ""))}"]`)).sort((x, y) => x.getBoundingClientRect().left - y.getBoundingClientRect().left);
+  const bar = bars[(typeof a.nth === "number" ? a.nth : 1) - 1];
+  if (!bar) return fail(bars.length ? `There are only ${bars.length} clips called "${a.clip}".` : `No clip called "${a.clip}" is on the timeline. Open the video in Edit first.`);
+  const by = Number(a.by);
+  if (!Number.isFinite(by)) return fail("Say how many seconds to drag it, as by.");
+  const doc = currentDoc();
+  const el = doc.elements[bar.dataset.clipId ?? ""];
+  const frame = el?.parentId ? doc.elements[el.parentId] : null;
+  if (!el || !frame) return fail("That clip is not in a video.");
+  const sp = spanOf(el, frame);
+  // a clip off to the side is scrolled into sight first, the way a hand would
+  bar.scrollIntoView({ block: "nearest", inline: "center" });
+  await settle();
+  const r = bar.getBoundingClientRect();
+  const pps = r.width / Math.max(0.001, sp.end - sp.start);
+  const part = a.part === "start" || a.part === "end" ? a.part : "middle";
+  const x0 = part === "start" ? r.left + 2 : part === "end" ? r.right - 2 : r.left + r.width / 2;
+  // held near its top: the volume line runs through its middle and would take the drag
+  const y0 = r.top + Math.min(10, r.height / 4);
+  let y1 = y0;
+  if (a.track) {
+    const row = Array.from(document.querySelectorAll<HTMLElement>("[data-row]")).find((row) => row.querySelector(".time-name")?.textContent?.trim().startsWith(String(a.track)));
+    if (!row) return fail(`No track called "${a.track}".`);
+    const rr = row.getBoundingClientRect();
+    y1 = rr.top + rr.height / 2;
+  }
+  const spot = document.elementFromPoint(x0, y0);
+  if (!(spot instanceof HTMLElement)) return fail("The clip is not in sight. Scroll the timeline to it first.");
+  if (!bar.contains(spot)) return fail(`Something covers the clip: "${spot.className || spot.tagName.toLowerCase()}". Open Studio, or close what is on top.`);
+  const base = { bubbles: true, cancelable: true, pointerId: 42, isPrimary: true, pointerType: "mouse", button: 0, ...heldKeys(a.keys) };
+  const sKey = { key: "s", code: "KeyS", bubbles: true };
+  if (a.noSnap) document.body.dispatchEvent(new KeyboardEvent("keydown", sKey));
+  spot.dispatchEvent(new PointerEvent("pointerdown", { ...base, buttons: 1, clientX: x0, clientY: y0 }));
+  const steps = 10;
+  for (let i = 1; i <= steps; i++) {
+    const x = x0 + (by * pps * i) / steps;
+    const y = y0 + ((y1 - y0) * i) / steps;
+    // sent to whatever is under that spot, as a hand's would be, and it rises to the window from there
+    (document.elementFromPoint(x, y) ?? document.body).dispatchEvent(new PointerEvent("pointermove", { ...base, buttons: 1, clientX: x, clientY: y }));
+    await new Promise((done) => setTimeout(done, 16));
+  }
+  await settle();
+  const said = document.querySelector(".time-drag-hint")?.textContent?.trim();
+  (document.elementFromPoint(x0 + by * pps, y1) ?? document.body).dispatchEvent(new PointerEvent("pointerup", { ...base, buttons: 0, clientX: x0 + by * pps, clientY: y1 }));
+  if (a.noSnap) document.body.dispatchEvent(new KeyboardEvent("keyup", sKey));
+  await settle();
+  return { text: `Dragged "${a.clip}" by its ${part} ${by} s${a.track ? ` onto ${a.track}` : ""}. During the drag the timeline said: ${said ? `"${said}"` : "nothing"}.\nNow:\n${timelineNow()}` };
+}
+
 async function drag(a: Args): Promise<ToolResult> {
   const pts = Array.isArray(a.points) ? (a.points as unknown[]).filter((p): p is [number, number] => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1])) : [];
   if (pts.length < 2) return fail("Give two points or more, as [[x, y], ...].");
@@ -470,6 +554,7 @@ export async function callBuilderTool(name: string, raw: unknown, by?: string): 
   if (name === "dev_type") return type(a);
   if (name === "dev_key") return key(a);
   if (name === "dev_drag") return drag(a);
+  if (name === "dev_drag_clip") return dragClip(a);
   if (name === "dev_history") {
     const s = getState();
     const from = Math.max(0, s.timeline.length - (typeof a.last === "number" && a.last > 0 ? Math.floor(a.last) : 12));

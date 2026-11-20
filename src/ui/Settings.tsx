@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { SHORTCUTS, keyText } from "./shortcuts";
+import { MAC, SHORTCUTS, keyText } from "./shortcuts";
 import { BUILDER_TOOLS } from "../ai/builder";
 import { AGENTS, useChat } from "../ai/chat";
 import { busyOutside } from "../ai/outside";
@@ -15,7 +15,6 @@ interface SettingsProps {
   onClose: () => void;
 }
 
-const MAC = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
 
 export function matchShortcuts(
   shortcuts: typeof SHORTCUTS,

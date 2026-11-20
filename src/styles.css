@@ -7738,6 +7738,22 @@ input.chathome-name.rename {
 }
 
 /* The box drawn over the timeline to pick keyframes */
+/* while a clip is dragged in Edit: whether it covers what is under it or pushes it along (#399) */
+.time-drag-hint {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11px;
+  pointer-events: none;
+  white-space: nowrap;
+}
 .time-sweep {
   position: fixed;
   z-index: 50;
@@ -11938,6 +11954,7 @@ button.ctx-item.store-make-option:hover {
   }
 }
 .time-body {
+  position: relative;
   display: flex;
   min-width: 0;
 }

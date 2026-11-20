@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { MAC } from "./shortcuts";
 import { newId } from "../commands";
 import { dispatch, getState, select, setPagesView } from "../state/store";
 import { getTabs, getUntitled, listedProjects, newDesignTab, openProject, openProjectAt } from "../project/project";
@@ -47,7 +48,6 @@ const keep = (key: string, value: string) => {
   }
 };
 
-const MAC = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
 
 export default function Home({ onClose, fromProject, dev }: HomeProps) {
   // any project open behind Home, saved or not, is somewhere the switch can go back to

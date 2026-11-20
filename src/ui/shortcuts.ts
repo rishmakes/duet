@@ -103,4 +103,7 @@ export const SHORTCUTS: { group: string; keys: [string, string][] }[] = [
 ];
 
 /** A shortcut as this computer writes it. */
+/** Whether Duet runs on a Mac: Cmd and Option there, Ctrl and Alt on Windows. */
+export const MAC = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
+
 export const keyText = (keys: string, mac: boolean) => (mac ? keys : keys.replace(/\bCmd\b/g, "Ctrl").replace(/\bOption\b/g, "Alt"));

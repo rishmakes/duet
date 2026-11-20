@@ -28,6 +28,7 @@ import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { DEFAULT_TRACK_H, NO_HEIGHTS, TIME_MIN_H, TRACK_MAX_H, TRACK_MIN_H, getLayout, isColorOpen, setLayout, useLayout } from "./layout";
 import { isMouseWheel, wheelZoomFactor } from "./wheel";
 import { useDismiss } from "./useDismiss";
+import { MAC } from "./shortcuts";
 import { openBoard, pinnedOn } from "../document/boards";
 import { showComment } from "./commentFocus";
 import { rowLook, trackRows } from "../document/tracks";
@@ -43,6 +44,22 @@ import CutSeams from "./CutSeams";
  * what is placed inside a lane (clips, ruler marks) starts one pixel past the names: the line goes there too, so it meets clip edges exactly. #389
  */
 export const headX = (names: number, t: number, pps: number) => Math.round(names + 1 + t * pps);
+/**
+ * Holding S while dragging on the timeline turns snapping off. Cmd is for pushing clips along (#399), so
+ * snapping has a key of its own. Kept on the key itself, since a pointer move does not say which letters are down.
+ */
+let holdingS = false;
+if (typeof window !== "undefined") {
+  window.addEventListener("keydown", (e) => {
+    if (e.key.toLowerCase() === "s" && !e.metaKey && !e.ctrlKey && !e.altKey) holdingS = true;
+  }, true);
+  window.addEventListener("keyup", (e) => {
+    if (e.key.toLowerCase() === "s") holdingS = false;
+  }, true);
+  window.addEventListener("blur", () => (holdingS = false));
+}
+const snapOff = () => holdingS;
+
 export const HEAD_WINDOW = "inset(0 0 0 calc(var(--sl, 0px) + var(--names, 150px)))";
 
 /** Time under the canvas: a row for each thing in a frame that plays, when it shows, and where the clock is. */
@@ -119,7 +136,9 @@ export default function TimeStrip() {
   const draggedMark = useRef(false);
   const [snap, setSnap] = useState<number | null>(null);
   // footage from Media on its way in: the row under the pointer, whether it tips onto a new track above, and when it lands
-  const [ghost, setGhost] = useState<{ ri: number | null; above: boolean; at: number } | null>(null);
+  const [ghost, setGhost] = useState<{ ri: number | null; above: boolean; at: number; push: boolean } | null>(null);
+  // while a clip is dragged in Edit: whether it covers what it lands on, or pushes it along (#399)
+  const [dragHint, setDragHint] = useState<"cover" | "push" | null>(null);
   // a drag that ends anywhere, or is called off, takes the ghost and the snap line with it
   useEffect(() => {
     const clear = () => (setGhost(null), setSnap(null));
@@ -711,9 +730,9 @@ export default function TimeStrip() {
     // only the left button moves the playhead: the middle one drags the timeline and the right one opens the menu
     if (e.button !== 0) return;
     const lane = e.currentTarget;
-    // the playhead snaps to clip edges and markers; Cmd or Ctrl turns that off
+    // the playhead snaps to clip edges and markers; holding S turns that off
     const targets = getSnapTargets().filter((t) => t !== getState().clock.t);
-    const at = (clientX: number, noSnap: boolean) => {
+    const at = (clientX: number) => {
       // pulled past the names or the right edge, it stays on the last moment that shows and the timeline scrolls after it, so it never goes under the names
       const view = lanes.current?.getBoundingClientRect();
       if (view && lanes.current) {
@@ -723,7 +742,7 @@ export default function TimeStrip() {
       }
       let t = (clientX - lane.getBoundingClientRect().left) / pps;
       let snapTime: number | null = null;
-      if (!noSnap) {
+      if (!snapOff()) {
         const s = findSnap(t, targets);
         if (s) {
           t = s.time;
@@ -734,8 +753,8 @@ export default function TimeStrip() {
       seek(t);
     };
     pause();
-    at(e.clientX, e.metaKey || e.ctrlKey);
-    const move = (ev: PointerEvent) => at(ev.clientX, ev.metaKey || ev.ctrlKey);
+    at(e.clientX);
+    const move = (ev: PointerEvent) => at(ev.clientX);
     const up = () => {
       setSnap(null);
       window.removeEventListener("pointermove", move);
@@ -799,7 +818,8 @@ export default function TimeStrip() {
     const list = draggedFootage();
     const seen = list.filter((it) => it.kind !== "sound");
     const total = (seen.length ? seen : list).reduce((sum, it) => sum + (it.seconds ?? 0), 0);
-    return { at: ghost.at, total: Math.max(total, 0.5), above: ghost.above, push: !ghost.above && seen.length > 0 ? total : 0 };
+    // it covers what is under it, unless Cmd is held: then what is later moves along
+    return { at: ghost.at, total: Math.max(total, 0.5), above: ghost.above, pushing: ghost.push, push: ghost.push && !ghost.above && seen.length > 0 ? total : 0 };
   };
 
   /** Ctrl or Cmd adds one or takes it away; Shift picks every row from the last one clicked to this one. */
@@ -857,12 +877,14 @@ export default function TimeStrip() {
   const drag = (e: React.PointerEvent, el: El, part: "all" | "start" | "end") => {
     if (e.button !== 0) return;
     e.stopPropagation();
-    // Shift or Cmd adds a clip to the picked ones, or takes it away
-    if (part === "all" && (e.shiftKey || e.metaKey || e.ctrlKey)) return pick(e, el.id);
+    // Shift adds a clip to the picked ones, or takes it away. Cmd does too on a click, but a drag with Cmd held
+    // from the start moves the clip and pushes the rest along (#399)
+    if (part === "all" && e.shiftKey) return pick(e, el.id);
+    const cmdClick = part === "all" && (e.metaKey || e.ctrlKey);
     const now = getState().selection;
     // a picked clip moves with every other picked clip in this scene
     const group = part === "all" && now.includes(el.id) ? now.filter((id) => doc.elements[id]?.parentId === frame.id) : [el.id];
-    if (!now.includes(el.id) || part !== "all") select([el.id]);
+    if (!cmdClick && (!now.includes(el.id) || part !== "all")) select([el.id]);
     const others = group.filter((id) => id !== el.id).map((id) => ({ id, span: spanOf(doc.elements[id], frame) }));
     const from = e.clientX;
     const fromY = e.clientY;
@@ -876,12 +898,18 @@ export default function TimeStrip() {
     if (said?.length) for (const f of trimPoints(said, part === "start" ? "start" : "end")) targets.push(frameTimeAt(el, span.start, f));
     // holding Option on a clip's end, or having the stretch tool, changes its speed instead of cutting it
     const stretch = part !== "all" && playsFile(el) && (e.altKey || stretching.current);
+    // in Edit an end stops at the clip beside it on its track, so pulling it never covers or bumps that one
+    const beside = look === "cut" ? (rowsRef.current.find((r) => r.items.some((it) => it.id === el.id))?.items ?? []).filter((o) => o.id !== el.id && (o.type === "sound") === (el.type === "sound")).map((o) => spanOf(o, frame)) : [];
+    const floor = Math.max(0, ...beside.filter((sp) => sp.end <= span.start + 0.03).map((sp) => sp.end));
+    const ceiling = Math.min(Infinity, ...beside.filter((sp) => sp.start >= span.end - 0.03).map((sp) => sp.start));
     let moved = false;
+    let lastMove: PointerEvent | null = null;
     const move = (ev: PointerEvent) => {
+      lastMove = ev;
       const by = (ev.clientX - from) / pps;
       if (Math.abs(ev.clientX - from) < 2 && (part !== "all" || Math.abs(ev.clientY - fromY) < 6) && !moved) return;
       moved = true;
-      const noSnap = ev.metaKey || ev.ctrlKey;
+      const noSnap = snapOff();
       if (part === "all") {
         const rawStart = span.start + by;
         const rawEnd = rawStart + long;
@@ -917,15 +945,30 @@ export default function TimeStrip() {
         const shift = start - span.start;
         const last = Math.max(start + long, ...others.map((o) => o.span.end + shift));
         let next = last > length ? runCommand(dragBase(), "set_duration", { id: frame.id, seconds: last }) : dragBase();
+        const all = [el.id, ...others.map((o) => o.id)];
+        if (look === "cut") {
+          // over another track, it goes on that track, with the clips moving with it; each one is put on its
+          // track before it moves, so the rows are kept as they were and none is bumped by where it lands
+          const over = Array.from(lanes.current?.querySelectorAll<HTMLElement>("[data-row]") ?? []).find((r) => {
+            const b = r.getBoundingClientRect();
+            return ev.clientY >= b.top && ev.clientY < b.bottom;
+          });
+          const row = over ? rowsRef.current[Number(over.dataset.row)] : undefined;
+          if (row?.track) next = runCommand(next, "set_track", { ids: all, track: row.track });
+          else
+            for (const id of all) {
+              const own = rowsRef.current.find((r) => r.items.some((it) => it.id === id))?.track;
+              if (own) next = runCommand(next, "set_track", { ids: [id], track: own });
+            }
+        }
         next = runCommand(next, "set_timing", { ids: [el.id], start, end: start + long });
         for (const o of others) next = runCommand(next, "set_timing", { ids: [o.id], start: o.span.start + shift, end: o.span.end + shift });
-        // over another track, it goes on that track, with the clips moving with it
-        const over = Array.from(lanes.current?.querySelectorAll<HTMLElement>("[data-row]") ?? []).find((r) => {
-          const b = r.getBoundingClientRect();
-          return ev.clientY >= b.top && ev.clientY < b.bottom;
-        });
-        const row = over ? rowsRef.current[Number(over.dataset.row)] : undefined;
-        if (look === "cut" && row?.track) next = runCommand(next, "set_track", { ids: [el.id, ...others.map((o) => o.id)], track: row.track });
+        // it covers what it lands on; with Cmd held, what is later on the track moves along instead
+        const push = ev.metaKey || ev.ctrlKey;
+        const landed = next;
+        if (look === "cut") next = runCommand(next, "make_room", { ids: all, push });
+        // the hint shows only while it is over another clip, to say what will happen to that one
+        setDragHint(look === "cut" && next !== landed ? (push ? "push" : "cover") : null);
         dragPreviewDoc(next);
       } else if (stretch) {
         const raw = (part === "start" ? span.start : span.end) + by;
@@ -938,7 +981,7 @@ export default function TimeStrip() {
             snapTime = s.time;
           }
         }
-        to = part === "start" ? Math.max(0, Math.min(span.end - SHORTEST, to)) : Math.max(span.start + SHORTEST, Math.min(length, to));
+        to = part === "start" ? Math.max(0, floor, Math.min(span.end - SHORTEST, to)) : Math.max(span.start + SHORTEST, Math.min(length, ceiling, to));
         if (snapTime !== null && Math.abs((to - snapTime) * pps) > 0.5) snapTime = null;
         setSnap(snapTime);
         dragPreview("stretch_clip", { id: el.id, edge: part, to });
@@ -954,7 +997,7 @@ export default function TimeStrip() {
             snapTime = s.time;
           }
         }
-        start = Math.max(0, least, Math.min(span.end - SHORTEST, start));
+        start = Math.max(0, least, floor, Math.min(span.end - SHORTEST, start));
         if (snapTime !== null && Math.abs((start - snapTime) * pps) > 0.5) snapTime = null;
         setSnap(snapTime);
         dragPreview("set_timing", { ids: [el.id], start, end: span.end, ...(playsFile(el) ? { clipFrom: fileTimeAt(el, span.start, start) } : {}) });
@@ -970,16 +1013,26 @@ export default function TimeStrip() {
             snapTime = s.time;
           }
         }
-        end = Math.max(span.start + SHORTEST, Math.min(length, most, end));
+        end = Math.max(span.start + SHORTEST, Math.min(length, most, ceiling, end));
         if (snapTime !== null && Math.abs((end - snapTime) * pps) > 0.5) snapTime = null;
         setSnap(snapTime);
         dragPreview("set_timing", { ids: [el.id], start: span.start, end });
       }
     };
+    // pressing or letting go of Cmd mid-drag switches between covering and pushing without a move
+    const key = (ev: KeyboardEvent) => {
+      if (part !== "all" || !moved || !lastMove || (ev.key !== "Meta" && ev.key !== "Control")) return;
+      const { clientX, clientY } = lastMove;
+      move(new PointerEvent("pointermove", { clientX, clientY, metaKey: ev.metaKey, ctrlKey: ev.ctrlKey }));
+    };
     const up = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
+      window.removeEventListener("keydown", key);
+      window.removeEventListener("keyup", key);
       setSnap(null);
+      setDragHint(null);
+      if (!moved && cmdClick) return pick(e, el.id);
       if (moved) dragCommit(stretch ? "Stretch to change speed" : others.length ? `Move ${others.length + 1} clips in time` : "Change when it shows");
       // a click without a drag picks just this one
       else if (others.length) select([el.id]);
@@ -987,6 +1040,8 @@ export default function TimeStrip() {
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
+    window.addEventListener("keydown", key);
+    window.addEventListener("keyup", key);
   };
 
   const make = async () => {
@@ -1036,7 +1091,7 @@ export default function TimeStrip() {
       if (Math.abs(ev.clientX - from) < 2 && !moved) return;
       moved = true;
       draggedMark.current = true;
-      const noSnap = ev.metaKey || ev.ctrlKey;
+      const noSnap = snapOff();
       const rawT = t + by;
       let to = rawT;
       let snapTime: number | null = null;
@@ -1102,7 +1157,7 @@ export default function TimeStrip() {
           toEnd = length;
           toStart = Math.max(0, length - span);
         }
-        if (!(ev.metaKey || ev.ctrlKey)) {
+        if (!snapOff()) {
           const sStart = findSnap(toStart, targets);
           const sEnd = findSnap(toEnd, targets);
           if (sStart && sEnd) {
@@ -1134,7 +1189,7 @@ export default function TimeStrip() {
         let to = Math.max(0, Math.min(length, base + dx));
         if (which === "start") to = Math.min(baseEnd - 0.05, to);
         else to = Math.max(baseStart + 0.05, to);
-        if (!(ev.metaKey || ev.ctrlKey)) {
+        if (!snapOff()) {
           const s = findSnap(to, targets);
           if (s) {
             to = which === "start" ? Math.min(baseEnd - 0.05, s.time) : Math.max(baseStart + 0.05, s.time);
@@ -1194,7 +1249,7 @@ export default function TimeStrip() {
       draggedMarker.current = true;
       let to = Math.max(0, Math.min(length, m.t + (ev.clientX - from) / pps));
       let snapTime: number | null = null;
-      if (!(ev.metaKey || ev.ctrlKey)) {
+      if (!snapOff()) {
         const s = findSnap(to, targets);
         if (s) {
           to = s.time;
@@ -1703,6 +1758,11 @@ export default function TimeStrip() {
       {sweepBox && <div className="time-sweep" style={{ left: sweepBox.x, top: sweepBox.y, width: sweepBox.w, height: sweepBox.h }} />}
       <div className="time-grip" data-name="timeline-height" onPointerDown={grow} title="Pull to make the timeline taller or shorter" />
       <div className="time-body">
+      {dragHint && (
+        <div className="time-drag-hint" data-name="timeline-drag-hint">
+          {dragHint === "push" ? "Pushing clips along" : `Covers the clip under it · hold ${MAC ? "⌘" : "Ctrl"} to push it along`}
+        </div>
+      )}
       {look === "cut" && <MouseTools tool={bladeTool ? "blade" : stretchTool ? "stretch" : "select"} pick={pickTimeTool} />}
       <div
         className="time-lanes"
@@ -1726,9 +1786,9 @@ export default function TimeStrip() {
           if (!types.includes("Files") && !types.includes(CLIP_DRAG) && !types.includes(LAYER_DRAG)) return;
           e.preventDefault();
           e.dataTransfer.dropEffect = "copy";
-          const place = dropPlace(e);
+          const place = { ...dropPlace(e), push: e.metaKey || e.ctrlKey };
           setSnap(place.at);
-          if ((types.includes(CLIP_DRAG) || types.includes(LAYER_DRAG)) && look === "cut") setGhost((g) => (g && g.ri === place.ri && g.above === place.above && g.at === place.at ? g : place));
+          if ((types.includes(CLIP_DRAG) || types.includes(LAYER_DRAG)) && look === "cut") setGhost((g) => (g && g.ri === place.ri && g.above === place.above && g.at === place.at && g.push === place.push ? g : place));
         }}
         onDragLeave={(e) => {
           if (!e.currentTarget.contains(e.relatedTarget as Node)) (setSnap(null), setGhost(null));
@@ -1747,7 +1807,7 @@ export default function TimeStrip() {
             const row = place.ri !== null ? rowsRef.current[place.ri] : undefined;
             const picked = getState().selection.filter((id) => currentDoc().elements[id]?.parentId === frame.id);
             const top = frame.childIds.filter((id) => picked.includes(id)).pop();
-            const where = look === "cut" ? { track: row?.track, aside: place.above } : top ? { above: top } : { layers: true };
+            const where = look === "cut" ? { track: row?.track, aside: place.above, push: e.metaKey || e.ctrlKey } : top ? { above: top } : { layers: true };
             const ids: string[] = JSON.parse(fromLayers);
             if (!placeLayerPictures(frame.id, ids, place.at, where).length) setNote("Only pictures can be dropped here from Layers.");
             return;
@@ -1765,7 +1825,7 @@ export default function TimeStrip() {
             const row = place.ri !== null ? rowsRef.current[place.ri] : undefined;
             const picked = getState().selection.filter((id) => currentDoc().elements[id]?.parentId === frame.id);
             const top = frame.childIds.filter((id) => picked.includes(id)).pop();
-            const where = look === "cut" ? { track: row?.track, aside: place.above } : top ? { above: top } : { layers: true };
+            const where = look === "cut" ? { track: row?.track, aside: place.above, push: e.metaKey || e.ctrlKey } : top ? { above: top } : { layers: true };
             void placeFromClips(frame.id, JSON.parse(fromClips), at, where).then((problems) => problems.length && setNote(problems.join(" ")));
             return;
           }
@@ -2037,7 +2097,7 @@ export default function TimeStrip() {
                           .map((sp, i) => <div key={`tail-${i}`} className="time-ghost tail" style={{ left: (g!.at + g!.push) * pps, width: (sp.end - g!.at) * pps }} />)}
                       {g && (
                         <div className={`time-ghost ${g.above ? "above" : ""}`} style={{ left: g.at * pps, width: g.total * pps }}>
-                          <span>{g.above ? "above" : "push"}</span>
+                          <span>{g.above ? "above" : g.pushing ? "push" : `${MAC ? "⌘" : "Ctrl"} to push`}</span>
                         </div>
                       )}
                     </>
@@ -2317,7 +2377,11 @@ export default function TimeStrip() {
               if (was?.frameId === frame.id) pickTrack(was.index === index ? null : was.index > index ? { ...was, index: was.index - 1 } : was);
             }}
           >
-            <span>Delete track</span>
+            {/* it says what goes with it, before it goes (#399) */}
+            <span>{(() => {
+              const n = rowsRef.current[trackMenu.index]?.items.length ?? 0;
+              return n ? `Delete track and its ${n} ${n === 1 ? "clip" : "clips"}` : "Delete track";
+            })()}</span>
           </div>
         </div>
       )}

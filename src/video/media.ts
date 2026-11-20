@@ -144,10 +144,12 @@ export function lengthOf(item: MediaItem, then: () => void): number | null {
 /** How long a picture stays on the timeline when it is dropped there. */
 export const PICTURE_SECONDS = 3;
 
-/** Where footage from Media goes: a track in Edit (with Cmd, a new one above it), or above a layer in Motion. */
+/** Where footage from Media goes: a track in Edit (at its top edge, a new one above it), or above a layer in Motion. */
 export interface PlaceWhere {
   track?: { index: number };
   aside?: boolean;
+  /** Edit with Cmd: what is later on the track moves along, instead of being covered. */
+  push?: boolean;
   above?: string | null;
   layers?: boolean;
 }

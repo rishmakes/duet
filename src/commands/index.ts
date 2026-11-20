@@ -1037,7 +1037,8 @@ const setTrack: CommandDef<SetTrackArgs> = {
       el.track = track.id;
       moved.push(id);
     }
-    if (!moved.length) return doc;
+    // already there, it is no step, unless the rows were saved as tracks just now, so each thing keeps its row
+    if (!moved.length) return JSON.stringify(next.elements[frameId].tracks) === JSON.stringify(doc.elements[frameId].tracks) ? doc : next;
     stackByTrack(next, frameId, moved);
     return next;
   },
@@ -1065,8 +1066,10 @@ export interface PlaceMediaArgs {
   at: number;
   /** Edit: the track dropped on. Left out: a new track on top. */
   track?: TrackRef;
-  /** Edit with Cmd: a new track just above the one dropped on, so nothing is pushed. */
+  /** Edit, at the top edge of a track: a new track just above the one dropped on, so nothing is covered. */
   aside?: boolean;
+  /** Edit with Cmd: what is later on the track moves along to make room, and a clip dropped inside is cut. Left out, the new ones cover what is under them. */
+  push?: boolean;
   /** Motion: the new layers go just above this one. Set, there are no tracks to pick or push. */
   above?: string | null;
   /** Motion with nothing picked: the new layers go on top. */
@@ -1083,8 +1086,8 @@ function shiftTime(el: El, by: number) {
 
 /**
  * Clips, sounds and pictures put in a scene in one step, one after another from a moment.
- * In Edit, pictures and clips go on the track dropped on, at the moment dropped: a drop in the middle of a clip
- * cuts it there, and what comes later on that track is pushed right, so nothing is covered or lost. Sounds go on a sound track
+ * In Edit, pictures and clips go on the track dropped on, at the moment dropped, and cover what is under them;
+ * with push, a drop in the middle of a clip cuts it there and what comes later on that track moves along. Sounds go on a sound track
  * of their own. In Motion each one is a layer, above the picked layer or on top. An empty scene takes the
  * length of what comes in; otherwise a scene in Edit grows to hold the pictures and clips, a scene in Motion keeps its length, and sounds stop at its end.
  */
@@ -1111,23 +1114,7 @@ const placeMedia: CommandDef<PlaceMediaArgs> = {
         const index = target ? tracks.indexOf(target) : 0;
         next.elements[a.id].tracks = [...tracks.slice(0, index), made, ...tracks.slice(index)];
         trackId = made.id;
-      } else {
-        trackId = target.id;
-        const seen = (id: string) => next.elements[id].track === trackId && next.elements[id].type !== "sound";
-        // a drop in the middle of a clip cuts it there, and its second part moves on with the rest
-        const cut = cuttable(next, a.id, at).filter(seen);
-        if (cut.length) next = splitAt.run(next, { sceneId: a.id, t: at, ids: cut });
-        const f = next.elements[a.id];
-        const total = pictures.reduce((sum, it) => sum + it.seconds, 0);
-        for (const id of f.childIds) {
-          const el = next.elements[id];
-          const span = spanOf(el, f);
-          if (!seen(id) || span.start < at - 0.001) continue;
-          // one that ran to the end keeps its length as it moves on
-          if (!el.end) el.end = span.end;
-          shiftTime(el, total);
-        }
-      }
+      } else trackId = target.id;
     }
 
     // the sound track: the lowest one that holds only sound, or a new one at the bottom
@@ -1178,6 +1165,8 @@ const placeMedia: CommandDef<PlaceMediaArgs> = {
       put(it, t, end, trackId);
       t = end;
     }
+    // on a track that was already there, they cover what is under them, or push it along
+    if (trackId && !a.aside && a.track) next = makeRoom.run(next, { ids: pictures.map((it) => it.id), push: a.push });
     const longest = Math.max(t, ...next.elements[a.id].childIds.map((id) => next.elements[id]).filter((el) => el.type !== "sound" && !made.includes(el.id) && el.end > el.start).map((el) => el.end));
     if (empty) next.elements[a.id].duration = round(Math.max(1, pictures.length ? t : at + sounds.reduce((sum, it) => sum + it.seconds, 0)));
     // a scene that follows its footage grows after the change; one that does not (Motion) keeps its length
@@ -1190,6 +1179,8 @@ const placeMedia: CommandDef<PlaceMediaArgs> = {
       put(it, u, end, soundTrack);
       u = end;
     }
+    // sound dropped on a track of its own covers the sound under it, or pushes it along, the same way
+    if (!motion && a.track && !a.aside && !pictures.length) next = makeRoom.run(next, { ids: sounds.map((it) => it.id), push: a.push });
     if (!motion) stackByTrack(next, a.id, made);
     return next;
   },
@@ -2515,6 +2506,106 @@ const splitAt: CommandDef<SplitArgs> = {
   },
 };
 
+// ---- make_room ----
+export interface MakeRoomArgs {
+  /** Things that just landed on their tracks in Edit: dropped in, or dragged there. */
+  ids: string[];
+  /** Push what is later on their tracks along, cutting a clip they land inside. Left out, they cover what is under them. */
+  push?: boolean;
+}
+
+/** Seconds a thing may touch another by and still count as beside it, not over it. */
+const TOUCH = 0.03;
+
+/**
+ * Make room on their tracks for things that just landed there, so no two things on one track play at once
+ * and nothing is bumped to another track. By default nothing else moves: what they land on is covered, so a
+ * clip under them gets shorter, is cut in two, or goes. With push, what starts later on the track moves
+ * along by their length and a clip they land inside is cut there. A sound may sit under a clip, so sounds
+ * only make room among sounds. Things with no saved track (Motion) are left as they are.
+ */
+const makeRoom: CommandDef<MakeRoomArgs> = {
+  label: (a) => (a.push ? "Push clips along" : "Cover what is under"),
+  run: (doc, a) => {
+    const landed = a.ids.map((id) => doc.elements[id]).filter((el): el is El => !!el && !!el.track && !!el.parentId);
+    if (!landed.length) return doc;
+    const sceneId = landed[0].parentId!;
+    const frame0 = scene(doc, sceneId);
+    if (!frame0 || !frame0.tracks?.some((t) => t.id === landed[0].track)) return doc;
+    const mine = new Set(a.ids);
+    const sound = (el: El) => el.type === "sound";
+    let next = doc;
+    // the things on the same track as these, of the same kind, that did not land
+    const groups = new Map<string, El[]>();
+    for (const el of landed) {
+      if (el.parentId !== sceneId) continue;
+      const key = `${el.track}|${sound(el)}`;
+      groups.set(key, [...(groups.get(key) ?? []), el]);
+    }
+    for (const [key, group] of groups) {
+      const [track] = key.split("|");
+      const isSound = sound(group[0]);
+      const frame = () => next.elements[sceneId];
+      const others = () =>
+        frame().childIds.filter((id) => {
+          const el = next.elements[id];
+          return !!el && !mine.has(id) && el.track === track && sound(el) === isSound;
+        });
+      // where each one lands, past the end of the scene too, since a scene that follows its footage grows to hold it
+      const spans = group.map((el) => {
+        const sp = spanOf(next.elements[el.id], frame());
+        return { start: sp.start, end: el.end > el.start ? el.end : sp.end };
+      });
+      if (a.push) {
+        const from = Math.min(...spans.map((sp) => sp.start));
+        const by = round(Math.max(...spans.map((sp) => sp.end)) - from);
+        next = splitAt.run(next, { sceneId, t: from, ids: others() });
+        next = clone(next);
+        const f = frame();
+        for (const id of others()) {
+          const el = next.elements[id];
+          const sp = spanOf(el, f);
+          if (sp.start < from - 0.001) continue;
+          // one that ran to the end keeps its length as it moves on
+          if (!el.end) el.end = sp.end;
+          shiftTime(el, by);
+        }
+        continue;
+      }
+      for (const { start, end } of spans) {
+        for (const id of others()) {
+          const sp = spanOf(next.elements[id], frame());
+          if (sp.end <= start + TOUCH || sp.start >= end - TOUCH) continue;
+          // all of it is under: it goes
+          if (sp.start >= start - TOUCH && sp.end <= end + TOUCH) {
+            next = deleteElements.run(next, { ids: [id] });
+            continue;
+          }
+          // it runs on past the far end: what is past it stays, as a clip of its own when the near part stays too
+          if (sp.end > end + TOUCH) {
+            const el = next.elements[id];
+            if (sp.start >= start - TOUCH) {
+              next = setTiming.run(next, { ids: [id], start: end, keepKeys: true, ...(playsFile(el) ? { clipFrom: fileTimeAt(el, sp.start, end) } : {}) });
+              continue;
+            }
+            next = splitAt.run(next, { sceneId, t: end, ids: [id] });
+          }
+          next = setTiming.run(next, { ids: [id], end: start });
+        }
+      }
+    }
+    if (next === doc) return doc;
+    // a scene that follows its footage grows to hold what was pushed along
+    const f = next.elements[sceneId];
+    const last = Math.max(...f.childIds.map((id) => next.elements[id].end || spanOf(next.elements[id], f).end));
+    if (a.push && frame0.followsFootage && last > f.duration) {
+      next = clone(next);
+      next.elements[sceneId].duration = round(last);
+    }
+    return next;
+  },
+};
+
 // ---- ripple_delete ----
 export interface RippleDeleteArgs {
   ids: string[];
@@ -3120,6 +3211,7 @@ export const commands = {
   set_entrance: setEntrance,
   set_transition: setTransition,
   split_at: splitAt,
+  make_room: makeRoom,
   ripple_delete: rippleDelete,
   cut_ranges: cutRanges,
   add_captions: addCaptions,

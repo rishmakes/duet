@@ -1,4 +1,5 @@
 import PageFlipButton from "./ui/PageFlip";
+import { MAC } from "./ui/shortcuts";
 import { useEffect, useState, useRef } from "react";
 import { detectAgent, startAgentListeners, stopAll, workingNow } from "./ai/agent";
 import { ask } from "./ui/dialog";
@@ -131,7 +132,6 @@ function Grip({ side, lw, rw }: { side: "l" | "r"; lw: number; rw: number }) {
 wireClips();
 wireKeys();
 
-const MAC = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
 
 export default function App() {
   const project = useStore((s) => s.project);
