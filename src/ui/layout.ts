@@ -37,6 +37,8 @@ export interface Dock {
   timeLook: TimeLook;
   /** In the timeline, every thing that moves is opened into a row for each kind of change. */
   keysOpen: boolean;
+  /** On the timeline, what is dragged snaps to clip edges, markers and the playhead. The magnet turns it off. */
+  snapping: boolean;
   /** How tall the timeline's rows are, pulled by its top edge. */
   timeH: number;
   /** The history line along the bottom. Hidden unless asked for: the chat holds the history. */
@@ -120,6 +122,7 @@ export const defaults = (): Dock => ({
   chatH: 340,
   timeLook: "layers",
   keysOpen: false,
+  snapping: true,
   timeH: 170,
   historyLine: true,
   projectsOpen: { kitchen: false, edit: false },

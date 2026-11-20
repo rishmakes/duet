@@ -44,21 +44,8 @@ import CutSeams from "./CutSeams";
  * what is placed inside a lane (clips, ruler marks) starts one pixel past the names: the line goes there too, so it meets clip edges exactly. #389
  */
 export const headX = (names: number, t: number, pps: number) => Math.round(names + 1 + t * pps);
-/**
- * Holding S while dragging on the timeline turns snapping off. Cmd is for pushing clips along (#399), so
- * snapping has a key of its own. Kept on the key itself, since a pointer move does not say which letters are down.
- */
-let holdingS = false;
-if (typeof window !== "undefined") {
-  window.addEventListener("keydown", (e) => {
-    if (e.key.toLowerCase() === "s" && !e.metaKey && !e.ctrlKey && !e.altKey) holdingS = true;
-  }, true);
-  window.addEventListener("keyup", (e) => {
-    if (e.key.toLowerCase() === "s") holdingS = false;
-  }, true);
-  window.addEventListener("blur", () => (holdingS = false));
-}
-const snapOff = () => holdingS;
+/** Snapping is off when the magnet beside the zoom is off. S stays the slice at the playhead. */
+const snapOff = () => !getLayout().snapping;
 
 export const HEAD_WINDOW = "inset(0 0 0 calc(var(--sl, 0px) + var(--names, 150px)))";
 
@@ -99,6 +86,7 @@ export default function TimeStrip() {
   const mode = useLayout((d) => d.mode);
   const colorOpen = useLayout(isColorOpen);
   const look = useLayout((d) => d.timeLook ?? "layers");
+  const snapping = useLayout((d) => d.snapping !== false);
   const keysOpen = useLayout((d) => d.keysOpen);
   const gradeEvery = useLayout((d) => d.gradeEvery);
   const timeH = useLayout((d) => d.timeH ?? 170);
@@ -1621,6 +1609,15 @@ export default function TimeStrip() {
           </div>
         )}
         <span className="spacer" />
+        <button
+          className={`time-quiet-btn time-magnet ${snapping ? "on" : ""}`}
+          data-name="timeline-snapping"
+          aria-pressed={snapping}
+          title={snapping ? "Snapping on: clips catch on edges, markers and the playhead. Click to turn it off" : "Snapping off: clips go exactly where you let go. Click to turn it on"}
+          onClick={() => setLayout({ snapping: !snapping })}
+        >
+          <Icon name="magnet" size={15} />
+        </button>
         <div className="time-zoom" title="Zoom: far left shows the whole video (\\), right comes closer (- and =)">
           <button className="time-quiet-btn" data-name="zoom-out" onClick={() => zoomStep(1 / 1.5)} aria-label="Zoom out">
             −

@@ -2983,6 +2983,15 @@ option {
 .time-quiet-btn:hover {
   color: var(--text);
 }
+/* the magnet beside the zoom: lit while snapping is on */
+.time-magnet {
+  display: grid;
+  place-items: center;
+  margin-right: 6px;
+}
+.time-magnet.on {
+  color: var(--accent);
+}
 .time-bar label {
   display: flex;
   align-items: center;

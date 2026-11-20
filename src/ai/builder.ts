@@ -6,6 +6,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { currentDoc, getState, seenDoc } from "../state/store";
 import { clipPictureOf, clipState } from "../video/clips";
 import { seek } from "../video/play";
+import { getLayout, setLayout } from "../ui/layout";
 import { spanOf } from "../document/time";
 import { trackRows } from "../document/tracks";
 import { defaultChoice, exportScene } from "../video/scene";
@@ -94,7 +95,7 @@ export const BUILDER_TOOLS: ToolDef[] = [
   {
     name: "dev_drag_clip",
     description:
-      "Builder tool. Drag a clip on the timeline in Edit, the way a hand would: by its middle to move it, or by its start or end to trim it. by is how many seconds along (minus for earlier). track names another track to move it onto. keys are held the whole way (cmd pushes clips along instead of covering them); noSnap holds S so it does not snap. The answer says what the timeline said during the drag and where every clip is after it.",
+      "Builder tool. Drag a clip on the timeline in Edit, the way a hand would: by its middle to move it, or by its start or end to trim it. by is how many seconds along (minus for earlier). track names another track to move it onto. keys are held the whole way (cmd pushes clips along instead of covering them); noSnap turns the timeline's magnet off for the drag so it does not snap. The answer says what the timeline said during the drag and where every clip is after it.",
     inputSchema: {
       type: "object",
       properties: {
@@ -104,7 +105,7 @@ export const BUILDER_TOOLS: ToolDef[] = [
         by: { ...num, description: "Seconds to drag along: plus is later, minus is earlier." },
         track: { ...str, description: "The name of a track to drop it on. Left out, it stays on its own." },
         keys: held,
-        noSnap: { ...bool, description: "True to hold S during the drag, so it does not snap to edges." },
+        noSnap: { ...bool, description: "True to turn snapping off (the magnet) for this drag, so it does not snap to edges." },
       },
       required: ["clip", "by"],
     },
@@ -453,8 +454,9 @@ async function dragClip(a: Args): Promise<ToolResult> {
   if (!(spot instanceof HTMLElement)) return fail("The clip is not in sight. Scroll the timeline to it first.");
   if (!bar.contains(spot)) return fail(`Something covers the clip: "${spot.className || spot.tagName.toLowerCase()}". Open Studio, or close what is on top.`);
   const base = { bubbles: true, cancelable: true, pointerId: 42, isPrimary: true, pointerType: "mouse", button: 0, ...heldKeys(a.keys) };
-  const sKey = { key: "s", code: "KeyS", bubbles: true };
-  if (a.noSnap) document.body.dispatchEvent(new KeyboardEvent("keydown", sKey));
+  // noSnap turns the magnet off for this drag, as a hand would, and back on after
+  const snapWas = getLayout().snapping;
+  if (a.noSnap) setLayout({ snapping: false });
   spot.dispatchEvent(new PointerEvent("pointerdown", { ...base, buttons: 1, clientX: x0, clientY: y0 }));
   const steps = 10;
   for (let i = 1; i <= steps; i++) {
@@ -467,7 +469,7 @@ async function dragClip(a: Args): Promise<ToolResult> {
   await settle();
   const said = document.querySelector(".time-drag-hint")?.textContent?.trim();
   (document.elementFromPoint(x0 + by * pps, y1) ?? document.body).dispatchEvent(new PointerEvent("pointerup", { ...base, buttons: 0, clientX: x0 + by * pps, clientY: y1 }));
-  if (a.noSnap) document.body.dispatchEvent(new KeyboardEvent("keyup", sKey));
+  if (a.noSnap) setLayout({ snapping: snapWas });
   await settle();
   return { text: `Dragged "${a.clip}" by its ${part} ${by} s${a.track ? ` onto ${a.track}` : ""}. During the drag the timeline said: ${said ? `"${said}"` : "nothing"}.\nNow:\n${timelineNow()}` };
 }
