@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FRAME_PRESETS } from "../commands";
-import { presetFrameBounds, screenCenter } from "./Toolbar";
+import { EDIT_TOOLS, keyPutsDownEditTool, presetFrameBounds, screenCenter } from "./Toolbar";
 import { currentDoc, dispatch, getState, resetStore, select } from "../state/store";
 
 describe("Toolbar frame presets helpers", () => {
@@ -91,5 +91,18 @@ describe("Toolbar frame presets helpers", () => {
 
     select([id]);
     expect(getState().selection).toEqual([id]);
+  });
+});
+
+describe("Edit's tools over the canvas", () => {
+  it("hold the cutting tools and no drawing tools", () => {
+    expect(EDIT_TOOLS.map((t) => t.label)).toEqual(["Select", "Blade", "Stretch", "Hand", "Zoom", "Comment"]);
+    expect(EDIT_TOOLS.find((t) => t.label === "Blade")?.time).toBe("blade");
+    expect(EDIT_TOOLS.find((t) => t.label === "Stretch")?.time).toBe("stretch");
+  });
+
+  it("V, H, Z and C put the blade or the stretch down; X and R do not", () => {
+    expect(["v", "V", "h", "z", "c"].every(keyPutsDownEditTool)).toBe(true);
+    expect(["x", "r", "s"].some(keyPutsDownEditTool)).toBe(false);
   });
 });

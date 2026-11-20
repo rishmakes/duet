@@ -80,25 +80,3 @@ export function VolumeCard({ els, scene }: { els: El[]; scene: El | null }) {
     </ActCard>
   );
 }
-
-export type TimeTool = "select" | "blade" | "stretch";
-
-const MOUSE: { tool: TimeTool; label: string; key: string; icon: IconName; hint: string }[] = [
-  { tool: "select", label: "Select", key: "Esc", icon: "move", hint: "Pick, move and trim clips" },
-  { tool: "blade", label: "Blade", key: "X", icon: "blade", hint: "Click a clip to cut it there" },
-  { tool: "stretch", label: "Stretch", key: "R", icon: "stretch", hint: "Pull a clip's end to change its speed" },
-];
-
-/** What a click in the timeline does, down its left side. */
-export function MouseTools({ tool, pick }: { tool: TimeTool; pick: (t: TimeTool) => void }) {
-  return (
-    <div className="time-mouse" data-name="time-mouse-tools">
-      {MOUSE.map((m) => (
-        <button key={m.tool} type="button" className={`time-mouse-tool ${tool === m.tool ? "on" : ""}`} data-name={`time-tool-${m.tool}`} title={`${m.label} (${m.key}). ${m.hint}`} onClick={() => pick(m.tool)}>
-          <Icon name={m.icon} size={16} />
-          <span>{m.label}</span>
-        </button>
-      ))}
-    </div>
-  );
-}

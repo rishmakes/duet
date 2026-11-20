@@ -2983,14 +2983,24 @@ option {
 .time-quiet-btn:hover {
   color: var(--text);
 }
-/* the magnet beside the zoom: lit while snapping is on */
+/* the magnet beside the zoom: filled while snapping is on, an outline while it is off */
 .time-magnet {
   display: grid;
   place-items: center;
-  margin-right: 6px;
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  margin-right: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
 }
 .time-magnet.on {
-  color: var(--accent);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.time-magnet.on:hover {
+  color: #fff;
 }
 .time-bar label {
   display: flex;
@@ -11974,39 +11984,6 @@ button.ctx-item.store-make-option:hover {
 .app.time-max .time-body {
   flex: 1;
   min-height: 0;
-}
-.time-mouse {
-  flex: none;
-  width: 58px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 0;
-  border-right: 1px solid var(--line);
-  background: var(--panel-2);
-}
-.time-mouse-tool {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  width: 50px;
-  padding: 5px 0 4px;
-  font: inherit;
-  font-size: 10px;
-  border: none;
-  border-radius: var(--r-sm);
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-}
-.time-mouse-tool:hover {
-  color: var(--text);
-}
-.time-mouse-tool.on {
-  background: var(--accent-soft);
-  color: var(--accent);
 }
 .time.blading .time-span,
 .time.blading .time-span * {

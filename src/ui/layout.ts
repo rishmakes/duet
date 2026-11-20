@@ -7,6 +7,8 @@ export type Mode = "design" | "motion" | "photo";
 /** Agent (called chat inside): talk to the AI beside your projects and watch the canvas. Studio (called edit inside): every tool. */
 export type Space = "kitchen" | "edit";
 export type TimeLook = "layers" | "cut";
+/** In Edit, what a click on the timeline does: pick and move, cut (blade), or change speed (stretch). */
+export type TimeTool = "select" | "blade" | "stretch";
 /** What the right panel shows. Chat is a tab only in Video. */
 export type RightTab = "properties" | "color" | "chat";
 
@@ -39,6 +41,8 @@ export interface Dock {
   keysOpen: boolean;
   /** On the timeline, what is dragged snaps to clip edges, markers and the playhead. The magnet turns it off. */
   snapping: boolean;
+  /** The Edit tool in hand, picked in the toolbar over the canvas. Never kept between sessions. */
+  timeTool: TimeTool;
   /** How tall the timeline's rows are, pulled by its top edge. */
   timeH: number;
   /** The history line along the bottom. Hidden unless asked for: the chat holds the history. */
@@ -123,6 +127,7 @@ export const defaults = (): Dock => ({
   timeLook: "layers",
   keysOpen: false,
   snapping: true,
+  timeTool: "select",
   timeH: 170,
   historyLine: true,
   projectsOpen: { kitchen: false, edit: false },
@@ -184,7 +189,7 @@ export function parseLayout(raw: unknown): Dock {
     const chatInPanel = r.chatInPanel === true;
     const panelChatH = typeof r.panelChatH === "number" && Number.isFinite(r.panelChatH) ? Math.max(PANEL_CHAT_MIN, Math.round(r.panelChatH)) : 360;
     const recipeOn = typeof r.recipeOn === "string" ? r.recipeOn : null;
-    return { ...defaults(), ...r, recipeFull: false, chatFull: false, canvasMax: false, projectsOpen, chatDocked, chatInPanel, panelChatH, recipeOn, prototyping: false, mode, space, timeLook, timeMax: false, videoTab, photoTab, historyLine, trackH, rowH };
+    return { ...defaults(), ...r, recipeFull: false, chatFull: false, canvasMax: false, projectsOpen, chatDocked, chatInPanel, panelChatH, recipeOn, prototyping: false, mode, space, timeLook, timeTool: "select", timeMax: false, videoTab, photoTab, historyLine, trackH, rowH };
   }
   return defaults();
 }

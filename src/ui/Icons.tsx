@@ -154,12 +154,11 @@ const PATHS: Record<IconName, React.ReactNode> = {
       <rect x="15" y="8.5" width="5.5" height="7" rx="1.5" />
     </>
   ),
-  // a horseshoe magnet, its two ends down
+  // a horseshoe magnet, its two ends up, the tips banded
   magnet: (
     <>
-      <path d="M6 13V8.5a6 6 0 0 1 12 0V13" />
-      <path d="M10 13V8.5a2 2 0 0 1 4 0V13" />
-      <path d="M6 13h4M14 13h4M6 13v3.5M10 13v3.5M14 13v3.5M18 13v3.5" />
+      <path d="M5 4v8a7 7 0 0 0 14 0V4h-4.5v8a2.5 2.5 0 0 1-5 0V4z" />
+      <path d="M5 8h4.5M14.5 8H19" />
     </>
   ),
   // three cuts in a row, each with its transition mark

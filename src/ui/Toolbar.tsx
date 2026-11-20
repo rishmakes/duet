@@ -4,12 +4,13 @@ import type { Tool } from "../state/store";
 import { pickImages } from "../project/imageImport";
 import Icon from "./Icons";
 import type { IconName } from "./Icons";
-import { useLayout } from "./layout";
+import { setLayout, useLayout } from "./layout";
+import type { TimeTool } from "./layout";
 import { useDismiss } from "./useDismiss";
 import { FRAME_PRESETS, newId } from "../commands";
 import type { FramePreset } from "../commands";
 
-/** The tools, in a strip down the left edge. Motion adds the cutting tools below the drawing ones, so nothing else moves. */
+/** The tools over the canvas. Edit swaps the drawing tools for the cutting ones: in Edit you work on clips, not shapes. */
 
 export const TOOLS: { tool: Tool; label: string; key: string; icon: IconName }[] = [
   { tool: "move", label: "Move", key: "V", icon: "move" },
@@ -22,6 +23,21 @@ export const TOOLS: { tool: Tool; label: string; key: string; icon: IconName }[]
   { tool: "zoom", label: "Zoom", key: "Z", icon: "zoom" },
   { tool: "comment", label: "Comment", key: "C", icon: "comment" },
 ];
+
+/** Edit's tools. Select, Blade and Stretch act on the timeline; Hand, Zoom and Comment on the canvas, as everywhere. */
+export const EDIT_TOOLS: { tool: Tool; time: TimeTool; label: string; key: string; icon: IconName; hint?: string }[] = [
+  { tool: "move", time: "select", label: "Select", key: "V", icon: "move", hint: "Pick, move and trim clips. Esc works too" },
+  { tool: "move", time: "blade", label: "Blade", key: "X", icon: "blade", hint: "Click a clip to cut it there" },
+  { tool: "move", time: "stretch", label: "Stretch", key: "R", icon: "stretch", hint: "Pull a clip's end to change its speed" },
+  { tool: "hand", time: "select", label: "Hand", key: "H", icon: "hand" },
+  { tool: "zoom", time: "select", label: "Zoom", key: "Z", icon: "zoom" },
+  { tool: "comment", time: "select", label: "Comment", key: "C", icon: "comment" },
+];
+
+/** In Edit, the key of a tool that is not Blade or Stretch puts the blade or the stretch down, as a click on that tool does. */
+export function keyPutsDownEditTool(key: string): boolean {
+  return EDIT_TOOLS.some((t) => t.time === "select" && t.key.toLowerCase() === key.toLowerCase());
+}
 
 export const PHOTO_TOOLS: { tool: Tool; label: string; key: string; icon: IconName }[] = [
   { tool: "brush", label: "Brush", key: "B", icon: "brush" },
@@ -52,6 +68,8 @@ export function presetFrameBounds(preset: FramePreset, center: { x: number; y: n
 export default function Toolbar({ row = false }: { row?: boolean }) {
   const tool = useStore((s) => s.tool);
   const photo = useLayout((d) => d.mode === "photo");
+  const edit = useLayout((d) => d.mode === "motion" && d.timeLook === "cut");
+  const timeTool = useLayout((d) => d.timeTool);
   const toolsList = photo ? [...TOOLS, ...PHOTO_TOOLS] : TOOLS;
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -97,6 +115,28 @@ export default function Toolbar({ row = false }: { row?: boolean }) {
     setTool("move");
     setMenuOpen(false);
   };
+
+  if (edit) {
+    return (
+      <div className={row ? "toolbar row" : "toolbar"} data-name="toolbar">
+        {EDIT_TOOLS.map((t) => (
+          <button
+            key={t.label}
+            data-name={t.time === "select" ? `tool-${t.tool}` : `time-tool-${t.time}`}
+            className={`tool ${tool === t.tool && timeTool === t.time ? "on" : ""} ${row && t.tool === "comment" ? "wide" : ""}`}
+            title={t.hint ? `${t.label} (${t.key}). ${t.hint}` : `${t.label} (${t.key})`}
+            onClick={() => {
+              setTool(t.tool);
+              setLayout({ timeTool: t.time });
+            }}
+          >
+            <Icon name={t.icon} />
+            {row && t.tool === "comment" && "Comment"}
+          </button>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className={row ? "toolbar row" : "toolbar"} data-name="toolbar">

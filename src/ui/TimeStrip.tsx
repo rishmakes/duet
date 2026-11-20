@@ -21,10 +21,11 @@ import { lastChoice, rememberExport, shortFolder } from "../video/exportPrefs";
 import { open as openDialog } from "./dialog";
 import { droppedPaths } from "../canvas/CanvasView";
 import { CLIP_DRAG, LAYER_DRAG, draggedFootage, placeFromClips, placeLayerPictures } from "../video/media";
-import { ActButton, MouseTools, SpeedCard, VolumeCard } from "./TimeActions";
-import type { TimeTool } from "./TimeActions";
+import { ActButton, SpeedCard, VolumeCard } from "./TimeActions";
+import { keyPutsDownEditTool } from "./Toolbar";
 import type { ExportChoice } from "../video/scene";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import type { TimeTool } from "./layout";
 import { DEFAULT_TRACK_H, NO_HEIGHTS, TIME_MIN_H, TRACK_MAX_H, TRACK_MIN_H, getLayout, isColorOpen, setLayout, useLayout } from "./layout";
 import { isMouseWheel, wheelZoomFactor } from "./wheel";
 import { useDismiss } from "./useDismiss";
@@ -137,21 +138,15 @@ export default function TimeStrip() {
       window.removeEventListener("drop", clear);
     };
   }, []);
-  // the stretch tool (R): pulling the end of a clip changes its speed instead of cutting it shorter
-  const [stretchTool, setStretchTool] = useState(false);
-  const stretching = useRef(false);
-  // the blade (X): a click on a clip cuts it where you clicked
-  const [bladeTool, setBladeTool] = useState(false);
-  const blading = useRef(false);
-  const pickTimeTool = (t: TimeTool) => {
-    stretching.current = t === "stretch";
-    blading.current = t === "blade";
-    setStretchTool(t === "stretch");
-    setBladeTool(t === "blade");
-  };
-  // the mouse tools belong to Edit: going back to Motion puts them down
+  // the Edit tools, picked in the toolbar over the canvas or by key: stretch (R) pulls a clip's end to change its speed, blade (X) cuts a clip where you click
+  const timeTool = useLayout((d) => d.timeTool);
+  const stretchTool = timeTool === "stretch";
+  const bladeTool = timeTool === "blade";
+  const toolNow = () => getLayout().timeTool;
+  const pickTimeTool = (t: TimeTool) => setLayout({ timeTool: t });
+  // the tools belong to Edit: going back to Motion puts them down
   useEffect(() => {
-    if (look !== "cut" && (stretching.current || blading.current)) pickTimeTool("select");
+    if (look !== "cut" && toolNow() !== "select") pickTimeTool("select");
   }, [look]);
   const [menu, setMenu] = useState<{ x: number; y: number; el: El; mark?: Picked } | null>(null);
   // the Transcribe box, for one clip, opened from its menu or from the bar under the timeline
@@ -380,6 +375,8 @@ export default function TimeStrip() {
         return;
       }
       const k = e.key.toLowerCase();
+      // V, H, Z and C pick their tool, so they put down the blade or the stretch too (the canvas still gets the key)
+      if (!e.shiftKey && getLayout().timeLook === "cut" && toolNow() !== "select" && keyPutsDownEditTool(k)) pickTimeTool("select");
       // M puts a marker at the playhead, as in other video editors. On a marker, it takes it away.
       if (k === "m" && !e.shiftKey) {
         e.preventDefault();
@@ -405,7 +402,7 @@ export default function TimeStrip() {
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
-        pickTimeTool(stretching.current ? "select" : "stretch");
+        pickTimeTool(toolNow() === "stretch" ? "select" : "stretch");
         return;
       }
       // X is the blade, as R is the stretch: press again or Esc to put it down. B already starts the work area.
@@ -413,10 +410,10 @@ export default function TimeStrip() {
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
-        pickTimeTool(blading.current ? "select" : "blade");
+        pickTimeTool(toolNow() === "blade" ? "select" : "blade");
         return;
       }
-      if (k === "escape" && (stretching.current || blading.current)) pickTimeTool("select");
+      if (k === "escape" && toolNow() !== "select") pickTimeTool("select");
       if (!["s", "d", "j", "k", "l", " "].includes(k)) return;
       e.preventDefault();
       e.stopPropagation();
@@ -882,10 +879,10 @@ export default function TimeStrip() {
     const file = playsFile(el) ? clipLength(el.src) : 0;
     const targets = getSnapTargets(el.id);
     // trimming a clip with words also catches a breath before or after each word, so no word is clipped (#340)
-    const said = part !== "all" && playsFile(el) && !e.altKey && !stretching.current ? doc.words?.[el.src]?.words : undefined;
+    const said = part !== "all" && playsFile(el) && !e.altKey && toolNow() !== "stretch" ? doc.words?.[el.src]?.words : undefined;
     if (said?.length) for (const f of trimPoints(said, part === "start" ? "start" : "end")) targets.push(frameTimeAt(el, span.start, f));
     // holding Option on a clip's end, or having the stretch tool, changes its speed instead of cutting it
-    const stretch = part !== "all" && playsFile(el) && (e.altKey || stretching.current);
+    const stretch = part !== "all" && playsFile(el) && (e.altKey || toolNow() === "stretch");
     // in Edit an end stops at the clip beside it on its track, so pulling it never covers or bumps that one
     const beside = look === "cut" ? (rowsRef.current.find((r) => r.items.some((it) => it.id === el.id))?.items ?? []).filter((o) => o.id !== el.id && (o.type === "sound") === (el.type === "sound")).map((o) => spanOf(o, frame)) : [];
     const floor = Math.max(0, ...beside.filter((sp) => sp.end <= span.start + 0.03).map((sp) => sp.end));
@@ -1616,7 +1613,7 @@ export default function TimeStrip() {
           title={snapping ? "Snapping on: clips catch on edges, markers and the playhead. Click to turn it off" : "Snapping off: clips go exactly where you let go. Click to turn it on"}
           onClick={() => setLayout({ snapping: !snapping })}
         >
-          <Icon name="magnet" size={15} />
+          <Icon name="magnet" size={17} />
         </button>
         <div className="time-zoom" title="Zoom: far left shows the whole video (\\), right comes closer (- and =)">
           <button className="time-quiet-btn" data-name="zoom-out" onClick={() => zoomStep(1 / 1.5)} aria-label="Zoom out">
@@ -1760,7 +1757,6 @@ export default function TimeStrip() {
           {dragHint === "push" ? "Pushing clips along" : `Covers the clip under it · hold ${MAC ? "⌘" : "Ctrl"} to push it along`}
         </div>
       )}
-      {look === "cut" && <MouseTools tool={bladeTool ? "blade" : stretchTool ? "stretch" : "select"} pick={pickTimeTool} />}
       <div
         className="time-lanes"
         ref={lanes}
