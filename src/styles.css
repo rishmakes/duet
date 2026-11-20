@@ -13012,6 +13012,12 @@ button.ctx-item.store-make-option:hover {
   color: #fff;
   box-shadow: 0 0 0 2px var(--panel), 0 0 0 3px var(--accent);
 }
+.cut-menu {
+  z-index: 1000;
+}
+.cut-menu .ctx-item {
+  cursor: pointer;
+}
 .cut-menu .ctx-item.on {
   color: var(--accent);
 }
