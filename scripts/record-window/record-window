@@ -1,0 +1,32 @@
+#!/bin/zsh
+# Film only the Duet dev window while it is tested, even behind other windows.
+#   scripts/record-window/record-window start [name]   starts, in the background, into scratch/<name>.mov
+#   scripts/record-window/record-window stop           stops and saves it
+# See the duet-dev skill, "Testing a change". Delete the video once its proof is on the issue.
+set -e
+here=${0:A:h}
+repo=${here:h:h}
+bin=$repo/scratch/.record-window
+pidfile=$repo/scratch/.record-window.pid
+case $1 in
+  start)
+    [[ -f $pidfile ]] && kill -0 $(cat $pidfile) 2>/dev/null && { echo "Already recording."; exit 1; }
+    [[ $bin -nt $here/record.swift ]] || swiftc -O -o $bin $here/record.swift
+    app=$(pgrep -f "duet-app DUET_DEV_MARK" | head -1)
+    [[ -n $app ]] || { echo "Duet dev is not running."; exit 1; }
+    out=$repo/scratch/${2:-test-$(date +%H%M%S)}.mov
+    nohup $bin $out $app > $repo/scratch/.record-window.log 2>&1 &
+    echo $! > $pidfile
+    sleep 2
+    cat $repo/scratch/.record-window.log
+    ;;
+  stop)
+    [[ -f $pidfile ]] || { echo "Not recording."; exit 1; }
+    pid=$(cat $pidfile)
+    kill -INT $pid 2>/dev/null || true
+    while kill -0 $pid 2>/dev/null; do sleep 0.2; done
+    rm -f $pidfile
+    cat $repo/scratch/.record-window.log
+    ;;
+  *) echo "start [name] | stop"; exit 2 ;;
+esac
