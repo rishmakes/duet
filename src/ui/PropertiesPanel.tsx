@@ -10,6 +10,8 @@ import { canBeComponent, isLooseCopy } from "../document/components";
 import { canTurn } from "../document/geometry";
 import { defaultLayout } from "../document/layout";
 import { newId } from "../commands";
+import { captionMates, isCaption, lookOf } from "../document/captions";
+import { saveMyLook } from "./myLooks";
 import type { AlignHow } from "../commands";
 import { useLayout, setLayout, getLayout } from "./layout";
 import type { RightTab } from "./layout";
@@ -342,7 +344,9 @@ function TextSection({ els }: { els: El[] }) {
   const linked = els.every((e) => e.textStyleId && e.textStyleId === first.textStyleId) ? first.textStyleId : "";
   const [naming, setNaming] = useState(false);
   const [styleName, setStyleName] = useState("");
-  const set = (props: Partial<El>, label: string) => dispatch("set_props", { ids, props, label });
+  // a change to a caption's look reaches every caption in its video
+  const set = (props: Partial<El>, label: string) => dispatch("set_props", { ids: captionMates(doc, ids, props), props, label });
+  const caption = els.length === 1 && isCaption(doc, first.id);
   // Part of a saved style? Then the look belongs to the style, and changing it changes every text that uses it.
   const look = (props: Partial<El> & Record<string, unknown>, label: string) => {
     if (linked) dispatch("update_text_style", { styleId: linked, props: props as never, label } as never);
@@ -350,12 +354,16 @@ function TextSection({ els }: { els: El[] }) {
   };
   const lookPreview = (props: Partial<El> & Record<string, unknown>) => {
     if (linked) dragPreview("update_text_style", { styleId: linked, props: props as never });
-    else dragPreview("set_props", { ids, props });
+    else dragPreview("set_props", { ids: captionMates(doc, ids, props), props });
   };
   const saveStyle = () => {
     const name = styleName.trim();
     if (!name) return;
-    dispatch("create_text_style", { styleId: newId("style"), fromId: first.id, name });
+    // a caption is saved as a caption look, for the Captions tab in every project
+    if (caption) {
+      const frame = doc.elements[first.parentId!];
+      saveMyLook({ id: newId("look"), name, props: lookOf(first, frame) });
+    } else dispatch("create_text_style", { styleId: newId("style"), fromId: first.id, name });
     setNaming(false);
     setStyleName("");
   };
@@ -377,6 +385,7 @@ function TextSection({ els }: { els: El[] }) {
         </select>
       </label>
       {linked && <div className="hint2">Changes here change every text that uses {doc.styles?.[linked]?.name}.</div>}
+      {!linked && caption && <div className="hint2">A caption's look changes every caption in this video. Its words stay its own.</div>}
       <div className="gap" />
       <label className="f">
         <span>Font</span>
@@ -413,7 +422,7 @@ function TextSection({ els }: { els: El[] }) {
             className="f"
             autoFocus
             value={styleName}
-            placeholder="Name, like Heading"
+            placeholder={caption ? "Name, like My captions" : "Name, like Heading"}
             onChange={(e) => setStyleName(e.target.value)}
             onKeyDown={(e) => {
               e.stopPropagation();
@@ -428,8 +437,8 @@ function TextSection({ els }: { els: El[] }) {
         </div>
       ) : (
         els.length === 1 && (
-          <div className="linkbtn" onClick={() => setNaming(true)}>
-            + Save as a text style
+          <div className="linkbtn" data-name={caption ? "save-caption-look" : "save-text-style"} onClick={() => setNaming(true)}>
+            {caption ? "+ Save as my caption look" : "+ Save as a text style"}
           </div>
         )
       )}
@@ -1226,8 +1235,9 @@ export default function PropertiesPanel() {
   const frames = Object.values(doc.elements).filter((e) => e.type === "frame" && here.has(e.id));
   const one = els.length === 1 ? els[0] : null;
   const scene = one ? sceneOf(doc, one.id) : null;
-  const set = (props: Partial<El>, label?: string) => dispatch("set_props", { ids, props, label });
-  const preview = (props: Partial<El>) => dragPreview("set_props", { ids, props });
+  // a change to a caption's look reaches every caption in its video
+  const set = (props: Partial<El>, label?: string) => dispatch("set_props", { ids: captionMates(doc, ids, props), props, label });
+  const preview = (props: Partial<El>) => dragPreview("set_props", { ids: captionMates(doc, ids, props), props });
   const first = els[0];
   const allText = els.every((e) => e.type === "text");
   const allImages = els.every((e) => e.type === "image");

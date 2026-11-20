@@ -1,4 +1,4 @@
-import type { El, Shadow } from "./types";
+import type { Doc, El, Shadow } from "./types";
 import type { EditWord } from "./words";
 
 /**
@@ -61,12 +61,28 @@ const LINGER = 0.3;
 
 const round = (n: number) => Math.round(n * 1000) / 1000;
 
+/** A sound the voice model wrote down instead of a word, like [music], (laughs), *pew* or ♪. */
+const SOUND_TAG = /^([[(*].*[\])*]|.*♪.*)[.,!?]*$/;
+const bare = (w: string) => w.toLowerCase().replace(/[^\p{L}\p{N}']/gu, "");
+
+/** The words worth a caption: no sound tags, and a word said twice in a row shows once. */
+export function captionWords(words: EditWord[]): EditWord[] {
+  const out: EditWord[] = [];
+  for (const w of words) {
+    if (SOUND_TAG.test(w.w.trim())) continue;
+    const last = out[out.length - 1];
+    if (last && bare(w.w) && bare(w.w) === bare(last.w)) continue;
+    out.push(w);
+  }
+  return out;
+}
+
 /** Words grouped into captions of at most `per` words, broken at pauses and at the end of a sentence. */
 export function captionChunks(words: EditWord[], per: number): CaptionChunk[] {
   const n = Math.max(1, Math.min(6, Math.round(per) || 1));
   const groups: EditWord[][] = [];
   let run: EditWord[] = [];
-  for (const w of words) {
+  for (const w of captionWords(words)) {
     const last = run[run.length - 1];
     if (run.length && (run.length >= n || w.s - last.e > PAUSE || /[.?!]$/.test(last.w))) {
       groups.push(run);
@@ -125,3 +141,57 @@ export const captionMiddle = (frame: { width: number; height: number }) => Math.
 
 /** The widest a caption gets before its words wrap: most of the frame, clear of the sides. */
 export const captionRoom = (frame: { width: number }) => Math.round(frame.width * 0.84);
+
+/** What makes a caption's look: changing one of these on a caption changes every caption in its video, so a video has one caption style. */
+export const CAPTION_STYLE = ["fill", "gradient", "stroke", "strokeWidth", "opacity", "blend", "effects", "fontSize", "fontFamily", "fontWeight", "lineHeight", "letterSpacing", "caps", "shadow", "plate", "spokenFill", "spokenBox"] as const;
+
+/** Whether a text sits on its video's Captions track. */
+export function isCaption(doc: Doc, id: string): boolean {
+  const el = doc.elements[id];
+  const parent = el?.parentId ? doc.elements[el.parentId] : null;
+  return el?.type === "text" && !!el.track && !!parent?.tracks?.some((t) => t.id === el.track && t.name === CAPTIONS_TRACK);
+}
+
+/**
+ * The texts a change reaches. A change to the look of a caption reaches every caption in its video;
+ * anything else (its words, where it sits, when it shows) stays with the picked ones.
+ */
+export function captionMates(doc: Doc, ids: string[], props: object): string[] {
+  const keys = Object.keys(props);
+  if (!keys.length || !keys.every((k) => (CAPTION_STYLE as readonly string[]).includes(k))) return ids;
+  const out = new Set(ids);
+  for (const id of ids) {
+    if (!isCaption(doc, id)) continue;
+    const el = doc.elements[id];
+    for (const c of doc.elements[el.parentId!].childIds) if (doc.elements[c]?.track === el.track && doc.elements[c].type === "text") out.add(c);
+  }
+  return [...out];
+}
+
+/** A look the designer saved from a caption: its style, sized for 1080 pixels on the short side. */
+export interface MyLook {
+  id: string;
+  name: string;
+  props: Partial<El>;
+}
+
+/** A caption's style sized by k: the saved look is kept at 1080 and grows or shrinks to the video it is used on. */
+export function sizeLook(props: Partial<El>, k: number): Partial<El> {
+  const px = (n: number | undefined) => (n === undefined ? undefined : Math.max(0, Math.round(n * k * 100) / 100));
+  const out: Partial<El> = { ...props };
+  if (props.fontSize !== undefined) out.fontSize = Math.max(1, px(props.fontSize)!);
+  if (props.letterSpacing !== undefined) out.letterSpacing = px(props.letterSpacing);
+  if (props.strokeWidth !== undefined) out.strokeWidth = px(props.strokeWidth);
+  if (props.shadow) out.shadow = { ...props.shadow, x: px(props.shadow.x)!, y: px(props.shadow.y)!, blur: px(props.shadow.blur)! };
+  if (props.plate) out.plate = { ...props.plate, radius: px(props.plate.radius)!, padX: px(props.plate.padX)!, padY: px(props.plate.padY)! };
+  return out;
+}
+
+/** The style of a caption, ready to save as a look: only what makes its look, sized for 1080. */
+export function lookOf(el: El, frame: { width: number; height: number }): Partial<El> {
+  const style: Record<string, unknown> = {};
+  for (const k of CAPTION_STYLE) if ((el as unknown as Record<string, unknown>)[k] !== undefined) style[k] = structuredClone((el as unknown as Record<string, unknown>)[k]);
+  // a look without capitals says so, or the look it lands on keeps its own
+  style.caps = el.caps ?? false;
+  return sizeLook(style as Partial<El>, 1080 / Math.min(frame.width, frame.height));
+}

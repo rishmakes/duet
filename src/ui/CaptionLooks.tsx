@@ -2,7 +2,8 @@ import { useStore, currentDoc, dispatch, getState } from "../state/store";
 import { useEffect } from "react";
 import { CAPTION_FONTS, CAPTION_LOOKS, CAPTIONS_TRACK } from "../document/captions";
 import { fetchFamily } from "../project/fonts";
-import type { CaptionLook } from "../document/captions";
+import type { CaptionLook, MyLook } from "../document/captions";
+import { removeMyLook, useMyLooks } from "./myLooks";
 
 /**
  * The caption looks as tiles (#71): each shows example words in its look, and while the pointer is on
@@ -22,6 +23,32 @@ export function LookSample({ look, words = EXAMPLE }: { look: CaptionLook; words
           {w}
         </i>
       ))}
+    </span>
+  );
+}
+
+/** Example words drawn in a saved look, from its own font, colours, outline, shadow and box. */
+function MySample({ look }: { look: MyLook }) {
+  const p = look.props;
+  const k = 22 / Math.max(1, p.fontSize ?? 60);
+  const sh = p.shadow ? `${p.shadow.x * k}px ${p.shadow.y * k}px ${p.shadow.blur * k}px ${p.shadow.color}` : undefined;
+  return (
+    <span
+      className="look-sample sample-mine"
+      style={{
+        fontFamily: p.fontFamily ? `"${p.fontFamily}", system-ui, sans-serif` : undefined,
+        fontWeight: p.fontWeight,
+        color: p.fill,
+        textTransform: p.caps ? "uppercase" : "none",
+        WebkitTextStroke: p.stroke && p.strokeWidth ? `${Math.max(0.5, p.strokeWidth * k)}px ${p.stroke}` : undefined,
+        paintOrder: "stroke fill",
+        textShadow: sh,
+        background: p.plate?.fill,
+        borderRadius: p.plate ? p.plate.radius * k : undefined,
+        padding: p.plate ? `${p.plate.padY * k}px ${p.plate.padX * k}px` : undefined,
+      }}
+    >
+      {EXAMPLE.join(" ")}
     </span>
   );
 }
@@ -51,6 +78,7 @@ export default function CaptionsPanel() {
   // the hint follows what a click would change
   const picked = useStore((s) => s.selection.filter((id) => currentDoc(s).elements[id]?.type === "text").length);
   const all = useStore(() => targets().length);
+  const mine = useMyLooks();
   return (
     <div className="captions-panel" data-name="captions-panel">
       <div className="captions-panel-hint">
@@ -71,6 +99,35 @@ export default function CaptionsPanel() {
           >
             <LookSample look={l.key} />
             <span className="captions-tile-name">{l.name}</span>
+          </button>
+        ))}
+        {mine.map((m) => (
+          <button
+            key={m.id}
+            className="captions-tile mine"
+            data-name={`captions-mine-${m.name}`}
+            title={m.name}
+            disabled={!all}
+            onClick={() => {
+              const ids = targets();
+              if (!ids.length) return;
+              if (m.props.fontFamily) void fetchFamily(m.props.fontFamily);
+              dispatch("style_captions", { ids, look: "bold", mine: { name: m.name, props: m.props } });
+            }}
+          >
+            <MySample look={m} />
+            <span className="captions-tile-name">{m.name}</span>
+            <span
+              className="captions-tile-remove"
+              role="button"
+              title="Remove this look. Captions already made with it stay as they are."
+              onClick={(e) => {
+                e.stopPropagation();
+                removeMyLook(m.id);
+              }}
+            >
+              ×
+            </span>
           </button>
         ))}
       </div>

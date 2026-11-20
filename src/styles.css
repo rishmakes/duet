@@ -13068,3 +13068,28 @@ button.ctx-item.store-make-option:hover {
   flex: none;
   height: auto;
 }
+
+/* a caption look the designer saved: its sample in its own style, and a quiet cross to remove it */
+.captions-tile.mine {
+  position: relative;
+}
+.look-sample.sample-mine {
+  font-size: 22px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.captions-tile-remove {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  display: none;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+}
+.captions-tile.mine:hover .captions-tile-remove {
+  display: block;
+}
+.captions-tile-remove:hover {
+  color: var(--text);
+}
