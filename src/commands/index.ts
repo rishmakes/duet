@@ -135,6 +135,9 @@ const createElement: CommandDef<CreateArgs> = {
       effectMask: null,
       effectMaskInvert: false,
       paint: {},
+      layerMask: null,
+      layerMaskInvert: false,
+      layerMaskDisabled: false,
       link: null,
       linkKind: "",
       trigger: "",
@@ -693,6 +696,72 @@ const removeEffectMask: CommandDef<RemoveEffectMaskArgs> = {
       const el = next.elements[id];
       el.effectMask = null;
       el.effectMaskInvert = false;
+    }
+    return next;
+  },
+};
+
+// ---- set_layer_mask ----
+export interface SetLayerMaskArgs {
+  ids: string[];
+  src: string | null;
+  invert?: boolean;
+  disabled?: boolean;
+  label?: string;
+}
+
+const setLayerMask: CommandDef<SetLayerMaskArgs> = {
+  label: (a) => a.label ?? (a.src ? "Add mask" : "Remove mask"),
+  run: (doc, a) => {
+    const ids = a.ids.filter((id) => doc.elements[id]);
+    if (!ids.length) return doc;
+    const next = clone(doc);
+    for (const id of ids) {
+      const el = next.elements[id];
+      el.layerMask = a.src ?? null;
+      // painting a mask again keeps it inverted or off as it was
+      el.layerMaskInvert = a.src ? (a.invert ?? el.layerMaskInvert) : false;
+      el.layerMaskDisabled = a.src ? (a.disabled ?? el.layerMaskDisabled) : false;
+    }
+    return next;
+  },
+};
+
+// ---- invert_layer_mask ----
+export interface InvertLayerMaskArgs {
+  ids: string[];
+  label?: string;
+}
+
+const invertLayerMask: CommandDef<InvertLayerMaskArgs> = {
+  label: (a) => a.label ?? "Swap what the mask hides",
+  run: (doc, a) => {
+    const ids = a.ids.filter((id) => doc.elements[id] && doc.elements[id].layerMask);
+    if (!ids.length) return doc;
+    const next = clone(doc);
+    for (const id of ids) {
+      const el = next.elements[id];
+      el.layerMaskInvert = !el.layerMaskInvert;
+    }
+    return next;
+  },
+};
+
+// ---- toggle_layer_mask ----
+export interface ToggleLayerMaskArgs {
+  ids: string[];
+  label?: string;
+}
+
+const toggleLayerMask: CommandDef<ToggleLayerMaskArgs> = {
+  label: (a) => a.label ?? "Turn the mask on or off",
+  run: (doc, a) => {
+    const ids = a.ids.filter((id) => doc.elements[id] && doc.elements[id].layerMask);
+    if (!ids.length) return doc;
+    const next = clone(doc);
+    for (const id of ids) {
+      const el = next.elements[id];
+      el.layerMaskDisabled = !el.layerMaskDisabled;
     }
     return next;
   },
@@ -1449,6 +1518,9 @@ const wrapInLayout: CommandDef<WrapArgs> = {
       effectMask: null,
       effectMaskInvert: false,
       paint: {},
+      layerMask: null,
+      layerMaskInvert: false,
+      layerMaskDisabled: false,
       link: null,
       linkKind: "",
       trigger: "",
@@ -1560,6 +1632,9 @@ const groupElements: CommandDef<GroupArgs> = {
       effectMask: null,
       effectMaskInvert: false,
       paint: {},
+      layerMask: null,
+      layerMaskInvert: false,
+      layerMaskDisabled: false,
       link: null,
       linkKind: "",
       trigger: "",
@@ -1633,6 +1708,9 @@ export interface PlacedLayer {
   effects?: El["effects"];
   effectMask?: El["effectMask"];
   effectMaskInvert?: El["effectMaskInvert"];
+  layerMask?: El["layerMask"];
+  layerMaskInvert?: El["layerMaskInvert"];
+  layerMaskDisabled?: El["layerMaskDisabled"];
 }
 
 export interface PlaceLayersArgs {
@@ -1666,6 +1744,7 @@ const placeLayers: CommandDef<PlaceLayersArgs> = {
               ...(l.grade ? { grade: l.grade } : {}),
               ...(l.effects && l.effects.length ? { effects: l.effects } : {}),
               ...(l.effectMask ? { effectMask: l.effectMask, effectMaskInvert: !!l.effectMaskInvert } : {}),
+              ...(l.layerMask ? { layerMask: l.layerMask, layerMaskInvert: !!l.layerMaskInvert, layerMaskDisabled: !!l.layerMaskDisabled } : {}),
             },
             keepOrder: true,
           });
@@ -3163,6 +3242,9 @@ export const commands = {
   add_paint_layer: addPaintLayer,
   invert_effect_mask: invertEffectMask,
   remove_effect_mask: removeEffectMask,
+  set_layer_mask: setLayerMask,
+  invert_layer_mask: invertLayerMask,
+  toggle_layer_mask: toggleLayerMask,
   set_background: setBackground,
   delete_elements: deleteElements,
   reparent_elements: reparentElements,

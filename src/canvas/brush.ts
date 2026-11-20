@@ -287,3 +287,20 @@ export function touchedTiles(
   }
   return tiles;
 }
+
+/**
+ * Maps a point on the canvas to a pixel of a layer mask. A mask is stretched over the whole layer box,
+ * whatever the layer is, so unlike a picture it is never cropped.
+ */
+export function worldToBox(world: Point, el: El, doc: Doc, sheetSize: [number, number]): Point {
+  const [sw, sh] = sheetSize;
+  const wpos = worldPos(doc, el.id);
+  const cx = wpos.x + el.width / 2;
+  const cy = wpos.y + el.height / 2;
+  const turn = turnOf(el);
+  const unrotated = turn ? turnPoint(world.x, world.y, cx, cy, -turn) : world;
+  return {
+    x: ((unrotated.x - wpos.x) / (el.width || 1)) * sw,
+    y: ((unrotated.y - wpos.y) / (el.height || 1)) * sh,
+  };
+}

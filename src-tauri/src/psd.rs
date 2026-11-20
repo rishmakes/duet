@@ -7,7 +7,8 @@ use photocraft_psd::descriptor::{Descriptor, Value, VersionedDescriptor};
 use photocraft_psd::filter_effects::FilterEffects;
 use photocraft_psd::tree::LayerNode;
 use photocraft_psd::{
-    BlendMode, GroupSpec, LayerRecord, LayerSpec, PixelData, PsdBuilder, PsdFile, RgbaImage, TaggedBlock,
+    BlendMode, GroupSpec, LayerRecord, LayerSpec, MaskSpec, PixelData, PsdBuilder, PsdFile, Rect, RgbaImage,
+    TaggedBlock,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -125,6 +126,12 @@ pub struct PsdLayer {
     pub effects: Vec<PsdEffect>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub effect_mask_png: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layer_mask_png: Option<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub layer_mask_invert: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub layer_mask_disabled: bool,
 }
 
 #[derive(Serialize, Debug)]
@@ -868,6 +875,51 @@ fn png_of(img: &RgbaImage) -> Result<String, String> {
     Ok(b64().encode(out))
 }
 
+fn png_of_gray(width: u32, height: u32, data: &[u8]) -> Result<String, String> {
+    let mut out = Vec::new();
+    {
+        let mut enc = png::Encoder::new(&mut out, width, height);
+        enc.set_color(png::ColorType::Grayscale);
+        enc.set_depth(png::BitDepth::Eight);
+        let mut w = enc.write_header().map_err(|e| e.to_string())?;
+        w.write_image_data(data).map_err(|e| e.to_string())?;
+    }
+    Ok(b64().encode(out))
+}
+
+/// Create an 8-bit grayscale PNG for the layer's own box (w x h), sampling the user mask.
+fn make_layer_mask_png(img_left: i32, img_top: i32, img_w: u32, img_h: u32, mask: &photocraft_psd::GrayImage) -> Result<String, String> {
+    if img_w == 0 || img_h == 0 {
+        return Err("empty image bounds".into());
+    }
+    let mut mask_data = vec![mask.default_value; (img_w * img_h) as usize];
+    for y in 0..img_h as i32 {
+        for x in 0..img_w as i32 {
+            let (dx, dy) = (img_left + x - mask.left, img_top + y - mask.top);
+            if dx >= 0 && dy >= 0 && (dx as u32) < mask.width && (dy as u32) < mask.height {
+                mask_data[(y as u32 * img_w + x as u32) as usize] = mask.data[(dy as u32 * mask.width + dx as u32) as usize];
+            }
+        }
+    }
+    if img_w > 4096 || img_h > 4096 {
+        let max_dim = img_w.max(img_h) as f32;
+        let scale = 4096.0 / max_dim;
+        let new_w = (img_w as f32 * scale).round().max(1.0) as u32;
+        let new_h = (img_h as f32 * scale).round().max(1.0) as u32;
+        let mut downscaled = Vec::with_capacity((new_w * new_h) as usize);
+        for ny in 0..new_h {
+            let sy = ((ny as f32 / new_h as f32) * img_h as f32).min((img_h - 1) as f32) as u32;
+            for nx in 0..new_w {
+                let sx = ((nx as f32 / new_w as f32) * img_w as f32).min((img_w - 1) as f32) as u32;
+                downscaled.push(mask_data[(sy * img_w + sx) as usize]);
+            }
+        }
+        png_of_gray(new_w, new_h, &downscaled)
+    } else {
+        png_of_gray(img_w, img_h, &mask_data)
+    }
+}
+
 /// A layer's own mask, folded into its see-through, so it looks as it did in Photoshop.
 fn apply_mask(img: &mut RgbaImage, mask: &photocraft_psd::GrayImage) {
     for y in 0..img.height as i32 {
@@ -958,11 +1010,31 @@ fn read_nodes(file: &PsdFile, nodes: &[LayerNode], out: &mut PsdRead) -> Vec<Psd
                     }
                 }
 
+                let is_vector_mask = rec.block(b"vmsk").is_some() || rec.block(b"vsms").is_some();
                 let fill = rec.fill_opacity() as f32 / 255.0;
 
                 if let Some((mut img, left, top, width, height, effects, effect_mask_png)) = mapped_smart {
-                    if let Some(Ok(mask)) = layer.user_mask() {
-                        apply_mask(&mut img, &mask);
+                    let mut layer_mask_png = None;
+                    let mut layer_mask_invert = false;
+                    let mut layer_mask_disabled = false;
+                    if let Some(mask_res) = layer.user_mask() {
+                        match mask_res {
+                            Ok(mask) => {
+                                if let Ok(png) = make_layer_mask_png(left, top, width, height, &mask) {
+                                    layer_mask_png = Some(png);
+                                    layer_mask_disabled = rec.layer_mask().map_or(false, |m| m.disabled());
+                                    layer_mask_invert = rec.layer_mask().map_or(false, |m| m.flags & photocraft_psd::LayerMask::FLAG_INVERT != 0);
+                                } else {
+                                    apply_mask(&mut img, &mask);
+                                    out.flattened.push(format!("{name} (mask could not be converted, baked into image)"));
+                                }
+                            }
+                            Err(e) => {
+                                out.flattened.push(format!("{name} (mask could not be read: {e})"));
+                            }
+                        }
+                    } else if is_vector_mask {
+                        out.flattened.push(format!("{name} (vector mask baked into image)"));
                     }
                     let Ok(png) = png_of(&img) else { continue; };
                     result.push(PsdLayer {
@@ -975,6 +1047,9 @@ fn read_nodes(file: &PsdFile, nodes: &[LayerNode], out: &mut PsdRead) -> Vec<Psd
                         shadow,
                         effects,
                         effect_mask_png,
+                        layer_mask_png,
+                        layer_mask_invert,
+                        layer_mask_disabled,
                         ..base
                     });
                 } else {
@@ -982,8 +1057,27 @@ fn read_nodes(file: &PsdFile, nodes: &[LayerNode], out: &mut PsdRead) -> Vec<Psd
                     if img.width == 0 || img.height == 0 {
                         continue;
                     }
-                    if let Some(Ok(mask)) = layer.user_mask() {
-                        apply_mask(&mut img, &mask);
+                    let mut layer_mask_png = None;
+                    let mut layer_mask_invert = false;
+                    let mut layer_mask_disabled = false;
+                    if let Some(mask_res) = layer.user_mask() {
+                        match mask_res {
+                            Ok(mask) => {
+                                if let Ok(png) = make_layer_mask_png(img.left, img.top, img.width, img.height, &mask) {
+                                    layer_mask_png = Some(png);
+                                    layer_mask_disabled = rec.layer_mask().map_or(false, |m| m.disabled());
+                                    layer_mask_invert = rec.layer_mask().map_or(false, |m| m.flags & photocraft_psd::LayerMask::FLAG_INVERT != 0);
+                                } else {
+                                    apply_mask(&mut img, &mask);
+                                    out.flattened.push(format!("{name} (mask could not be converted, baked into image)"));
+                                }
+                            }
+                            Err(e) => {
+                                out.flattened.push(format!("{name} (mask could not be read: {e})"));
+                            }
+                        }
+                    } else if is_vector_mask {
+                        out.flattened.push(format!("{name} (vector mask baked into image)"));
                     }
                     let Ok(png) = png_of(&img) else { continue; };
                     result.push(PsdLayer {
@@ -994,6 +1088,9 @@ fn read_nodes(file: &PsdFile, nodes: &[LayerNode], out: &mut PsdRead) -> Vec<Psd
                         opacity: base.opacity * fill,
                         png,
                         shadow,
+                        layer_mask_png,
+                        layer_mask_invert,
+                        layer_mask_disabled,
                         ..base
                     });
                 }
@@ -1073,6 +1170,17 @@ fn write_node(b: &mut PsdBuilder, l: &PsdLayer) -> Result<(), String> {
     s.blend_mode = to_psd_blend(&l.blend);
     s.opacity = opacity;
     s.visible = !l.hidden;
+    if let Some(mask_b64) = &l.layer_mask_png {
+        let (mw, mh, mask_rgba) = decode_png(mask_b64)?;
+        let gray: Vec<u8> = mask_rgba.chunks(4).map(|px| px[0]).collect();
+        let mask_rect = Rect::from_xywh(l.left, l.top, mw, mh);
+        s.mask = Some(MaskSpec {
+            rect: mask_rect,
+            data: gray,
+            default_color: if l.layer_mask_invert { 255 } else { 0 },
+            disabled: l.layer_mask_disabled,
+        });
+    }
     b.push_layer(s);
     Ok(())
 }
@@ -1161,6 +1269,27 @@ mod tests {
         let (_, _, px) = decode_png(&g.children[1].png).unwrap();
         assert_eq!(&px[..4], &[0, 0, 255, 128]);
         assert!(back.flattened.is_empty() && back.left_out.is_empty());
+    }
+
+    #[test]
+    fn layer_mask_roundtrip_preserves_mask() {
+        let mut layer = square("MaskedLayer", 0, [255, 0, 0, 255], "normal");
+        let mask_img = RgbaImage { left: 0, top: 0, width: 4, height: 4, data: [128, 128, 128, 255].repeat(16) };
+        layer.layer_mask_png = Some(png_of(&mask_img).unwrap());
+        layer.layer_mask_invert = false;
+        layer.layer_mask_disabled = false;
+        let bg = RgbaImage { left: 0, top: 0, width: 10, height: 8, data: [255, 255, 255, 255].repeat(80) };
+        let bytes = write(10, 8, &[layer], &png_of(&bg).unwrap()).unwrap();
+
+        let back = read(&bytes).unwrap();
+        assert_eq!(back.layers.len(), 1);
+        let read_l = &back.layers[0];
+        assert_eq!(read_l.name, "MaskedLayer");
+        assert!(read_l.layer_mask_png.is_some());
+        assert!(!read_l.layer_mask_disabled);
+        assert!(!read_l.layer_mask_invert);
+        let (_, _, mask_bytes) = decode_png(read_l.layer_mask_png.as_ref().unwrap()).unwrap();
+        assert_eq!(mask_bytes[0], 128);
     }
 
     #[test]
@@ -1840,6 +1969,16 @@ mod tests {
             } else {
                 details.push("mask(no)".into());
             }
+        }
+        if l.layer_mask_png.is_some() {
+            let state = if l.layer_mask_disabled {
+                "layer_mask(disabled)"
+            } else if l.layer_mask_invert {
+                "layer_mask(inverted)"
+            } else {
+                "layer_mask(yes)"
+            };
+            details.push(state.into());
         }
         let desc = if details.is_empty() { "picture".to_string() } else { details.join(", ") };
         if l.group {

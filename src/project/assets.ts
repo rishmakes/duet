@@ -62,6 +62,11 @@ export function assetUrl(src: string): string | null {
   return a ? `data:${a.mime};base64,${a.b64}` : null;
 }
 
+/** The raw base64 data of an asset, or null when not loaded. */
+export function assetB64(src: string): string | null {
+  return assets.get(src)?.b64 ?? null;
+}
+
 /** The picture ready to draw, or null while it is still loading (the canvas repaints when it arrives). */
 export function getPicture(src: string): HTMLImageElement | null {
   const have = pictures.get(src);
@@ -97,6 +102,7 @@ export function picturesIn(doc: Doc): string[] {
         ...(e.type === "image" && e.src ? [e.src] : []),
         ...(e.effectMask ? [e.effectMask] : []),
         ...(e.type === "image" && e.paint ? Object.values(e.paint) : []),
+        ...(e.layerMask ? [e.layerMask] : []),
       ]),
     ),
   ];
@@ -243,4 +249,22 @@ async function writePicture(src: string, dir: string) {
 export async function flushPictures(dir: string, doc: Doc) {
   for (const src of picturesIn(doc)) await writePicture(src, dir).catch((e) => console.warn("Could not save a picture:", e));
   await flushFonts(dir, doc);
+}
+
+/** A canvas as PNG bytes, ready to keep as a picture with addPicture. */
+export async function canvasToPngBytes(canvas: HTMLCanvasElement): Promise<Uint8Array | null> {
+  if (canvas.toBlob) {
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (blob) {
+      const buffer = await blob.arrayBuffer();
+      return new Uint8Array(buffer);
+    }
+  }
+  const dataUrl = canvas.toDataURL("image/png");
+  const base64 = dataUrl.split(",")[1];
+  if (!base64) return null;
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
 }

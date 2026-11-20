@@ -78,7 +78,7 @@ import { logError, noteSlow } from "../errorLog";
 import { newPaintLayer } from "../ui/actions";
 import { defaultLayout } from "../document/layout";
 import { penActive, penBack, penCancel, penDown, penDrag, penFinish, penHover } from "./pen";
-import { addPicture, assetUrl, pictureOf, pictureSize, setLivePicture } from "../project/assets";
+import { addPicture, assetUrl, canvasToPngBytes, pictureOf, pictureSize, setLivePicture } from "../project/assets";
 import { placeLayerPictures } from "../video/media";
 import { PAINT_TILE } from "../document/types";
 import {
@@ -89,6 +89,7 @@ import {
   pressureScale,
   renderDabCanvas,
   worldToFile,
+  worldToBox,
   pictureCoverScale,
   touchedTiles,
   type Box,
@@ -100,7 +101,8 @@ import {
   useBrushSettings,
   type BrushSettings,
 } from "./brushSettings";
-import { draw, labelRect, screenRect, setOnlyFrame, setQuietCanvas, setSceneOnly, shownOn } from "./render";
+import { draw, getAlphaMask, labelRect, screenRect, setLiveMask, setOnlyFrame, setQuietCanvas, setSceneOnly, shownOn } from "./render";
+import { savePaintedMask } from "./maskPaint";
 import { openPage, usePageFocus } from "../ui/pageFocus";
 import { flipPageView } from "../ui/PageFlip";
 import { fontCss, layoutText, lineStep, textLift } from "./text";
@@ -144,6 +146,8 @@ type Drag =
 interface StrokeState {
   elId: string;
   el: El;
+  /** Painting the layer's mask, not the picture: the sheet holds how much of the layer shows. */
+  onMask: boolean;
   picSize: [number, number];
   isEraser: boolean;
   workingSheet: HTMLCanvasElement;
@@ -168,23 +172,6 @@ function layStroke(ctx: CanvasRenderingContext2D, stroke: Pick<StrokeState, "isE
   ctx.globalCompositeOperation = stroke.isEraser ? "destination-out" : "source-over";
   ctx.drawImage(stroke.strokeSheet, 0, 0);
   ctx.restore();
-}
-
-async function canvasToPngBytes(canvas: HTMLCanvasElement): Promise<Uint8Array | null> {
-  if (canvas.toBlob) {
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
-    if (blob) {
-      const buffer = await blob.arrayBuffer();
-      return new Uint8Array(buffer);
-    }
-  }
-  const dataUrl = canvas.toDataURL("image/png");
-  const base64 = dataUrl.split(",")[1];
-  if (!base64) return null;
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes;
 }
 
 /** Where files dragged in from the computer are, when the system says so. */
@@ -560,12 +547,21 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
   const [cursorPos, setCursorPos] = useState<{ sx: number; sy: number } | null>(null);
   const brushSettings = useBrushSettings();
 
+  /** Where a point on the canvas falls on the sheet being painted: a picture's file, or a mask stretched over the layer. */
+  const sheetPos = (stroke: Pick<StrokeState, "onMask" | "el" | "picSize">, at: Point, doc: Doc) =>
+    stroke.onMask ? worldToBox(at, stroke.el, doc, stroke.picSize) : worldToFile(at, stroke.el, doc, stroke.picSize);
+  /** The painted sheet stops standing in for the picture or the mask. */
+  const endLive = (stroke: StrokeState) => {
+    if (stroke.onMask) setLiveMask(stroke.elId, null);
+    else setLivePicture(stroke.elId, null, stroke.displaySheet);
+  };
+
   const cancelStroke = (stroke: StrokeState) => {
     if (stroke.rafId) {
       cancelAnimationFrame(stroke.rafId);
       stroke.rafId = 0;
     }
-    setLivePicture(stroke.elId, null, stroke.displaySheet);
+    endLive(stroke);
     window.dispatchEvent(new Event("duet:repaint"));
   };
 
@@ -644,7 +640,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     const events = coalesced.length ? coalesced : [native];
     for (const ev of events) {
       const evPoint = point(ev);
-      const filePos = worldToFile({ x: evPoint.x, y: evPoint.y }, stroke.el, currentDoc, stroke.picSize);
+      const filePos = sheetPos(stroke, { x: evPoint.x, y: evPoint.y }, currentDoc);
       stroke.queue.push({ pos: filePos, pressure: ev.pressure, pointerType: ev.pointerType });
     }
     if (!stroke.rafId) {
@@ -664,7 +660,15 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     layStroke(stroke.workingCtx, { ...stroke, opacity: stroke.settings.opacity });
 
     if (!stroke.totalDirtyBox) {
-      setLivePicture(stroke.elId, null, stroke.displaySheet);
+      endLive(stroke);
+      window.dispatchEvent(new Event("duet:repaint"));
+      return;
+    }
+
+    // a mask is kept whole, as one black and white picture
+    if (stroke.onMask) {
+      await savePaintedMask(stroke.el, stroke.workingSheet, stroke.isEraser ? "Hide with the mask" : "Bring back with the mask");
+      endLive(stroke);
       window.dispatchEvent(new Event("duet:repaint"));
       return;
     }
@@ -703,7 +707,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
         "you",
       );
     }
-    setLivePicture(stroke.elId, null, stroke.displaySheet);
+    endLive(stroke);
     window.dispatchEvent(new Event("duet:repaint"));
   };
 
@@ -713,6 +717,12 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     s: ReturnType<typeof getState>,
   ) => {
     const doc = workDoc(s);
+    // painting a mask: the brush hides and the eraser brings back, on the picked layer's mask
+    const masked = getLayout().maskPaint;
+    if (masked && s.selection.includes(masked) && doc.elements[masked]?.layerMask) {
+      beginStroke(e, p, s, doc, doc.elements[masked], true);
+      return;
+    }
     let targetEl: El | null = null;
     if (s.selection.length === 1 && doc.elements[s.selection[0]]?.type === "image") {
       targetEl = doc.elements[s.selection[0]];
@@ -753,7 +763,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     if (stroke) {
       for (const m of layerMovesRef.current.splice(0)) {
         const at = point(m);
-        stroke.queue.push({ pos: worldToFile({ x: at.x, y: at.y }, stroke.el, doc, stroke.picSize), pressure: m.pressure, pointerType: m.pointerType });
+        stroke.queue.push({ pos: sheetPos(stroke, { x: at.x, y: at.y }, doc), pressure: m.pressure, pointerType: m.pointerType });
       }
       if (stroke.queue.length && !stroke.rafId) stroke.rafId = requestAnimationFrame(flushStrokeFrame);
     }
@@ -771,11 +781,12 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     s: ReturnType<typeof getState>,
     doc: Doc,
     targetEl: El,
+    onMask = false,
   ) => {
-
-    const basePic = pictureOf(targetEl);
+    // on a mask, the sheet starts as how much of the layer shows now
+    const basePic = onMask ? (targetEl.layerMask ? getAlphaMask(targetEl.layerMask, targetEl.layerMaskInvert) : null) : pictureOf(targetEl);
     if (!basePic) return;
-    const picSize = pictureSize(basePic);
+    const picSize: [number, number] = onMask ? [basePic.width, basePic.height] : pictureSize(basePic);
     if (picSize[0] <= 0 || picSize[1] <= 0) return;
     const [pw, ph] = picSize;
 
@@ -799,14 +810,16 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     if (!displayCtx) return;
     displayCtx.drawImage(workingSheet, 0, 0);
 
-    setLivePicture(targetEl.id, displaySheet);
+    if (onMask) setLiveMask(targetEl.id, displaySheet);
+    else setLivePicture(targetEl.id, displaySheet);
 
     const settings = getBrushSettings();
-    const isEraser = s.tool === "eraser";
-    const dabColour = isEraser ? "#000000" : settings.colour;
+    // on a mask the brush hides, rubbing out what shows, and the eraser brings it back
+    const isEraser = onMask ? s.tool === "brush" : s.tool === "eraser";
+    const dabColour = onMask ? "#ffffff" : isEraser ? "#000000" : settings.colour;
     const dabCanvas = renderDabCanvas(settings.size, settings.softness, dabColour);
 
-    const filePos = worldToFile({ x: p.x, y: p.y }, targetEl, doc, picSize);
+    const filePos = sheetPos({ onMask, el: targetEl, picSize }, { x: p.x, y: p.y }, doc);
     const pScale = pressureScale(e.pressure, e.pointerType);
     const effectiveDiameter = Math.max(1, settings.size * pScale);
     const effectiveRadius = effectiveDiameter / 2;
@@ -841,6 +854,7 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
     strokeRef.current = {
       elId: targetEl.id,
       el: targetEl,
+      onMask,
       picSize,
       isEraser,
       workingSheet,
@@ -2345,7 +2359,13 @@ export default function CanvasView({ viewOnly = false }: { viewOnly?: boolean })
           targetEl = doc.elements[s.overlay.hoverId];
         }
         let scale = 1;
-        if (targetEl) {
+        // on a mask, the circle matches the mask's pixels, stretched over the layer
+        const masked = getLayout().maskPaint;
+        const maskEl = masked && s.selection.includes(masked) ? doc.elements[masked] : null;
+        const maskSheet = maskEl?.layerMask ? getAlphaMask(maskEl.layerMask, maskEl.layerMaskInvert) : null;
+        if (maskEl && maskSheet) {
+          scale = maskEl.width / (maskSheet.width || 1);
+        } else if (targetEl) {
           const pic = pictureOf(targetEl);
           if (pic) {
             const sz = pictureSize(pic);

@@ -6,7 +6,7 @@ import { ancestors, turnOf, turnedBox, unionRect, worldPos, worldRect } from "..
 import type { Blend, Doc, El } from "../document/types";
 import { currentDoc, dispatch, getState, select } from "../state/store";
 import { setLayout } from "../ui/layout";
-import { addPicture, preloadPictures } from "./assets";
+import { addPicture, assetB64, preloadPictures } from "./assets";
 import { mergeGrade } from "../document/grade";
 import { renderPng } from "./exporter";
 
@@ -28,6 +28,9 @@ interface PsdLayer {
   grade?: El["grade"];
   effects?: El["effects"];
   effectMaskPng?: string;
+  layerMaskPng?: string;
+  layerMaskInvert?: boolean;
+  layerMaskDisabled?: boolean;
 }
 
 interface PsdRead {
@@ -55,6 +58,11 @@ async function toPlaced(layers: PsdLayer[]): Promise<PlacedLayer[]> {
       const maskPic = await addPicture(`${l.name}-mask.png`, fromBase64(l.effectMaskPng), "image/png");
       effectMask = maskPic.src;
     }
+    let layerMask: string | null = null;
+    if (l.layerMaskPng) {
+      const maskPic = await addPicture(`${l.name}-layer-mask.png`, fromBase64(l.layerMaskPng), "image/png");
+      layerMask = maskPic.src;
+    }
     out.push({
       id: newId("image"),
       ...look,
@@ -69,6 +77,9 @@ async function toPlaced(layers: PsdLayer[]): Promise<PlacedLayer[]> {
       effects: l.effects ?? [],
       effectMask,
       effectMaskInvert: false,
+      layerMask,
+      layerMaskInvert: !!l.layerMaskInvert,
+      layerMaskDisabled: !!l.layerMaskDisabled,
     });
   }
   return out;
@@ -128,9 +139,10 @@ function layerOf(doc: Doc, el: El, frameAt: { x: number; y: number }): PsdLayer 
     const children = el.childIds.map((c) => doc.elements[c]).filter((c): c is El => !!c && c.type !== "sound");
     return { ...look, group: true, left: 0, top: 0, width: 0, height: 0, png: "", children: children.map((c) => layerOf(doc, c, frameAt)) };
   }
-  const bare: Doc = { ...doc, elements: { ...doc.elements, [el.id]: { ...el, opacity: 1, blend: "normal", hidden: false } } };
+  const bare: Doc = { ...doc, elements: { ...doc.elements, [el.id]: { ...el, opacity: 1, blend: "normal", hidden: false, layerMask: null } } };
   const at = worldPos(doc, el.id);
   const box = turnedBox({ x: 0, y: 0, width: el.width, height: el.height }, turnOf(el));
+  const layerMaskPng = el.layerMask ? (assetB64(el.layerMask) ?? undefined) : undefined;
   return {
     ...look,
     group: false,
@@ -140,6 +152,7 @@ function layerOf(doc: Doc, el: El, frameAt: { x: number; y: number }): PsdLayer 
     height: 0,
     png: renderPng(bare, el.id, 1),
     children: [],
+    ...(layerMaskPng ? { layerMaskPng, layerMaskInvert: el.layerMaskInvert, layerMaskDisabled: el.layerMaskDisabled } : {}),
   };
 }
 

@@ -184,6 +184,12 @@ export interface El {
   effectMask: string | null;
   /** Whether the effect mask is turned inside out. */
   effectMaskInvert: boolean;
+  /** For any element: one mask picture asset (white = shown, black = hidden), or null. */
+  layerMask: string | null;
+  /** Whether the layer mask is turned inside out. */
+  layerMaskInvert: boolean;
+  /** Whether the layer mask is turned off without removing it. */
+  layerMaskDisabled: boolean;
   /** For images: where the picture file lives inside the project, like assets/3fa9c1.png. */
   src: string;
   /** Pictures only: what has been painted on it, as square patches of PAINT_TILE pixels of the picture file, each keyed "column,row" and saved as its own picture. A patch replaces that square of the file entirely. Empty when nothing has been painted, and the file itself is never changed. */

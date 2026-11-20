@@ -43,6 +43,8 @@ export interface Dock {
   snapping: boolean;
   /** The Edit tool in hand, picked in the toolbar over the canvas. Never kept between sessions. */
   timeTool: TimeTool;
+  /** The layer whose mask the brush paints instead of the layer itself, or null. Never kept between sessions. */
+  maskPaint: string | null;
   /** How tall the timeline's rows are, pulled by its top edge. */
   timeH: number;
   /** The history line along the bottom. Hidden unless asked for: the chat holds the history. */
@@ -128,6 +130,7 @@ export const defaults = (): Dock => ({
   keysOpen: false,
   snapping: true,
   timeTool: "select",
+  maskPaint: null,
   timeH: 170,
   historyLine: true,
   projectsOpen: { kitchen: false, edit: false },
@@ -189,7 +192,7 @@ export function parseLayout(raw: unknown): Dock {
     const chatInPanel = r.chatInPanel === true;
     const panelChatH = typeof r.panelChatH === "number" && Number.isFinite(r.panelChatH) ? Math.max(PANEL_CHAT_MIN, Math.round(r.panelChatH)) : 360;
     const recipeOn = typeof r.recipeOn === "string" ? r.recipeOn : null;
-    return { ...defaults(), ...r, recipeFull: false, chatFull: false, canvasMax: false, projectsOpen, chatDocked, chatInPanel, panelChatH, recipeOn, prototyping: false, mode, space, timeLook, timeTool: "select", timeMax: false, videoTab, photoTab, historyLine, trackH, rowH };
+    return { ...defaults(), ...r, recipeFull: false, chatFull: false, canvasMax: false, projectsOpen, chatDocked, chatInPanel, panelChatH, recipeOn, prototyping: false, mode, space, timeLook, timeTool: "select", maskPaint: null, timeMax: false, videoTab, photoTab, historyLine, trackH, rowH };
   }
   return defaults();
 }

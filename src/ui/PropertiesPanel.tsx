@@ -31,7 +31,8 @@ import { EFFECT_DEFS, EFFECT_KINDS } from "../document/effects";
 import type { Effect, EffectControl } from "../document/effects";
 import { assetUrl } from "../project/assets";
 import { setBrushSettings, useBrushSettings } from "../canvas/brushSettings";
-import { COLORS } from "../canvas/render";
+import { COLORS, getSoloMask, setSoloMask } from "../canvas/render";
+import { addLayerMask, paintMaskOf } from "../canvas/maskPaint";
 import TransitionSection from "./TransitionSection";
 import { usePickedCut } from "./pickedCut";
 
@@ -963,14 +964,17 @@ function BrushTip({ size, softness, opacity, colour }: { size: number; softness:
 }
 
 function BrushSection({ isEraser }: { isEraser: boolean }) {
+  const masked = useLayout((d) => d.maskPaint);
+  const picked = useStore((st) => st.selection);
+  const onMask = !!masked && picked.includes(masked);
   const brush = useBrushSettings();
 
   return (
     <div className="sec" data-name="brush-settings">
-      <h4>{isEraser ? "Eraser" : "Brush"}</h4>
+      <h4>{onMask ? (isEraser ? "Eraser on the mask" : "Brush on the mask") : isEraser ? "Eraser" : "Brush"}</h4>
       <div className="brush-tip-row">
-        <BrushTip size={brush.size} softness={brush.softness} opacity={brush.opacity} colour={isEraser ? null : brush.colour} />
-        {!isEraser && (
+        <BrushTip size={brush.size} softness={brush.softness} opacity={brush.opacity} colour={isEraser || onMask ? null : brush.colour} />
+        {!isEraser && !onMask && (
           <ColorField
             value={brush.colour}
             onCommit={(c) => c && setBrushSettings({ colour: c })}
@@ -1009,7 +1013,72 @@ function BrushSection({ isEraser }: { isEraser: boolean }) {
         />
         <div />
       </div>
-      <div className="hint">{isEraser ? "Rub out on a picture or a paint layer. [ and ] change the size." : "Paint on a picture, or anywhere in a frame to start a paint layer. [ and ] change the size."}</div>
+      <div className="hint">
+        {onMask
+          ? isEraser
+            ? "Painting the mask: the eraser brings the layer back. [ and ] change the size."
+            : "Painting the mask: the brush hides the layer. [ and ] change the size."
+          : isEraser
+            ? "Rub out on a picture or a paint layer. [ and ] change the size."
+            : "Paint on a picture, or anywhere in a frame to start a paint layer. [ and ] change the size."}
+      </div>
+    </div>
+  );
+}
+
+/** A black and white mask on any layer: white shows it, black hides it. Painted with the brush in Photo. */
+function LayerMaskSection({ el }: { el: El }) {
+  const painting = useLayout((d) => d.maskPaint === el.id);
+  const [solo, setSolo] = useState(getSoloMask() === el.id);
+  // the brush lets go of a mask that is gone, and the mask shown alone goes back when the layer is let go of
+  useEffect(() => {
+    if (!el.layerMask && painting) paintMaskOf(null);
+  }, [el.layerMask, painting]);
+  useEffect(() => () => {
+    if (getSoloMask() === el.id) setSoloMask(null);
+  }, [el.id]);
+  if (!el.layerMask) {
+    return (
+      <div className="sec">
+        <h4>Mask</h4>
+        <div className="linkbtn" data-name="add-mask" title="Hide parts of this layer by painting black on its mask" onClick={() => void addLayerMask(el)}>
+          + Add a mask
+        </div>
+      </div>
+    );
+  }
+  const ids = [el.id];
+  return (
+    <div className="sec">
+      <h4>Mask</h4>
+      <div className="lmask">
+        <img
+          className={`lmask-thumb ${painting ? "on" : ""} ${solo ? "solo" : ""}`}
+          src={assetUrl(el.layerMask) ?? ""}
+          alt="Mask"
+          title="Click to paint the mask. Alt-click to see only the mask"
+          onClick={(e) => {
+            if (e.altKey) {
+              const next = getSoloMask() === el.id ? null : el.id;
+              setSoloMask(next);
+              setSolo(!!next);
+            } else paintMaskOf(painting ? null : el.id);
+          }}
+        />
+        <button type="button" className={`mini ${painting ? "on" : ""}`} data-name="paint-mask" onClick={() => paintMaskOf(painting ? null : el.id)}>
+          {painting ? "Painting" : "Paint"}
+        </button>
+        <button type="button" className={`mini ${el.layerMaskInvert ? "on" : ""}`} data-name="swap-mask" title="Show what is hidden and hide what shows" onClick={() => dispatch("invert_layer_mask", { ids }, "you")}>
+          Swap
+        </button>
+        <button type="button" className={`mini ${el.layerMaskDisabled ? "on" : ""}`} data-name="mask-off" title={el.layerMaskDisabled ? "Turn the mask back on" : "See the layer without its mask"} onClick={() => dispatch("toggle_layer_mask", { ids }, "you")}>
+          {el.layerMaskDisabled ? "Off" : "On"}
+        </button>
+      </div>
+      <div className="tip-line lmask-tip">{painting ? "Brush (B) hides, Eraser (E) brings back. Size and softness are in Brush." : "White shows the layer, black hides it."}</div>
+      <div className="linkbtn" data-name="remove-mask" onClick={() => dispatch("set_layer_mask", { ids, src: null, label: "Remove mask" }, "you")}>
+        Remove mask
+      </div>
     </div>
   );
 }
@@ -1433,6 +1502,8 @@ export default function PropertiesPanel() {
       </div>
 
       {hasMedia && <EffectsSection els={els} />}
+
+      {one && one.type !== "sound" && <LayerMaskSection el={one} />}
 
       {one?.mask && (
         <div className="sec">

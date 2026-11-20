@@ -5,7 +5,7 @@ import { seenDoc } from "../state/store";
 import type { State } from "../state/store";
 import { logError } from "../errorLog";
 import { isLooseCopy } from "../document/components";
-import { isLivePicture, paintKey, pictureOf, pictureSize } from "../project/assets";
+import { getPicture, isLivePicture, paintKey, pictureOf, pictureSize } from "../project/assets";
 import type { Picture } from "../project/assets";
 import { clipShownOf, drawingVideoNow, madePicture } from "../video/clips";
 import { graded } from "./grade";
@@ -19,6 +19,7 @@ import { RULER, rulerTicks } from "./guides";
 import { getLayout } from "../ui/layout";
 import { FONT_STACK, fontCss, layoutText, lineStep, lineWidth, measureText } from "./text";
 import { hiddenHere } from "../document/tracks";
+import { convertLuminanceToAlpha } from "./layerMask";
 
 /** How far each scrolling screen is scrolled while presenting. Empty in the editor. */
 export const presentScroll: Record<string, number> = {};
@@ -174,6 +175,57 @@ const coloured = (pic: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement, 
 
 /** Pictures with rounded corners and a shadow, already cut to shape. Kept so they are not cut again on every repaint. */
 const cutSheets = new Map<string, HTMLCanvasElement>();
+
+/** Layer masks turned into see-through sheets (white shows, black hides), by mask file and whether it is inverted. */
+const alphaMaskSheets = new Map<string, HTMLCanvasElement>();
+
+/** Masks being painted right now, by layer: the sheet changes with every dab, so it is never kept. */
+const liveMasks = new Map<string, HTMLCanvasElement>();
+export function setLiveMask(id: string, sheet: HTMLCanvasElement | null) {
+  if (sheet) liveMasks.set(id, sheet);
+  else liveMasks.delete(id);
+}
+
+/** The layer whose mask is shown on its own, in black and white (Alt-click its thumbnail). */
+let soloMaskId: string | null = null;
+export function setSoloMask(id: string | null) {
+  soloMaskId = id;
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("duet:repaint"));
+}
+export const getSoloMask = () => soloMaskId;
+
+/** A freshly painted mask is known before its file has loaded, so the layer never flashes unmasked. */
+export function seedAlphaMask(src: string, invert: boolean, sheet: HTMLCanvasElement) {
+  alphaMaskSheets.set(`${src}|${invert ? 1 : 0}`, sheet);
+}
+
+/** A layer mask as a see-through sheet, at most 4096 pixels on its long side. Null while its file loads. */
+export function getAlphaMask(src: string, invert: boolean): HTMLCanvasElement | null {
+  const key = `${src}|${invert ? 1 : 0}`;
+  const have = alphaMaskSheets.get(key);
+  if (have) return have;
+  const pic = getPicture(src);
+  if (!pic || !pic.naturalWidth || !pic.naturalHeight) return null;
+  const scale = Math.min(1, 4096 / Math.max(pic.naturalWidth, pic.naturalHeight));
+  const nw = Math.max(1, Math.round(pic.naturalWidth * scale));
+  const nh = Math.max(1, Math.round(pic.naturalHeight * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = nw;
+  canvas.height = nh;
+  const c = canvas.getContext("2d");
+  if (!c) return null;
+  c.drawImage(pic, 0, 0, nw, nh);
+  try {
+    const imgData = c.getImageData(0, 0, nw, nh);
+    convertLuminanceToAlpha(imgData.data, invert);
+    c.putImageData(imgData, 0, 0);
+  } catch (e) {
+    logError("convert mask alpha", e);
+  }
+  if (alphaMaskSheets.size > 50) alphaMaskSheets.clear();
+  alphaMaskSheets.set(key, canvas);
+  return canvas;
+}
 
 /** The picture laid into its box without stretching (the extra is cropped), with the corners cut. */
 function layPicture(ctx: CanvasRenderingContext2D, pic: Picture, el: El, x: number, y: number) {
@@ -432,28 +484,11 @@ const BLEND_OP: Record<Blend, GlobalCompositeOperation> = {
 /** The text being typed into right now on the canvas, if any. Set only while the editor's canvas is painted. */
 let typingId: string | null = null;
 
-/** Draw an element and everything inside it. ox and oy are where its parent sits. */
-export function drawElement(ctx: CanvasRenderingContext2D, doc: Doc, el: El, ox: number, oy: number) {
-  // a sound is only heard, and a hidden thing is not drawn anywhere
-  if (el.type === "sound" || hiddenHere(doc, el)) return;
-  const x = ox + el.x;
-  const y = oy + el.y;
-  ctx.save();
-  ctx.globalAlpha *= el.opacity;
-  if (el.blend && el.blend !== "normal") ctx.globalCompositeOperation = BLEND_OP[el.blend];
-  const turn = turnOf(el);
-  if (turn) {
-    ctx.translate(x + el.width / 2, y + el.height / 2);
-    ctx.rotate((turn * Math.PI) / 180);
-    ctx.translate(-(x + el.width / 2), -(y + el.height / 2));
-  }
-
+/** Draw an element's body (fill, stroke, media, text, or children). */
+function drawElementBody(ctx: CanvasRenderingContext2D, doc: Doc, el: El, x: number, y: number) {
   if (el.type === "text") {
     // while its words are being typed, the typing box shows them instead
-    if (el.id === typingId) {
-      ctx.restore();
-      return;
-    }
+    if (el.id === typingId) return;
     ctx.fillStyle = el.fill;
     ctx.font = fontCss(el);
     ctx.textBaseline = "top";
@@ -548,7 +583,6 @@ export function drawElement(ctx: CanvasRenderingContext2D, doc: Doc, el: El, ox:
         n++;
       }
     });
-    ctx.restore();
     return;
   }
 
@@ -557,7 +591,6 @@ export function drawElement(ctx: CanvasRenderingContext2D, doc: Doc, el: El, ox:
   if (el.type === "group" || mask || isLooseCopy(doc, el)) {
     if (mask && (el.maskFeather || el.maskInvert || el.maskGrow)) {
       drawSoftMask(ctx, doc, el, mask, x, y);
-      ctx.restore();
       return;
     }
     if (mask) clipTo(ctx, mask, x, y);
@@ -565,25 +598,21 @@ export function drawElement(ctx: CanvasRenderingContext2D, doc: Doc, el: El, ox:
       const child = doc.elements[id];
       if (child && child !== mask) drawElement(ctx, doc, child, x, y);
     }
-    ctx.restore();
     return;
   }
 
   if (el.type === "path") {
     drawLine(ctx, el, x, y);
-    ctx.restore();
     return;
   }
 
   if (el.type === "image") {
     drawImage(ctx, el, x, y);
-    ctx.restore();
     return;
   }
 
   if (el.type === "video") {
     drawClip(ctx, el, x, y);
-    ctx.restore();
     return;
   }
 
@@ -623,6 +652,61 @@ export function drawElement(ctx: CanvasRenderingContext2D, doc: Doc, el: El, ox:
     }
     ctx.restore();
   }
+}
+
+/** Draw an element and everything inside it. ox and oy are where its parent sits. */
+export function drawElement(ctx: CanvasRenderingContext2D, doc: Doc, el: El, ox: number, oy: number) {
+  // a sound is only heard, and a hidden thing is not drawn anywhere
+  if (el.type === "sound" || hiddenHere(doc, el)) return;
+  const x = ox + el.x;
+  const y = oy + el.y;
+  ctx.save();
+  ctx.globalAlpha *= el.opacity;
+  if (el.blend && el.blend !== "normal") ctx.globalCompositeOperation = BLEND_OP[el.blend];
+  const turn = turnOf(el);
+  if (turn) {
+    ctx.translate(x + el.width / 2, y + el.height / 2);
+    ctx.rotate((turn * Math.PI) / 180);
+    ctx.translate(-(x + el.width / 2), -(y + el.height / 2));
+  }
+
+  // Alt-click on the mask's thumbnail: only the mask, in black and white
+  if (soloMaskId === el.id && el.layerMask) {
+    const maskPic = getPicture(el.layerMask);
+    if (maskPic) ctx.drawImage(maskPic, x, y, el.width, el.height);
+    ctx.restore();
+    return;
+  }
+
+  // a layer mask: the layer and everything in it is drawn on a sheet of its own, then shown only where the mask is white
+  const alphaMask = liveMasks.get(el.id) ?? (el.layerMask && !el.layerMaskDisabled ? getAlphaMask(el.layerMask, el.layerMaskInvert) : null);
+  if (alphaMask) {
+    const t = ctx.getTransform();
+    const cw = ctx.canvas.width;
+    const ch = ctx.canvas.height;
+    const { layer } = scratchAt(maskDepth, cw, ch);
+    const lctx = layer.getContext("2d")!;
+    const depth = maskDepth++;
+    try {
+      lctx.setTransform(1, 0, 0, 1, 0, 0);
+      lctx.clearRect(0, 0, cw, ch);
+      lctx.setTransform(t);
+      drawElementBody(lctx, doc, el, x, y);
+      lctx.globalCompositeOperation = "destination-in";
+      lctx.drawImage(alphaMask, x, y, el.width, el.height);
+      lctx.globalCompositeOperation = "source-over";
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.drawImage(layer, 0, 0);
+      ctx.restore();
+    } finally {
+      maskDepth = depth;
+    }
+    ctx.restore();
+    return;
+  }
+
+  drawElementBody(ctx, doc, el, x, y);
   ctx.restore();
 }
 

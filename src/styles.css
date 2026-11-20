@@ -898,6 +898,35 @@ body.eyedropping * {
   border-color: var(--accent);
   color: #fff;
 }
+/* a layer's mask in Properties: its picture, then Paint, Swap and On */
+.lmask {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.lmask-thumb {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  object-fit: cover;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: #000;
+  cursor: pointer;
+}
+.lmask-thumb.on {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.lmask-thumb.solo {
+  border-color: var(--accent);
+}
+.lmask .mini {
+  flex: 1;
+}
+.lmask-tip {
+  padding: 6px 0 2px;
+}
 .mini:disabled {
   opacity: 0.4;
   cursor: default;
