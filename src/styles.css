@@ -13058,3 +13058,13 @@ button.ctx-item.store-make-option:hover {
 .cut-menu .ctx-item.on {
   color: var(--accent);
 }
+
+/* the chat under the right panel minimises to its Chat line; the button sits at the right end of that line */
+.chat .chead > .ctitle > .chat-fold-btn {
+  margin-left: auto;
+  align-self: center;
+}
+.panel-chat > .chat.docked.min {
+  flex: none;
+  height: auto;
+}

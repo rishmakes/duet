@@ -188,6 +188,17 @@ function savedAgent(): AgentId {
   return "claude";
 }
 
+const MIN_KEY = "duet:chat-min";
+
+/** Whether the designer left the chat minimised, so it stays out of the way after a restart. */
+function savedMinimized(): boolean {
+  try {
+    return localStorage.getItem(MIN_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 function savedMode(): Mode {
   try {
     const m = localStorage.getItem(MODE_KEY);
@@ -207,7 +218,7 @@ let state: ChatState = {
   mode: savedMode(),
   running: false,
   busy: null,
-  minimized: false,
+  minimized: savedMinimized(),
   agentFound: null,
   sessionId: null,
   sessionUsed: 0,
@@ -310,7 +321,14 @@ export function setMode(mode: Mode) {
 
 /** The chat's AI starts work in the conversation on show, or stops wherever it was. */
 export const setRunning = (running: boolean) => set(running ? { running, busy: shownFor } : { running, busy: null });
-export const setMinimized = (minimized: boolean) => set({ minimized });
+export function setMinimized(minimized: boolean) {
+  try {
+    localStorage.setItem(MIN_KEY, minimized ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+  set({ minimized });
+}
 export const setAgentFound = (agentFound: boolean) => set({ agentFound });
 
 /** Remember which tools are installed, and whether the chosen one is ready. */
@@ -461,7 +479,7 @@ export function askDesigner(summary: string): Promise<boolean> {
     const where = state.thread ?? undefined;
     const id = addMsg({ role: "note", text: "", approval: { summary, status: "waiting" } }, where);
     // an AI working from outside may ask while the chat is folded away, or behind another tab in Video
-    set({ minimized: false });
+    setMinimized(false);
     if (typeof window !== "undefined") window.dispatchEvent(new Event("duet:show-chat"));
     pendingApprovals.set(id, (allowed) => {
       updateMsg(id, { approval: { summary, status: allowed ? "allowed" : "declined" } }, where);

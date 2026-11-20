@@ -86,8 +86,8 @@ function agyModelList(): Promise<ModelChoice[]> {
   return agyModelsAsked;
 }
 
-/** `docked` fills the space it is given, as the middle of Chat; otherwise it floats on the canvas. */
-type ChatProps = { docked?: boolean; extra?: React.ReactNode; onFold?: () => void; full?: boolean };
+/** `docked` fills the space it is given, as the middle of Chat; otherwise it floats on the canvas. `foldable` lets a docked chat minimise to its title line. */
+type ChatProps = { docked?: boolean; extra?: React.ReactNode; onFold?: () => void; full?: boolean; foldable?: boolean };
 /** While the chat is full screen, only the full screen one shows, so there is never a second copy of it. */
 export default function ChatPanel(props: ChatProps) {
   const chatFull = useLayout((d) => d.chatFull);
@@ -95,7 +95,7 @@ export default function ChatPanel(props: ChatProps) {
   return <ChatBody {...props} />;
 }
 
-function ChatBody({ docked = false, extra, onFold, full = false }: ChatProps) {
+function ChatBody({ docked = false, extra, onFold, full = false, foldable = false }: ChatProps) {
   const space = useLayout((d) => d.space);
   const chatDocked = useLayout((d) => d.chatDocked);
   const inPanel = useLayout((d) => d.chatInPanel);
@@ -107,7 +107,7 @@ function ChatBody({ docked = false, extra, onFold, full = false }: ChatProps) {
   const mainRunning = useChat((s) => s.running);
   const running = task ? task.running : mainRunning;
   const folded = useChat((s) => s.minimized);
-  const minimized = folded && !docked;
+  const minimized = folded && (!docked || foldable);
   const found = useChat((s) => s.agentFound);
   const mainAgent = useChat((s) => s.agent);
   const agent = task ? task.agent : mainAgent;
@@ -656,7 +656,7 @@ function ChatBody({ docked = false, extra, onFold, full = false }: ChatProps) {
         className="chead"
         onPointerDown={docked ? undefined : grab}
         title="Drag to move me. Let go near a corner and I will snap there."
-        onClick={() => !justMoved.current && setMinimized(!minimized)}
+        onClick={() => (!docked || foldable) && !justMoved.current && setMinimized(!minimized)}
       >
         <div className="ctitle">
           {task ? (
@@ -680,6 +680,23 @@ function ChatBody({ docked = false, extra, onFold, full = false }: ChatProps) {
             <b>Chat</b>
           )}
           {running && <span className="chat-status">{nm(members.find((m) => m.id === agent)?.name ?? "The AI")} is working…</span>}
+          {foldable && (
+            <button
+              type="button"
+              className="chat-dock-btn chat-fold-btn"
+              data-name={minimized ? "chat-open" : "chat-minimise"}
+              title={minimized ? "Open the chat" : "Minimise the chat, for more room above"}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                setMinimized(!minimized);
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d={minimized ? "M3.5 8.5 7 5l3.5 3.5" : "M3.5 5.5 7 9l3.5-3.5"} />
+              </svg>
+            </button>
+          )}
         </div>
         {/* full screen: the chat wide in the middle, like the old Chat space; a cross brings back your work */}
         <button

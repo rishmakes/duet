@@ -1,10 +1,13 @@
 import { useRef } from "react";
 import ChatPanel from "./ChatPanel";
+import { useChat } from "../ai/chat";
 import { PANEL_CHAT_MIN, getLayout, setLayout, useLayout } from "./layout";
 
-/** The chat under the right panel in Studio. The line above it is pulled up or down to share the room with the panel. */
+/** The chat under the right panel in Studio. The line above it is pulled up or down to share the room with the panel; minimised, it is just its Chat line. */
 export default function PanelChat() {
   const h = useLayout((d) => d.panelChatH);
+  // minimised, only the Chat line stays and the panel above takes the room
+  const min = useChat((s) => s.minimized);
   const box = useRef<HTMLElement>(null);
   const grab = (e: React.PointerEvent) => {
     e.preventDefault();
@@ -23,9 +26,9 @@ export default function PanelChat() {
     window.addEventListener("pointerup", up);
   };
   return (
-    <section className="panel-chat" ref={box} style={{ height: h }}>
-      <div className="panel-chat-grip" title="Pull to make the chat taller or shorter" onPointerDown={grab} onDoubleClick={() => setLayout({ panelChatH: 360 })} />
-      <ChatPanel docked />
+    <section className="panel-chat" ref={box} style={min ? undefined : { height: h }}>
+      {!min && <div className="panel-chat-grip" title="Pull to make the chat taller or shorter" onPointerDown={grab} onDoubleClick={() => setLayout({ panelChatH: 360 })} />}
+      <ChatPanel docked foldable />
     </section>
   );
 }
