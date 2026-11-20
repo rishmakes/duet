@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { toPng } from "html-to-image";
 import { getVersion } from "@tauri-apps/api/app";
+import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
 /** Where feedback lands: a Google Sheet of the creator's, with pictures kept in his Drive. It can only add rows. */
@@ -10,11 +11,23 @@ const MAX_PICTURES = 6;
 /** Pictures are made smaller than this on their long side, so a message stays quick to send. */
 const LONGEST = 1600;
 
+/** How long to wait for the inbox to answer before taking the message as sent. */
+const WAIT_MS = 20000;
+
 /** Open feedback from anywhere: the button at the top, the Help menu, or the keys. */
 export const askFeedback = () => window.dispatchEvent(new Event("duet:feedback"));
 
-/** A picture of the Duet window as it is right now, before the feedback window covers it. */
+/**
+ * A picture of the Duet window as it is right now, before the feedback window covers it. On a Mac the web
+ * view takes it itself, so a video on the canvas does not stop it (#339); elsewhere the page is drawn from inside.
+ */
 async function pictureOfWindow(): Promise<string | null> {
+  try {
+    const png = await invoke<ArrayBuffer>("window_picture_bytes");
+    return await shrink(new Blob([png], { type: "image/png" }));
+  } catch {
+    // not a Mac, or the snapshot failed: draw the page instead
+  }
   try {
     const w = window.innerWidth;
     const h = window.innerHeight;
@@ -55,6 +68,8 @@ export default function Feedback() {
   const [email, setEmail] = useState("");
   const [state, setState] = useState<"writing" | "sending" | "sent" | "failed">("writing");
   const busy = useRef(false);
+  const sending = useRef(0);
+  const [late, setLate] = useState(false);
   const picker = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -87,7 +102,7 @@ export default function Feedback() {
     // keep the canvas shortcuts quiet while this is open
     const onKey = (e: KeyboardEvent) => {
       e.stopPropagation();
-      if (e.key === "Escape" && state !== "sending") close();
+      if (e.key === "Escape") close();
     };
     const onPaste = (e: ClipboardEvent) => {
       const files = [...(e.clipboardData?.files ?? [])].filter((f) => f.type.startsWith("image/"));
@@ -102,6 +117,7 @@ export default function Feedback() {
   });
 
   const close = () => {
+    sending.current++;
     setOpen(false);
     busy.current = false;
   };
@@ -112,7 +128,14 @@ export default function Feedback() {
   };
 
   const send = async () => {
+    const mine = ++sending.current;
+    setLate(false);
     setState("sending");
+    // Google sometimes takes the message and is slow to answer; after a while stop waiting, it almost always arrived
+    const stop = new AbortController();
+    const wait = setTimeout(() => stop.abort(), WAIT_MS);
+    let next: "sent" | "failed";
+    let slow = false;
     try {
       const body = JSON.stringify({
         text,
@@ -122,21 +145,28 @@ export default function Feedback() {
         pictures: pictures.map((p) => p.split(",")[1]),
       });
       // plain text, so the request goes straight through without a check first
-      const res = await fetch(INBOX, { method: "POST", body, headers: { "Content-Type": "text/plain;charset=utf-8" } });
+      const res = await fetch(INBOX, { method: "POST", body, headers: { "Content-Type": "text/plain;charset=utf-8" }, signal: stop.signal });
       const out = await res.json().catch(() => ({ ok: res.ok }));
-      setState(out.ok ? "sent" : "failed");
+      next = out.ok ? "sent" : "failed";
     } catch {
-      setState("failed");
+      slow = stop.signal.aborted;
+      next = slow ? "sent" : "failed";
+    } finally {
+      clearTimeout(wait);
     }
+    // closed, or a new message started meanwhile: this answer is for a window no longer shown
+    if (mine !== sending.current) return;
+    setLate(slow);
+    setState(next);
   };
 
   if (!open) return null;
   return (
-    <div className="sheet-back" onPointerDown={(e) => e.target === e.currentTarget && state !== "sending" && close()}>
+    <div className="sheet-back" onPointerDown={(e) => e.target === e.currentTarget && close()}>
       <div className="sheet feedback">
         {state === "sent" ? (
           <>
-            <div className="sheet-title">Thank you. Rish has it.</div>
+            <div className="sheet-title">{late ? "Thank you. It is on its way to Rish." : "Thank you. Rish has it."}</div>
             <p className="sheet-lead">
               Rish makes Duet and reads every message. Still stuck?{" "}
               <button className="feedback-talk" onClick={() => void openUrl(BOOK)}>
@@ -184,7 +214,7 @@ export default function Feedback() {
             <input className="feedback-email" value={email} placeholder="Your email, if you want a reply" onChange={(e) => setEmail(e.target.value)} />
             {state === "failed" && <p className="sheet-lead feedback-why">It did not send. Check the internet connection and try again.</p>}
             <div className="sheet-actions">
-              <button className="mini" disabled={state === "sending"} onClick={close}>
+              <button className="mini" onClick={close}>
                 Cancel
               </button>
               <button className="mini primary" disabled={state === "sending" || (!text.trim() && !pictures.length)} onClick={() => void send()}>
