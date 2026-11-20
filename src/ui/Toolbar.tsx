@@ -34,6 +34,11 @@ export const EDIT_TOOLS: { tool: Tool; time: TimeTool; label: string; key: strin
   { tool: "comment", time: "select", label: "Comment", key: "C", icon: "comment" },
 ];
 
+/** In Edit, the tool a key picks. Pressing it again keeps that tool, as every other tool key does; V or Esc goes back to Select. */
+export function editToolForKey(key: string): TimeTool | null {
+  return EDIT_TOOLS.find((t) => t.time !== "select" && t.key.toLowerCase() === key.toLowerCase())?.time ?? null;
+}
+
 /** In Edit, the key of a tool that is not Blade or Stretch puts the blade or the stretch down, as a click on that tool does. */
 export function keyPutsDownEditTool(key: string): boolean {
   return EDIT_TOOLS.some((t) => t.time === "select" && t.key.toLowerCase() === key.toLowerCase());

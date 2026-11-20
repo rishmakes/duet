@@ -22,7 +22,7 @@ import { open as openDialog } from "./dialog";
 import { droppedPaths } from "../canvas/CanvasView";
 import { CLIP_DRAG, LAYER_DRAG, draggedFootage, placeFromClips, placeLayerPictures } from "../video/media";
 import { ActButton, SpeedCard, VolumeCard } from "./TimeActions";
-import { keyPutsDownEditTool } from "./Toolbar";
+import { editToolForKey, keyPutsDownEditTool } from "./Toolbar";
 import type { ExportChoice } from "../video/scene";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import type { TimeTool } from "./layout";
@@ -397,20 +397,20 @@ export default function TimeStrip() {
         dispatch("set_work_area", k === "b" ? { id: sceneId, start: now } : { id: sceneId, end: now });
         return;
       }
-      // R is the stretch tool, as in Premiere; R or Esc puts it down. Only in Edit: elsewhere R is the rectangle.
+      // R is the stretch tool, as in Premiere; V or Esc puts it down. Only in Edit: elsewhere R is the rectangle.
       if (k === "r" && !e.shiftKey && getLayout().timeLook === "cut") {
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
-        pickTimeTool(toolNow() === "stretch" ? "select" : "stretch");
+        pickTimeTool(editToolForKey(k) ?? "select");
         return;
       }
-      // X is the blade, as R is the stretch: press again or Esc to put it down. B already starts the work area.
+      // X is the blade, as R is the stretch: V or Esc puts it down. B already starts the work area.
       if (k === "x" && !e.shiftKey && getLayout().timeLook === "cut") {
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
-        pickTimeTool(toolNow() === "blade" ? "select" : "blade");
+        pickTimeTool(editToolForKey(k) ?? "select");
         return;
       }
       if (k === "escape" && toolNow() !== "select") pickTimeTool("select");
