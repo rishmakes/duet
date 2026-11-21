@@ -41,6 +41,13 @@ export function oncePerFrame<T>(fn: (v: T) => void, frame: (cb: () => void) => n
   };
 }
 
+/**
+ * Whether letting go of a slider changed anything. While dragging, the value shown is already the preview,
+ * so it is checked against the value from before the drag; checked against the preview, a drag was never
+ * kept (#404).
+ */
+export const slidTo = (before: number | null, value: number, n: number) => Number.isFinite(n) && n !== (before ?? value);
+
 /** A value picked on a slider, or typed exactly in the box beside it. */
 function Slide({ label, value, min, max, step = 1, onPreview, onCommit, name }: { label: string; value: number; min: number; max: number; step?: number; onPreview: (n: number) => void; onCommit: (n: number) => void; name: string }) {
   const [typed, setTyped] = useState(String(value));
@@ -51,10 +58,14 @@ function Slide({ label, value, min, max, step = 1, onPreview, onCommit, name }: 
   previewRef.current = onPreview;
   const [frame] = useState(() => oncePerFrame<number>((n) => previewRef.current(n)));
   useEffect(() => frame.cancel, [frame]);
+  // the value before the drag: while dragging, `value` already shows the preview, so it cannot say whether anything changed
+  const before = useRef<number | null>(null);
   const commit = (n: number) => {
     frame.cancel();
     setMoving(null);
-    if (Number.isFinite(n) && n !== value) onCommit(n);
+    const changed = slidTo(before.current, value, n);
+    before.current = null;
+    if (changed) onCommit(n);
     else dragCancel();
   };
   return (
@@ -70,6 +81,7 @@ function Slide({ label, value, min, max, step = 1, onPreview, onCommit, name }: 
           value={shown}
           onChange={(e) => {
             const n = Number(e.target.value);
+            if (before.current === null) before.current = value;
             setMoving(n);
             frame.run(n);
           }}
