@@ -421,9 +421,14 @@ pub fn voice_transcribe(app: AppHandle, path: String, language: String, prompt: 
     let (st, m) = stop_to_use().ok_or("Voice to text is not downloaded yet.")?;
     let model_path = own_dir()?.join(m.file);
     let prompt = with_own_words(prompt.unwrap_or_default(), &language);
-    let mut answer = listen(&app, &path, &model_path, &language, &prompt, st.search, false)?;
-    // on Windows the graphics card listens; if its driver fails, the processor hears it again
+    // on Windows the graphics card listens; if its driver fails, the processor hears it again, and this
+    // computer goes straight to the processor from then on (an Intel HD 630 driver from 2020 crashed, #375)
+    let failed = own_dir()?.join("graphics-failed");
+    let mut answer = if cfg!(windows) && failed.exists() { None } else { listen(&app, &path, &model_path, &language, &prompt, st.search, false)? };
     if cfg!(windows) && answer.as_ref().is_none_or(|a| a.get("error").is_some()) {
+        if answer.is_none() {
+            let _ = std::fs::write(&failed, "");
+        }
         answer = listen(&app, &path, &model_path, &language, &prompt, st.search, true)?;
     }
     let mut a = answer.ok_or("Voice to text stopped before it finished. The recording may have no sound, or the computer ran out of memory.")?;
@@ -439,7 +444,13 @@ pub fn voice_transcribe(app: AppHandle, path: String, language: String, prompt: 
 /// One run of the helper: its answer, or nothing if it ended without one. `processor` keeps it off
 /// the graphics card.
 fn listen(app: &AppHandle, path: &str, model_path: &std::path::Path, language: &str, prompt: &str, search: &str, processor: bool) -> Result<Option<Value>, String> {
-    let mut child = crate::quiet_command(std::env::current_exe().map_err(|e| e.to_string())?)
+    let mut cmd = crate::quiet_command(std::env::current_exe().map_err(|e| e.to_string())?);
+    if processor {
+        // on the processor the graphics stay hidden from the speech engine: a bad driver crashes it while it
+        // only sets the graphics up, even when they are not used. A device number that is not there hides them.
+        cmd.env("GGML_VK_VISIBLE_DEVICES", "99");
+    }
+    let mut child = cmd
         .arg("--transcribe")
         .arg(model_path)
         .arg(path)
