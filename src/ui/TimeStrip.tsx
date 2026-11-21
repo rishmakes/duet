@@ -112,8 +112,17 @@ export default function TimeStrip() {
   const [choosing, setChoosing] = useState(false);
   // Cut silences: open while its settings show, with each file's loudness once it has been read
   const [hushing, setHushing] = useState(false);
-  // Auto captions: open while its box shows
+  // Auto captions: open while its box shows. Make captions in the Customize panel opens it too, in the Edit view
   const [captioning, setCaptioning] = useState(false);
+  useEffect(() => {
+    const open = () => {
+      setLayout({ timeLook: "cut" });
+      setHushing(false);
+      setCaptioning(true);
+    };
+    window.addEventListener("duet:auto-captions", open);
+    return () => window.removeEventListener("duet:auto-captions", open);
+  }, []);
   const [hush, setHush] = useState<SilenceChoice>(SILENCE_DEFAULT);
   const [hushPeaks, setHushPeaks] = useState<Map<string, Uint8Array> | null>(null);
   const projectFile = useStore((s) => s.project.file);

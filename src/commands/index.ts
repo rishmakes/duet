@@ -8,7 +8,7 @@ import { CUT_MOVE_MAX, CUT_MOVE_MIN, CUT_MOVE_NAMES, CUT_MOVE_SECONDS, clipBefor
 import type { Blend, Comment, CommentMark, CutMoveKind, Doc, El, ElementType, Key, Layout, Moving, ShapeKey, TextStyle, Transcript } from "../document/types";
 import { fixWords, withWords, wordsOfEdit } from "../document/words";
 import type { WordFix } from "../document/words";
-import { CAPTION_LOOKS, CAPTIONS_TRACK, SPOKEN_COLOURS, boxedLook, captionChunks, captionMiddle, captionProps, captionRoom, captionText, sizeLook } from "../document/captions";
+import { CAPTION_LOOKS, CAPTIONS_TRACK, SPOKEN_COLOURS, boxedLook, captionChunks, captionMiddle, captionProps, captionRoom, captionText } from "../document/captions";
 import type { CaptionLook } from "../document/captions";
 import { CURVES, ENTRANCES, entranceKeys, fileTimeAt, outlineOf, sceneOf, spanOf, valueAt, withKey, withShapeKey } from "../document/time";
 import type { CurveName, Entrance } from "../document/time";
@@ -2887,8 +2887,6 @@ export interface StyleCaptionsArgs {
   /** Captions or any other text. */
   ids: string[];
   look: CaptionLook;
-  /** A look the designer saved instead of one of Duet's: its name and style at 1080. */
-  mine?: { name: string; props: Partial<El> };
 }
 
 /**
@@ -2897,10 +2895,9 @@ export interface StyleCaptionsArgs {
  * where it was.
  */
 const styleCaptions: CommandDef<StyleCaptionsArgs> = {
-  label: (a) => `Captions look: ${a.mine?.name ?? CAPTION_LOOKS.find((l) => l.key === a.look)?.name ?? "changed"}`,
+  label: (a) => `Captions look: ${CAPTION_LOOKS.find((l) => l.key === a.look)?.name ?? "changed"}`,
   run: (doc, a) => {
-    // a saved look lands on Bold pop's settings, so nothing of the old look stays behind
-    const found = a.mine ? { key: "bold" as CaptionLook, name: a.mine.name, lit: undefined } : CAPTION_LOOKS.find((l) => l.key === a.look);
+    const found = CAPTION_LOOKS.find((l) => l.key === a.look);
     const ids = a.ids.filter((id) => doc.elements[id]?.type === "text" && !isDerived(id));
     if (!found || !ids.length) return doc;
     const next = clone(doc);
@@ -2908,17 +2905,14 @@ const styleCaptions: CommandDef<StyleCaptionsArgs> = {
       const el = next.elements[id];
       const parent = el.parentId ? next.elements[el.parentId] : null;
       const frame = parent ?? { width: 1080, height: 1080 };
-      const props = a.mine ? { ...captionProps("bold", frame), ...sizeLook(structuredClone(a.mine.props), Math.min(frame.width, frame.height) / 1080) } : captionProps(found.key, frame);
+      const props = captionProps(found.key, frame);
       const middle = el.y + el.height / 2;
       const centre = el.x + el.width / 2;
       for (const [k, v] of Object.entries(props)) {
         if (v === undefined) delete (el as unknown as Record<string, unknown>)[k];
         else (el as unknown as Record<string, unknown>)[k] = v;
       }
-      if (a.mine) {
-        // the saved look's spoken colour, only on captions that have words to light
-        if (!el.spoken?.length) delete el.spokenFill;
-      } else if (el.spoken?.length) {
+      if (el.spoken?.length) {
         if (found.lit) el.spokenFill = found.lit;
         else if (!el.spokenFill || CAPTION_LOOKS.some((l) => l.lit === el.spokenFill)) el.spokenFill = SPOKEN_COLOURS[0];
         // one word at a time has nothing to light

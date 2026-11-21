@@ -36,6 +36,7 @@ import { COLORS, getSoloMask, setSoloMask } from "../canvas/render";
 import { addLayerMask, paintMaskOf } from "../canvas/maskPaint";
 import TransitionSection from "./TransitionSection";
 import { usePickedCut } from "./pickedCut";
+import CaptionCustomize from "./CaptionCustomize";
 
 function NumField({
   label,
@@ -380,7 +381,7 @@ function TextSection({ els }: { els: El[] }) {
         </select>
       </label>
       {linked && <div className="hint2">Changes here change every text that uses {doc.styles?.[linked]?.name}.</div>}
-      {!linked && caption && <div className="hint2">A caption's look changes every caption in this video. Its words stay its own. Save the look in the Captions tab.</div>}
+      {!linked && caption && <div className="hint2">A caption's look changes every caption in this video. Its words stay its own.</div>}
       <div className="gap" />
       <label className="f">
         <span>Font</span>
@@ -1113,6 +1114,7 @@ export default function PropertiesPanel() {
   const openScene = useStore((s) => s.clock.scene);
   const every = useLayout((d) => d.gradeEvery);
   const swapped = useLayout((d) => d.swapped);
+  const captionsTab = useLayout((d) => d.leftTab === "captions");
   const doc = workDoc();
   const els = selection.map((id) => doc.elements[id]).filter(Boolean) as El[];
   // a transition badge picked on the timeline: its settings, in place of the clip's
@@ -1129,12 +1131,15 @@ export default function PropertiesPanel() {
   const extra = mode === "design"
     ? { name: "Prototype", on: prototyping, title: "Connect screens so they can be clicked through", set: (on: boolean) => setLayout({ prototyping: on }) }
     : { name: "Colour", on: tab === "color", title: "Colour: grade the pictures and clips", set: (on: boolean) => setTab(on ? "color" : "properties") };
+  const kindRow = (
+    <div className="panel-kind-row">
+      <FoldButton side={swapped ? "l" : "r"} folding title="Put the design panel away" onClick={() => setLayout({ rightHidden: true })} />
+      <KindSwitch />
+    </div>
+  );
   const switchElement = (
     <div className="panel-kind">
-      <div className="panel-kind-row">
-        <FoldButton side={swapped ? "l" : "r"} folding title="Put the design panel away" onClick={() => setLayout({ rightHidden: true })} />
-        <KindSwitch />
-      </div>
+      {kindRow}
       <div className="panel-extra" role="group" aria-label="View">
         <button type="button" className={!extra.on && tab !== "chat" ? "on" : ""} aria-pressed={!extra.on && tab !== "chat"} data-name="extra-properties" title="Properties of what you picked" onClick={() => extra.set(false)}>
           Properties
@@ -1154,6 +1159,11 @@ export default function PropertiesPanel() {
         <ChatPanel docked />
       </aside>
     );
+  }
+
+  // captions are the work: the Caption styles tab is open with nothing picked, or only captions are picked
+  if (mode === "motion" && openScene && !cutId && (els.length ? els.every((e) => isCaption(doc, e.id)) : captionsTab)) {
+    return <CaptionCustomize top={<div className="panel-kind">{kindRow}</div>} />;
   }
 
   if (tab === "color") {

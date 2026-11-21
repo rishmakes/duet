@@ -168,30 +168,17 @@ export function captionMates(doc: Doc, ids: string[], props: object): string[] {
   return [...out];
 }
 
-/** A look the designer saved from a caption: its style, sized for 1080 pixels on the short side. */
-export interface MyLook {
-  id: string;
-  name: string;
-  props: Partial<El>;
+/** Every caption in a video, in the order they play. */
+export function captionsIn(doc: Doc, sceneId: string | null | undefined): string[] {
+  const scene = sceneId ? doc.elements[sceneId] : null;
+  const track = scene?.tracks?.find((t) => t.name === CAPTIONS_TRACK);
+  if (!scene || !track) return [];
+  return scene.childIds.filter((id) => doc.elements[id]?.type === "text" && doc.elements[id].track === track.id);
 }
 
-/** A caption's style sized by k: the saved look is kept at 1080 and grows or shrinks to the video it is used on. */
-export function sizeLook(props: Partial<El>, k: number): Partial<El> {
-  const px = (n: number | undefined) => (n === undefined ? undefined : Math.max(0, Math.round(n * k * 100) / 100));
-  const out: Partial<El> = { ...props };
-  if (props.fontSize !== undefined) out.fontSize = Math.max(1, px(props.fontSize)!);
-  if (props.letterSpacing !== undefined) out.letterSpacing = px(props.letterSpacing);
-  if (props.strokeWidth !== undefined) out.strokeWidth = px(props.strokeWidth);
-  if (props.shadow) out.shadow = { ...props.shadow, x: px(props.shadow.x)!, y: px(props.shadow.y)!, blur: px(props.shadow.blur)! };
-  if (props.plate) out.plate = { ...props.plate, radius: px(props.plate.radius)!, padX: px(props.plate.padX)!, padY: px(props.plate.padY)! };
-  return out;
-}
-
-/** The style of a caption, ready to save as a look: only what makes its look, sized for 1080. */
-export function lookOf(el: El, frame: { width: number; height: number }): Partial<El> {
-  const style: Record<string, unknown> = {};
-  for (const k of CAPTION_STYLE) if ((el as unknown as Record<string, unknown>)[k] !== undefined) style[k] = structuredClone((el as unknown as Record<string, unknown>)[k]);
-  // a look without capitals says so, or the look it lands on keeps its own
-  style.caps = el.caps ?? false;
-  return sizeLook(style as Partial<El>, 1080 / Math.min(frame.width, frame.height));
+/** The look a caption has, while it still is one: once its font, size, weight, outline or box changes, it is the designer's own. */
+export function lookNow(el: El, frame: { width: number; height: number }): CaptionLook | null {
+  const same = (p: Partial<El>) =>
+    p.fontFamily === el.fontFamily && p.fontSize === el.fontSize && p.fontWeight === el.fontWeight && (p.stroke ?? null) === (el.stroke ?? null) && !p.plate === !el.plate && !!p.plate?.each === !!el.plate?.each && (p.fill ?? "#ffffff") === el.fill;
+  return CAPTION_LOOKS.find((l) => same(captionProps(l.key, frame)))?.key ?? null;
 }

@@ -513,7 +513,7 @@ export default function LayersPanel() {
         )}
         {video && (
           <div className={`tab ${tab === "captions" ? "on" : ""}`} data-name="tab-captions" onClick={() => setTab("captions")}>
-            Captions
+            Caption styles
           </div>
         )}
         {video && (

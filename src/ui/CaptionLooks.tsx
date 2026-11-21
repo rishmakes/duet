@@ -1,15 +1,13 @@
 import { useStore, currentDoc, dispatch, getState } from "../state/store";
-import { useEffect, useState } from "react";
-import { CAPTION_FONTS, CAPTION_LOOKS, CAPTIONS_TRACK, lookOf } from "../document/captions";
+import { useEffect } from "react";
+import { CAPTION_FONTS, CAPTION_LOOKS, captionsIn, lookNow } from "../document/captions";
 import { fetchFamily } from "../project/fonts";
-import type { CaptionLook, MyLook } from "../document/captions";
-import { removeMyLook, saveMyLook, useMyLooks } from "./myLooks";
-import { newId } from "../commands";
+import type { CaptionLook } from "../document/captions";
 
 /**
- * The caption looks as tiles (#71): each shows example words in its look, and while the pointer is on
- * it the words light up one after another, the way they will when spoken. Used in the Captions tab and
- * in the Auto captions box.
+ * Caption styles (#71, #404): each look as a big tile showing example words in it, and while the pointer
+ * is on it the words light up one after another, the way they will when spoken. Picking one changes
+ * every caption in the open video. Changing the look in detail is the Customize panel on the right.
  */
 
 const EXAMPLE = ["Pick", "a", "style"];
@@ -28,44 +26,6 @@ export function LookSample({ look, words = EXAMPLE }: { look: CaptionLook; words
   );
 }
 
-/** Example words drawn in a saved look, from its own font, colours, outline, shadow and box. */
-function MySample({ look }: { look: MyLook }) {
-  const p = look.props;
-  const k = 22 / Math.max(1, p.fontSize ?? 60);
-  const sh = p.shadow ? `${p.shadow.x * k}px ${p.shadow.y * k}px ${p.shadow.blur * k}px ${p.shadow.color}` : undefined;
-  return (
-    <span
-      className="look-sample sample-mine"
-      style={{
-        fontFamily: p.fontFamily ? `"${p.fontFamily}", system-ui, sans-serif` : undefined,
-        fontWeight: p.fontWeight,
-        color: p.fill,
-        textTransform: p.caps ? "uppercase" : "none",
-        WebkitTextStroke: p.stroke && p.strokeWidth ? `${Math.max(0.5, p.strokeWidth * k)}px ${p.stroke}` : undefined,
-        paintOrder: "stroke fill",
-        textShadow: sh,
-        background: p.plate?.fill,
-        borderRadius: p.plate ? p.plate.radius * k : undefined,
-        padding: p.plate ? `${p.plate.padY * k}px ${p.plate.padX * k}px` : undefined,
-      }}
-    >
-      {EXAMPLE.join(" ")}
-    </span>
-  );
-}
-
-/** What a look click changes: the picked text in the open video, or else every caption in it. */
-function targets(): string[] {
-  const s = getState();
-  const doc = currentDoc(s);
-  const picked = s.selection.filter((id) => doc.elements[id]?.type === "text");
-  if (picked.length) return picked;
-  const scene = s.clock.scene ? doc.elements[s.clock.scene] : null;
-  const track = scene?.tracks?.find((t) => t.name === CAPTIONS_TRACK);
-  if (!scene || !track) return [];
-  return scene.childIds.filter((id) => doc.elements[id]?.type === "text" && doc.elements[id].track === track.id);
-}
-
 /** The fonts of every look, fetched once so the tiles and the captions show in them. */
 export function useCaptionFonts() {
   useEffect(() => {
@@ -73,117 +33,34 @@ export function useCaptionFonts() {
   }, []);
 }
 
-/** Keeps the look of the picked caption, or else of the video's captions, as one of the designer's own. */
-function saveLook(name: string) {
-  const doc = currentDoc(getState());
-  const el = doc.elements[targets()[0]];
-  const frame = el?.parentId ? doc.elements[el.parentId] : null;
-  if (el && frame) saveMyLook({ id: newId("look"), name, props: lookOf(el, frame) });
-}
-
-/** The first tile of Your looks: click, name it, and the look of the captions now on screen is kept. */
-function SaveTile({ can }: { can: boolean }) {
-  const [naming, setNaming] = useState(false);
-  const [name, setName] = useState("");
-  const done = () => {
-    if (name.trim()) saveLook(name.trim());
-    setNaming(false);
-    setName("");
-  };
-  if (naming)
-    return (
-      <div className="captions-tile captions-save naming">
-        <input
-          autoFocus
-          value={name}
-          placeholder="Name this look"
-          onChange={(e) => setName(e.target.value)}
-          onBlur={done}
-          onKeyDown={(e) => {
-            e.stopPropagation();
-            if (e.key === "Enter") done();
-            if (e.key === "Escape") {
-              setName("");
-              setNaming(false);
-            }
-          }}
-        />
-        <span className="captions-tile-name">Enter to save</span>
-      </div>
-    );
-  return (
-    <button
-      className="captions-tile captions-save"
-      data-name="save-caption-look"
-      title={can ? "Keep the look of these captions, for every project" : "Make or pick captions first, then save their look"}
-      disabled={!can}
-      onClick={() => setNaming(true)}
-    >
-      <span className="captions-save-plus">+</span>
-      <span className="captions-tile-name">Save this look</span>
-    </button>
-  );
-}
-
 export default function CaptionsPanel() {
   useCaptionFonts();
-  // the hint follows what a click would change
-  const picked = useStore((s) => s.selection.filter((id) => currentDoc(s).elements[id]?.type === "text").length);
-  const all = useStore(() => targets().length);
-  const mine = useMyLooks();
+  const count = useStore((s) => captionsIn(currentDoc(s), s.clock.scene).length);
+  // the look these captions have now, while it is still one of Duet's
+  const now = useStore((s) => {
+    const doc = currentDoc(s);
+    const first = doc.elements[captionsIn(doc, s.clock.scene)[0]];
+    const frame = first?.parentId ? doc.elements[first.parentId] : null;
+    return first && frame ? lookNow(first, frame) : null;
+  });
   return (
     <div className="captions-panel" data-name="captions-panel">
-      <div className="captions-panel-hint">
-        {picked ? `Click a look to change the ${picked === 1 ? "picked text" : `${picked} picked texts`}.` : all ? `Click a look to change all ${all} captions.` : "Make captions with Auto captions under the timeline, or pick any text, then click a look."}
-      </div>
-      <div className="captions-group">Your looks</div>
-      <div className="captions-tiles">
-        <SaveTile can={all > 0} />
-        {mine.map((m) => (
-          <button
-            key={m.id}
-            className="captions-tile mine"
-            data-name={`captions-mine-${m.name}`}
-            title={m.name}
-            disabled={!all}
-            onClick={() => {
-              const ids = targets();
-              if (!ids.length) return;
-              if (m.props.fontFamily) void fetchFamily(m.props.fontFamily);
-              dispatch("style_captions", { ids, look: "bold", mine: { name: m.name, props: m.props } });
-            }}
-          >
-            <MySample look={m} />
-            <span className="captions-tile-name">{m.name}</span>
-            <span
-              className="captions-tile-remove"
-              role="button"
-              title="Remove this look. Captions already made with it stay as they are."
-              onClick={(e) => {
-                e.stopPropagation();
-                removeMyLook(m.id);
-              }}
-            >
-              ×
-            </span>
-          </button>
-        ))}
-      </div>
-      <div className="captions-group">Duet looks</div>
+      <div className="captions-panel-hint">{count ? "Pick a style. Every caption changes." : "Make captions first with Auto captions under the timeline, then pick a style."}</div>
       <div className="captions-tiles">
         {CAPTION_LOOKS.map((l) => (
           <button
             key={l.key}
-            className="captions-tile"
+            className={`captions-tile${now === l.key ? " on" : ""}`}
             data-name={`captions-tile-${l.key}`}
-            title={l.name}
-            disabled={!all}
+            disabled={!count}
             onClick={() => {
-              const ids = targets();
-              if (ids.length) dispatch("style_captions", { ids, look: l.key });
+              const all = captionsIn(currentDoc(getState()), getState().clock.scene);
+              if (all.length) dispatch("style_captions", { ids: all, look: l.key });
             }}
           >
-            <LookSample look={l.key} />
+            <span className="captions-tile-face">
+              <LookSample look={l.key} />
+            </span>
             <span className="captions-tile-name">{l.name}</span>
           </button>
         ))}

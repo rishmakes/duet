@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { runCommand } from "./index";
 import { emptyDoc } from "../document/types";
 import type { Doc } from "../document/types";
-import { captionChunks, captionMates, captionWords, lookOf } from "../document/captions";
+import { captionChunks, captionMates, captionWords, captionsIn, lookNow } from "../document/captions";
 import { wordsOfEdit } from "../document/words";
 
 // "so today we um talk about money" with a long pause after "today"
@@ -169,17 +169,16 @@ describe("caption looks", () => {
     expect(b.id).not.toBe(a.id);
   });
 
-  it("a saved look lands on captions of any size, scaled to the video", () => {
-    let doc = runCommand(talk(), "add_captions", { sceneId: "f", look: "bold", per: 3 });
-    const first = captions(doc)[0];
-    doc = runCommand(doc, "set_props", { ids: [first.id], props: { fill: "#00ff00", fontSize: 100 } });
-    const props = lookOf(doc.elements[first.id], doc.elements.f);
-    expect(props).toMatchObject({ fill: "#00ff00", fontSize: 100 });
-    // a video half the size gets captions half the size
-    let small = runCommand(emptyDoc(), "create_element", { type: "frame", id: "s", x: 0, y: 0, width: 540, height: 960 });
-    small = runCommand(small, "create_element", { type: "text", id: "t", parentId: "s", x: 0, y: 0, width: 100, height: 20, props: { text: "Hi" } });
-    const out = runCommand(small, "style_captions", { ids: ["t"], look: "bold", mine: { name: "Mine", props } }).elements.t;
-    expect(out).toMatchObject({ fill: "#00ff00", fontSize: 50 });
+  it("finds a video's captions and the look they have, until the designer makes it their own", () => {
+    let doc = runCommand(talk(), "add_captions", { sceneId: "f", look: "outline", per: 3 });
+    const ids = captionsIn(doc, "f");
+    expect(ids).toEqual(captions(doc).map((el) => el.id));
+    expect(captionsIn(doc, null)).toEqual([]);
+    expect(lookNow(doc.elements[ids[0]], doc.elements.f)).toBe("outline");
+    doc = runCommand(doc, "style_captions", { ids, look: "box" });
+    expect(lookNow(doc.elements[ids[0]], doc.elements.f)).toBe("box");
+    doc = runCommand(doc, "set_props", { ids, props: { fontSize: 99 } });
+    expect(lookNow(doc.elements[ids[0]], doc.elements.f)).toBeNull();
   });
   it("leaves out sound tags and a word said twice in a row", () => {
     const heard = ["[music]", "go", "there", "There,", "*pew*", "(laughs)", "now", "♪"].map((w, i) => ({ w, s: i, e: i + 0.5, clip: "v", src: "/a.mp4" }));

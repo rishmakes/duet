@@ -12534,36 +12534,56 @@ button.ctx-item.store-make-option:hover {
 }
 .captions-panel-hint {
   color: var(--muted);
-  font-size: 11px;
-  margin-bottom: 10px;
+  font-size: 12px;
+  margin-bottom: 12px;
 }
 .captions-tiles {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
+  gap: 14px 10px;
 }
 .captions-tile {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  height: 92px;
-  border-radius: 10px;
-  border: 1px solid transparent;
-  /* calm and nearly flat, with a faint warm wash as footage has, so only the words stand out */
-  background: radial-gradient(ellipse at 30% 20%, rgba(214, 170, 130, 0.12), transparent 70%), #1d1c21;
+  align-items: stretch;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
   cursor: pointer;
 }
-.captions-tile:hover:not(:disabled) {
+/* calm and nearly flat, with a faint warm wash as footage has, so only the words stand out */
+.captions-tile-face {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 112px;
+  padding: 0 8px;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background: radial-gradient(ellipse at 30% 20%, rgba(214, 170, 130, 0.12), transparent 70%), #1d1c21;
+}
+.captions-tile-face .look-sample {
+  font-size: 19px;
+}
+.captions-tile:hover:not(:disabled) .captions-tile-face {
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+.captions-tile.on .captions-tile-face {
   border-color: var(--accent);
 }
 .captions-tile:disabled {
   cursor: default;
+  opacity: 0.55;
 }
 .captions-tile-name {
-  font-size: 10px;
-  color: #bdb7bf;
+  padding-left: 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.captions-tile.on .captions-tile-name {
+  color: var(--text);
 }
 .look-sample {
   display: inline-flex;
@@ -13069,66 +13089,128 @@ button.ctx-item.store-make-option:hover {
   height: auto;
 }
 
-/* a caption look the designer saved: its sample in its own style, and a quiet cross to remove it */
-.captions-tile.mine {
-  position: relative;
+
+/* Customize (#404): the right panel while captions are the work. Labels sit outside the controls, few boxes */
+.customize .cz-head {
+  padding: 16px 16px 6px;
 }
-.look-sample.sample-mine {
-  font-size: 22px;
-  line-height: 1.2;
-  white-space: nowrap;
-}
-.captions-tile-remove {
-  position: absolute;
-  top: 4px;
-  right: 6px;
-  display: none;
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 1;
-}
-.captions-tile.mine:hover .captions-tile-remove {
-  display: block;
-}
-.captions-tile-remove:hover {
+.customize .cz-title {
+  font-size: 17px;
+  font-weight: 600;
   color: var(--text);
 }
-
-/* the Captions tab in two groups: the designer's own looks first, with the tile that saves one, then Duet's */
-.captions-group {
-  margin: 14px 0 8px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+.customize .cz-sub {
+  margin-top: 2px;
+  font-size: 12px;
   color: var(--muted);
 }
-.captions-panel-hint + .captions-group {
-  margin-top: 4px;
+.customize .cz-body {
+  padding: 6px 16px 14px;
+  border-bottom: 1px solid var(--panel-3);
 }
-.captions-tile.captions-save {
-  background: transparent;
-  border: 1px dashed var(--line);
+.customize .cz-body .pill {
+  margin: 6px 0 10px;
 }
-.captions-tile.captions-save:disabled {
-  opacity: 0.5;
+.cz-row {
+  margin-top: 12px;
 }
-.captions-save-plus {
-  font-size: 22px;
-  line-height: 1;
-  color: var(--accent);
+.cz-label {
+  margin-bottom: 6px;
+  font-size: 11px;
+  color: var(--muted);
 }
-.captions-tile.captions-save.naming {
-  border-style: solid;
-  border-color: var(--accent);
-  padding: 0 10px;
+.cz-slide {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
-.captions-save.naming input {
-  width: 100%;
-  padding: 5px 8px;
+.cz-slide input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--accent);
+}
+.cz-num {
+  width: 52px;
+  padding: 5px 6px;
   border-radius: 6px;
   border: 1px solid var(--line);
   background: var(--panel-2);
   color: var(--text);
   font-size: 12px;
+  text-align: right;
+}
+.cz-pick {
+  display: flex;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+.cz-pick button {
+  flex: 1;
+  padding: 5px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.cz-pick button.on {
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+.cz-colour {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cz-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.cz-dot {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  cursor: pointer;
+}
+.cz-dot.on {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.cz-dot.none {
+  background: linear-gradient(135deg, transparent 45%, var(--muted) 45%, var(--muted) 55%, transparent 55%), var(--panel-2);
+}
+.cz-fold {
+  margin: 0 16px;
+  border-bottom: 1px solid var(--panel-3);
+}
+.cz-fold-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 13px 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+.cz-fold-head svg {
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+.cz-fold.open .cz-fold-head svg {
+  transform: rotate(90deg);
+}
+.cz-fold-body {
+  padding-bottom: 14px;
+}
+.cz-fold-body > .cz-row:first-child {
+  margin-top: 0;
 }

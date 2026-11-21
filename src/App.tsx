@@ -413,7 +413,7 @@ export default function App() {
             <PanelStrip
               side={dock.swapped ? "r" : "l"}
               label="the layers panel"
-              items={(dock.mode === "motion" ? [{ key: "clips", name: "Media" }, { key: "captions", name: "Captions" }, { key: "words", name: "Words" }] : []).concat([{ key: "layers", name: "Layers" }, { key: "assets", name: "Assets" }]).map((t) => ({ ...t, on: ((dock.leftTab === "clips" || dock.leftTab === "captions" || dock.leftTab === "words") && dock.mode !== "motion" ? "layers" : dock.leftTab ?? (dock.mode === "motion" ? "clips" : "layers")) === t.key }))}
+              items={(dock.mode === "motion" ? [{ key: "clips", name: "Media" }, { key: "captions", name: "Caption styles" }, { key: "words", name: "Words" }] : []).concat([{ key: "layers", name: "Layers" }, { key: "assets", name: "Assets" }]).map((t) => ({ ...t, on: ((dock.leftTab === "clips" || dock.leftTab === "captions" || dock.leftTab === "words") && dock.mode !== "motion" ? "layers" : dock.leftTab ?? (dock.mode === "motion" ? "clips" : "layers")) === t.key }))}
               onPick={(k) => {
                 setLayout({ leftTab: k as "clips" | "captions" | "words" | "layers" | "assets" });
                 openLeft();
