@@ -13239,6 +13239,10 @@ button.ctx-item.store-make-option:hover {
   flex-direction: column;
   gap: 8px;
 }
+/* what opens under a choice, like the spoken word colours or the second font, keeps clear of it */
+.cz-pick + * {
+  margin-top: 10px;
+}
 .cz-dots {
   display: flex;
   flex-wrap: wrap;
