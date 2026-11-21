@@ -18,30 +18,6 @@ const COLOURS = ["#ffffff", "#111013", "#e5383b", "#ffe14d", "#e6ff3d", "#2f7bff
 type Props = Partial<Omit<El, "id" | "type" | "parentId" | "childIds">>;
 
 /**
- * Runs `fn` at most once per screen frame, with the newest value. A slider sends more changes than the
- * screen can draw; each one redraws every caption, so without this they pile up and the captions trail
- * behind the hand (#404). `cancel` drops a change still waiting, so none lands after letting go.
- */
-export function oncePerFrame<T>(fn: (v: T) => void, frame: (cb: () => void) => number = requestAnimationFrame, unframe: (id: number) => void = cancelAnimationFrame) {
-  let waiting = 0;
-  let latest: T;
-  return {
-    run(v: T) {
-      latest = v;
-      if (!waiting)
-        waiting = frame(() => {
-          waiting = 0;
-          fn(latest);
-        });
-    },
-    cancel() {
-      if (waiting) unframe(waiting);
-      waiting = 0;
-    },
-  };
-}
-
-/**
  * Whether letting go of a slider changed anything. While dragging, the value shown is already the preview,
  * so it is checked against the value from before the drag; checked against the preview, a drag was never
  * kept (#404).
@@ -54,14 +30,9 @@ function Slide({ label, value, min, max, step = 1, onPreview, onCommit, name }: 
   useEffect(() => setTyped(String(value)), [value]);
   const [moving, setMoving] = useState<number | null>(null);
   const shown = moving ?? value;
-  const previewRef = useRef(onPreview);
-  previewRef.current = onPreview;
-  const [frame] = useState(() => oncePerFrame<number>((n) => previewRef.current(n)));
-  useEffect(() => frame.cancel, [frame]);
   // the value before the drag: while dragging, `value` already shows the preview, so it cannot say whether anything changed
   const before = useRef<number | null>(null);
   const commit = (n: number) => {
-    frame.cancel();
     setMoving(null);
     const changed = slidTo(before.current, value, n);
     before.current = null;
@@ -83,7 +54,7 @@ function Slide({ label, value, min, max, step = 1, onPreview, onCommit, name }: 
             const n = Number(e.target.value);
             if (before.current === null) before.current = value;
             setMoving(n);
-            frame.run(n);
+            onPreview(n);
           }}
           onPointerUp={(e) => commit(Number((e.target as HTMLInputElement).value))}
           onKeyUp={(e) => commit(Number((e.target as HTMLInputElement).value))}
