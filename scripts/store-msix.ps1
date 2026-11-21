@@ -9,7 +9,8 @@ param(
 )
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
-$built = Join-Path $root "src-tauri\target\release"
+$target = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { Join-Path $root "src-tauri\target" }
+$built = Join-Path $target "release"
 $stage = Join-Path $built "msix"
 
 if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }

@@ -22,6 +22,8 @@ ROOT="C:\\VulkanSDK\\$V"
 if [ -n "${GITHUB_ENV:-}" ]; then
   echo "VULKAN_SDK=$ROOT" >> "$GITHUB_ENV"
   echo "$ROOT\\Bin" >> "$GITHUB_PATH"
+  # Vulkan's build goes deep in folders; from src-tauri\target it passes Windows' 260 letter limit
+  echo "CARGO_TARGET_DIR=C:\\t" >> "$GITHUB_ENV"
 fi
 
 curl -fsSL -o "$T/rt.zip" "$BASE/VulkanRT-$V-Components.zip"
