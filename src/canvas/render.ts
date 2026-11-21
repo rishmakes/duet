@@ -17,7 +17,8 @@ import { drawLinks } from "./links";
 import { agentColour } from "../ai/colours";
 import { RULER, rulerTicks } from "./guides";
 import { getLayout } from "../ui/layout";
-import { FONT_STACK, fontCss, layoutText, lineStep, lineWidth, measureText } from "./text";
+import { FONT_STACK, faceFor, fontCss, layoutText, lineStep, lineWidth, lineWidths, measureText } from "./text";
+import type { TextFace } from "./text";
 import { hiddenHere } from "../document/tracks";
 import { convertLuminanceToAlpha } from "./layerMask";
 
@@ -540,19 +541,26 @@ function drawElementBody(ctx: CanvasRenderingContext2D, doc: Doc, el: El, x: num
     // words that arrive as they are said: the last one shown is the one being said
     const upTo = el.arrive && el.lit !== undefined ? el.lit : Infinity;
     // where each word of each line sits, for boxes behind them and for lighting the one being said
-    const placed = lines.map((line) => {
-      const w = lineWidth(line, el);
+    // each word in its own face: some captions set a few words in a second font
+    const widths = lineWidths(lines, el);
+    const lastWord = lines.reduce((c, l) => c + l.split(/\s+/).filter(Boolean).length, 0) - 1;
+    let wordNo = 0;
+    const placed = lines.map((line, li) => {
+      const w = widths[li];
       const dx = el.textAlign === "center" ? (el.width - w) / 2 : el.textAlign === "right" ? el.width - w : 0;
-      const words: { text: string; at: number; width: number }[] = [];
+      const words: { text: string; at: number; width: number; face: TextFace }[] = [];
       let px = 0;
       for (const part of line.split(/(\s+)/)) {
         if (!part) continue;
-        const pw = lineWidth(part, el);
-        if (!/^\s+$/.test(part)) words.push({ text: part, at: dx + px, width: pw });
-        px += pw;
+        const space = /^\s+$/.test(part);
+        const face = space ? el : faceFor(part, wordNo++, lastWord, el);
+        const pw = lineWidth(part, face);
+        if (!space) words.push({ text: part, at: dx + px, width: pw, face });
+        px += pw + (el.letterSpacing || 0);
       }
       return { line, dx, w, words };
     });
+    const twoFaces = !!el.font2 && !!el.font2Words;
     const box = (bx: number, by: number, bw: number, bh: number, r: number) => {
       ctx.beginPath();
       ctx.roundRect(bx, by, bw, bh, Math.min(r, bh / 2, bw / 2));
@@ -591,7 +599,7 @@ function drawElementBody(ctx: CanvasRenderingContext2D, doc: Doc, el: El, x: num
     const bold = lit >= 0 && !!el.spokenBold;
     let n = 0;
     placed.forEach((l, i) => {
-      if (!tinted && !bold && upTo === Infinity) {
+      if (!tinted && !bold && !twoFaces && upTo === Infinity) {
         ctx.fillStyle = el.fill;
         run(l.line, x + l.dx, y + i * step);
         return;
@@ -602,11 +610,10 @@ function drawElementBody(ctx: CanvasRenderingContext2D, doc: Doc, el: El, x: num
         const on = at === lit;
         ctx.fillStyle = on && tinted ? el.spokenFill! : el.fill;
         let wx = x + wd.at;
-        if (on && bold) {
-          // bolder, kept centred on its own place so the words beside it stay where they are
-          ctx.font = fontCss({ ...el, fontWeight: 900 });
-          wx += (wd.width - lineWidth(wd.text, { ...el, fontWeight: 900 })) / 2;
-        }
+        const face = on && bold ? { ...wd.face, fontWeight: 900 } : wd.face;
+        if (face !== el) ctx.font = fontCss(face);
+        // bolder, kept centred on its own place so the words beside it stay where they are
+        if (on && bold) wx += (wd.width - lineWidth(wd.text, face)) / 2;
         const grow = el.arrive === "pop" && at === upTo ? popScale(el.litSince ?? 1) : 1;
         if (grow !== 1) {
           const cx = x + wd.at + wd.width / 2;
@@ -618,7 +625,7 @@ function drawElementBody(ctx: CanvasRenderingContext2D, doc: Doc, el: El, x: num
           run(wd.text, wx, y + i * step);
           ctx.restore();
         } else run(wd.text, wx, y + i * step);
-        if (on && bold) ctx.font = fontCss(el);
+        if (face !== el) ctx.font = fontCss(el);
       }
     });
     return;

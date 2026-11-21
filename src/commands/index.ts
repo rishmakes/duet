@@ -375,7 +375,7 @@ export interface SetPropsArgs {
   label?: string;
 }
 
-const TEXT_LOOK = ["text", "fontSize", "fontFamily", "fontWeight", "lineHeight", "letterSpacing", "textFixed"];
+const TEXT_LOOK = ["text", "fontSize", "fontFamily", "fontWeight", "lineHeight", "letterSpacing", "textFixed", "font2", "font2Words", "caps"];
 
 /**
  * Turn a group. A group has no body of its own, so everything inside it is swung around the middle

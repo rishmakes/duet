@@ -179,7 +179,10 @@ async function writeFamily(family: string, dir: string) {
 /** The fetched families a design uses. */
 export function fontsIn(doc: Doc): string[] {
   const names = new Set<string>();
-  for (const e of Object.values(doc.elements)) if (e.type === "text" && e.fontFamily) names.add(e.fontFamily);
+  for (const e of Object.values(doc.elements)) if (e.type === "text") {
+    if (e.fontFamily) names.add(e.fontFamily);
+    if (e.font2) names.add(e.font2);
+  }
   for (const s of Object.values(doc.styles ?? {})) if (s.fontFamily) names.add(s.fontFamily);
   return [...names].filter((n) => kept.has(n));
 }

@@ -4,6 +4,7 @@ import { dispatch, dragCancel, dragPreview, getState, useStore, workDoc } from "
 import { SPOKEN_COLOURS, captionsIn } from "../document/captions";
 import type { El, Plate, Shadow } from "../document/types";
 import FontPicker from "./FontPicker";
+import { fetchFamily } from "../project/fonts";
 import { ColorField } from "./ColorPicker";
 import CommentsList from "./CommentsList";
 
@@ -12,6 +13,9 @@ import CommentsList from "./CommentsList";
  * or with a caption picked. Every change here reaches every caption in the video, so a video has one
  * caption style. Font, spoken word, size and colour are always out; the rest waits behind closed rows.
  */
+
+/** The second font a caption starts with: a free hand-written one, fetched the first time it is used. */
+const SECOND_FONT = "Dancing Script";
 
 const COLOURS = ["#ffffff", "#111013", "#e5383b", "#ffe14d", "#e6ff3d", "#2f7bff"];
 
@@ -179,6 +183,22 @@ export default function CaptionCustomize({ top }: { top: ReactNode }) {
         <div className="cz-row">
           <div className="cz-label">Font</div>
           <FontPicker value={first.fontFamily} onCommit={(v) => set({ fontFamily: v }, "Change caption font")} />
+        </div>
+
+        <div className="cz-row">
+          <div className="cz-label">Second font</div>
+          <Pick
+            value={first.font2 && first.font2Words ? first.font2Words : "none"}
+            name="font2-words"
+            options={[["none", "None"], ["last", "Last word"], ["short", "Short words"]]}
+            onPick={(v) => {
+              if (v === "none") return set({ font2: undefined, font2Words: undefined }, "Take out the second font");
+              const font2 = first.font2 || SECOND_FONT;
+              void fetchFamily(font2);
+              set({ font2, font2Words: v }, v === "last" ? "Last word in a second font" : "Short words in a second font");
+            }}
+          />
+          {first.font2 && first.font2Words && <FontPicker value={first.font2} onCommit={(v) => v && set({ font2: v }, "Change the second font")} />}
         </div>
 
         {lights && (

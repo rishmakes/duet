@@ -18,6 +18,10 @@ export interface TextFace {
   /** A multiple of the font size. 0 means the default. */
   lineHeight: number;
   letterSpacing: number;
+  /** A caption's second font, for some of its words. */
+  font2?: string;
+  /** Which words are in the second font: the last one, or the short ones. */
+  font2Words?: "last" | "short";
 }
 
 export const faceOf = (el: TextFace): TextFace => ({
@@ -84,31 +88,81 @@ export function lineWidth(text: string, f: TextFace): number {
   return w + Math.max(0, text.length - 1) * (f.letterSpacing || 0);
 }
 
+const mixed = (f: TextFace) => !!f.font2 && !!f.font2Words;
+const countWords = (text: string) => text.split(/\s+/).filter(Boolean).length;
+
+/** Short words take the second font: two letters or fewer, as in "to" or "is". */
+export const isShortWord = (word: string) => word.replace(/[^\p{L}\p{N}]/gu, "").length <= 2;
+
+/** The face one word is set in: word number `n` of a text whose last word is number `last`. */
+export function faceFor(word: string, n: number, last: number, f: TextFace): TextFace {
+  if (!mixed(f)) return f;
+  const second = f.font2Words === "last" ? n === last : isShortWord(word);
+  return second ? { ...f, fontFamily: f.font2! } : f;
+}
+
+/** How wide a run of words is, each in its own face. `first` is the number of its first word in the whole text. */
+export function wordsWidth(text: string, f: TextFace, first: number, last: number): number {
+  if (!mixed(f)) return lineWidth(text, f);
+  const parts = text.split(/(\s+)/).filter(Boolean);
+  let n = first;
+  let w = Math.max(0, parts.length - 1) * (f.letterSpacing || 0);
+  for (const part of parts) w += /^\s+$/.test(part) ? lineWidth(part, f) : lineWidth(part, faceFor(part, n++, last, f));
+  return w;
+}
+
 /** Break text into lines. Words wrap when a width is given. */
 export function wrapLines(text: string, f: TextFace, maxWidth?: number): string[] {
   const out: string[] = [];
+  const last = countWords(text) - 1;
+  let first = 0;
   for (const raw of text.split("\n")) {
     if (!maxWidth || maxWidth <= 0) {
       out.push(raw);
+      first += countWords(raw);
       continue;
     }
     let line = "";
     for (const word of raw.split(/(\s+)/)) {
       const tryLine = line + word;
-      if (line && lineWidth(tryLine.trimEnd(), f) > maxWidth) {
+      if (line && wordsWidth(tryLine.trimEnd(), f, first, last) > maxWidth) {
         out.push(line.trimEnd());
+        first += countWords(line);
         line = word.trimStart();
       } else line = tryLine;
     }
     out.push(line.trimEnd());
+    first += countWords(line);
   }
   return out;
 }
 
+/** The width of each line, with each word in its own face. */
+export function lineWidths(lines: string[], f: TextFace): number[] {
+  const last = lines.reduce((n, l) => n + countWords(l), 0) - 1;
+  let first = 0;
+  return lines.map((l) => {
+    const w = wordsWidth(l, f, first, last);
+    first += countWords(l);
+    return w;
+  });
+}
+
+/** Text in capitals, but words in a second font keep the letters as said: a script word reads badly in capitals. */
+export function capitals(text: string, f: TextFace): string {
+  if (!mixed(f)) return text.toUpperCase();
+  const last = countWords(text) - 1;
+  let n = 0;
+  return text
+    .split(/(\s+)/)
+    .map((part) => (!part || /^\s+$/.test(part) ? part : faceFor(part, n++, last, f).fontFamily === f.font2 && f.font2 !== f.fontFamily ? part : part.toUpperCase()))
+    .join("");
+}
+
 /** The lines of a piece of text and the box that holds them. */
 export function layoutText(el: Pick<El, "text" | "width" | "textFixed"> & { caps?: boolean } & TextFace): { lines: string[]; width: number; height: number } {
-  const lines = wrapLines(el.caps ? el.text.toUpperCase() : el.text, el, el.textFixed ? el.width : undefined);
-  const widest = Math.max(0, ...lines.map((l) => lineWidth(l, el)));
+  const lines = wrapLines(el.caps ? capitals(el.text, el) : el.text, el, el.textFixed ? el.width : undefined);
+  const widest = Math.max(0, ...lineWidths(lines, el));
   return {
     lines,
     width: el.textFixed ? el.width : Math.max(8, Math.ceil(widest) + 2),
