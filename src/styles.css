@@ -12585,6 +12585,54 @@ button.ctx-item.store-make-option:hover {
 .captions-tile.on .captions-tile-name {
   color: var(--text);
 }
+/* a custom tile: the face picks it, the name renames it, the cross shows on hover */
+.captions-tile.custom {
+  position: relative;
+  cursor: default;
+}
+.captions-tile.custom .captions-tile-face {
+  width: 100%;
+  font: inherit;
+  cursor: pointer;
+}
+.captions-tile.custom.off {
+  opacity: 0.55;
+}
+.captions-tile.custom.off .captions-tile-face {
+  cursor: default;
+}
+.captions-tile.custom .captions-tile-name {
+  cursor: text;
+}
+.captions-tile-remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #ffffff;
+  font-size: 13px;
+  line-height: 20px;
+  padding: 0;
+  cursor: pointer;
+  opacity: 0;
+}
+.captions-tile.custom:hover .captions-tile-remove,
+.captions-tile-remove:focus-visible {
+  opacity: 1;
+}
+.captions-tile-rename {
+  font-size: 12px;
+  padding: 1px 2px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+}
 .look-sample {
   display: inline-flex;
   flex-wrap: wrap;
@@ -12691,6 +12739,32 @@ button.ctx-item.store-make-option:hover {
 .captions-tile:hover .look-sample i:first-child,
 .caption-look:hover .look-sample i:first-child {
   animation-play-state: running;
+}
+/* a custom look lights its words in its own colours, set on the sample */
+.sample-custom i {
+  color: var(--base);
+  background: var(--word-bg);
+  animation-name: lit-custom;
+}
+.sample-custom.boxed i {
+  animation-name: lit-custom-box;
+}
+.sample-custom:not(.lit) i {
+  animation-name: none;
+}
+.sample-custom.lit:not(.boxed) i:first-child { color: var(--lit); }
+.sample-custom.lit.boxed i:first-child { background: var(--lit); }
+.captions-tile.custom:hover .look-sample i,
+.captions-tile.custom:hover .look-sample i:first-child {
+  animation-play-state: running;
+}
+@keyframes lit-custom {
+  0% { color: var(--lit); }
+  34%, 100% { color: var(--base); }
+}
+@keyframes lit-custom-box {
+  0% { background: var(--lit); }
+  34%, 100% { background: var(--word-bg); }
 }
 @keyframes lit-yellow {
   0% { color: #ffe14d; }

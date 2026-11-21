@@ -8,7 +8,7 @@ import { CUT_MOVE_MAX, CUT_MOVE_MIN, CUT_MOVE_NAMES, CUT_MOVE_SECONDS, clipBefor
 import type { Blend, Comment, CommentMark, CutMoveKind, Doc, El, ElementType, Key, Layout, Moving, ShapeKey, TextStyle, Transcript } from "../document/types";
 import { fixWords, withWords, wordsOfEdit } from "../document/words";
 import type { WordFix } from "../document/words";
-import { CAPTION_LOOKS, CAPTIONS_TRACK, SPOKEN_COLOURS, boxedLook, captionChunks, captionMiddle, captionProps, captionRoom, captionText } from "../document/captions";
+import { CAPTION_LOOKS, CAPTION_STYLE, CAPTIONS_TRACK, SPOKEN_COLOURS, boxedLook, captionChunks, captionMiddle, captionProps, captionRoom, captionText, sizeLook } from "../document/captions";
 import type { CaptionLook } from "../document/captions";
 import { CURVES, ENTRANCES, entranceKeys, fileTimeAt, outlineOf, sceneOf, spanOf, valueAt, withKey, withShapeKey } from "../document/time";
 import type { CurveName, Entrance } from "../document/time";
@@ -2887,6 +2887,8 @@ export interface StyleCaptionsArgs {
   /** Captions or any other text. */
   ids: string[];
   look: CaptionLook;
+  /** A look the designer made instead of one of Duet's: its name and style at 1080. `look` is then ignored. */
+  custom?: { name: string; props: Partial<El> };
 }
 
 /**
@@ -2894,10 +2896,18 @@ export interface StyleCaptionsArgs {
  * moments its words are said, and a boxed look lights them in its own colour. Each one stays centred
  * where it was.
  */
+/** A custom look sized for a frame, on top of the plain caption settings, so nothing of the old look stays behind. */
+function customProps(style: Partial<El>, frame: { width: number; height: number }): Partial<El> {
+  const sized = sizeLook(structuredClone(style), Math.min(frame.width, frame.height) / 1080) as Record<string, unknown>;
+  const out = captionProps("bold", frame) as Record<string, unknown>;
+  for (const k of CAPTION_STYLE) out[k] = sized[k];
+  return out as Partial<El>;
+}
+
 const styleCaptions: CommandDef<StyleCaptionsArgs> = {
-  label: (a) => `Captions look: ${CAPTION_LOOKS.find((l) => l.key === a.look)?.name ?? "changed"}`,
+  label: (a) => `Captions look: ${a.custom?.name ?? CAPTION_LOOKS.find((l) => l.key === a.look)?.name ?? "changed"}`,
   run: (doc, a) => {
-    const found = CAPTION_LOOKS.find((l) => l.key === a.look);
+    const found = a.custom ? { key: "bold" as CaptionLook, lit: undefined } : CAPTION_LOOKS.find((l) => l.key === a.look);
     const ids = a.ids.filter((id) => doc.elements[id]?.type === "text" && !isDerived(id));
     if (!found || !ids.length) return doc;
     const next = clone(doc);
@@ -2905,14 +2915,17 @@ const styleCaptions: CommandDef<StyleCaptionsArgs> = {
       const el = next.elements[id];
       const parent = el.parentId ? next.elements[el.parentId] : null;
       const frame = parent ?? { width: 1080, height: 1080 };
-      const props = captionProps(found.key, frame);
+      const props = a.custom ? customProps(a.custom.props, frame) : captionProps(found.key, frame);
       const middle = el.y + el.height / 2;
       const centre = el.x + el.width / 2;
       for (const [k, v] of Object.entries(props)) {
         if (v === undefined) delete (el as unknown as Record<string, unknown>)[k];
         else (el as unknown as Record<string, unknown>)[k] = v;
       }
-      if (el.spoken?.length) {
+      if (a.custom) {
+        // a custom look's spoken colour, only on captions that have words to light
+        if (!el.spoken?.length) delete el.spokenFill;
+      } else if (el.spoken?.length) {
         if (found.lit) el.spokenFill = found.lit;
         else if (!el.spokenFill || CAPTION_LOOKS.some((l) => l.lit === el.spokenFill)) el.spokenFill = SPOKEN_COLOURS[0];
         // one word at a time has nothing to light

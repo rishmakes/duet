@@ -182,3 +182,51 @@ export function lookNow(el: El, frame: { width: number; height: number }): Capti
     p.fontFamily === el.fontFamily && p.fontSize === el.fontSize && p.fontWeight === el.fontWeight && (p.stroke ?? null) === (el.stroke ?? null) && !p.plate === !el.plate && !!p.plate?.each === !!el.plate?.each && (p.fill ?? "#ffffff") === el.fill;
   return CAPTION_LOOKS.find((l) => same(captionProps(l.key, frame)))?.key ?? null;
 }
+
+/** A caption style the designer made, kept on this computer: its name (none yet shows as "Custom") and its style at 1080. */
+export interface CustomLook {
+  id: string;
+  name: string | null;
+  props: Partial<El>;
+}
+
+/** A caption style sized by k: a custom look is kept at 1080 and grows or shrinks to the video it is used on. */
+export function sizeLook(props: Partial<El>, k: number): Partial<El> {
+  const px = (n: number | undefined) => (n === undefined ? undefined : Math.max(0, Math.round(n * k * 100) / 100));
+  const out: Partial<El> = { ...props };
+  if (props.fontSize !== undefined) out.fontSize = Math.max(1, px(props.fontSize)!);
+  if (props.letterSpacing !== undefined) out.letterSpacing = px(props.letterSpacing);
+  if (props.strokeWidth !== undefined) out.strokeWidth = px(props.strokeWidth);
+  if (props.shadow) out.shadow = { ...props.shadow, x: px(props.shadow.x)!, y: px(props.shadow.y)!, blur: px(props.shadow.blur)! };
+  if (props.plate) out.plate = { ...props.plate, radius: px(props.plate.radius)!, padX: px(props.plate.padX)!, padY: px(props.plate.padY)! };
+  return out;
+}
+
+/** A caption's style, only what makes its look, sized for 1080. */
+export function lookOf(el: El, frame: { width: number; height: number }): Partial<El> {
+  const style: Record<string, unknown> = {};
+  for (const k of CAPTION_STYLE) if ((el as unknown as Record<string, unknown>)[k] !== undefined) style[k] = structuredClone((el as unknown as Record<string, unknown>)[k]);
+  return sizeLook(style as Partial<El>, 1080 / Math.min(frame.width, frame.height));
+}
+
+/** Whether two styles are the same look; sizes may differ by rounding after a trip through a video of another size. */
+export function sameLook(a: unknown, b: unknown): boolean {
+  if (typeof a === "number" && typeof b === "number") return Math.abs(a - b) < 0.6;
+  if (!a || !b || typeof a !== "object" || typeof b !== "object") return (a ?? null) === (b ?? null);
+  const ra = a as Record<string, unknown>;
+  const rb = b as Record<string, unknown>;
+  const keys = new Set([...Object.keys(ra), ...Object.keys(rb)]);
+  for (const k of keys) if (!sameLook(ra[k], rb[k])) return false;
+  return true;
+}
+
+/**
+ * The custom looks after the captions took a style. A style that is already a look changes nothing;
+ * otherwise it goes into the one unnamed Custom look, made first if there is none.
+ */
+export function keepCustom(looks: CustomLook[], props: Partial<El>, id: () => string): CustomLook[] {
+  if (looks.some((l) => sameLook(l.props, props))) return looks;
+  const open = looks.find((l) => l.name === null);
+  if (open) return looks.map((l) => (l === open ? { ...l, props } : l));
+  return [{ id: id(), name: null, props }, ...looks];
+}

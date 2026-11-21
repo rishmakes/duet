@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { runCommand } from "./index";
 import { emptyDoc } from "../document/types";
 import type { Doc } from "../document/types";
-import { captionChunks, captionMates, captionWords, captionsIn, lookNow } from "../document/captions";
+import { captionChunks, captionMates, captionWords, captionsIn, keepCustom, lookNow, lookOf, sameLook } from "../document/captions";
 import { wordsOfEdit } from "../document/words";
 
 // "so today we um talk about money" with a long pause after "today"
@@ -179,6 +179,35 @@ describe("caption looks", () => {
     expect(lookNow(doc.elements[ids[0]], doc.elements.f)).toBe("box");
     doc = runCommand(doc, "set_props", { ids, props: { fontSize: 99 } });
     expect(lookNow(doc.elements[ids[0]], doc.elements.f)).toBeNull();
+  });
+  it("a custom look lands on captions of any size, scaled to the video, and replaces the old look fully", () => {
+    let doc = runCommand(talk(), "add_captions", { sceneId: "f", look: "pill", per: 3 });
+    const ids = captionsIn(doc, "f");
+    doc = runCommand(doc, "set_props", { ids, props: { fill: "#00ff00", fontSize: 100, plate: undefined } });
+    const props = lookOf(doc.elements[ids[0]], doc.elements.f);
+    expect(props).toMatchObject({ fill: "#00ff00", fontSize: 100 });
+    // a video half the size gets captions half the size, and nothing of Box stays behind
+    let small = runCommand(emptyDoc(), "create_element", { type: "frame", id: "s", x: 0, y: 0, width: 540, height: 960 });
+    small = runCommand(small, "create_element", { type: "text", id: "t", parentId: "s", x: 0, y: 0, width: 100, height: 20, props: { text: "Hi" } });
+    small = runCommand(small, "style_captions", { ids: ["t"], look: "box" });
+    const out = runCommand(small, "style_captions", { ids: ["t"], look: "bold", custom: { name: "Mine", props } }).elements.t;
+    expect(out).toMatchObject({ fill: "#00ff00", fontSize: 50 });
+    expect(out.plate).toBeUndefined();
+    expect(out.spokenBox).toBeUndefined();
+    expect(sameLook(lookOf(out, small.elements.s), props)).toBe(true);
+  });
+  it("keeps one Custom look that follows the captions until it is named", () => {
+    let n = 0;
+    const id = () => `l${++n}`;
+    let looks = keepCustom([], { fontSize: 60 }, id);
+    expect(looks).toEqual([{ id: "l1", name: null, props: { fontSize: 60 } }]);
+    looks = keepCustom(looks, { fontSize: 70 }, id);
+    expect(looks).toEqual([{ id: "l1", name: null, props: { fontSize: 70 } }]);
+    // a style that already is a look changes nothing, even off by rounding
+    expect(keepCustom(looks, { fontSize: 70.2 }, id)).toBe(looks);
+    looks = [{ ...looks[0], name: "Mine" }];
+    looks = keepCustom(looks, { fontSize: 80 }, id);
+    expect(looks.map((l) => [l.name, l.props.fontSize])).toEqual([[null, 80], ["Mine", 70]]);
   });
   it("leaves out sound tags and a word said twice in a row", () => {
     const heard = ["[music]", "go", "there", "There,", "*pew*", "(laughs)", "now", "♪"].map((w, i) => ({ w, s: i, e: i + 0.5, clip: "v", src: "/a.mp4" }));
