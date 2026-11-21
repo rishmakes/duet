@@ -884,6 +884,15 @@ pub fn run() {
                 use tauri::Manager;
                 for window in app.webview_windows().values() {
                     let _ = window.set_title("Duet dev");
+                    // opens on the laptop's own screen, so it stays out of the way of the Duet on the big one
+                    let built_in = window.available_monitors().unwrap_or_default().into_iter().find(|m| {
+                        m.name().is_some_and(|n| n.contains("Built-in") || n.contains("Color LCD"))
+                    });
+                    if let Some(m) = built_in {
+                        let p = m.position();
+                        let _ = window.set_position(tauri::PhysicalPosition::new(p.x + 40, p.y + 40));
+                        let _ = window.maximize();
+                    }
                 }
             }
             ai::start(app.handle()).map_err(|e| format!("Could not start the agent bridge: {e}"))?;
