@@ -39,7 +39,7 @@ How to check a change:
 1. dev_test_design puts the open project away and starts a clean design with no file. Nothing in it is ever saved. Pass sample true for a frame that holds a shape and a group, with a plain shape beside it.
 2. Change the design with the ordinary tools (create_element, set_props and so on) if the check needs more on the canvas.
 3. dev_read_interface says what the panels show, as numbered lines of words. Pass filter to see only lines with a word in them.
-4. dev_press presses something by its name or by its line number. dev_type writes in a box. dev_key presses a key.
+4. dev_press presses something by its name or by its line number. dev_type writes in a box. dev_key presses a key. dev_slide drags a slider and times it.
 5. Read the interface again to see what changed. Line numbers are only good until the next read.
 5b. dev_look_at_window gives a picture of the whole Duet window, drawn by Duet itself, without the DEV tag (so it looks like the real Duet; the tag stays on the real window). Use it to see how a change looks, and as the starting point of any mockup: start from what is really there, never from a guess.
 6. dev_history lists the last steps and who made each one. dev_errors lists what went wrong since the last look.
@@ -86,6 +86,11 @@ export const BUILDER_TOOLS: ToolDef[] = [
     name: "dev_type",
     description: "Builder tool. Write in a box, replacing what is in it.",
     inputSchema: { type: "object", properties: { ...which, text: str, enter: { ...bool, description: "True to press Enter after." } }, required: ["text"] },
+  },
+  {
+    name: "dev_slide",
+    description: "Builder tool. Drag a slider as a hand would: from where it is to `to`, about 60 moves a second for `ms` milliseconds (600 if left out), then let go. Answers how long each move took to handle and to reach the screen, so a lag can be measured.",
+    inputSchema: { type: "object", properties: { ...which, to: num, ms: num }, required: ["to"] },
   },
   {
     name: "dev_key",
@@ -395,6 +400,61 @@ async function type(a: Args): Promise<ToolResult> {
   return { text: `Wrote in "${nameOf(el)}".` };
 }
 
+/** Drags a slider in steps, timing each one: the work it caused, and when the screen next drew. */
+async function slide(a: Args): Promise<ToolResult> {
+  const el = find(a);
+  if (typeof el === "string") return fail(el);
+  if (!(el instanceof HTMLInputElement) || el.type !== "range") return fail(`"${nameOf(el)}" is not a slider.`);
+  const from = Number(el.value);
+  const to = Number(a.to);
+  if (!Number.isFinite(to)) return fail("Say where to slide to.");
+  const steps = Math.max(2, Math.round((typeof a.ms === "number" && a.ms > 0 ? a.ms : 600) / 16));
+  const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+  const work: number[] = [];
+  const paint: number[] = [];
+  const layout: number[] = [];
+  // a ticker that runs whenever the page is free: a long gap means the page itself was busy, not the screen
+  let busy = 0;
+  let last = performance.now();
+  let ticking = true;
+  const tick = () => {
+    const now = performance.now();
+    busy = Math.max(busy, now - last);
+    last = now;
+    if (ticking) setTimeout(tick, 4);
+  };
+  tick();
+  el.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+  for (let i = 1; i <= steps; i++) {
+    const sent = performance.now();
+    setValue.call(el, String(from + ((to - from) * i) / steps));
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    work.push(performance.now() - sent);
+    const lay = performance.now();
+    void document.body.offsetHeight; // style and layout, which the browser would otherwise do just before drawing
+    layout.push(performance.now() - lay);
+    // the next frame the screen draws; a hidden window may draw none, so never wait more than a second
+    await new Promise<void>((done) => {
+      const t = setTimeout(done, 1000);
+      requestAnimationFrame(() => {
+        clearTimeout(t);
+        done();
+      });
+    });
+    paint.push(performance.now() - sent);
+    await new Promise((r) => setTimeout(r, Math.max(0, 16 - (performance.now() - sent))));
+  }
+  el.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+  ticking = false;
+  await settle();
+  const avg = (l: number[]) => Math.round(l.reduce((x, y) => x + y, 0) / l.length);
+  const most = (l: number[]) => Math.round(Math.max(...l));
+  const slow = paint.filter((p) => p > 50).length;
+  return {
+    text: `Slid "${nameOf(el)}" from ${from} to ${el.value} in ${steps} moves. Work per move: ${avg(work)} ms on average, ${most(work)} ms at most. Move to screen: ${avg(paint)} ms on average, ${most(paint)} ms at most; ${slow} of ${steps} took over 50 ms (smooth is under 17). Style and layout per move: ${avg(layout)} ms on average, ${most(layout)} ms at most. Longest the page was busy: ${Math.round(busy)} ms.`,
+  };
+}
+
 async function key(a: Args): Promise<ToolResult> {
   const name = String(a.key ?? "");
   if (!name) return fail("Say which key.");
@@ -611,6 +671,7 @@ export async function callBuilderTool(name: string, raw: unknown, by?: string): 
   }
   if (name === "dev_type") return type(a);
   if (name === "dev_key") return key(a);
+  if (name === "dev_slide") return slide(a);
   if (name === "dev_drag") return drag(a);
   if (name === "dev_drag_clip") return dragClip(a);
   if (name === "dev_drop_footage") return dropFootage(a);
