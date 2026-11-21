@@ -13211,6 +13211,13 @@ button.ctx-item.store-make-option:hover {
 .cz-fold-body {
   padding-bottom: 14px;
 }
+/* on white the rows need a firmer title and a line that shows; dark is clear as it is */
+[data-theme="light"] .cz-fold {
+  border-bottom-color: var(--line);
+}
+[data-theme="light"] .cz-fold-head {
+  font-weight: 600;
+}
 .cz-fold-body > .cz-row:first-child {
   margin-top: 0;
 }
