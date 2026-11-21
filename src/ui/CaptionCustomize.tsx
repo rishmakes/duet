@@ -200,7 +200,11 @@ export default function CaptionCustomize({ top }: { top: ReactNode }) {
         {lights && (
           <div className="cz-row">
             <div className="cz-label">Spoken word</div>
-            <Dots value={first.spokenFill} colours={SPOKEN_COLOURS} none name="spoken" onPick={(c) => set({ spokenFill: c ?? "" }, c ? "Light the spoken word" : "Stop lighting the spoken word")} />
+            <div className="cz-colour">
+              <Dots value={first.spokenFill} colours={SPOKEN_COLOURS} none name="spoken" onPick={(c) => set({ spokenFill: c ?? "" }, c ? "Light the spoken word" : "Stop lighting the spoken word")} />
+              {/* any colour, once the spoken word is lit */}
+              {first.spokenFill && <ColorField value={first.spokenFill} onCommit={(c) => c && set({ spokenFill: c }, "Change spoken word colour")} onPreview={(c) => preview({ spokenFill: c })} />}
+            </div>
           </div>
         )}
 
@@ -285,7 +289,7 @@ export default function CaptionCustomize({ top }: { top: ReactNode }) {
         )}
       </Fold>
 
-      <Fold title="Position and size" name="position">
+      <Fold title="Position" name="position">
         <Slide label="Height on screen, %" name="caption-height" value={middle} min={5} max={95} onPreview={() => undefined} onCommit={moveTo} />
         <div className="hint2">0 is the top of the video, 100 the bottom. Drag one caption on the video to move only that one.</div>
       </Fold>
