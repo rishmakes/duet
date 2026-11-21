@@ -177,6 +177,14 @@ export interface El {
   font2Words?: "last" | "short";
   /** Text only, a caption: its words in two even lines ("two"), or one word under another ("stack"). Left out to wrap only when it runs out of room. */
   breaks?: "two" | "stack";
+  /** Text only, a caption: a thick edge of this colour round the letters, like a cut-out sticker. */
+  sticker?: string;
+  /** Text only, a caption: a box drawn by hand in this colour round the words shown, growing as they arrive. */
+  drawnBox?: string;
+  /** Text only, a caption: 1 to 3 copies of the words stacked behind them, down and to the right, for depth. */
+  copies?: { n: number; color: string };
+  /** Text only, a caption: each letter in its own colour, round the rainbow. */
+  rainbow?: boolean;
   /** Text only, a caption: its words show as they are said, one by one ("word") or each with a small pop ("pop"). Left out for all at once. */
   arrive?: "word" | "pop";
   /** Drawing only, never saved: the seconds since the word being said started. */

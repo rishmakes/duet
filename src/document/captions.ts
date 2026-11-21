@@ -112,7 +112,7 @@ export function captionProps(look: CaptionLook, frame: { width: number; height: 
   const k = Math.min(frame.width, frame.height) / 1080;
   const px = (n: number) => Math.max(1, Math.round(n * k));
   const shadow = (y: number, blur: number): Shadow => ({ x: 0, y: px(y), blur: px(blur), color: "#000000" });
-  const base: Partial<El> = { fill: "#ffffff", textAlign: "center", textFixed: false, fontFamily: CAPTION_FONTS[look], lineHeight: 1.15, letterSpacing: 0, caps: true, plate: undefined, spokenBox: undefined, spokenBold: undefined, arrive: undefined, font2: undefined, font2Words: undefined, breaks: undefined, shadow: null, stroke: null, strokeWidth: 1 };
+  const base: Partial<El> = { fill: "#ffffff", textAlign: "center", textFixed: false, fontFamily: CAPTION_FONTS[look], lineHeight: 1.15, letterSpacing: 0, caps: true, plate: undefined, spokenBox: undefined, spokenBold: undefined, arrive: undefined, font2: undefined, font2Words: undefined, breaks: undefined, sticker: undefined, drawnBox: undefined, copies: undefined, rainbow: undefined, shadow: null, stroke: null, strokeWidth: 1 };
   const edge = (n: number): Partial<El> => ({ stroke: "#000000", strokeWidth: px(n) });
   switch (look) {
     case "outline":
@@ -143,7 +143,7 @@ export const captionMiddle = (frame: { width: number; height: number }) => Math.
 export const captionRoom = (frame: { width: number }) => Math.round(frame.width * 0.84);
 
 /** What makes a caption's look: changing one of these on a caption changes every caption in its video, so a video has one caption style. */
-export const CAPTION_STYLE = ["fill", "gradient", "stroke", "strokeWidth", "opacity", "blend", "effects", "fontSize", "fontFamily", "fontWeight", "lineHeight", "letterSpacing", "caps", "shadow", "plate", "spokenFill", "spokenBox", "spokenBold", "arrive", "font2", "font2Words", "breaks"] as const;
+export const CAPTION_STYLE = ["fill", "gradient", "stroke", "strokeWidth", "opacity", "blend", "effects", "fontSize", "fontFamily", "fontWeight", "lineHeight", "letterSpacing", "caps", "shadow", "plate", "spokenFill", "spokenBox", "spokenBold", "arrive", "font2", "font2Words", "breaks", "sticker", "drawnBox", "copies", "rainbow"] as const;
 
 /** Whether a text sits on its video's Captions track. */
 export function isCaption(doc: Doc, id: string): boolean {
@@ -179,7 +179,7 @@ export function captionsIn(doc: Doc, sceneId: string | null | undefined): string
 /** The look a caption has, while it still is one: once its font, size, weight, outline or box changes, it is the designer's own. */
 export function lookNow(el: El, frame: { width: number; height: number }): CaptionLook | null {
   const same = (p: Partial<El>) =>
-    p.fontFamily === el.fontFamily && p.fontSize === el.fontSize && p.fontWeight === el.fontWeight && (p.stroke ?? null) === (el.stroke ?? null) && !p.plate === !el.plate && !!p.plate?.each === !!el.plate?.each && (p.fill ?? "#ffffff") === el.fill;
+    p.fontFamily === el.fontFamily && p.fontSize === el.fontSize && p.fontWeight === el.fontWeight && (p.stroke ?? null) === (el.stroke ?? null) && !p.plate === !el.plate && !!p.plate?.each === !!el.plate?.each && (p.fill ?? "#ffffff") === el.fill && !el.sticker && !el.drawnBox && !el.copies && !el.rainbow;
   return CAPTION_LOOKS.find((l) => same(captionProps(l.key, frame)))?.key ?? null;
 }
 

@@ -494,6 +494,40 @@ export function popScale(since: number): number {
   return 0.5 + 0.5 * (1 + (c + 1) * u * u * u + c * u * u);
 }
 
+/** Rainbow caption letters, in order. */
+const RAINBOW = ["#ff5a5f", "#ff9f1c", "#ffe14d", "#4cd97b", "#38b6ff", "#a979ff"];
+
+/**
+ * A box drawn by hand with a pen round (x0, y0)-(x1, y1): each side a little bowed and running past the
+ * corners. The wobble comes from the caption's id, so it holds still from frame to frame.
+ */
+function penBox(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, color: string, size: number, id: string) {
+  let seed = 0;
+  for (const ch of id) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
+  const rand = () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 4294967296 - 0.5;
+  };
+  const wob = size * 0.14;
+  const over = size * 0.2;
+  const side = (ax: number, ay: number, bx: number, by: number) => {
+    ctx.moveTo(ax + rand() * wob, ay + rand() * wob);
+    ctx.quadraticCurveTo((ax + bx) / 2 + rand() * wob * 2, (ay + by) / 2 + rand() * wob * 2, bx + rand() * wob, by + rand() * wob);
+  };
+  ctx.save();
+  ctx.shadowColor = "transparent";
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(2, size * 0.09);
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  side(x0 - over, y0, x1 + over * 0.5, y0);
+  side(x1, y0 - over * 0.5, x1, y1 + over);
+  side(x1 + over * 0.5, y1, x0 - over, y1);
+  side(x0, y1 + over * 0.5, x0, y0 - over);
+  ctx.stroke();
+  ctx.restore();
+}
+
 /** Draw an element's body (fill, stroke, media, text, or children). */
 function drawElementBody(ctx: CanvasRenderingContext2D, doc: Doc, el: El, x: number, y: number) {
   if (el.type === "text") {
@@ -507,11 +541,16 @@ function drawElementBody(ctx: CanvasRenderingContext2D, doc: Doc, el: El, x: num
     // an outline round the letters, as captions have, so the words read on any footage: drawn first and twice
     // as wide, so the fill covers its inner half and the letters keep their shape
     const edge = el.stroke && el.strokeWidth > 0 ? el.strokeWidth : 0;
+    // a pass of the words in one flat colour behind the real ones, for a sticker edge or depth copies; null for the words themselves
+    let ghost: { color: string; edge: number } | null = null;
+    // rainbow letters: each letter the next colour, counted across the whole caption
+    let letter = 0;
     const write = (text: string, sx: number, sy: number) => {
-      if (edge) {
+      const width = ghost ? ghost.edge : edge;
+      if (width) {
         ctx.save();
-        ctx.strokeStyle = el.stroke!;
-        ctx.lineWidth = edge * 2;
+        ctx.strokeStyle = ghost ? ghost.color : el.stroke!;
+        ctx.lineWidth = width * 2;
         ctx.lineJoin = "round";
         ctx.miterLimit = 2;
         ctx.strokeText(text, sx, sy);
@@ -525,14 +564,15 @@ function drawElementBody(ctx: CanvasRenderingContext2D, doc: Doc, el: El, x: num
       }
       ctx.fillText(text, sx, sy);
     };
-    const run = (text: string, sx: number, sy: number) => {
-      if (!el.letterSpacing) {
+    const run = (text: string, sx: number, sy: number, rainbow = false) => {
+      if (!el.letterSpacing && !rainbow) {
         write(text, sx, sy);
         return;
       }
       // letter by letter, so the spacing shows on every computer
       let cx = sx;
       for (const ch of text) {
+        if (rainbow && ch.trim()) ctx.fillStyle = RAINBOW[letter++ % RAINBOW.length];
         write(ch, cx, sy);
         cx += ctx.measureText(ch).width + el.letterSpacing;
       }
@@ -593,41 +633,77 @@ function drawElementBody(ctx: CanvasRenderingContext2D, doc: Doc, el: El, x: num
         }),
       );
     }
+    if (el.drawnBox) {
+      // the box holds only the words shown so far, so it grows as they arrive
+      let n = 0;
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      placed.forEach((l, i) =>
+        l.words.forEach((wd) => {
+          if (n++ > upTo) return;
+          x0 = Math.min(x0, x + wd.at);
+          x1 = Math.max(x1, x + wd.at + wd.width);
+          y0 = Math.min(y0, top(i));
+          y1 = Math.max(y1, top(i) + tall);
+        }),
+      );
+      if (x1 > x0) penBox(ctx, x0 - el.fontSize * 0.35, y0 - el.fontSize * 0.25, x1 + el.fontSize * 0.35, y1 + el.fontSize * 0.2, el.drawnBox, el.fontSize, el.id);
+    }
     if (el.shadow) castShadow(ctx, el.shadow);
     // a caption: word by word, the one being said in its own colour, or bold, and words not said yet hidden
     const tinted = lit >= 0 && !el.spokenBox && !el.spokenBold;
     const bold = lit >= 0 && !!el.spokenBold;
-    let n = 0;
-    placed.forEach((l, i) => {
-      if (!tinted && !bold && !twoFaces && upTo === Infinity) {
-        ctx.fillStyle = el.fill;
-        run(l.line, x + l.dx, y + i * step);
-        return;
-      }
-      for (const wd of l.words) {
-        const at = n++;
-        if (at > upTo) continue;
-        const on = at === lit;
-        ctx.fillStyle = on && tinted ? el.spokenFill! : el.fill;
-        let wx = x + wd.at;
-        const face = on && bold ? { ...wd.face, fontWeight: 900 } : wd.face;
-        if (face !== el) ctx.font = fontCss(face);
-        // bolder, kept centred on its own place so the words beside it stay where they are
-        if (on && bold) wx += (wd.width - lineWidth(wd.text, face)) / 2;
-        const grow = el.arrive === "pop" && at === upTo ? popScale(el.litSince ?? 1) : 1;
-        if (grow !== 1) {
-          const cx = x + wd.at + wd.width / 2;
-          const cy = y + i * step + tall / 2;
-          ctx.save();
-          ctx.translate(cx, cy);
-          ctx.scale(grow, grow);
-          ctx.translate(-cx, -cy);
-          run(wd.text, wx, y + i * step);
-          ctx.restore();
-        } else run(wd.text, wx, y + i * step);
-        if (face !== el) ctx.font = fontCss(el);
-      }
-    });
+    const words = (ox: number, oy: number) => {
+      let n = 0;
+      letter = 0;
+      placed.forEach((l, i) => {
+        const ly = y + oy + i * step;
+        if (!tinted && !bold && !twoFaces && upTo === Infinity) {
+          ctx.fillStyle = ghost ? ghost.color : el.fill;
+          run(l.line, x + ox + l.dx, ly, !ghost && !!el.rainbow);
+          return;
+        }
+        for (const wd of l.words) {
+          const at = n++;
+          if (at > upTo) continue;
+          const on = at === lit;
+          ctx.fillStyle = ghost ? ghost.color : on && tinted ? el.spokenFill! : el.fill;
+          let wx = x + ox + wd.at;
+          const face = on && bold ? { ...wd.face, fontWeight: 900 } : wd.face;
+          if (face !== el) ctx.font = fontCss(face);
+          // bolder, kept centred on its own place so the words beside it stay where they are
+          if (on && bold) wx += (wd.width - lineWidth(wd.text, face)) / 2;
+          // the word being said keeps its own colour; the rest go round the rainbow
+          const rainbow = !ghost && !!el.rainbow && !(on && tinted);
+          const grow = el.arrive === "pop" && at === upTo ? popScale(el.litSince ?? 1) : 1;
+          if (grow !== 1) {
+            const cx = x + ox + wd.at + wd.width / 2;
+            const cy = ly + tall / 2;
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.scale(grow, grow);
+            ctx.translate(-cx, -cy);
+            run(wd.text, wx, ly, rainbow);
+            ctx.restore();
+          } else run(wd.text, wx, ly, rainbow);
+          if (face !== el) ctx.font = fontCss(el);
+          // a rainbow word still counts its letters, so the colours keep their places as words change
+          if (!rainbow && !ghost && el.rainbow) letter += wd.text.replace(/\s/g, "").length;
+        }
+      });
+    };
+    // behind the words: copies stacked down and to the right for depth, then a sticker's thick edge;
+    // the shadow falls once, from whatever is furthest back
+    const back: { color: string; edge: number; at: number }[] = [];
+    const deep = el.fontSize * 0.06;
+    if (el.copies) for (let c = Math.min(3, Math.max(1, el.copies.n)); c >= 1; c--) back.push({ color: el.copies.color, edge: edge + (el.sticker ? el.fontSize * 0.14 : 0), at: c * deep });
+    if (el.sticker) back.push({ color: el.sticker, edge: edge + el.fontSize * 0.14, at: 0 });
+    for (const b of back) {
+      ghost = b;
+      words(b.at, b.at);
+      ctx.shadowColor = "transparent";
+    }
+    ghost = null;
+    words(0, 0);
     return;
   }
 

@@ -94,11 +94,12 @@ function Pick<T extends string>({ value, options, onPick, name }: { value: T; op
 }
 
 /** A row of colour dots; any other colour is typed or picked in the field after them. */
-function Dots({ value, colours, onPick, none, name }: { value: string | null | undefined; colours: string[]; onPick: (c: string | null) => void; none?: boolean; name: string }) {
-  const now = (value ?? "").toLowerCase();
+function Dots({ value, colours, onPick, none, rainbow, name }: { value: string | null | undefined; colours: string[]; onPick: (c: string | null) => void; none?: boolean; rainbow?: { on: boolean; pick: () => void }; name: string }) {
+  const now = rainbow?.on ? "" : (value ?? "").toLowerCase();
   return (
     <div className="cz-dots">
       {none && <button type="button" className={`cz-dot none${!now ? " on" : ""}`} data-name={`${name}-none`} title="None" onClick={() => onPick(null)} />}
+      {rainbow && <button type="button" className={`cz-dot rainbow${rainbow.on ? " on" : ""}`} data-name={`${name}-rainbow`} title="Rainbow" onClick={rainbow.pick} />}
       {colours.map((c) => (
         <button key={c} type="button" className={`cz-dot${now === c ? " on" : ""}`} data-name={`${name}-${c.slice(1)}`} style={{ background: c }} title={c} onClick={() => onPick(c)} />
       ))}
@@ -165,6 +166,8 @@ export default function CaptionCustomize({ top }: { top: ReactNode }) {
   const setPlate = (p: Partial<Plate>, label: string) => plate && set({ plate: { ...plate, ...p } }, label);
   const shadow = first.shadow;
   const glow = !!shadow && !shadow.x && !shadow.y;
+  const copies = first.copies;
+  const shape = first.sticker ? "sticker" : first.drawnBox ? "drawn" : !plate ? "none" : plate.each ? "each" : "line";
   const setShadow = (p: Partial<Shadow>, label: string) => shadow && set({ shadow: { ...shadow, ...p } }, label);
   // how high the captions sit, as a share of the video's height, measured at their middle
   const middle = Math.round(((first.y + first.height / 2) / frame.height) * 100);
@@ -244,8 +247,14 @@ export default function CaptionCustomize({ top }: { top: ReactNode }) {
         <div className="cz-row">
           <div className="cz-label">Colour</div>
           <div className="cz-colour">
-            <Dots value={first.fill} colours={COLOURS} name="colour" onPick={(c) => c && set({ fill: c }, "Change caption colour")} />
-            <ColorField value={first.fill} onCommit={(c) => c && set({ fill: c }, "Change caption colour")} onPreview={(c) => preview({ fill: c })} />
+            <Dots
+              value={first.fill}
+              colours={COLOURS}
+              name="colour"
+              rainbow={{ on: !!first.rainbow, pick: () => !first.rainbow && set({ rainbow: true }, "Make the captions rainbow") }}
+              onPick={(c) => c && set({ fill: c, rainbow: undefined }, "Change caption colour")}
+            />
+            <ColorField value={first.fill} onCommit={(c) => c && set({ fill: c, rainbow: undefined }, "Change caption colour")} onPreview={(c) => preview({ fill: c, rainbow: undefined })} />
           </div>
         </div>
       </div>
@@ -284,13 +293,17 @@ export default function CaptionCustomize({ top }: { top: ReactNode }) {
       <Fold title="Shape around words" name="shape">
         <div className="cz-row">
           <Pick
-            value={!plate ? "none" : plate.each ? "each" : "line"}
+            value={shape}
             name="shape"
-            options={[["none", "None"], ["line", "Each line"], ["each", "Each word"]]}
+            options={[["none", "None"], ["line", "Each line"], ["each", "Each word"], ["sticker", "Sticker"], ["drawn", "Drawn box"]]}
             onPick={(v) =>
               set(
-                { plate: v === "none" ? undefined : { fill: plate?.fill ?? "#000000", radius: plate?.radius ?? px(12), padX: plate?.padX ?? px(16), padY: plate?.padY ?? px(8), each: v === "each" } },
-                v === "none" ? "Remove the shape around words" : "Put a shape around words",
+                {
+                  plate: v === "line" || v === "each" ? { fill: plate?.fill ?? "#000000", radius: plate?.radius ?? px(12), padX: plate?.padX ?? px(16), padY: plate?.padY ?? px(8), each: v === "each" } : undefined,
+                  sticker: v === "sticker" ? "#ffffff" : undefined,
+                  drawnBox: v === "drawn" ? "#ffe14d" : undefined,
+                },
+                v === "none" ? "Remove the shape around words" : v === "sticker" ? "Make the captions stickers" : v === "drawn" ? "Draw a box round the captions" : "Put a shape around words",
               )
             }
           />
@@ -304,6 +317,18 @@ export default function CaptionCustomize({ top }: { top: ReactNode }) {
             <Slide label="Corners" name="shape-corners" value={plate.radius} min={0} max={px(60)} onPreview={(n) => preview({ plate: { ...plate, radius: n } })} onCommit={(n) => setPlate({ radius: n }, "Change shape corners")} />
           </>
         )}
+        {first.sticker && (
+          <div className="cz-row">
+            <div className="cz-label">Sticker colour</div>
+            <ColorField value={first.sticker} onCommit={(c) => c && set({ sticker: c }, "Change sticker colour")} onPreview={(c) => preview({ sticker: c })} />
+          </div>
+        )}
+        {first.drawnBox && (
+          <div className="cz-row">
+            <div className="cz-label">Pen colour</div>
+            <ColorField value={first.drawnBox} onCommit={(c) => c && set({ drawnBox: c }, "Change box colour")} onPreview={(c) => preview({ drawnBox: c })} />
+          </div>
+        )}
       </Fold>
 
       <Fold title="Depth and glow" name="depth">
@@ -315,17 +340,32 @@ export default function CaptionCustomize({ top }: { top: ReactNode }) {
         <div className="cz-row">
           <div className="cz-label">Depth</div>
           <Pick
-            value={!shadow ? "none" : glow ? "glow" : "shadow"}
+            value={copies ? "copies" : !shadow ? "none" : glow ? "glow" : "shadow"}
             name="depth"
-            options={[["none", "None"], ["shadow", "Shadow"], ["glow", "Glow"]]}
+            options={[["none", "None"], ["shadow", "Shadow"], ["glow", "Glow"], ["copies", "Copies"]]}
             onPick={(v) =>
               set(
-                { shadow: v === "none" ? null : v === "glow" ? { x: 0, y: 0, blur: px(28), color: shadow?.color ?? "#b49cff" } : { x: 0, y: px(6), blur: px(10), color: shadow?.color ?? "#000000" } },
-                v === "none" ? "Remove the shadow" : v === "glow" ? "Make the captions glow" : "Give the captions a shadow",
+                {
+                  shadow: v === "none" || v === "copies" ? null : v === "glow" ? { x: 0, y: 0, blur: px(28), color: shadow?.color ?? "#b49cff" } : { x: 0, y: px(6), blur: px(10), color: shadow?.color ?? "#000000" },
+                  copies: v === "copies" ? { n: 2, color: "#2f7bff" } : undefined,
+                },
+                v === "none" ? "Remove the shadow" : v === "glow" ? "Make the captions glow" : v === "copies" ? "Stack copies behind the captions" : "Give the captions a shadow",
               )
             }
           />
         </div>
+        {copies && (
+          <>
+            <div className="cz-row">
+              <div className="cz-label">How many copies</div>
+              <Pick value={String(copies.n)} name="copies" options={[["1", "1"], ["2", "2"], ["3", "3"]]} onPick={(v) => set({ copies: { ...copies, n: Number(v) } }, "Change how many copies")} />
+            </div>
+            <div className="cz-row">
+              <div className="cz-label">Copies colour</div>
+              <ColorField value={copies.color} onCommit={(c) => c && set({ copies: { ...copies, color: c } }, "Change copies colour")} onPreview={(c) => preview({ copies: { ...copies, color: c } })} />
+            </div>
+          </>
+        )}
         {shadow && (
           <>
             <div className="cz-row">
