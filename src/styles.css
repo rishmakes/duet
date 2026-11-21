@@ -13214,3 +13214,13 @@ button.ctx-item.store-make-option:hover {
 .cz-fold-body > .cz-row:first-child {
   margin-top: 0;
 }
+.customize .font-picker input {
+  flex: 1;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 13px;
+}
