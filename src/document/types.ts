@@ -175,6 +175,8 @@ export interface El {
   /** Text only, a caption: a second font for some of its words, the last one or the short ones. */
   font2?: string;
   font2Words?: "last" | "short";
+  /** Text only, a caption: its words in two even lines ("two"), or one word under another ("stack"). Left out to wrap only when it runs out of room. */
+  breaks?: "two" | "stack";
   /** Text only, a caption: its words show as they are said, one by one ("word") or each with a small pop ("pop"). Left out for all at once. */
   arrive?: "word" | "pop";
   /** Drawing only, never saved: the seconds since the word being said started. */

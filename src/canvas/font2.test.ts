@@ -52,3 +52,13 @@ describe("capitals with a second font (#404)", () => {
     expect(capitals("make it", face)).toBe("MAKE IT");
   });
 });
+
+describe("caption lines (#404)", () => {
+  it("puts one word under another, or two even lines", async () => {
+    const { breakWords } = await import("./text");
+    expect(breakWords("be a doer", face, "stack")).toBe("be\na\ndoer");
+    expect(breakWords("one two three four", face, "two")).toBe("one two\nthree four");
+    expect(breakWords("alone", face, "two")).toBe("alone");
+    expect(breakWords("as it is", face, undefined)).toBe("as it is");
+  });
+});

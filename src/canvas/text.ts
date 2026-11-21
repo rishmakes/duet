@@ -159,9 +159,32 @@ export function capitals(text: string, f: TextFace): string {
     .join("");
 }
 
+/**
+ * A caption's words broken into lines on purpose: two even lines, or one word under another. Lines that
+ * are still too wide wrap after this.
+ */
+export function breakWords(text: string, f: TextFace, breaks: "two" | "stack" | undefined): string {
+  if (!breaks) return text;
+  const words = text.split(/\s+/).filter(Boolean);
+  if (breaks === "stack") return words.join("\n");
+  if (words.length < 2) return text;
+  const last = words.length - 1;
+  // the split where the longer line is shortest
+  let best = 1;
+  let bestW = Infinity;
+  for (let i = 1; i < words.length; i++) {
+    const w = Math.max(wordsWidth(words.slice(0, i).join(" "), f, 0, last), wordsWidth(words.slice(i).join(" "), f, i, last));
+    if (w < bestW) {
+      bestW = w;
+      best = i;
+    }
+  }
+  return `${words.slice(0, best).join(" ")}\n${words.slice(best).join(" ")}`;
+}
+
 /** The lines of a piece of text and the box that holds them. */
-export function layoutText(el: Pick<El, "text" | "width" | "textFixed"> & { caps?: boolean } & TextFace): { lines: string[]; width: number; height: number } {
-  const lines = wrapLines(el.caps ? capitals(el.text, el) : el.text, el, el.textFixed ? el.width : undefined);
+export function layoutText(el: Pick<El, "text" | "width" | "textFixed"> & { caps?: boolean; breaks?: "two" | "stack" } & TextFace): { lines: string[]; width: number; height: number } {
+  const lines = wrapLines(breakWords(el.caps ? capitals(el.text, el) : el.text, el, el.breaks), el, el.textFixed ? el.width : undefined);
   const widest = Math.max(0, ...lineWidths(lines, el));
   return {
     lines,

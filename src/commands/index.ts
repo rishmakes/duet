@@ -8,7 +8,7 @@ import { CUT_MOVE_MAX, CUT_MOVE_MIN, CUT_MOVE_NAMES, CUT_MOVE_SECONDS, clipBefor
 import type { Blend, Comment, CommentMark, CutMoveKind, Doc, El, ElementType, Key, Layout, Moving, ShapeKey, TextStyle, Transcript } from "../document/types";
 import { fixWords, withWords, wordsOfEdit } from "../document/words";
 import type { WordFix } from "../document/words";
-import { CAPTION_LOOKS, CAPTION_STYLE, CAPTIONS_TRACK, SPOKEN_COLOURS, boxedLook, captionChunks, captionMiddle, captionProps, captionRoom, captionText, sizeLook } from "../document/captions";
+import { CAPTION_LOOKS, CAPTION_STYLE, CAPTIONS_TRACK, SPOKEN_COLOURS, boxedLook, captionChunks, captionMiddle, captionProps, captionRoom, captionText, captionsIn, sizeLook } from "../document/captions";
 import type { CaptionLook } from "../document/captions";
 import { CURVES, ENTRANCES, entranceKeys, fileTimeAt, outlineOf, sceneOf, spanOf, valueAt, withKey, withShapeKey } from "../document/time";
 import type { CurveName, Entrance } from "../document/time";
@@ -375,7 +375,7 @@ export interface SetPropsArgs {
   label?: string;
 }
 
-const TEXT_LOOK = ["text", "fontSize", "fontFamily", "fontWeight", "lineHeight", "letterSpacing", "textFixed", "font2", "font2Words", "caps"];
+const TEXT_LOOK = ["text", "fontSize", "fontFamily", "fontWeight", "lineHeight", "letterSpacing", "textFixed", "font2", "font2Words", "caps", "breaks"];
 
 /**
  * Turn a group. A group has no body of its own, so everything inside it is swung around the middle
@@ -2882,6 +2882,58 @@ const addCaptions: CommandDef<AddCaptionsArgs> = {
   },
 };
 
+// ---- split_captions ----
+export interface SplitCaptionsArgs {
+  /** The frame that plays. */
+  sceneId: string;
+  /** How many words each caption holds, 1 to 6. */
+  per: number;
+}
+
+/**
+ * Split a video's captions again with another number of words each (#404), from the words heard in the
+ * stretch they cover. Their style and height stay; words fixed in the Words panel come along, text typed
+ * on a caption by hand goes back to what was heard.
+ */
+const splitCaptions: CommandDef<SplitCaptionsArgs> = {
+  label: (a) => `Captions of ${a.per} word${a.per === 1 ? "" : "s"}`,
+  run: (doc, a) => {
+    const f0 = scene(doc, a.sceneId);
+    const ids = captionsIn(doc, a.sceneId);
+    if (!f0 || !ids.length) return doc;
+    const old = ids.map((id) => doc.elements[id]);
+    const from = Math.min(...old.map((el) => spanOf(el, f0).start));
+    const to = Math.max(...old.map((el) => spanOf(el, f0).end));
+    const words = wordsOfEdit(doc, a.sceneId).filter((w) => w.s >= from - 0.05 && w.s < to);
+    const chunks = captionChunks(words, a.per);
+    if (!chunks.length) return doc;
+    // the style of a caption that lights its words, so a one-word caption does not lose the spoken colour
+    const model = old.find((el) => el.spokenFill) ?? old[0];
+    const style: Record<string, unknown> = { textAlign: model.textAlign };
+    for (const k of CAPTION_STYLE) style[k] = (model as unknown as Record<string, unknown>)[k];
+    const keepMarks = old.some((el) => /[.,;:]/.test(el.text));
+    const middle = model.y + model.height / 2;
+    const centre = model.x + model.width / 2;
+    let next = deleteElements.run(clone(doc), { ids });
+    const f = next.elements[a.sceneId];
+    const made: string[] = [];
+    for (const c of chunks) {
+      const id = newId("text");
+      const text = keepMarks ? c.text : c.text.replace(/[.,;:]+(?=\s|$)/g, "");
+      next = createElement.run(next, { type: "text", id, parentId: a.sceneId, x: 0, y: 0, width: 10, height: 10, keepOrder: true, props: { name: `Caption: ${text.slice(0, 30)}`, text, start: c.start, end: c.end, track: model.track } });
+      const el = next.elements[id];
+      for (const [k, v] of Object.entries(style)) if (v !== undefined) (el as unknown as Record<string, unknown>)[k] = v;
+      if (style.spokenFill || style.arrive) el.spoken = c.spoken;
+      else delete el.spokenFill;
+      hugCaption(el, centre, captionRoom(f));
+      el.y = Math.round(middle - el.height / 2);
+      made.push(id);
+    }
+    stackByTrack(next, a.sceneId, made);
+    return next;
+  },
+};
+
 // ---- style_captions ----
 export interface StyleCaptionsArgs {
   /** Captions or any other text. */
@@ -3316,6 +3368,7 @@ export const commands = {
   ripple_delete: rippleDelete,
   cut_ranges: cutRanges,
   add_captions: addCaptions,
+  split_captions: splitCaptions,
   style_captions: styleCaptions,
   add_track: addTrack,
   rename_track: renameTrack,

@@ -158,6 +158,8 @@ export default function CaptionCustomize({ top }: { top: ReactNode }) {
   const k = Math.min(frame.width, frame.height) / 1080;
   const px = (n: number) => Math.max(1, Math.round(n * k));
   const lights = !!first.spoken?.length;
+  // how many words the captions hold now: the most any one of them has
+  const perNow = Math.min(6, Math.max(1, ...ids.map((id) => doc.elements[id].text.split(/\s+/).filter(Boolean).length)));
   const spoken = !first.spokenFill ? "none" : first.spokenBox ? "highlight" : first.spokenBold ? "bold" : "colour";
   const plate = first.plate;
   const setPlate = (p: Partial<Plate>, label: string) => plate && set({ plate: { ...plate, ...p } }, label);
@@ -249,6 +251,24 @@ export default function CaptionCustomize({ top }: { top: ReactNode }) {
       </div>
 
       <Fold title="Lines and alignment" name="lines">
+        <div className="cz-row">
+          <div className="cz-label">Words on screen</div>
+          <Pick
+            value={String(perNow)}
+            name="per"
+            options={["1", "2", "3", "4", "5", "6"].map((n) => [n, n] as [string, string])}
+            onPick={(v) => sceneId && dispatch("split_captions", { sceneId, per: Number(v) })}
+          />
+        </div>
+        <div className="cz-row">
+          <div className="cz-label">Lines</div>
+          <Pick
+            value={first.breaks ?? "fit"}
+            name="breaks"
+            options={[["fit", "Fit"], ["two", "Two lines"], ["stack", "Word under word"]]}
+            onPick={(v) => set({ breaks: v === "fit" ? undefined : v }, v === "stack" ? "One word under another" : v === "two" ? "Captions in two lines" : "Captions fit their room")}
+          />
+        </div>
         <div className="cz-row">
           <div className="cz-label">Alignment</div>
           <Pick value={first.textAlign} name="align" options={[["left", "Left"], ["center", "Centre"], ["right", "Right"]]} onPick={(textAlign) => set({ textAlign }, "Change caption alignment")} />

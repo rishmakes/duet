@@ -214,3 +214,29 @@ describe("caption looks", () => {
     expect(captionWords(heard as never).map((w) => w.w)).toEqual(["go", "there", "now"]);
   });
 });
+
+describe("captions split again with another number of words (#404)", () => {
+  it("makes captions of the new size, keeping their style, height and spoken colour", () => {
+    let doc = runCommand(talk(), "add_captions", { sceneId: "f", look: "bold", per: 3, spokenFill: "#ffe14d" });
+    doc = runCommand(doc, "set_props", { ids: captionsIn(doc, "f"), props: { fill: "#e5383b", breaks: "stack" } });
+    const before = captions(doc)[0];
+    doc = runCommand(doc, "split_captions", { sceneId: "f", per: 1 });
+    const after = captions(doc);
+    expect(after.map((c) => c.text)).toEqual(["So", "today", "we", "um", "talk", "about", "money"]);
+    expect(after.every((c) => c.fill === "#e5383b" && c.breaks === "stack" && c.fontFamily === before.fontFamily)).toBe(true);
+    expect(Math.round(after[0].y + after[0].height / 2)).toBe(Math.round(before.y + before.height / 2));
+    expect(after.every((c) => c.spokenFill === "#ffe14d" && c.spoken?.length === 1)).toBe(true);
+    expect(captionsIn(doc, "f")).toHaveLength(7);
+  });
+
+  it("goes back to more words at once", () => {
+    let doc = runCommand(talk(), "add_captions", { sceneId: "f", look: "bold", per: 1 });
+    doc = runCommand(doc, "split_captions", { sceneId: "f", per: 6 });
+    expect(captions(doc).map((c) => c.text)).toEqual(["So today", "we um talk about money"]);
+  });
+
+  it("does nothing to a video with no captions", () => {
+    const doc = talk();
+    expect(runCommand(doc, "split_captions", { sceneId: "f", per: 2 })).toBe(doc);
+  });
+});
