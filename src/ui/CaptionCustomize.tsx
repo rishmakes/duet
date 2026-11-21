@@ -154,6 +154,7 @@ export default function CaptionCustomize({ top }: { top: ReactNode }) {
   const k = Math.min(frame.width, frame.height) / 1080;
   const px = (n: number) => Math.max(1, Math.round(n * k));
   const lights = !!first.spoken?.length;
+  const spoken = !first.spokenFill ? "none" : first.spokenBox ? "highlight" : first.spokenBold ? "bold" : "colour";
   const plate = first.plate;
   const setPlate = (p: Partial<Plate>, label: string) => plate && set({ plate: { ...plate, ...p } }, label);
   const shadow = first.shadow;
@@ -183,11 +184,36 @@ export default function CaptionCustomize({ top }: { top: ReactNode }) {
         {lights && (
           <div className="cz-row">
             <div className="cz-label">Spoken word</div>
-            <div className="cz-colour">
-              <Dots value={first.spokenFill} colours={SPOKEN_COLOURS} none name="spoken" onPick={(c) => set({ spokenFill: c ?? "" }, c ? "Light the spoken word" : "Stop lighting the spoken word")} />
-              {/* any colour, once the spoken word is lit */}
-              {first.spokenFill && <ColorField value={first.spokenFill} onCommit={(c) => c && set({ spokenFill: c }, "Change spoken word colour")} onPreview={(c) => preview({ spokenFill: c })} />}
-            </div>
+            <Pick
+              value={spoken}
+              name="spoken-way"
+              options={[["none", "None"], ["colour", "Colour"], ["highlight", "Highlight"], ["bold", "Bold"]]}
+              onPick={(v) =>
+                set(
+                  { spokenFill: v === "none" ? "" : first.spokenFill || SPOKEN_COLOURS[0], spokenBox: v === "highlight", spokenBold: v === "bold" },
+                  v === "none" ? "Stop lighting the spoken word" : v === "bold" ? "Make the spoken word bold" : v === "highlight" ? "Highlight the spoken word" : "Light the spoken word",
+                )
+              }
+            />
+            {/* the colour it is lit in, or the box behind it */}
+            {(spoken === "colour" || spoken === "highlight") && (
+              <div className="cz-colour">
+                <Dots value={first.spokenFill} colours={SPOKEN_COLOURS} name="spoken" onPick={(c) => c && set({ spokenFill: c }, "Change spoken word colour")} />
+                <ColorField value={first.spokenFill!} onCommit={(c) => c && set({ spokenFill: c }, "Change spoken word colour")} onPreview={(c) => preview({ spokenFill: c })} />
+              </div>
+            )}
+          </div>
+        )}
+
+        {lights && (
+          <div className="cz-row">
+            <div className="cz-label">Words arrive</div>
+            <Pick
+              value={first.arrive ?? "all"}
+              name="arrive"
+              options={[["all", "All at once"], ["word", "One by one"], ["pop", "Pop in"]]}
+              onPick={(v) => set({ arrive: v === "all" ? undefined : v }, v === "all" ? "Show caption words all at once" : v === "pop" ? "Pop caption words in" : "Show caption words one by one")}
+            />
           </div>
         )}
 

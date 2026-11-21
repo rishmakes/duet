@@ -170,6 +170,12 @@ export interface El {
   plate?: Plate;
   /** Text only, a caption: the word being said gets a box of spokenFill behind it, instead of turning that colour. */
   spokenBox?: boolean;
+  /** Text only, a caption: the word being said turns bold, in the caption's own colour. */
+  spokenBold?: boolean;
+  /** Text only, a caption: its words show as they are said, one by one ("word") or each with a small pop ("pop"). Left out for all at once. */
+  arrive?: "word" | "pop";
+  /** Drawing only, never saved: the seconds since the word being said started. */
+  litSince?: number;
   /** Text only: shown in capitals, while the words stay as they were typed. */
   caps?: boolean;
   /** A drop shadow behind the shape, or null for none. */

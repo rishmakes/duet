@@ -484,6 +484,15 @@ const BLEND_OP: Record<Blend, GlobalCompositeOperation> = {
 /** The text being typed into right now on the canvas, if any. Set only while the editor's canvas is painted. */
 let typingId: string | null = null;
 
+/** How big a word that pops in is drawn, `since` seconds after it is said: from half its size, a touch past full, then settled. */
+export function popScale(since: number): number {
+  const t = Math.min(1, Math.max(0, since / 0.18));
+  if (t >= 1) return 1;
+  const c = 1.70158;
+  const u = t - 1;
+  return 0.5 + 0.5 * (1 + (c + 1) * u * u * u + c * u * u);
+}
+
 /** Draw an element's body (fill, stroke, media, text, or children). */
 function drawElementBody(ctx: CanvasRenderingContext2D, doc: Doc, el: El, x: number, y: number) {
   if (el.type === "text") {
@@ -528,6 +537,8 @@ function drawElementBody(ctx: CanvasRenderingContext2D, doc: Doc, el: El, x: num
       }
     };
     const lit = el.lit !== undefined && el.spokenFill ? el.lit : -1;
+    // words that arrive as they are said: the last one shown is the one being said
+    const upTo = el.arrive && el.lit !== undefined ? el.lit : Infinity;
     // where each word of each line sits, for boxes behind them and for lighting the one being said
     const placed = lines.map((line) => {
       const w = lineWidth(line, el);
@@ -549,12 +560,13 @@ function drawElementBody(ctx: CanvasRenderingContext2D, doc: Doc, el: El, x: num
     };
     const tall = el.fontSize * 1.15;
     const top = (i: number) => y + i * step;
+    let shown = 0;
     if (el.plate) {
       const p = el.plate;
       ctx.fillStyle = p.fill;
       placed.forEach((l, i) => {
         if (!l.words.length) return;
-        if (p.each) for (const wd of l.words) box(x + wd.at - p.padX, top(i) - p.padY, wd.width + p.padX * 2, tall + p.padY * 2, p.radius);
+        if (p.each) for (const wd of l.words) if (shown++ <= upTo) box(x + wd.at - p.padX, top(i) - p.padY, wd.width + p.padX * 2, tall + p.padY * 2, p.radius);
         else box(x + l.dx - p.padX, top(i) - p.padY, l.w + p.padX * 2, tall + p.padY * 2, p.radius);
       });
     }
@@ -564,23 +576,49 @@ function drawElementBody(ctx: CanvasRenderingContext2D, doc: Doc, el: El, x: num
       const pad = el.fontSize * 0.12;
       placed.forEach((l, i) =>
         l.words.forEach((wd) => {
-          if (n++ === lit) box(x + wd.at - pad, top(i) - pad * 0.6, wd.width + pad * 2, tall + pad * 1.2, el.plate?.radius ?? pad);
+          if (n++ !== lit) return;
+          // a word that pops in brings its box with it
+          const grow = el.arrive === "pop" ? popScale(el.litSince ?? 1) : 1;
+          const bw = (wd.width + pad * 2) * grow;
+          const bh = (tall + pad * 1.2) * grow;
+          box(x + wd.at + wd.width / 2 - bw / 2, top(i) + tall / 2 - bh / 2, bw, bh, el.plate?.radius ?? pad);
         }),
       );
     }
     if (el.shadow) castShadow(ctx, el.shadow);
-    // a caption: word by word, the one being said in its own colour
+    // a caption: word by word, the one being said in its own colour, or bold, and words not said yet hidden
+    const tinted = lit >= 0 && !el.spokenBox && !el.spokenBold;
+    const bold = lit >= 0 && !!el.spokenBold;
     let n = 0;
     placed.forEach((l, i) => {
-      if (lit < 0 || el.spokenBox) {
+      if (!tinted && !bold && upTo === Infinity) {
         ctx.fillStyle = el.fill;
         run(l.line, x + l.dx, y + i * step);
         return;
       }
       for (const wd of l.words) {
-        ctx.fillStyle = n === lit ? el.spokenFill! : el.fill;
-        run(wd.text, x + wd.at, y + i * step);
-        n++;
+        const at = n++;
+        if (at > upTo) continue;
+        const on = at === lit;
+        ctx.fillStyle = on && tinted ? el.spokenFill! : el.fill;
+        let wx = x + wd.at;
+        if (on && bold) {
+          // bolder, kept centred on its own place so the words beside it stay where they are
+          ctx.font = fontCss({ ...el, fontWeight: 900 });
+          wx += (wd.width - lineWidth(wd.text, { ...el, fontWeight: 900 })) / 2;
+        }
+        const grow = el.arrive === "pop" && at === upTo ? popScale(el.litSince ?? 1) : 1;
+        if (grow !== 1) {
+          const cx = x + wd.at + wd.width / 2;
+          const cy = y + i * step + tall / 2;
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.scale(grow, grow);
+          ctx.translate(-cx, -cy);
+          run(wd.text, wx, y + i * step);
+          ctx.restore();
+        } else run(wd.text, wx, y + i * step);
+        if (on && bold) ctx.font = fontCss(el);
       }
     });
     return;

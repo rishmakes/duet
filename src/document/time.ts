@@ -148,14 +148,19 @@ export function elAt(el: El, t: number): El {
   return out;
 }
 
-/** A caption with the word being said at `since` seconds after it appears marked, to be drawn lit. */
-function litAt(el: El, since: number): El {
-  if (el.type !== "text" || !el.spoken?.length || !el.spokenFill) return el;
+/**
+ * A caption with the word being said at `since` seconds after it appears marked, to be drawn lit, and
+ * how long ago it started, for words that pop in. Before its first word, a caption whose words arrive
+ * one by one is marked too, so it shows none of them yet.
+ */
+export function litAt(el: El, since: number): El {
+  if (el.type !== "text" || !el.spoken?.length || (!el.spokenFill && !el.arrive)) return el;
   let lit = -1;
   el.spoken.forEach((s, i) => {
     if (since >= s - 0.001) lit = i;
   });
-  return lit < 0 ? el : { ...el, lit };
+  if (lit < 0) return el.arrive ? { ...el, lit } : el;
+  return { ...el, lit, litSince: since - el.spoken[lit] };
 }
 
 /**
