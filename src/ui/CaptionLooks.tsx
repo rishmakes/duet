@@ -1,5 +1,5 @@
 import { useStore, currentDoc, dispatch, getState } from "../state/store";
-import { useEffect } from "react";
+import { memo, useEffect } from "react";
 import { CAPTION_FONTS, CAPTION_LOOKS, captionsIn, lookNow } from "../document/captions";
 import { fetchFamily } from "../project/fonts";
 import type { CaptionLook } from "../document/captions";
@@ -33,7 +33,8 @@ export function useCaptionFonts() {
   }, []);
 }
 
-export default function CaptionsPanel() {
+/** Kept as it is while the panel around it redraws, so dragging a slider in Customize does not redraw every tile. */
+export default memo(function CaptionsPanel() {
   useCaptionFonts();
   const count = useStore((s) => captionsIn(currentDoc(s), s.clock.scene).length);
   // the look these captions have now, while it is still one of Duet's
@@ -67,4 +68,4 @@ export default function CaptionsPanel() {
       </div>
     </div>
   );
-}
+});

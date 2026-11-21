@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { dispatch, dragCancel, dragPreview, getState, useStore, workDoc } from "../state/store";
 import { SPOKEN_COLOURS, captionsIn } from "../document/captions";
@@ -17,13 +17,42 @@ const COLOURS = ["#ffffff", "#111013", "#e5383b", "#ffe14d", "#e6ff3d", "#2f7bff
 
 type Props = Partial<Omit<El, "id" | "type" | "parentId" | "childIds">>;
 
+/**
+ * Runs `fn` at most once per screen frame, with the newest value. A slider sends more changes than the
+ * screen can draw; each one redraws every caption, so without this they pile up and the captions trail
+ * behind the hand (#404). `cancel` drops a change still waiting, so none lands after letting go.
+ */
+export function oncePerFrame<T>(fn: (v: T) => void, frame: (cb: () => void) => number = requestAnimationFrame, unframe: (id: number) => void = cancelAnimationFrame) {
+  let waiting = 0;
+  let latest: T;
+  return {
+    run(v: T) {
+      latest = v;
+      if (!waiting)
+        waiting = frame(() => {
+          waiting = 0;
+          fn(latest);
+        });
+    },
+    cancel() {
+      if (waiting) unframe(waiting);
+      waiting = 0;
+    },
+  };
+}
+
 /** A value picked on a slider, or typed exactly in the box beside it. */
 function Slide({ label, value, min, max, step = 1, onPreview, onCommit, name }: { label: string; value: number; min: number; max: number; step?: number; onPreview: (n: number) => void; onCommit: (n: number) => void; name: string }) {
   const [typed, setTyped] = useState(String(value));
   useEffect(() => setTyped(String(value)), [value]);
   const [moving, setMoving] = useState<number | null>(null);
   const shown = moving ?? value;
+  const previewRef = useRef(onPreview);
+  previewRef.current = onPreview;
+  const [frame] = useState(() => oncePerFrame<number>((n) => previewRef.current(n)));
+  useEffect(() => frame.cancel, [frame]);
   const commit = (n: number) => {
+    frame.cancel();
     setMoving(null);
     if (Number.isFinite(n) && n !== value) onCommit(n);
     else dragCancel();
@@ -42,7 +71,7 @@ function Slide({ label, value, min, max, step = 1, onPreview, onCommit, name }: 
           onChange={(e) => {
             const n = Number(e.target.value);
             setMoving(n);
-            onPreview(n);
+            frame.run(n);
           }}
           onPointerUp={(e) => commit(Number((e.target as HTMLInputElement).value))}
           onKeyUp={(e) => commit(Number((e.target as HTMLInputElement).value))}
