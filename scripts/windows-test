@@ -3,13 +3,14 @@
 # No tag, no release: nobody else gets it. About 30 minutes, hands-off.
 #   scripts/windows-test            build, download, install
 #   scripts/windows-test --install  install the last build again, without building
+#   BRANCH=next scripts/windows-test  build from another branch (main by default)
 set -euo pipefail
 PC="soumya nath@100.72.209.14"
 DIR="$(mktemp -d)"
 cd "$(dirname "$0")/.."
 
 if [ "${1:-}" != "--install" ]; then
-  gh workflow run windows-test.yml --ref main
+  gh workflow run windows-test.yml --ref "${BRANCH:-main}"
   sleep 10
   ID=$(gh run list --workflow windows-test.yml --limit 1 --json databaseId -q '.[0].databaseId')
   echo "Building on GitHub (run $ID)..."

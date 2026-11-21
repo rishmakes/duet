@@ -25,6 +25,9 @@ jobs:
       - run: npm ci
       - run: bash scripts/fetch-ffmpeg x86_64-pc-windows-msvc
         shell: bash
+      # Vulkan, so Voice to text listens on the graphics card (#375)
+      - run: bash scripts/fetch-vulkan
+        shell: bash
       - run: npx tauri build --bundles nsis
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}

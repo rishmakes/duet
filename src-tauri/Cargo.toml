@@ -52,6 +52,10 @@ lto = true
 opt-level = 3
 strip = true
 
+# the graphics card does the listening on Windows; with none usable, the processor (#375)
+[target.'cfg(windows)'.dependencies]
+whisper-rs = { version = "0.16", features = ["vulkan"] }
+
 # Only to give development builds their own Dock icon. Tauri already brings these in.
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"

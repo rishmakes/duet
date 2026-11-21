@@ -420,19 +420,39 @@ fn with_own_words(prompt: String, language: &str) -> String {
 pub fn voice_transcribe(app: AppHandle, path: String, language: String, prompt: Option<String>) -> Result<Value, String> {
     let (st, m) = stop_to_use().ok_or("Voice to text is not downloaded yet.")?;
     let model_path = own_dir()?.join(m.file);
+    let prompt = with_own_words(prompt.unwrap_or_default(), &language);
+    let mut answer = listen(&app, &path, &model_path, &language, &prompt, st.search, false)?;
+    // on Windows the graphics card listens; if its driver fails, the processor hears it again
+    if cfg!(windows) && answer.as_ref().is_none_or(|a| a.get("error").is_some()) {
+        answer = listen(&app, &path, &model_path, &language, &prompt, st.search, true)?;
+    }
+    let mut a = answer.ok_or("Voice to text stopped before it finished. The recording may have no sound, or the computer ran out of memory.")?;
+    if let Some(e) = a.get("error").and_then(|e| e.as_str()) {
+        return Err(e.to_string());
+    }
+    a["model"] = json!(m.size);
+    a["level"] = json!(st.level);
+    a["language"] = json!(language);
+    Ok(a)
+}
+
+/// One run of the helper: its answer, or nothing if it ended without one. `processor` keeps it off
+/// the graphics card.
+fn listen(app: &AppHandle, path: &str, model_path: &std::path::Path, language: &str, prompt: &str, search: &str, processor: bool) -> Result<Option<Value>, String> {
     let mut child = crate::quiet_command(std::env::current_exe().map_err(|e| e.to_string())?)
         .arg("--transcribe")
-        .arg(&model_path)
-        .arg(&path)
-        .arg(&language)
-        .arg(with_own_words(prompt.unwrap_or_default(), &language))
-        .arg(st.search)
+        .arg(model_path)
+        .arg(path)
+        .arg(language)
+        .arg(prompt)
+        .arg(search)
+        .arg(if processor { "processor" } else { "graphics" })
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
         .map_err(|e| format!("Voice to text could not start: {e}"))?;
-    hearing().lock().unwrap().insert(path.clone(), child.id());
+    hearing().lock().unwrap().insert(path.to_string(), child.id());
     let out = child.stdout.take().ok_or("Voice to text could not start.")?;
     let mut answer: Option<Value> = None;
     // each step and how far it is, so a slow computer never looks stuck
@@ -448,18 +468,10 @@ pub fn voice_transcribe(app: AppHandle, path: String, language: String, prompt: 
         }
     }
     let _ = child.wait();
-    let stopped = hearing().lock().unwrap().remove(&path).is_none();
-    if stopped {
+    if hearing().lock().unwrap().remove(path).is_none() {
         return Err("Stopped.".into());
     }
-    let mut a = answer.ok_or("Voice to text stopped before it finished. The recording may have no sound, or the computer ran out of memory.")?;
-    if let Some(e) = a.get("error").and_then(|e| e.as_str()) {
-        return Err(e.to_string());
-    }
-    a["model"] = json!(m.size);
-    a["level"] = json!(st.level);
-    a["language"] = json!(language);
-    Ok(a)
+    Ok(answer)
 }
 
 /// The helpers hearing recordings now, by the recording's path, so one can be stopped.
@@ -485,14 +497,14 @@ fn say(line: &str) {
     let _ = o.flush();
 }
 
-/// The helper process: `duet-app --transcribe <model> <recording> <language> <prompt> <search>`.
-/// `search` is "beam2" or "beam5".
+/// The helper process: `duet-app --transcribe <model> <recording> <language> <prompt> <search> <on>`.
+/// `search` is "beam2" or "beam5". `on` is "processor" to keep it off the graphics card.
 /// Prints "progress N" lines while it works, then one line of JSON: the words, or an error.
 pub fn transcribe_main() {
     let args: Vec<String> = std::env::args().collect();
     let at = args.iter().position(|a| a == "--transcribe").unwrap_or(0);
     let get = |n: usize| args.get(at + n).cloned().unwrap_or_default();
-    let answer = match hear(&get(1), &get(2), &get(3), &get(4), &get(5)) {
+    let answer = match hear(&get(1), &get(2), &get(3), &get(4), &get(5), get(6) == "processor") {
         Ok(words) => json!({ "words": words }),
         Err(e) => json!({ "error": e }),
     };
@@ -515,7 +527,7 @@ fn sound_of(path: &str) -> Result<Vec<f32>, String> {
     Ok(out.stdout.chunks_exact(4).map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect())
 }
 
-fn hear(model_path: &str, path: &str, language: &str, prompt: &str, search: &str) -> Result<Vec<Value>, String> {
+fn hear(model_path: &str, path: &str, language: &str, prompt: &str, search: &str, processor: bool) -> Result<Vec<Value>, String> {
     use whisper_rs::{DtwMode, DtwModelPreset, DtwParameters, FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
     whisper_rs::install_logging_hooks();
     say("stage sound");
@@ -531,6 +543,7 @@ fn hear(model_path: &str, path: &str, language: &str, prompt: &str, search: &str
         DtwModelPreset::LargeV3
     };
     let mut cp = WhisperContextParameters::default();
+    cp.use_gpu(!processor);
     cp.dtw_parameters(DtwParameters { mode: DtwMode::ModelPreset { model_preset: preset }, ..Default::default() });
     let ctx = WhisperContext::new_with_params(model_path, cp).map_err(|e| format!("The speech model could not load: {e}"))?;
     let mut state = ctx.create_state().map_err(|e| e.to_string())?;

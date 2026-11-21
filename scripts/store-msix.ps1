@@ -23,6 +23,8 @@ Copy-Item $ffmpeg.FullName (Join-Path $stage "ffmpeg.exe")
 Get-ChildItem $built -Filter "*.dll" | Copy-Item -Destination $stage
 $licences = Join-Path $built "ffmpeg-licences"
 if (Test-Path $licences) { Copy-Item $licences $stage -Recurse }
+$vulkan = Join-Path $built "vulkan-licence"
+if (Test-Path $vulkan) { Copy-Item $vulkan $stage -Recurse }
 
 $icons = Join-Path $root "src-tauri\icons"
 foreach ($n in "StoreLogo", "Square44x44Logo", "Square150x150Logo") {

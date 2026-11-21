@@ -53,6 +53,10 @@ jobs:
       - run: bash scripts/fetch-ffmpeg ${{ matrix.rust-targets || 'x86_64-pc-windows-msvc' }}
         if: matrix.platform != 'ubuntu-22.04'
         shell: bash
+      # Vulkan, so Voice to text listens on the graphics card on Windows (#375)
+      - run: bash scripts/fetch-vulkan
+        if: matrix.platform == 'windows-latest'
+        shell: bash
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
