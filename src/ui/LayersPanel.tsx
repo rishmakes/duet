@@ -5,7 +5,7 @@ import WordsPanel from "./WordsPanel";
 import ClipsPanel from "./ClipsPanel";
 import { setLayout, useLayout } from "./layout";
 import { FoldButton } from "./PanelStrip";
-import Icon from "./Icons";
+import Icon, { type IconName } from "./Icons";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ancestors, descendants, topLevelOnly } from "../document/geometry";
@@ -16,6 +16,19 @@ import { newId } from "../commands";
 import { LAYER_DRAG, layerPictures, setDraggedFootage } from "../video/media";
 import { ask } from "./dialog";
 import { useDismiss } from "./useDismiss";
+
+type LeftTab = "clips" | "captions" | "words" | "layers" | "assets";
+/** The left panel's tabs, the same in every space: Video adds what a video is made from and what is said in it. */
+const ALL_TABS: { key: LeftTab; name: string; icon: IconName }[] = [
+  { key: "layers", name: "Layers", icon: "layers" },
+  { key: "assets", name: "Assets", icon: "assets" },
+];
+const VIDEO_TABS: typeof ALL_TABS = [
+  { key: "clips", name: "Media", icon: "media" },
+  { key: "captions", name: "Captions", icon: "captions" },
+  { key: "words", name: "Words", icon: "words" },
+  ...ALL_TABS,
+];
 
 /**
  * The boards in this file, at the top of the layers: separate canvases, like New design, Old website and Ideas.
@@ -413,7 +426,7 @@ export default function LayersPanel() {
   const swapped = useLayout((d) => d.swapped);
   // a video opens on its clips; Clips is only there in Video. The tab is kept in the layout so the folded strip can pick it too.
   const tab: "clips" | "captions" | "words" | "layers" | "assets" = (leftTab === "clips" || leftTab === "captions" || leftTab === "words") && !video ? "layers" : leftTab ?? (video ? "clips" : "layers");
-  const setTab = (t: "clips" | "captions" | "words" | "layers" | "assets") => setLayout({ leftTab: t });
+  const setTab = (t: LeftTab) => setLayout({ leftTab: t });
   // only when the kind of work changes after the panel is open: opening it from the strip on Assets must stay on Assets
   const lastVideo = useRef(video);
   useEffect(() => {
@@ -506,27 +519,12 @@ export default function LayersPanel() {
       {/* the tabs and the hint stay put while the list under them scrolls */}
       <div className="left-head">
       <div className="tabs">
-        {video && (
-          <div className={`tab ${tab === "clips" ? "on" : ""}`} data-name="tab-media" onClick={() => setTab("clips")}>
-            Media
-          </div>
-        )}
-        {video && (
-          <div className={`tab ${tab === "captions" ? "on" : ""}`} data-name="tab-captions" onClick={() => setTab("captions")}>
-            Caption styles
-          </div>
-        )}
-        {video && (
-          <div className={`tab ${tab === "words" ? "on" : ""}`} data-name="tab-words" onClick={() => setTab("words")}>
-            Words
-          </div>
-        )}
-        <div className={`tab ${tab === "layers" ? "on" : ""}`} onClick={() => setTab("layers")}>
-          Layers
-        </div>
-        <div className={`tab ${tab === "assets" ? "on" : ""}`} onClick={() => setTab("assets")}>
-          Assets
-        </div>
+        {(video ? VIDEO_TABS : ALL_TABS).map((t) => (
+          <button key={t.key} type="button" className={`tab ${tab === t.key ? "on" : ""}`} data-name={`tab-${t.name.toLowerCase()}`} aria-pressed={tab === t.key} onClick={() => setTab(t.key)}>
+            <Icon name={t.icon} size={18} />
+            <span>{t.name}</span>
+          </button>
+        ))}
         <FoldButton side={swapped ? "r" : "l"} folding title="Put the layers panel away" onClick={() => setLayout({ leftHidden: true })} />
       </div>
       {tab === "layers" && <Boards doc={doc} dragging={dragging} onDropped={end} />}

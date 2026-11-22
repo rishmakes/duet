@@ -1,6 +1,6 @@
 /** One icon set for the whole app: 24 grid, round ends, same stroke weight everywhere. */
 
-export type IconName = "speed" | "blade" | "stretch" | "silence" | "cut-here" | "cut-close" | "cut-before" | "cut-after" | "move" | "frame" | "rect" | "ellipse" | "text" | "hand" | "zoom" | "image" | "film" | "scene" | "heart" | "printer" | "screens" | "plus" | "pen" | "brush" | "eraser" | "mask" | "group" | "lock" | "unlock" | "eye" | "eye-off" | "sound" | "sound-off" | "component" | "instance" | "panel-left" | "panel-right" | "arrow" | "search" | "settings" | "skills" | "new-chat" | "folder" | "trash" | "close" | "unlist" | "restore" | "dots" | "grid" | "list" | "copy" | "move-to" | "marker" | "comment" | "sun" | "moon" | "home" | "feedback" | "fold" | "skill-auto-layout" | "skill-mobile-screens" | "skill-spacing" | "skill-type-scale" | "skill-contrast" | "skill-plain-words" | "skill-bold-blocks" | "skill-bento" | "skill-calm-and-trusted" | "skill-friendly-and-modern" | "skill-prototypes" | "skill-custom" | "plugin-connect" | "plugin-voice" | "captions" | "cuts-all" | "cut-remove" | "magnet" | "wand" | "shapes" | "chevron-down" | "check";
+export type IconName = "speed" | "blade" | "stretch" | "silence" | "cut-here" | "cut-close" | "cut-before" | "cut-after" | "move" | "frame" | "rect" | "ellipse" | "text" | "hand" | "zoom" | "image" | "film" | "scene" | "heart" | "printer" | "screens" | "plus" | "pen" | "brush" | "eraser" | "mask" | "group" | "lock" | "unlock" | "eye" | "eye-off" | "sound" | "sound-off" | "component" | "instance" | "panel-left" | "panel-right" | "arrow" | "search" | "settings" | "skills" | "new-chat" | "folder" | "trash" | "close" | "unlist" | "restore" | "dots" | "grid" | "list" | "copy" | "move-to" | "marker" | "comment" | "sun" | "moon" | "home" | "feedback" | "fold" | "skill-auto-layout" | "skill-mobile-screens" | "skill-spacing" | "skill-type-scale" | "skill-contrast" | "skill-plain-words" | "skill-bold-blocks" | "skill-bento" | "skill-calm-and-trusted" | "skill-friendly-and-modern" | "skill-prototypes" | "skill-custom" | "plugin-connect" | "plugin-voice" | "captions" | "cuts-all" | "cut-remove" | "magnet" | "wand" | "shapes" | "chevron-down" | "check" | "media" | "words" | "layers" | "assets";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   move: <path d="M5.5 3.5l13 6.3-5.7 1.8-1.8 5.9z" />,
@@ -89,6 +89,28 @@ const PATHS: Record<IconName, React.ReactNode> = {
     </>
   ),
   "chevron-down": <path d="M7 10l5 5 5-5" />,
+  // the left panel's tabs: what a video is made from, what is said, what is on the canvas, and what is ready to use
+  media: (
+    <>
+      <rect x="4" y="8" width="16" height="12" rx="2.5" />
+      <path d="M6.5 4.5h11M4 12h16" />
+    </>
+  ),
+  words: <path d="M5 7h14M5 12h10M5 17h12" />,
+  layers: (
+    <>
+      <path d="M12 4 20 8.5 12 13 4 8.5z" />
+      <path d="M4 12.5 12 17l8-4.5" />
+    </>
+  ),
+  assets: (
+    <>
+      <rect x="4" y="4" width="6.5" height="6.5" rx="1.5" />
+      <circle cx="16.75" cy="7.25" r="3.25" />
+      <path d="M7.25 13.5 10.5 19.5H4z" />
+      <path d="M16.75 14v6M13.75 17h6" />
+    </>
+  ),
   check: <path d="M5.5 12.5l4 4 9-9" />,
   image: (
     <>

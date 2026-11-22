@@ -1107,19 +1107,64 @@ body.eyedropping * {
 /* left panel tabs and skills */
 .tabs {
   display: flex;
+  align-items: flex-end;
+  padding: 6px 0 0 6px;
+  /* a shade darker than the panel, so the picked tab, in the panel's own colour, runs into it */
+  background: color-mix(in srgb, var(--panel) 35%, var(--bg));
   border-bottom: 1px solid var(--line);
 }
+/* every tab the same width, icon over name, lined up on the left; they give way only on a narrow panel */
 .tab {
-  flex: 1;
-  text-align: center;
-  padding: 11px 0;
+  position: relative;
+  flex: 0 1 84px;
+  min-width: 56px;
+  height: 62px;
+  margin-bottom: -1px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0;
+  border: none;
+  border-radius: 10px 10px 0 0;
+  background: none;
   color: var(--muted);
+  font: inherit;
+  font-size: 12px;
   cursor: pointer;
-  border-bottom: 2px solid transparent;
+}
+.tab span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tab:hover:not(.on) {
+  color: var(--text);
 }
 .tab.on {
+  background: var(--panel);
   color: var(--text);
-  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+.tab.on svg {
+  color: var(--accent);
+}
+/* a short purple mark on top of the picked tab */
+.tab.on::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 24px;
+  height: 3px;
+  margin-left: -12px;
+  border-radius: 0 0 3px 3px;
+  background: var(--accent);
+}
+.tabs .fold-btn {
+  align-self: center;
 }
 .skills {
   padding: 4px 10px 14px;
@@ -11581,7 +11626,8 @@ button.ctx-item.store-make-option:hover {
 }
 .media-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  /* three even columns, whatever the panel's width */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   padding: 6px 10px;
 }
@@ -11937,7 +11983,7 @@ button.ctx-item.store-make-option:hover {
   background: var(--tint);
 }
 .tabs .fold-btn {
-  margin: 0 8px 0 4px;
+  margin: 0 6px 0 auto;
 }
 .panel-kind-row {
   display: flex;

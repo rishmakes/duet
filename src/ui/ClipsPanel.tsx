@@ -87,9 +87,10 @@ type View = "list" | "grid";
 const VIEW_KEY = "duet.media.view";
 const savedView = (): View => {
   try {
-    return localStorage.getItem(VIEW_KEY) === "grid" ? "grid" : "list";
+    // the clips show as tiles, three across, unless the designer picked the list
+    return localStorage.getItem(VIEW_KEY) === "list" ? "list" : "grid";
   } catch {
-    return "list";
+    return "grid";
   }
 };
 
