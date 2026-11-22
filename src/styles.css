@@ -4042,7 +4042,8 @@ option {
 }
 
 /* New: your own size beside the sizes used before */
-.new-tray {
+/* beside each other, not stacked like a kind's tray */
+.sizes-tray.new-tray {
   flex-direction: row;
   gap: 28px;
   padding: 18px;

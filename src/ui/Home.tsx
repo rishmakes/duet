@@ -273,8 +273,8 @@ export default function Home({ onClose, fromProject }: HomeProps) {
                     <div className="own-box" data-name="home-own-size">
                       <div className="own-head">Width and height</div>
                       <div className="own-dims">
-                        <label className="own-field" title="Width">
-                          <input type="number" min={10} max={20000} value={ownW} onChange={(e) => setOwnW(Number(e.target.value) || 0)} onKeyDown={(e) => e.key === "Enter" && createOwn()} />
+                        <label className="own-field">
+                          <input aria-label="Width" type="number" min={10} max={20000} value={ownW} onChange={(e) => setOwnW(Number(e.target.value) || 0)} onKeyDown={(e) => e.key === "Enter" && createOwn()} />
                           <span>px</span>
                         </label>
                         <button
@@ -288,8 +288,8 @@ export default function Home({ onClose, fromProject }: HomeProps) {
                         >
                           <Icon name="swap" size={15} />
                         </button>
-                        <label className="own-field" title="Height">
-                          <input type="number" min={10} max={20000} value={ownH} onChange={(e) => setOwnH(Number(e.target.value) || 0)} onKeyDown={(e) => e.key === "Enter" && createOwn()} />
+                        <label className="own-field">
+                          <input aria-label="Height" type="number" min={10} max={20000} value={ownH} onChange={(e) => setOwnH(Number(e.target.value) || 0)} onKeyDown={(e) => e.key === "Enter" && createOwn()} />
                           <span>px</span>
                         </label>
                       </div>
