@@ -1,14 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import Icon from "./Icons";
-import { aboutTime, allJobs, holdLine, lineHeld, moveJob, pauseJob, secondsLeft, stopJob, subscribeJobs } from "../ai/jobs";
+import { aboutTime, allJobs, guessSeconds, holdLine, lineHeld, moveJob, pauseJob, secondsLeft, stopJob, subscribeJobs } from "../ai/jobs";
 import type { Job } from "../ai/jobs";
 import { logError } from "../errorLog";
+import { drawElement } from "../canvas/render";
+import { docAt } from "../document/time";
+import type { Doc, El } from "../document/types";
+import { currentDoc, useStore } from "../state/store";
+import { QUALITIES, SIZES, exportSize, queueVideo } from "../video/scene";
+import type { ExportChoice } from "../video/scene";
+import { lastChoice, rememberExport, shortFolder } from "../video/exportPrefs";
+import { open as openDialog } from "./dialog";
 
 /**
- * Export, as its own page: every video in the line, yours and the ones an AI asked for, in the order they
- * are made. Pause one, stop one, drag a waiting one up or down, and find the finished ones.
+ * Export, as its own page. Set up: how a scene is made into files. Queue: every video in the line, yours
+ * and the ones an AI asked for, in the order they are made; pause one, stop one, drag a waiting one up or
+ * down, and find the finished ones.
  */
+
+export type ExportTab = "setup" | "queue";
 
 /** Re-draw whenever the line moves. */
 function useJobs(): readonly Job[] {
@@ -36,7 +46,7 @@ function whereItIs(j: Job, first: boolean): string {
   return first ? "up next" : "waiting";
 }
 
-export default function ExportPage({ onClose }: { onClose: () => void }) {
+function QueueTab() {
   const jobs = useJobs();
   const busy = jobs.filter((j) => j.state === "running" || j.state === "waiting");
   const over = jobs.filter((j) => j.state === "done" || j.state === "failed" || j.state === "stopped").reverse();
@@ -78,26 +88,11 @@ export default function ExportPage({ onClose }: { onClose: () => void }) {
     window.addEventListener("pointerup", up);
   };
 
-  useEffect(() => {
-    const key = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
-  }, [onClose]);
-
   const show = (file: string) => void revealItemInDir(file).catch((e) => logError("show export", e));
   let waitingIndex = -1;
 
   return (
-    <section className="skills-page export-page" data-name="export-page">
-      <div className="skills-page-head">
-        <h2>Export</h2>
-        <button className="page-close" data-name="close-export-page" title="Back to your work (Esc)" aria-label="Close" onClick={onClose}>
-          <Icon name="close" size={16} />
-        </button>
-      </div>
-
+    <>
       <div className="export-sum">
         <span>{busy.length ? [making && `${making} being made`, paused && `${paused} paused`, waiting && `${waiting} waiting`].filter(Boolean).join(", ") : "Nothing is being made."}</span>
         {busy.length > 0 && (
@@ -177,6 +172,229 @@ export default function ExportPage({ onClose }: { onClose: () => void }) {
           </div>
         </>
       )}
+    </>
+  );
+}
+
+/** The scene as it looks at the start of what is made, small. */
+function ScenePicture({ doc, scene, at }: { doc: Doc; scene: El; at: number }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx) return;
+    const box = canvas.parentElement!.getBoundingClientRect();
+    const k = Math.min(box.width / scene.width, box.height / scene.height);
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(scene.width * k * dpr);
+    canvas.height = Math.round(scene.height * k * dpr);
+    canvas.style.width = `${scene.width * k}px`;
+    canvas.style.height = `${scene.height * k}px`;
+    ctx.setTransform(k * dpr, 0, 0, k * dpr, 0, 0);
+    const now = docAt(doc, scene.id, at);
+    const el = now.elements[scene.id];
+    if (el) drawElement(ctx, now, el, -el.x, -el.y);
+  }, [doc, scene, at]);
+  return <canvas ref={ref} />;
+}
+
+/** One file to make from the scene: its kind, how fine, and with sound or without. */
+interface FileRow {
+  master: boolean;
+  quality: number;
+  mute: boolean;
+}
+
+const clockText = (t: number) => `${Math.floor(t / 60)}:${String(Math.round(t % 60)).padStart(2, "0")}`;
+
+function SetUpTab({ sceneId, onQueued }: { sceneId?: string; onQueued: () => void }) {
+  const doc = useStore((s) => currentDoc(s));
+  const projectFile = useStore((s) => s.project.file);
+  const projectName = useStore((s) => s.project.name);
+  const scene = sceneId ? doc.elements[sceneId] : undefined;
+  const [base, setBase] = useState<ExportChoice>(() => lastChoice(projectFile));
+  const [rows, setRows] = useState<FileRow[]>(() => [{ master: !!base.master, quality: base.quality, mute: !!base.mute }]);
+  const [more, setMore] = useState(false);
+  const [problem, setProblem] = useState("");
+  if (!scene?.duration) return <p className="export-empty">Open a video and press Export video on its timeline to set it up here.</p>;
+
+  const part = base.whole || !scene.workArea ? { start: 0, end: scene.duration } : scene.workArea;
+  const span = part.end - part.start;
+  const [w, h] = exportSize(scene, base.longSide);
+  const sameSize = base.longSide === 0 || base.longSide >= Math.max(scene.width, scene.height);
+  const setRow = (i: number, r: Partial<FileRow>) => setRows(rows.map((x, k) => (k === i ? { ...x, ...r } : x)));
+
+  const go = (now: boolean) => {
+    setProblem("");
+    const made: number[] = [];
+    for (const r of rows) {
+      const job = queueVideo(scene.id, { ...base, ...r }, { project: projectName }, doc);
+      if (!("n" in job)) {
+        setProblem(job.error);
+        break;
+      }
+      made.push(job.n);
+    }
+    // Export now: these go first, before anything still waiting
+    if (now) made.forEach((n, i) => moveJob(n, i));
+    if (made.length) {
+      rememberExport(projectFile, { ...base, ...rows[0] });
+      onQueued();
+    }
+  };
+
+  return (
+    <div className="export-setup">
+      <div className="export-left">
+        {scene.workArea && (
+          <div className="kind-quiet export-part">
+            <button className={base.whole ? "on" : ""} data-name="export-whole" onClick={() => setBase({ ...base, whole: true })}>
+              Whole scene
+            </button>
+            <button className={base.whole ? "" : "on"} data-name="export-work-area" onClick={() => setBase({ ...base, whole: false })}>
+              Work area
+            </button>
+          </div>
+        )}
+        <div className="export-picture">
+          <ScenePicture doc={doc} scene={scene} at={part.start} />
+        </div>
+        <div className="export-caption">
+          <span>{scene.name}</span>
+          <span>
+            {clockText(part.start)} to {clockText(part.end)}
+          </span>
+        </div>
+      </div>
+
+      <div className="export-right">
+        <span className="export-label">Save to</span>
+        <div className="export-field">
+          <span title={base.dir ?? "Documents, Duet, Exports"}>{base.dir ? shortFolder(base.dir) : "Documents, Duet, Exports"}</span>
+          <button
+            className="pill"
+            data-name="export-folder"
+            title="Choose the folder this project's videos go into. Duet remembers it."
+            onClick={async () => {
+              const dir = await openDialog({ directory: true, title: "Where this project's videos go", defaultPath: base.dir });
+              if (typeof dir === "string" && dir) setBase({ ...base, dir });
+            }}
+          >
+            Change
+          </button>
+        </div>
+
+        <span className="export-label">Files</span>
+        {rows.map((r, i) => (
+          <div className="export-file" key={i} data-name="export-file">
+            <select data-name="export-kind" value={r.master ? "master" : "mp4"} onChange={(e) => setRow(i, { master: e.target.value === "master" })}>
+              <option value="mp4">MP4</option>
+              <option value="master">ProRes MOV</option>
+            </select>
+            <select data-name="export-quality" value={r.quality} disabled={r.master} title={r.master ? "ProRes keeps everything" : undefined} onChange={(e) => setRow(i, { quality: Number(e.target.value) })}>
+              {QUALITIES.map((q) => (
+                <option key={q.quality} value={q.quality}>
+                  {q.name}
+                </option>
+              ))}
+            </select>
+            <select data-name="export-sound" value={r.mute ? "off" : "on"} onChange={(e) => setRow(i, { mute: e.target.value === "off" })}>
+              <option value="on">Sound on</option>
+              <option value="off">No sound</option>
+            </select>
+            {rows.length > 1 && (
+              <button className="export-x" data-name="export-file-remove" title="Do not make this file" onClick={() => setRows(rows.filter((_, k) => k !== i))}>
+                ×
+              </button>
+            )}
+          </div>
+        ))}
+        <button className="export-add" data-name="export-add-file" onClick={() => setRows([...rows, { ...rows[rows.length - 1], master: !rows[rows.length - 1].master }])}>
+          + Add a file type
+        </button>
+
+        <button className="export-field export-more" data-name="export-size-fps" onClick={() => setMore(!more)}>
+          <span className="export-label">Size and frames a second</span>
+          <span>{sameSize && base.fps === 30 ? "Same as your scene" : `${w} × ${h}, ${base.fps} a second`} ›</span>
+        </button>
+        {more && (
+          <div className="export-file">
+            <select data-name="export-size" value={sameSize ? 0 : base.longSide} onChange={(e) => setBase({ ...base, longSide: Number(e.target.value) })}>
+              <option value={0}>
+                Same as your scene, {exportSize(scene, 0).join(" × ")}
+              </option>
+              {SIZES.filter((z) => z.longSide > 0 && z.longSide < Math.max(scene.width, scene.height)).map((z) => (
+                <option key={z.longSide} value={z.longSide}>
+                  {z.name}, {exportSize(scene, z.longSide).join(" × ")}
+                </option>
+              ))}
+            </select>
+            <select data-name="export-fps" value={base.fps} onChange={(e) => setBase({ ...base, fps: Number(e.target.value) })}>
+              {[24, 25, 30, 60].map((n) => (
+                <option key={n} value={n}>
+                  {n} a second
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <div className="export-tiles">
+          <div>
+            <b>{clockText(span)}</b>
+            <span>long</span>
+          </div>
+          <div>
+            <b>{rows.length}</b>
+            <span>{rows.length === 1 ? "file" : "files"}</span>
+          </div>
+          <div>
+            <b>{aboutTime(guessSeconds(span) * rows.length).replace("about ", "")}</b>
+            <span>to make, about</span>
+          </div>
+        </div>
+        {problem && <p className="export-problem">{problem}</p>}
+        <div className="export-go">
+          <button className="pill primary" data-name="export-now" onClick={() => go(true)} title="Make it next, before anything still waiting">
+            Export now
+          </button>
+          <button className="pill" data-name="export-add-queue" onClick={() => go(false)} title="Make it after everything already in the line">
+            Add to queue
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function ExportPage({ onClose, tab: startTab, sceneId }: { onClose: () => void; tab: ExportTab; sceneId?: string }) {
+  const [tab, setTab] = useState<ExportTab>(startTab);
+  useEffect(() => setTab(startTab), [startTab, sceneId]);
+  const busy = useJobs().filter((j) => j.state === "running" || j.state === "waiting").length;
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [onClose]);
+  return (
+    <section className="skills-page export-page" data-name="export-page">
+      <button className="export-back" data-name="close-export-page" title="Back to your work (Esc)" onClick={onClose}>
+        ‹ Back to your work
+      </button>
+      <div className="skills-page-head">
+        <h2>Export</h2>
+        <div className="kind-quiet export-tabs">
+          <button className={tab === "setup" ? "on" : ""} data-name="export-tab-setup" onClick={() => setTab("setup")}>
+            Set up
+          </button>
+          <button className={tab === "queue" ? "on" : ""} data-name="export-tab-queue" onClick={() => setTab("queue")}>
+            Queue {busy > 0 && <i className="export-badge">{busy}</i>}
+          </button>
+        </div>
+      </div>
+      {tab === "setup" ? <SetUpTab key={sceneId} sceneId={sceneId} onQueued={() => setTab("queue")} /> : <QueueTab />}
     </section>
   );
 }

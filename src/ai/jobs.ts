@@ -200,6 +200,9 @@ function rate(): number {
   return last ? (last.ended! - last.started!) / 1000 / last.seconds : 2;
 }
 
+/** About how many seconds it takes to make this many seconds of video, from how the last one went. */
+export const guessSeconds = (videoSeconds: number) => videoSeconds * rate();
+
 /** Seconds until a job is done, counting the ones before it. */
 export function secondsLeft(job: Job): number {
   const r = rate();

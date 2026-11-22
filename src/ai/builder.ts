@@ -92,7 +92,7 @@ export const BUILDER_TOOLS: ToolDef[] = [
   },
   {
     name: "dev_type",
-    description: "Builder tool. Write in a box, replacing what is in it.",
+    description: "Builder tool. Write in a box, replacing what is in it. On a choice list, text picks the option with those words.",
     inputSchema: { type: "object", properties: { ...which, text: str, enter: { ...bool, description: "True to press Enter after." } }, required: ["text"] },
   },
   {
@@ -418,6 +418,16 @@ async function press(a: Args): Promise<ToolResult> {
 async function type(a: Args): Promise<ToolResult> {
   const el = find(a);
   if (typeof el === "string") return fail(el);
+  // a choice list is picked from by the words of one of its options, or by its value
+  if (el instanceof HTMLSelectElement) {
+    const want = String(a.text ?? "").trim().toLowerCase();
+    const option = Array.from(el.options).find((o) => o.text.trim().toLowerCase() === want || o.value.toLowerCase() === want);
+    if (!option) return fail(`"${nameOf(el)}" has no choice "${a.text}". It has: ${Array.from(el.options, (o) => o.text.trim()).join(", ")}.`);
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")?.set?.call(el, option.value);
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+    await settle();
+    return { text: `Picked "${option.text.trim()}".` };
+  }
   if (!el.matches("input, textarea")) return fail(`"${nameOf(el)}" is not a box you can write in.`);
   const box = el as HTMLInputElement | HTMLTextAreaElement;
   box.focus();

@@ -16,16 +16,12 @@ import ClipFace from "./ClipFace";
 import VolumeLine from "./VolumeLine";
 import { fromLevel, levelText, toLevel } from "../document/sound";
 import { setKeyFocus } from "./keyFocus";
-import { QUALITIES, SIZES, addMedia, clipKind, dropClips, exportSize, keepDropped, queueVideo } from "../video/scene";
-import { allJobs, pauseJob, stopJob, subscribeJobs } from "../ai/jobs";
-import { lastChoice, rememberExport, shortFolder } from "../video/exportPrefs";
-import { open as openDialog } from "./dialog";
+import { addMedia, clipKind, dropClips, keepDropped } from "../video/scene";
+import { allJobs, subscribeJobs } from "../ai/jobs";
 import { droppedPaths } from "../canvas/CanvasView";
 import { CLIP_DRAG, LAYER_DRAG, draggedFootage, placeFromClips, placeLayerPictures } from "../video/media";
 import { ActButton, SpeedCard, VolumeCard } from "./TimeActions";
 import { editToolForKey, keyPutsDownEditTool } from "./Toolbar";
-import type { ExportChoice } from "../video/scene";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import type { TimeTool } from "./layout";
 import { DEFAULT_TRACK_H, NO_HEIGHTS, TIME_MIN_H, TRACK_MAX_H, TRACK_MIN_H, getLayout, isColorOpen, setLayout, useLayout } from "./layout";
 import { isMouseWheel, wheelZoomFactor } from "./wheel";
@@ -68,6 +64,9 @@ interface Picked {
   props?: Moving[];
 }
 
+/** Open the Export page: on Set up for a scene, or on the line of videos. */
+const openExport = (tab: "setup" | "queue", scene?: string) => window.dispatchEvent(new CustomEvent("duet:export-page", { detail: { tab, scene } }));
+
 const clockText = (t: number) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, "0")}`;
 
 /** The frame on the page that holds this thing. */
@@ -107,14 +106,12 @@ export default function TimeStrip() {
   const rowsRef = useRef<{ items: El[]; track?: { index: number } }[]>([]);
   const [wide, setWide] = useState(600);
   const [zoom, setZoom] = useState(1);
-  // the designer's own video in the line of videos, while it waits or is made
-  const [mine, setMine] = useState<number | null>(null);
+  // the video being made now, and how many wait after it, whoever asked
   const [, jobsMoved] = useState(0);
   useEffect(() => subscribeJobs(() => jobsMoved((n) => n + 1)), []);
-  const making = allJobs().find((j) => j.n === mine);
+  const making = allJobs().find((j) => j.state === "running");
+  const waitingVideos = allJobs().filter((j) => j.state === "waiting").length;
   const [note, setNote] = useState("");
-  // how the video is made, chosen before it is made, and where the last one went
-  const [choosing, setChoosing] = useState(false);
   // Cut silences: open while its settings show, with each file's loudness once it has been read
   const [hushing, setHushing] = useState(false);
   // Auto captions: open while its box shows. Make captions in the Customize panel opens it too, in the Edit view
@@ -130,22 +127,6 @@ export default function TimeStrip() {
   }, []);
   const [hush, setHush] = useState<SilenceChoice>(SILENCE_DEFAULT);
   const [hushPeaks, setHushPeaks] = useState<Map<string, Uint8Array> | null>(null);
-  const projectFile = useStore((s) => s.project.file);
-  const projectName = useStore((s) => s.project.name);
-  const [choice, setChoice] = useState<ExportChoice>(() => lastChoice(projectFile));
-  // each project keeps its own export folder
-  useEffect(() => setChoice(lastChoice(projectFile)), [projectFile]);
-  const [made, setMade] = useState<string | null>(null);
-  // when the designer's video is over, say where it went, or why it was not made
-  const over = making && (making.state === "done" || making.state === "failed" || making.state === "stopped") ? making : null;
-  useEffect(() => {
-    if (!over) return;
-    setMine(null);
-    if (over.state === "done" && over.file) {
-      setMade(over.file);
-      setNote(`Saved in ${choice.dir ? shortFolder(choice.dir) : "Documents, Duet, Exports"}`);
-    } else if (over.state === "failed") setNote(over.error ?? "The video was not made.");
-  }, [over, choice.dir]);
   // set while a keyframe mark is being dragged, so letting go is not taken for a click
   const draggedMark = useRef(false);
   const [snap, setSnap] = useState<number | null>(null);
@@ -186,7 +167,6 @@ export default function TimeStrip() {
   useDismiss(!!markerMenu, () => setMarkerMenu(null), ".ctx");
   useDismiss(hushing, () => setHushing(false), ".hush-anchor");
   useDismiss(captioning, () => setCaptioning(false), "[data-card='act-captions']");
-  useDismiss(choosing, () => setChoosing(false), ".export-anchor");
   const [markerEdit, setMarkerEdit] = useState<string | null>(null);
   const draggedMarker = useRef(false);
   const [picked, setPicked] = useState<Picked[]>([]);
@@ -1054,16 +1034,6 @@ export default function TimeStrip() {
     window.addEventListener("keyup", key);
   };
 
-  const make = () => {
-    setNote("");
-    setChoosing(false);
-    setMade(null);
-    const job = queueVideo(frame.id, choice, { project: projectName });
-    if (!("n" in job)) return setNote(job.error);
-    rememberExport(projectFile, choice);
-    setMine(job.n);
-  };
-
   const bring = async () => {
     setNote("");
     const problems = await addMedia(frame.id).catch((e) => [String(e)]);
@@ -1654,125 +1624,15 @@ export default function TimeStrip() {
           </button>
         </div>
         {note && <span className="time-note">{note}</span>}
-        {made && !making && (
-          <button className="pill" data-name="show-video" onClick={() => void revealItemInDir(made)} title="Show the video in Finder">
-            Show
+        {(making || waitingVideos > 0) && (
+          <button className="time-note export-open" data-name="open-export-page" onClick={() => openExport("queue")} title="See every video in the line">
+            {making ? `${making.paused ? "Paused at" : `Making ${making.what},`} ${Math.round(making.done * 100)}%` : ""}
+            {waitingVideos ? `${making ? ", " : ""}${waitingVideos} waiting` : ""}
           </button>
         )}
-        {!making || over ? (
-          <div className="export-anchor">
-            <button className="pill primary" data-name="export-video" onClick={() => setChoosing(!choosing)} title="Make one video file out of this scene">
-              Export video
-            </button>
-            {choosing && (
-              <div className="export-pop" data-name="export-settings">
-                <button
-                  type="button"
-                  className="export-close"
-                  data-name="close-export"
-                  onClick={() => setChoosing(false)}
-                  title="Close"
-                  aria-label="Close"
-                >
-                  ×
-                </button>
-                {frame.workArea && (
-                  <label>
-                    Make
-                    <select data-name="export-part" value={choice.whole ? "whole" : "work"} onChange={(e) => setChoice({ ...choice, whole: e.target.value === "whole" })}>
-                      <option value="work">
-                        The work area, {clockText(frame.workArea.start)} to {clockText(frame.workArea.end)}
-                      </option>
-                      <option value="whole">The whole scene, {clockText(frame.duration)}</option>
-                    </select>
-                  </label>
-                )}
-                <label>
-                  Size
-                  <select
-                    data-name="export-size"
-                    value={choice.longSide < Math.max(frame.width, frame.height) ? choice.longSide : 0}
-                    onChange={(e) => setChoice({ ...choice, longSide: Number(e.target.value) })}
-                  >
-                    <option value={0}>
-                      Same as the scene ({exportSize(frame, 0)[0]} x {exportSize(frame, 0)[1]})
-                    </option>
-                    {SIZES.filter((z) => z.longSide > 0 && z.longSide < Math.max(frame.width, frame.height)).map((z) => {
-                      const [w, h] = exportSize(frame, z.longSide);
-                      return (
-                        <option key={z.longSide} value={z.longSide}>
-                          {z.name}, {w} by {h}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </label>
-                <label>
-                  Frames a second
-                  <select data-name="export-fps" value={choice.fps} onChange={(e) => setChoice({ ...choice, fps: Number(e.target.value) })}>
-                    {[24, 25, 30, 60].map((n) => (
-                      <option key={n} value={n}>
-                        {n}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Kind
-                  <select data-name="export-kind" value={choice.master ? "master" : "share"} onChange={(e) => setChoice({ ...choice, master: e.target.value === "master" })}>
-                    <option value="share">MP4, to share</option>
-                    <option value="master">ProRes, to keep editing</option>
-                  </select>
-                </label>
-                {!choice.master && (
-                  <label>
-                    Quality
-                    <select data-name="export-quality" value={choice.quality} onChange={(e) => setChoice({ ...choice, quality: Number(e.target.value) })}>
-                      {QUALITIES.map((q) => (
-                        <option key={q.quality} value={q.quality}>
-                          {q.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-                <div className="export-where">
-                  <span className="time-quiet" title={choice.dir ?? "Documents, Duet, Exports"}>
-                    Saves in {choice.dir ? shortFolder(choice.dir) : "Documents, Duet, Exports"}
-                  </span>
-                  <button
-                    className="pill"
-                    data-name="export-folder"
-                    title="Choose the folder this project's videos go into. Duet remembers it."
-                    onClick={async () => {
-                      const dir = await openDialog({ directory: true, title: "Where this project's videos go", defaultPath: choice.dir });
-                      if (typeof dir === "string" && dir) setChoice({ ...choice, dir });
-                    }}
-                  >
-                    Change
-                  </button>
-                </div>
-                <button className="pill primary" data-name="export-go" onClick={make}>
-                  Export
-                </button>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="export-anchor" data-name="export-making">
-            <button className="time-note export-open" data-name="open-export-page" onClick={() => window.dispatchEvent(new Event("duet:export-page"))} title="See every video in the line">
-              {making.state === "waiting" ? "Waiting for another video to finish" : `${making.paused ? "Paused at" : "Making your video,"} ${Math.round(making.done * 100)}%`}
-            </button>
-            {making.state === "running" && (
-              <button className="pill" data-name="pause-export" onClick={() => pauseJob(making.n, !making.paused)} title={making.paused ? "Carry on making the video" : "Hold the video here and carry on later"}>
-                {making.paused ? "Resume" : "Pause"}
-              </button>
-            )}
-            <button className="pill" data-name="stop-export" onClick={() => stopJob(making.n)} title={making.state === "waiting" ? "Take this video out of the line" : "Stop making the video"}>
-              {making.state === "waiting" ? "Remove" : "Stop"}
-            </button>
-          </div>
-        )}
+        <button className="pill primary" data-name="export-video" onClick={() => openExport("setup", frame.id)} title="Choose how this scene is made into a video">
+          Export video
+        </button>
       </div>
 
       {sweepBox && <div className="time-sweep" style={{ left: sweepBox.x, top: sweepBox.y, width: sweepBox.w, height: sweepBox.h }} />}

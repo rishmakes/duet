@@ -41,6 +41,7 @@ import Feedback from "./ui/Feedback";
 import Settings from "./ui/Settings";
 import Home from "./ui/Home";
 import ExportPage from "./ui/ExportPage";
+import type { ExportTab } from "./ui/ExportPage";
 import SpaceSwitch from "./ui/SpaceSwitch";
 import Kitchen, { RecipesPage } from "./ui/Kitchen";
 import LayersPanel from "./ui/LayersPanel";
@@ -166,14 +167,17 @@ export default function App() {
   // what the Store opens on, when something asks for it by name, like Voice to text from Transcribe
   const [storeOn, setStoreOn] = useState<string | null>(null);
   const [recipesOpen, setRecipesOpen] = useState(false);
-  const [exportOpen, setExportOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState<{ tab: ExportTab; scene?: string } | null>(null);
   useEffect(() => {
     const open = (e: Event) => {
       setStoreOn((e as CustomEvent<{ thing?: string } | undefined>).detail?.thing ?? null);
       setSkillsOpen(true);
     };
     const openRecipes = () => setRecipesOpen(true);
-    const openExport = () => setExportOpen(true);
+    const openExport = (e: Event) => {
+      const d = (e as CustomEvent<{ tab?: ExportTab; scene?: string } | undefined>).detail;
+      setExportOpen({ tab: d?.tab ?? "queue", scene: d?.scene });
+    };
     window.addEventListener("duet:skills-page", open);
     window.addEventListener("duet:recipes-page", openRecipes);
     window.addEventListener("duet:export-page", openExport);
@@ -456,7 +460,7 @@ export default function App() {
       )}
       {skillsOpen && <StorePage key={storeOn ?? ""} startOn={storeOn} onClose={() => setSkillsOpen(false)} />}
       {recipesOpen && <RecipesPage onClose={() => setRecipesOpen(false)} />}
-      {exportOpen && <ExportPage onClose={() => setExportOpen(false)} />}
+      {exportOpen && <ExportPage tab={exportOpen.tab} sceneId={exportOpen.scene} onClose={() => setExportOpen(null)} />}
       <HistoryStrip dev={check} />
       <Versions />
       {presenting && <PresentView onClose={() => setPresenting(false)} />}

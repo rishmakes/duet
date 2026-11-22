@@ -264,6 +264,8 @@ export interface ExportChoice {
   master?: boolean;
   /** The whole scene, even when a work area is marked. Left out, only the work area is made when there is one. */
   whole?: boolean;
+  /** No sound in the file, only the picture. */
+  mute?: boolean;
 }
 
 export const SIZES: { name: string; longSide: number }[] = [
@@ -274,8 +276,8 @@ export const SIZES: { name: string; longSide: number }[] = [
 ];
 export const QUALITIES: { name: string; quality: number }[] = [
   { name: "Best", quality: 15 },
-  { name: "Good", quality: 20 },
-  { name: "Small file", quality: 27 },
+  { name: "Better", quality: 20 },
+  { name: "Good", quality: 27 },
 ];
 export const defaultChoice = (): ExportChoice => ({ longSide: 0, fps: 30, quality: 20 });
 
@@ -375,6 +377,9 @@ export async function drawWithFootage<T>(doc: Doc, sceneId: string, t: number, s
   return out;
 }
 
+/** The kind of file a choice makes, in a designer's words. */
+export const fileKindName = (choice: ExportChoice) => `${choice.master ? "ProRes MOV" : `MP4, ${QUALITIES.find((q) => q.quality === choice.quality)?.name ?? "own quality"}`}${choice.mute ? ", no sound" : ""}`;
+
 /**
  * Put a video in the line of videos, for the designer or an AI alike. The design as it is now is the one
  * made, even if it changes while the video waits its turn: commands never change a document, so holding
@@ -385,7 +390,7 @@ export function queueVideo(sceneId: string, choice: ExportChoice, who: Pick<Job,
   if (!scene?.duration) return { error: "This frame has no length yet." };
   const seconds = scene.workArea && !choice.whole ? scene.workArea.end - scene.workArea.start : scene.duration;
   return addJob(
-    { what: scene.name, kind: choice.master ? "ProRes master" : "MP4", seconds, file: choice.to, ...who },
+    { what: scene.name, kind: fileKindName(choice), seconds, file: choice.to, ...who },
     async (progress) => {
       await preloadPictures(doc);
       return exportScene(sceneId, progress, choice, doc);
@@ -436,7 +441,7 @@ export async function exportScene(sceneId: string, progress: (done: number) => v
   holdClips(true);
   let begun = false;
   try {
-    await invoke("scene_export_begin", { out: file, fps: FPS, seconds: total / FPS, quality: choice.quality, sounds: soundsBetween(soundsOf(doc, sceneId), from, to), width, height, master: !!choice.master });
+    await invoke("scene_export_begin", { out: file, fps: FPS, seconds: total / FPS, quality: choice.quality, sounds: choice.mute ? [] : soundsBetween(soundsOf(doc, sceneId), from, to), width, height, master: !!choice.master });
     begun = true;
     const sizes = new Map<string, Info>();
     for (let i = 0; i < total; i++) {
