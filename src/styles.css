@@ -13517,6 +13517,25 @@ button.ctx-item.store-make-option:hover {
   border-color: var(--accent);
   color: var(--accent);
 }
+/* a transition tile on its way from Assets: every cut shows its "+", bigger to aim at, and the one under it lights up */
+.dragging-transition .cut-plus {
+  opacity: 1;
+  width: 24px;
+  height: 24px;
+  margin-left: -12px;
+  border-radius: 12px;
+  transform: translateY(-50%) scale(1);
+  transition: none;
+}
+.cut-plus.drop,
+.cut-badge.drop {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.asset-tile[draggable="true"] {
+  cursor: grab;
+}
 .cut-badge {
   transform: translateY(-50%);
   background: var(--panel);

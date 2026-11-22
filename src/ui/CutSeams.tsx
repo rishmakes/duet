@@ -4,8 +4,7 @@ import { CUT_MOVE_NAMES, clipBefore, moveLength } from "../document/moves";
 import { spanOf } from "../document/time";
 import { CUT_MOVES } from "../document/types";
 import type { CutMoveKind, Doc, El } from "../document/types";
-import { dispatch } from "../state/store";
-import { copyCut, getCopiedCut, pasteCut, pickCut, usePickedCut } from "./pickedCut";
+import { TRANSITION_DRAG, copyCut, draggedKind, getCopiedCut, pasteCut, pickCut, putTransition, recentKinds, usePickedCut } from "./pickedCut";
 import { useDismiss } from "./useDismiss";
 import { faveOf, useFavourites } from "./favourites";
 import { setAssetsChip } from "./assetsFind";
@@ -17,23 +16,6 @@ const CHOICES: [CutMoveKind, string][] = CUT_MOVES.map((k) => [
   CUT_MOVE_NAMES[k],
 ]);
 
-// the transitions you used last come first; kept on this computer only, so a lost list just falls back to the usual order
-const RECENT_KEY = "duet.cuts.recent";
-const recentKinds = (): CutMoveKind[] => {
-  try {
-    const saved = JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]");
-    return Array.isArray(saved) ? saved.filter((k): k is CutMoveKind => (CUT_MOVES as readonly string[]).includes(k)) : [];
-  } catch {
-    return [];
-  }
-};
-const usedKind = (kind: CutMoveKind) => {
-  try {
-    localStorage.setItem(RECENT_KEY, JSON.stringify([kind, ...recentKinds().filter((k) => k !== kind)]));
-  } catch {
-    // nothing to keep it in: the order stays the usual one
-  }
-};
 const inOrder = (): [CutMoveKind, string][] => {
   const recent = recentKinds();
   return [...CHOICES].sort((a, b) => (recent.indexOf(a[0]) + 1 || 99) - (recent.indexOf(b[0]) + 1 || 99));
@@ -80,11 +62,29 @@ export default function CutSeams({
   if (!seams.length) return null;
   const choose = (id: string, kind: CutMoveKind | "cut") => {
     setMenu(null);
-    if (kind !== "cut") usedKind(kind);
-    dispatch("set_transition", { ids: [id], kind });
-    // a transition put on or changed is picked, so its settings show; one taken away lets go
-    pickCut(kind === "cut" ? null : id);
+    putTransition(id, kind);
   };
+  // a transition tile from Assets lets go on a cut: the "+" or the badge there takes it
+  const [over, setOver] = useState<string | null>(null);
+  const takes = (id: string) => ({
+    onDragOver: (e: React.DragEvent) => {
+      if (!e.dataTransfer.types.includes(TRANSITION_DRAG)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = "copy";
+      setOver(id);
+    },
+    onDragLeave: () => setOver((o) => (o === id ? null : o)),
+    onDrop: (e: React.DragEvent) => {
+      const kind = draggedKind(Array.from(e.dataTransfer.types), (t) => e.dataTransfer.getData(t));
+      setOver(null);
+      if (!kind) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setMenu(null);
+      putTransition(id, kind);
+    },
+  });
   const open = menu ? doc.elements[menu.id] : null;
   const copied = getCopiedCut();
   return (
@@ -95,7 +95,8 @@ export default function CutSeams({
           return (
             <button
               key={b.id}
-              className={`cut-plus ${menu?.id === b.id ? "open" : ""} ${picked === b.id ? "picked" : ""}`}
+              className={`cut-plus ${menu?.id === b.id ? "open" : ""} ${picked === b.id ? "picked" : ""} ${over === b.id ? "drop" : ""}`}
+              {...takes(b.id)}
               data-name={`cut-plus-${b.name}`}
               style={{ left: at * pps }}
               title="Add a transition at this cut"
@@ -121,7 +122,8 @@ export default function CutSeams({
         return (
           <button
             key={b.id}
-            className={`cut-badge ${move.kind} ${picked === b.id ? "picked" : ""}`}
+            className={`cut-badge ${move.kind} ${picked === b.id ? "picked" : ""} ${over === b.id ? "drop" : ""}`}
+            {...takes(b.id)}
             data-name={`cut-badge-${b.name}`}
             style={{ left: at * pps - w / 2, width: w }}
             title={`${CUT_MOVE_NAMES[move.kind]}, ${Math.round(len * 100) / 100} s. Click to change or remove it`}

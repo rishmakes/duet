@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cutKeyAction } from "./pickedCut";
+import { TRANSITION_DRAG, cutKeyAction, draggedKind } from "./pickedCut";
 
 const key = (k: string, mods: Partial<{ metaKey: boolean; ctrlKey: boolean; altKey: boolean; shiftKey: boolean }> = {}) => ({
   key: k,
@@ -40,5 +40,22 @@ describe("keys on a picked cut", () => {
     expect(cutKeyAction(key("Backspace"), on)).toBe("remove");
     expect(cutKeyAction(key("Delete"), { ...on, hasMove: false })).toBeNull();
     expect(cutKeyAction(key("Escape"), on)).toBe("let-go");
+  });
+});
+
+describe("a transition tile dropped on a cut", () => {
+  const drag = (data: Record<string, string>) => [Object.keys(data), (t: string) => data[t] ?? ""] as const;
+
+  it("carries the transition it was dragged from", () => {
+    expect(draggedKind(...drag({ [TRANSITION_DRAG]: "dip-black" }))).toBe("dip-black");
+  });
+
+  it("ignores footage, layers and anything else dropped on a cut", () => {
+    expect(draggedKind(...drag({ Files: "" }))).toBeNull();
+    expect(draggedKind(...drag({ "text/plain": "dissolve" }))).toBeNull();
+  });
+
+  it("ignores a kind Duet does not have", () => {
+    expect(draggedKind(...drag({ [TRANSITION_DRAG]: "explode" }))).toBeNull();
   });
 });

@@ -10,6 +10,7 @@ import { seek } from "../video/play";
 import { getLayout, setLayout } from "../ui/layout";
 import { spanOf } from "../document/time";
 import { trackRows } from "../document/tracks";
+import { CUT_MOVE_NAMES } from "../document/moves";
 import { defaultChoice, exportScene } from "../video/scene";
 import { addClip, getCut, emptyCut, setCut, sizeOf } from "../video/cut";
 import type { Info } from "../video/cut";
@@ -120,6 +121,20 @@ export const BUILDER_TOOLS: ToolDef[] = [
         noSnap: { ...bool, description: "True to turn snapping off (the magnet) for this drag, so it does not snap to edges." },
       },
       required: ["clip", "by"],
+    },
+  },
+  {
+    name: "dev_drop_transition",
+    description:
+      "Builder tool. Drag a transition tile from Assets onto a cut on the timeline in Edit, the way a hand would, and let go there. Open the Assets tab with the Transitions shelf open first, and the video in Edit. The cut is named by the clip that comes in after it. The answer says whether every cut showed its + during the drag, whether the cut lit up under the tile, and every clip after it with the transition it comes in with.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        transition: { ...str, description: "The transition's name as its tile shows it, such as Dissolve." },
+        clip: { ...str, description: "The clip that comes in at the cut, by its name on the timeline." },
+        hold: { ...num, description: "Seconds to hold the tile over the cut before letting go, so a picture of the window can be taken meanwhile. 0 if left out." },
+      },
+      required: ["transition", "clip"],
     },
   },
   {
@@ -486,7 +501,7 @@ function timelineNow(): string {
   if (!frame) return "No timeline is open.";
   const t = (n: number) => Math.round(n * 1000) / 1000;
   return trackRows(doc, frame)
-    .map((r) => `${r.name}: ${[...r.items].map((el) => ({ el, sp: spanOf(el, frame) })).sort((x, y) => x.sp.start - y.sp.start).map(({ el, sp }) => `${el.name} ${t(sp.start)}-${t(sp.end)}s`).join(", ") || "empty"}`)
+    .map((r) => `${r.name}: ${[...r.items].map((el) => ({ el, sp: spanOf(el, frame) })).sort((x, y) => x.sp.start - y.sp.start).map(({ el, sp }) => `${el.name} ${t(sp.start)}-${t(sp.end)}s${el.cutIn ? ` (comes in with ${CUT_MOVE_NAMES[el.cutIn.kind]})` : ""}`).join(", ") || "empty"}`)
     .join("\n");
 }
 
@@ -539,6 +554,43 @@ async function dragClip(a: Args): Promise<ToolResult> {
   if (a.noSnap) setLayout({ snapping: snapWas });
   await settle();
   return { text: `Dragged "${a.clip}" by its ${part} ${by} s${a.track ? ` onto ${a.track}` : ""}. During the drag the timeline said: ${said ? `"${said}"` : "nothing"}.\nNow:\n${timelineNow()}` };
+}
+
+async function dropTransition(a: Args): Promise<ToolResult> {
+  const kind = (Object.keys(CUT_MOVE_NAMES) as (keyof typeof CUT_MOVE_NAMES)[]).find((k) => CUT_MOVE_NAMES[k].toLowerCase() === String(a.transition ?? "").trim().toLowerCase());
+  if (!kind) return fail(`No transition is called "${a.transition}". There are: ${Object.values(CUT_MOVE_NAMES).join(", ")}.`);
+  const tile = document.querySelector<HTMLElement>(`.asset-tile[data-name="asset-transition-${kind}"]`);
+  if (!tile) return fail("The transition tile is not in sight. Open the Assets tab and its Transitions shelf first.");
+  const clip = CSS.escape(String(a.clip ?? ""));
+  const cut = () => document.querySelector<HTMLElement>(`[data-name="cut-plus-${clip}"], [data-name="cut-badge-${clip}"]`);
+  if (!cut()) return fail(`No cut comes before a clip called "${a.clip}". Open the video in Edit first.`);
+  const data = new DataTransfer();
+  const init = (el: HTMLElement) => {
+    const r = el.getBoundingClientRect();
+    return { bubbles: true, cancelable: true, dataTransfer: data, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 };
+  };
+  tile.dispatchEvent(new DragEvent("dragstart", init(tile)));
+  await settle();
+  // every "+" is seen when the drag starts, before the hand reaches one
+  const pluses = Array.from(document.querySelectorAll<HTMLElement>(".cut-plus"));
+  const shown = pluses.filter((p) => getComputedStyle(p).opacity === "1").length;
+  const target = cut()!;
+  const r = target.getBoundingClientRect();
+  const under = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+  if (!under || !target.contains(under)) {
+    tile.dispatchEvent(new DragEvent("dragend", init(tile)));
+    return fail(`The cut before "${a.clip}" is not in sight, or something covers it. Scroll the timeline to it first.`);
+  }
+  target.dispatchEvent(new DragEvent("dragenter", init(target)));
+  target.dispatchEvent(new DragEvent("dragover", init(target)));
+  await settle();
+  const lit = cut()!.classList.contains("drop");
+  const hold = Math.min(10, Math.max(0, Number(a.hold) || 0));
+  if (hold) await new Promise((done) => setTimeout(done, hold * 1000));
+  cut()!.dispatchEvent(new DragEvent("drop", init(cut()!)));
+  tile.dispatchEvent(new DragEvent("dragend", init(tile)));
+  await settle();
+  return { text: `Dropped ${CUT_MOVE_NAMES[kind]} on the cut before "${a.clip}". During the drag ${shown} of ${pluses.length} cuts without a transition showed their +, and the cut ${lit ? "lit up" : "did NOT light up"} under the tile.\nNow:\n${timelineNow()}` };
 }
 
 async function dropFootage(a: Args): Promise<ToolResult> {
@@ -694,6 +746,7 @@ export async function callBuilderTool(name: string, raw: unknown, by?: string): 
   if (name === "dev_drag") return drag(a);
   if (name === "dev_drag_clip") return dragClip(a);
   if (name === "dev_drop_footage") return dropFootage(a);
+  if (name === "dev_drop_transition") return dropTransition(a);
   if (name === "dev_history") {
     const s = getState();
     const from = Math.max(0, s.timeline.length - (typeof a.last === "number" && a.last > 0 ? Math.floor(a.last) : 12));

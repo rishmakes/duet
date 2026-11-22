@@ -17,6 +17,7 @@ import Shelf from "./Shelf";
 import { ASSETS_CHIPS, finds, setAssetsChip, shelfOn, useAssetsChip } from "./assetsFind";
 import Star from "./Star";
 import { faveOf, useFavourites } from "./favourites";
+import { TRANSITION_DRAG, putTransition, usePickedCut } from "./pickedCut";
 
 /** Pixel steps or numbers parsed from a comma-separated string. */
 function parseNumbers(raw: string): number[] {
@@ -634,13 +635,31 @@ function Components({ list }: { list: ReturnType<typeof componentsIn> }) {
   );
 }
 
-/** A transition as a tile: it plays while the pointer is on it, and its star keeps it in Favourites. */
+/**
+ * A transition as a tile: it plays while the pointer is on it, and its star keeps it in Favourites. Drag it onto
+ * a cut on the timeline, or pick a cut and click it, to put it there.
+ */
 function TransitionTile({ kind }: { kind: CutMoveKind }) {
+  const cut = usePickedCut();
+  const name = CUT_MOVE_NAMES[kind];
   return (
-    <div className="asset-tile" data-name={`asset-transition-${kind}`} title={CUT_MOVE_NAMES[kind]}>
+    <div
+      className="asset-tile"
+      data-name={`asset-transition-${kind}`}
+      title={cut ? `Click to put ${name} on the picked cut` : `Drag ${name} onto a cut on the timeline`}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData(TRANSITION_DRAG, kind);
+        e.dataTransfer.effectAllowed = "copy";
+        // every cut shows its "+" while a transition is on its way
+        document.body.classList.add("dragging-transition");
+      }}
+      onDragEnd={() => document.body.classList.remove("dragging-transition")}
+      onClick={() => cut && putTransition(cut, kind)}
+    >
       <span className={`asset-tile-face cut-preview cut-preview-${kind}`} aria-hidden="true" />
-      <Star fave={faveOf.transition(kind)} name={CUT_MOVE_NAMES[kind]} />
-      <span className="asset-tile-name">{CUT_MOVE_NAMES[kind]}</span>
+      <Star fave={faveOf.transition(kind)} name={name} />
+      <span className="asset-tile-name">{name}</span>
     </div>
   );
 }
