@@ -1,6 +1,6 @@
 /** One icon set for the whole app: 24 grid, round ends, same stroke weight everywhere. */
 
-export type IconName = "speed" | "blade" | "stretch" | "silence" | "cut-here" | "cut-close" | "cut-before" | "cut-after" | "move" | "frame" | "rect" | "ellipse" | "text" | "hand" | "zoom" | "image" | "film" | "scene" | "heart" | "printer" | "screens" | "plus" | "pen" | "brush" | "eraser" | "mask" | "group" | "lock" | "unlock" | "eye" | "eye-off" | "sound" | "sound-off" | "component" | "instance" | "panel-left" | "panel-right" | "arrow" | "search" | "settings" | "skills" | "new-chat" | "folder" | "trash" | "close" | "unlist" | "restore" | "dots" | "grid" | "list" | "copy" | "move-to" | "marker" | "comment" | "sun" | "moon" | "home" | "feedback" | "fold" | "skill-auto-layout" | "skill-mobile-screens" | "skill-spacing" | "skill-type-scale" | "skill-contrast" | "skill-plain-words" | "skill-bold-blocks" | "skill-bento" | "skill-calm-and-trusted" | "skill-friendly-and-modern" | "skill-prototypes" | "skill-custom" | "plugin-connect" | "plugin-voice" | "captions" | "cuts-all" | "cut-remove" | "magnet" | "wand" | "shapes" | "chevron-down" | "check" | "media" | "words" | "layers" | "assets";
+export type IconName = "speed" | "blade" | "stretch" | "silence" | "cut-here" | "cut-close" | "cut-before" | "cut-after" | "move" | "frame" | "rect" | "ellipse" | "text" | "hand" | "zoom" | "image" | "film" | "scene" | "heart" | "printer" | "screens" | "plus" | "pen" | "brush" | "eraser" | "mask" | "group" | "lock" | "unlock" | "eye" | "eye-off" | "sound" | "sound-off" | "component" | "instance" | "panel-left" | "panel-right" | "arrow" | "search" | "settings" | "skills" | "new-chat" | "folder" | "trash" | "close" | "unlist" | "restore" | "dots" | "grid" | "list" | "copy" | "move-to" | "marker" | "comment" | "sun" | "moon" | "home" | "feedback" | "fold" | "skill-auto-layout" | "skill-mobile-screens" | "skill-spacing" | "skill-type-scale" | "skill-contrast" | "skill-plain-words" | "skill-bold-blocks" | "skill-bento" | "skill-calm-and-trusted" | "skill-friendly-and-modern" | "skill-prototypes" | "skill-custom" | "plugin-connect" | "plugin-voice" | "captions" | "cuts-all" | "cut-remove" | "magnet" | "wand" | "shapes" | "chevron-down" | "check" | "media" | "words" | "layers" | "assets" | "sliders" | "prototype";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   move: <path d="M5.5 3.5l13 6.3-5.7 1.8-1.8 5.9z" />,
@@ -89,6 +89,21 @@ const PATHS: Record<IconName, React.ReactNode> = {
     </>
   ),
   "chevron-down": <path d="M7 10l5 5 5-5" />,
+  // the right panel's two views: the settings of what you picked, and linking screens
+  sliders: (
+    <>
+      <path d="M4 8h9M18.5 8H20M4 16h1.5M11 16h9" />
+      <circle cx="15.75" cy="8" r="2.5" />
+      <circle cx="8.25" cy="16" r="2.5" />
+    </>
+  ),
+  prototype: (
+    <>
+      <rect x="3.5" y="4.5" width="7" height="11" rx="1.5" />
+      <rect x="13.5" y="8.5" width="7" height="11" rx="1.5" />
+      <path d="M10.5 10h3" />
+    </>
+  ),
   // the left panel's tabs: what a video is made from, what is said, what is on the canvas, and what is ready to use
   media: (
     <>
@@ -419,6 +434,24 @@ const PATHS: Record<IconName, React.ReactNode> = {
     </>
   ),
 };
+
+/** Colour, as six slices of colour in a grey ring: the only icon with colour in it, since colour is what it opens. */
+export function ColourPie({ size = 18 }: { size?: number }) {
+  const slices = ["#ef4444", "#f59e0b", "#facc15", "#22c55e", "#3b82f6", "#a855f7"];
+  const r = 7.75;
+  const at = (i: number) => {
+    const a = (i / 6) * 2 * Math.PI - Math.PI / 2;
+    return `${(12 + r * Math.cos(a)).toFixed(2)} ${(12 + r * Math.sin(a)).toFixed(2)}`;
+  };
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true" className="colour-pie">
+      {slices.map((c, i) => (
+        <path key={c} d={`M12 12L${at(i)}A${r} ${r} 0 0 1 ${at(i + 1)}z`} fill={c} />
+      ))}
+      <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="1.6" opacity="0.6" />
+    </svg>
+  );
+}
 
 export default function Icon({ name, size = 17, className }: { name: IconName; size?: number; className?: string }) {
   return (

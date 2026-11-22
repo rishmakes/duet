@@ -9406,34 +9406,43 @@ input.chathome-name.rename {
   background: var(--panel);
   border-bottom: 1px solid var(--line);
 }
-/* the two views of the right panel, side by side: the open one is the white button standing up a little */
-.panel-extra {
+/* the right panel's two views as round icon buttons in a round pill; the picked one a lighter grey, never purple */
+.panel-views {
+  align-self: center;
   display: flex;
-  margin: 10px 14px;
-  padding: 2px;
-  border-radius: var(--r-md);
-  background: var(--panel-2);
+  gap: 4px;
+  margin: 0 10px 0 auto;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 35%, var(--bg));
 }
-.panel-extra button {
-  flex: 1;
-  padding: 5px 10px;
+.panel-views button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
   border: none;
-  border-radius: 6px;
+  border-radius: 50%;
   background: none;
   color: var(--muted);
-  font: inherit;
-  font-size: 12px;
   cursor: pointer;
-  transition: color 0.12s ease;
+  transition: color 0.12s ease, background 0.12s ease;
 }
-.panel-extra button:hover:not(.on) {
+.panel-views button:hover:not(.on) {
   color: var(--text);
 }
-.panel-extra button.on {
-  background: var(--panel);
+.panel-views button.on {
+  background: color-mix(in srgb, var(--text) 16%, var(--panel));
   color: var(--text);
-  font-weight: 500;
-  box-shadow: 0 1px 2px var(--shadow), 0 0 0 1px var(--line);
+}
+[data-theme="light"] .panel-views {
+  background: color-mix(in srgb, var(--text) 9%, var(--panel));
+}
+[data-theme="light"] .panel-views button.on {
+  background: #fff;
+  box-shadow: 0 1px 2px var(--shadow);
 }
 /* Kitchen: the chat, your design, and a recipe's steps only while one is in use */
 .kitchen,
@@ -11991,7 +12000,7 @@ button.ctx-item.store-make-option:hover {
   border-bottom: 1px solid var(--line);
 }
 /* the right panel's name, after the arrow that puts it away */
-.panel-title {
+.panel-name {
   align-self: center;
   font-size: 14px;
   font-weight: 600;

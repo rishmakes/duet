@@ -26,7 +26,7 @@ import { gradablesIn } from "../document/grade";
 import FontPicker from "./FontPicker";
 import { ColorField } from "./ColorPicker";
 import { colorOpacity, withOpacity } from "./color";
-import Icon from "./Icons";
+import Icon, { ColourPie } from "./Icons";
 import { EFFECT_DEFS, EFFECT_KINDS } from "../document/effects";
 import type { Effect, EffectControl } from "../document/effects";
 import { assetUrl } from "../project/assets";
@@ -1125,30 +1125,31 @@ export default function PropertiesPanel() {
     else if (mode === "motion") setLayout({ videoTab: next });
   };
 
-  // the top of the right panel: its name, and under it the one extra each kind has.
-  // Design can turn to Prototype; Video and Photo can turn to Colour. Off is the plain panel.
+  // the top of the right panel: its name, and on the right two round buttons: the plain panel, and the one extra each kind has.
+  // Design can turn to Prototype; Video and Photo can turn to Colour.
   const extra = mode === "design"
-    ? { name: "Prototype", on: prototyping, title: "Connect screens so they can be clicked through", set: (on: boolean) => setLayout({ prototyping: on }) }
+    ? { name: "Prototype", on: prototyping, title: "Prototype: connect screens so they can be clicked through", set: (on: boolean) => setLayout({ prototyping: on }) }
     : { name: "Colour", on: tab === "color", title: "Colour: grade the pictures and clips", set: (on: boolean) => setTab(on ? "color" : "properties") };
-  const kindRow = (
-    <div className="panel-kind-row">
-      <FoldButton side={swapped ? "l" : "r"} folding title="Put the design panel away" onClick={() => setLayout({ rightHidden: true })} />
-      <span className="panel-title">Properties</span>
-    </div>
-  );
-  const switchElement = (
+  const plainOn = !extra.on && tab !== "chat";
+  const header = (views: boolean) => (
     <div className="panel-kind">
-      {kindRow}
-      <div className="panel-extra" role="group" aria-label="View">
-        <button type="button" className={!extra.on && tab !== "chat" ? "on" : ""} aria-pressed={!extra.on && tab !== "chat"} data-name="extra-properties" title="Properties of what you picked" onClick={() => extra.set(false)}>
-          Properties
-        </button>
-        <button type="button" className={extra.on ? "on" : ""} aria-pressed={extra.on} data-name={`extra-${extra.name.toLowerCase()}`} title={extra.title} onClick={() => extra.set(true)}>
-          {extra.name}
-        </button>
+      <div className="panel-kind-row">
+        <FoldButton side={swapped ? "l" : "r"} folding title="Put the design panel away" onClick={() => setLayout({ rightHidden: true })} />
+        <span className="panel-name">Properties</span>
+        {views && (
+          <div className="panel-views" role="group" aria-label="View">
+            <button type="button" className={plainOn ? "on" : ""} aria-pressed={plainOn} aria-label="Properties" data-name="extra-properties" title="Properties of what you picked" onClick={() => extra.set(false)}>
+              <Icon name="sliders" size={16} />
+            </button>
+            <button type="button" className={extra.on ? "on" : ""} aria-pressed={extra.on} aria-label={extra.name} data-name={`extra-${extra.name.toLowerCase()}`} title={extra.title} onClick={() => extra.set(true)}>
+              {mode === "design" ? <Icon name="prototype" size={16} /> : <ColourPie size={20} />}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
+  const switchElement = header(true);
 
   // in Video the chat sits here as a tab, so it never covers the picture while working by hand
   if (tab === "chat" && mode === "motion") {
@@ -1162,7 +1163,7 @@ export default function PropertiesPanel() {
 
   // captions are the work: the Caption styles tab is open with nothing picked, or only captions are picked
   if (mode === "motion" && openScene && !cutId && (els.length ? els.every((e) => isCaption(doc, e.id)) : captionsTab)) {
-    return <CaptionCustomize top={<div className="panel-kind">{kindRow}</div>} />;
+    return <CaptionCustomize top={header(false)} />;
   }
 
   if (tab === "color") {
