@@ -4431,6 +4431,110 @@ option {
 .frame-presets .frame-preset-item {
   cursor: pointer;
 }
+/* the picker at a cut: a slim card with a search, then the transitions with a small moving picture each */
+.cut-menu {
+  width: 210px;
+  min-width: 0;
+  padding: 6px;
+}
+.cut-find {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--panel) 35%, var(--bg));
+  color: var(--muted);
+}
+.cut-find input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+.cut-list-title {
+  padding: 9px 6px 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+/* four rows show at a time; more scroll with a thin bar */
+.cut-list {
+  max-height: 128px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.cut-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 32px;
+  padding: 0 6px;
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  cursor: default;
+}
+.cut-row:hover {
+  background: var(--panel-2);
+}
+.cut-row.on {
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+.cut-none {
+  padding: 8px 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.cut-preview {
+  position: relative;
+  flex: none;
+  width: 30px;
+  height: 18px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: linear-gradient(135deg, #e8a87c, #b8574a);
+}
+.cut-preview::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  animation: 2.4s ease-in-out infinite alternate;
+}
+/* Dissolve: the next shot shows through the first */
+.cut-preview-dissolve::after {
+  background: linear-gradient(135deg, #7fb2d9, #34607f);
+  animation-name: cut-fade;
+}
+/* Dip to black and Dip to white: the picture goes to the colour and comes back as the next shot */
+.cut-preview-dip-black::after {
+  background: #000;
+  animation-name: cut-dip;
+}
+.cut-preview-dip-white::after {
+  background: #fff;
+  animation-name: cut-dip;
+}
+@keyframes cut-fade {
+  0%, 20% { opacity: 0; }
+  80%, 100% { opacity: 1; }
+}
+@keyframes cut-dip {
+  0%, 15% { opacity: 0; }
+  50% { opacity: 1; }
+  85%, 100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cut-preview::after {
+    animation: none;
+    opacity: 0.5;
+  }
+}
 .ctx-line {
   height: 1px;
   background: var(--line);

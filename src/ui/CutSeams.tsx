@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { CUT_MOVE_NAMES, clipBefore, moveLength } from "../document/moves";
 import { spanOf } from "../document/time";
@@ -13,6 +13,28 @@ const CHOICES: [CutMoveKind, string][] = CUT_MOVES.map((k) => [
   k,
   CUT_MOVE_NAMES[k],
 ]);
+
+// the transitions you used last come first; kept on this computer only, so a lost list just falls back to the usual order
+const RECENT_KEY = "duet.cuts.recent";
+const recentKinds = (): CutMoveKind[] => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]");
+    return Array.isArray(saved) ? saved.filter((k): k is CutMoveKind => (CUT_MOVES as readonly string[]).includes(k)) : [];
+  } catch {
+    return [];
+  }
+};
+const usedKind = (kind: CutMoveKind) => {
+  try {
+    localStorage.setItem(RECENT_KEY, JSON.stringify([kind, ...recentKinds().filter((k) => k !== kind)]));
+  } catch {
+    // nothing to keep it in: the order stays the usual one
+  }
+};
+const inOrder = (): [CutMoveKind, string][] => {
+  const recent = recentKinds();
+  return [...CHOICES].sort((a, b) => (recent.indexOf(a[0]) + 1 || 99) - (recent.indexOf(b[0]) + 1 || 99));
+};
 
 /**
  * The cuts on one track in Edit: where one clip ends and the next starts. A cut with no transition shows a
@@ -32,8 +54,11 @@ export default function CutSeams({
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(
     null,
   );
+  const [find, setFind] = useState("");
   const picked = usePickedCut();
   useDismiss(!!menu, () => setMenu(null), ".cut-menu, .cut-plus, .cut-badge");
+  // each time the picker opens, its search starts empty
+  useEffect(() => setFind(""), [menu?.id]);
   const here = new Set(items.map((el) => el.id));
   const seams = items.flatMap((b) => {
     const a = b.type === "video" ? clipBefore(doc, b, frame) : null;
@@ -42,6 +67,7 @@ export default function CutSeams({
   if (!seams.length) return null;
   const choose = (id: string, kind: CutMoveKind | "cut") => {
     setMenu(null);
+    if (kind !== "cut") usedKind(kind);
     dispatch("set_transition", { ids: [id], kind });
     // a transition put on or changed is picked, so its settings show; one taken away lets go
     pickCut(kind === "cut" ? null : id);
@@ -111,20 +137,41 @@ export default function CutSeams({
         createPortal(
           <div
             className="ctx cut-menu"
-            style={{ left: menu.x - 80, top: menu.y, minWidth: 160 }}
+            style={{ left: Math.max(8, menu.x - 105), top: menu.y }}
             data-name="cut-menu"
             onPointerDown={(e) => e.stopPropagation()}
           >
-            {CHOICES.map(([kind, name]) => (
-              <div
-                key={kind}
-                className={`ctx-item ${open.cutIn?.kind === kind ? "on" : ""}`}
-                data-name={`cut-choice-${kind}`}
-                onClick={() => choose(open.id, kind)}
-              >
-                {name}
-              </div>
-            ))}
+            <label className="cut-find">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="6.5" />
+                <path d="M16 16l4 4" />
+              </svg>
+              <input
+                autoFocus
+                placeholder="Find a transition"
+                value={find}
+                onChange={(e) => setFind(e.target.value)}
+                onKeyDown={(e) => e.stopPropagation()}
+              />
+            </label>
+            <div className="cut-list-title">Transitions</div>
+            <div className="cut-list">
+              {inOrder()
+                .filter(([, name]) => name.toLowerCase().includes(find.trim().toLowerCase()))
+                .map(([kind, name]) => (
+                  <div
+                    key={kind}
+                    className={`cut-row ${open.cutIn?.kind === kind ? "on" : ""}`}
+                    data-name={`cut-choice-${kind}`}
+                    onClick={() => choose(open.id, kind)}
+                  >
+                    {/* a small picture of the transition, moving: one shot giving way to the next */}
+                    <span className={`cut-preview cut-preview-${kind}`} aria-hidden="true" />
+                    {name}
+                  </div>
+                ))}
+              {!inOrder().some(([, name]) => name.toLowerCase().includes(find.trim().toLowerCase())) && <div className="cut-none">No transition is called that.</div>}
+            </div>
             {(open.cutIn || copied) && <div className="ctx-line" />}
             {open.cutIn && (
               <div
