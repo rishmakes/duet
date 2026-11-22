@@ -31,8 +31,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { addPicture, mimeFor, pictureOf, preloadPictures } from "../project/assets";
 import { renderPng } from "../project/exporter";
 import { clipPicture, clipPictureOf, fileLength, letGoOfOriginals, seekClips } from "../video/clips";
-import { QUALITIES, defaultChoice, exportBusy, exportScene } from "../video/scene";
-import { aboutTime, addJob, allJobs, appendRenderLog, askAgainIn, jobLine, jobsText, secondsLeft, setJobHooks } from "./jobs";
+import { QUALITIES, defaultChoice, exportBusy, queueVideo } from "../video/scene";
+import { aboutTime, allJobs, appendRenderLog, askAgainIn, jobLine, jobsText, secondsLeft, setJobHooks } from "./jobs";
 import { recordStep } from "./trace";
 import { saveNow, saveVersion, tabName } from "../project/project";
 import { findFonts, fontsReport, importSvgPath, importSvgText } from "../project/svgImport";
@@ -2004,11 +2004,7 @@ async function exportVideo(args: Args, by?: string): Promise<ToolResult> {
   const path = R.file ?? R.getState().project.path;
   const where = said();
   const span = scene.workArea ? scene.workArea.end - scene.workArea.start : scene.duration;
-  const dest = to;
-  const job = addJob({ what: scene.name, project: path ? tabName(path) : "Untitled", by, file: dest, seconds: span }, async (progress) => {
-    await preloadPictures(doc);
-    return exportScene(scene.id, progress, { ...defaultChoice(), fps: Number(args.fps) || 30, longSide: Number(args.size) || 0, quality, master: args.master === true, ...(dest ? { to: dest } : {}) }, doc);
-  });
+  const job = queueVideo(scene.id, { ...defaultChoice(), fps: Number(args.fps) || 30, longSide: Number(args.size) || 0, quality, master: args.master === true, ...(to ? { to } : {}) }, { project: path ? tabName(path) : "Untitled", by }, doc);
   if (!("n" in job)) return fail(job.error);
   jobWhere.set(job.n, where);
   const left = secondsLeft(job);
@@ -2029,9 +2025,13 @@ setJobHooks({
     const where = jobWhere.get(job.n);
     jobWhere.delete(job.n);
     const ok = job.state === "done";
+    // the designer stopped it themselves: nothing to tell
+    if (job.state === "stopped" && !job.by) return;
     const file = job.file?.split(/[\\/]/).pop() ?? "";
-    addMsg({ role: ok ? "note" : "error", text: ok ? `Made the video ${file}` : `The video ${job.what} was not made. ${job.error ?? ""}`.trim() }, where);
     void tellMac(ok ? "Video ready" : "Video not made", ok ? `${job.what}: ${file}` : `${job.what}: ${job.error ?? ""}`);
+    // the designer's own Export says how it went on the timeline; only an AI's video is told in the chat and the trail
+    if (!job.by) return;
+    addMsg({ role: ok ? "note" : "error", text: ok ? `Made the video ${file}` : `The video ${job.what} was not made. ${job.error ?? ""}`.trim() }, where);
     recordStep({ at: job.ended ?? Date.now(), ms: (job.ended ?? 0) - (job.started ?? job.ended ?? 0), who: job.by ?? "Duet", tool: "export_video (finished)", args: { video: job.n }, text: jobLine(job), error: !ok });
   },
 });

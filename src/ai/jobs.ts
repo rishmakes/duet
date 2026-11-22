@@ -6,7 +6,7 @@ import { invoke } from "@tauri-apps/api/core";
  * job ends, Duet says so itself, and every job is kept in renders.log in Duet's folder.
  */
 
-export type JobState = "waiting" | "running" | "done" | "failed";
+export type JobState = "waiting" | "running" | "done" | "failed" | "stopped";
 
 export interface Job {
   /** Its number, from 1, for as long as Duet is open. */
@@ -28,6 +28,14 @@ export interface Job {
   started?: number;
   ended?: number;
   error?: string;
+  /** Held halfway by the designer, to carry on later. */
+  paused?: boolean;
+}
+
+/** How a running job is held or given up on. A job without it can only be taken out while it waits. */
+export interface JobControl {
+  pause: (on: boolean) => void;
+  stop: () => void;
 }
 
 /** Hooks the line calls, so it can be tried without Duet around it. */
@@ -47,6 +55,7 @@ const KEPT = 30;
 
 const jobs: Job[] = [];
 const runs = new Map<number, (progress: (done: number) => void) => Promise<string | null>>();
+const controls = new Map<number, JobControl>();
 const listeners = new Set<() => void>();
 let hooks: JobHooks = { free: () => true, ended: () => {}, log: () => {} };
 let running = false;
@@ -58,7 +67,7 @@ export function setJobHooks(h: JobHooks) {
 
 export function subscribeJobs(l: () => void) {
   listeners.add(l);
-  return () => listeners.delete(l);
+  return () => void listeners.delete(l);
 }
 
 const changed = () => {
@@ -68,15 +77,16 @@ const changed = () => {
 export const allJobs = (): readonly Job[] => jobs;
 
 /** Put a job in the line. It starts when the ones before it are done. */
-export function addJob(info: Pick<Job, "what" | "project" | "by" | "file" | "seconds">, run: (progress: (done: number) => void) => Promise<string | null>): Job | { error: string } {
+export function addJob(info: Pick<Job, "what" | "project" | "by" | "file" | "seconds">, run: (progress: (done: number) => void) => Promise<string | null>, control?: JobControl): Job | { error: string } {
   const waiting = jobs.filter((j) => j.state === "waiting").length;
   if (waiting >= MOST_WAITING) return { error: `${waiting} videos are already waiting. Wait for some to finish (ask with jobs), then try again.` };
   const job: Job = { ...info, n: next++, state: "waiting", done: 0, asked: Date.now() };
   jobs.push(job);
   runs.set(job.n, run);
+  if (control) controls.set(job.n, control);
   // only the finished ones are let go, never one waiting or running
   while (jobs.length > KEPT) {
-    const old = jobs.findIndex((j) => j.state === "done" || j.state === "failed");
+    const old = jobs.findIndex((j) => j.state === "done" || j.state === "failed" || j.state === "stopped");
     if (old < 0) break;
     jobs.splice(old, 1);
   }
@@ -105,7 +115,7 @@ async function work() {
           job.done = 1;
           job.state = "done";
         } else {
-          job.state = "failed";
+          job.state = "stopped";
           job.error = "It was stopped.";
         }
       } catch (e) {
@@ -113,7 +123,9 @@ async function work() {
         job.error = e instanceof Error ? e.message : String(e);
       }
       job.ended = Date.now();
+      job.paused = false;
       runs.delete(job.n);
+      controls.delete(job.n);
       changed();
       hooks.log(logLine(job));
       hooks.ended(job);
@@ -121,6 +133,48 @@ async function work() {
   } finally {
     running = false;
   }
+}
+
+const find = (n: number) => jobs.find((j) => j.n === n);
+
+/** Hold the running job halfway, or carry it on. */
+export function pauseJob(n: number, on: boolean): boolean {
+  const job = find(n);
+  const control = controls.get(n);
+  if (!job || job.state !== "running" || !control) return false;
+  control.pause(on);
+  job.paused = on;
+  changed();
+  return true;
+}
+
+/** Give up on a job: one waiting is taken out of the line, one running is stopped where it is. */
+export function stopJob(n: number): boolean {
+  const job = find(n);
+  if (!job) return false;
+  if (job.state === "waiting") {
+    jobs.splice(jobs.indexOf(job), 1);
+    runs.delete(n);
+    controls.delete(n);
+    changed();
+    return true;
+  }
+  const control = controls.get(n);
+  if (job.state !== "running" || !control) return false;
+  control.stop();
+  return true;
+}
+
+/** Move a waiting job to another place among the waiting ones, 0 being next. */
+export function moveJob(n: number, place: number): boolean {
+  const job = find(n);
+  if (!job || job.state !== "waiting") return false;
+  jobs.splice(jobs.indexOf(job), 1);
+  const waiting = jobs.filter((j) => j.state === "waiting");
+  const before = waiting[Math.max(0, Math.min(place, waiting.length))];
+  jobs.splice(before ? jobs.indexOf(before) : jobs.length, 0, job);
+  changed();
+  return true;
 }
 
 const secs = (ms: number) => Math.max(1, Math.round(ms / 1000));
@@ -161,11 +215,14 @@ export function jobLine(j: Job): string {
     case "waiting":
       return `${name(j)}: waiting in line, done in ${aboutTime(secondsLeft(j))}.`;
     case "running":
+      if (j.paused) return `${name(j)}: paused by the designer at ${Math.round(j.done * 100)}%. It carries on when they say so.`;
       return `${name(j)}: being made, ${Math.round(j.done * 100)}% done, ${aboutTime(secondsLeft(j))} left. Saving to ${j.file ?? "the Exports folder"}.`;
     case "done":
       return `${name(j)}: done in ${secs(j.ended! - j.started!)} seconds. ${j.file}`;
     case "failed":
       return `${name(j)}: not made. ${j.error ?? ""}`.trim();
+    case "stopped":
+      return `${name(j)}: stopped before it was done.`;
   }
 }
 
@@ -185,7 +242,7 @@ export function jobsText(): string {
 export function logLine(j: Job): string {
   const when = new Date(j.ended ?? Date.now()).toISOString();
   const took = j.started && j.ended ? `${secs(j.ended - j.started)}s` : "-";
-  return [when, j.state === "done" ? "done" : "failed", took, j.project, j.what, j.by ?? "-", j.state === "done" ? j.file : (j.error ?? "")].join("\t");
+  return [when, j.state, took, j.project, j.what, j.by ?? "-", j.state === "done" ? j.file : (j.error ?? "")].join("\t");
 }
 
 /** How many lines the render log keeps. */
@@ -209,6 +266,7 @@ export async function appendRenderLog(line: string) {
 export function resetJobs() {
   jobs.length = 0;
   runs.clear();
+  controls.clear();
   running = false;
   next = 1;
 }

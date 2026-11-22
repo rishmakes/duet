@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { MOST_WAITING, aboutTime, addJob, allJobs, askAgainIn, jobsText, resetJobs, setJobHooks } from "./jobs";
+import { MOST_WAITING, aboutTime, addJob, allJobs, askAgainIn, jobsText, moveJob, pauseJob, resetJobs, setJobHooks, stopJob } from "./jobs";
 import type { Job } from "./jobs";
 
 const tick = () => new Promise((ok) => setTimeout(ok, 0));
@@ -85,5 +85,50 @@ describe("the job line", () => {
     expect(aboutTime(40)).toBe("about 40 seconds");
     expect(aboutTime(600)).toBe("about 10 minutes");
     expect(aboutTime(7200)).toBe("about 2 hours");
+  });
+  it("holds a running video halfway and carries it on", async () => {
+    const held: boolean[] = [];
+    let finish!: (f: string | null) => void;
+    const a = addJob(info("P"), () => new Promise((ok) => (finish = ok)), { pause: (on) => held.push(on), stop: () => finish(null) });
+    await tick();
+    const n = "n" in a ? a.n : 0;
+    expect(pauseJob(n, true)).toBe(true);
+    expect(allJobs()[0].paused).toBe(true);
+    expect(jobsText()).toContain("paused");
+    expect(pauseJob(n, false)).toBe(true);
+    expect(held).toEqual([true, false]);
+    finish("/x/p.mp4");
+    await tick();
+    expect(allJobs()[0].state).toBe("done");
+    expect(pauseJob(n, true)).toBe(false);
+  });
+
+  it("stops a running video, and takes a waiting one out of the line", async () => {
+    let finish!: (f: string | null) => void;
+    const control = { pause: () => {}, stop: () => finish(null) };
+    const a = addJob(info("S"), () => new Promise((ok) => (finish = ok)), control);
+    const b = addJob(info("W"), async () => "/x/w.mp4", control);
+    await tick();
+    expect(stopJob("n" in b ? b.n : 0)).toBe(true);
+    expect(allJobs().map((j) => j.what)).toEqual(["S"]);
+    expect(stopJob("n" in a ? a.n : 0)).toBe(true);
+    await tick();
+    expect(ended.map((j) => [j.what, j.state])).toEqual([["S", "stopped"]]);
+    expect(logged[0]).toContain("\tstopped\t");
+  });
+
+  it("moves a waiting video up the line", async () => {
+    const order: string[] = [];
+    let finish!: () => void;
+    addJob(info("A"), () => new Promise((ok) => (finish = () => ok("/x/a.mp4"))));
+    for (const w of ["B", "C", "D"]) addJob(info(w), async () => (order.push(w), `/x/${w}.mp4`));
+    await tick();
+    const d = allJobs().find((j) => j.what === "D")!;
+    expect(moveJob(d.n, 0)).toBe(true);
+    expect(allJobs().map((j) => j.what)).toEqual(["A", "D", "B", "C"]);
+    expect(moveJob(allJobs()[0].n, 1)).toBe(false);
+    finish();
+    for (let i = 0; i < 8; i++) await tick();
+    expect(order).toEqual(["D", "B", "C"]);
   });
 });

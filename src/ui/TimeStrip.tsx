@@ -16,7 +16,8 @@ import ClipFace from "./ClipFace";
 import VolumeLine from "./VolumeLine";
 import { fromLevel, levelText, toLevel } from "../document/sound";
 import { setKeyFocus } from "./keyFocus";
-import { QUALITIES, SIZES, addMedia, clipKind, dropClips, exportScene, exportSize, keepDropped, stopExport } from "../video/scene";
+import { QUALITIES, SIZES, addMedia, clipKind, dropClips, exportSize, keepDropped, queueVideo } from "../video/scene";
+import { allJobs, pauseJob, stopJob, subscribeJobs } from "../ai/jobs";
 import { lastChoice, rememberExport, shortFolder } from "../video/exportPrefs";
 import { open as openDialog } from "./dialog";
 import { droppedPaths } from "../canvas/CanvasView";
@@ -106,7 +107,11 @@ export default function TimeStrip() {
   const rowsRef = useRef<{ items: El[]; track?: { index: number } }[]>([]);
   const [wide, setWide] = useState(600);
   const [zoom, setZoom] = useState(1);
-  const [making, setMaking] = useState<number | null>(null);
+  // the designer's own video in the line of videos, while it waits or is made
+  const [mine, setMine] = useState<number | null>(null);
+  const [, jobsMoved] = useState(0);
+  useEffect(() => subscribeJobs(() => jobsMoved((n) => n + 1)), []);
+  const making = allJobs().find((j) => j.n === mine);
   const [note, setNote] = useState("");
   // how the video is made, chosen before it is made, and where the last one went
   const [choosing, setChoosing] = useState(false);
@@ -126,10 +131,21 @@ export default function TimeStrip() {
   const [hush, setHush] = useState<SilenceChoice>(SILENCE_DEFAULT);
   const [hushPeaks, setHushPeaks] = useState<Map<string, Uint8Array> | null>(null);
   const projectFile = useStore((s) => s.project.file);
+  const projectName = useStore((s) => s.project.name);
   const [choice, setChoice] = useState<ExportChoice>(() => lastChoice(projectFile));
   // each project keeps its own export folder
   useEffect(() => setChoice(lastChoice(projectFile)), [projectFile]);
   const [made, setMade] = useState<string | null>(null);
+  // when the designer's video is over, say where it went, or why it was not made
+  const over = making && (making.state === "done" || making.state === "failed" || making.state === "stopped") ? making : null;
+  useEffect(() => {
+    if (!over) return;
+    setMine(null);
+    if (over.state === "done" && over.file) {
+      setMade(over.file);
+      setNote(`Saved in ${choice.dir ? shortFolder(choice.dir) : "Documents, Duet, Exports"}`);
+    } else if (over.state === "failed") setNote(over.error ?? "The video was not made.");
+  }, [over, choice.dir]);
   // set while a keyframe mark is being dragged, so letting go is not taken for a click
   const draggedMark = useRef(false);
   const [snap, setSnap] = useState<number | null>(null);
@@ -1038,23 +1054,14 @@ export default function TimeStrip() {
     window.addEventListener("keyup", key);
   };
 
-  const make = async () => {
+  const make = () => {
     setNote("");
-    setMaking(0);
-    try {
-      setChoosing(false);
-      setMade(null);
-      const file = await exportScene(frame.id, setMaking, choice);
-      if (file) {
-        setMade(file);
-        rememberExport(projectFile, choice);
-        setNote(`Saved in ${choice.dir ? shortFolder(choice.dir) : "Documents, Duet, Exports"}`);
-      }
-    } catch (e) {
-      setNote(String(e instanceof Error ? e.message : e));
-    } finally {
-      setMaking(null);
-    }
+    setChoosing(false);
+    setMade(null);
+    const job = queueVideo(frame.id, choice, { project: projectName });
+    if (!("n" in job)) return setNote(job.error);
+    rememberExport(projectFile, choice);
+    setMine(job.n);
   };
 
   const bring = async () => {
@@ -1647,12 +1654,12 @@ export default function TimeStrip() {
           </button>
         </div>
         {note && <span className="time-note">{note}</span>}
-        {made && making === null && (
+        {made && !making && (
           <button className="pill" data-name="show-video" onClick={() => void revealItemInDir(made)} title="Show the video in Finder">
             Show
           </button>
         )}
-        {making === null ? (
+        {!making || over ? (
           <div className="export-anchor">
             <button className="pill primary" data-name="export-video" onClick={() => setChoosing(!choosing)} title="Make one video file out of this scene">
               Export video
@@ -1752,9 +1759,23 @@ export default function TimeStrip() {
             )}
           </div>
         ) : (
-          <button className="pill" data-name="stop-export" onClick={stopExport} title="Stop making the video">
-            Making your video, {Math.round(making * 100)}%. Stop
-          </button>
+          <div className="export-anchor" data-name="export-making">
+            {making.state === "waiting" ? (
+              <span className="time-note">Waiting for another video to finish</span>
+            ) : (
+              <span className="time-note">
+                {making.paused ? "Paused at" : "Making your video,"} {Math.round(making.done * 100)}%
+              </span>
+            )}
+            {making.state === "running" && (
+              <button className="pill" data-name="pause-export" onClick={() => pauseJob(making.n, !making.paused)} title={making.paused ? "Carry on making the video" : "Hold the video here and carry on later"}>
+                {making.paused ? "Resume" : "Pause"}
+              </button>
+            )}
+            <button className="pill" data-name="stop-export" onClick={() => stopJob(making.n)} title={making.state === "waiting" ? "Take this video out of the line" : "Stop making the video"}>
+              {making.state === "waiting" ? "Remove" : "Stop"}
+            </button>
+          </div>
         )}
       </div>
 

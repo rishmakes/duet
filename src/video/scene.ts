@@ -10,6 +10,9 @@ import { clipsIn, drawingMade, fileLength, holdClips, setMadePicture } from "./c
 import { pause } from "./play";
 import { hiddenHere, loudness } from "../document/tracks";
 import { gainMoves, gainPoints } from "../document/sound";
+import { preloadPictures } from "../project/assets";
+import { addJob } from "../ai/jobs";
+import type { Job } from "../ai/jobs";
 
 /** A frame that plays: bringing clips into it, and making one video file out of it. */
 
@@ -240,6 +243,11 @@ export const exportBusy = () => making;
 export const stopExport = () => {
   stop = true;
 };
+let held = false;
+/** Hold the video being made where it is, or carry it on. The encoder waits for the next picture. */
+export const pauseExport = (on: boolean) => {
+  held = on;
+};
 
 /** How a video is made: how big, how smooth, how fine, and where it goes. */
 export interface ExportChoice {
@@ -368,6 +376,25 @@ export async function drawWithFootage<T>(doc: Doc, sceneId: string, t: number, s
 }
 
 /**
+ * Put a video in the line of videos, for the designer or an AI alike. The design as it is now is the one
+ * made, even if it changes while the video waits its turn: commands never change a document, so holding
+ * this one costs nothing.
+ */
+export function queueVideo(sceneId: string, choice: ExportChoice, who: Pick<Job, "project" | "by">, doc: Doc = currentDoc()): Job | { error: string } {
+  const scene = doc.elements[sceneId];
+  if (!scene?.duration) return { error: "This frame has no length yet." };
+  const seconds = scene.workArea && !choice.whole ? scene.workArea.end - scene.workArea.start : scene.duration;
+  return addJob(
+    { what: scene.name, seconds, file: choice.to, ...who },
+    async (progress) => {
+      await preloadPictures(doc);
+      return exportScene(sceneId, progress, choice, doc);
+    },
+    { pause: pauseExport, stop: stopExport },
+  );
+}
+
+/**
  * Make one video file out of a frame that plays. Every picture of it is drawn here, exactly as the
  * canvas draws it, and handed over one by one. Returns the file, or null if the designer backed out.
  */
@@ -404,6 +431,7 @@ export async function exportScene(sceneId: string, progress: (done: number) => v
   if (making) throw new Error("Another video is being made. Wait for it to finish, then try again.");
   making = true;
   stop = false;
+  held = false;
   pause();
   holdClips(true);
   let begun = false;
@@ -412,6 +440,7 @@ export async function exportScene(sceneId: string, progress: (done: number) => v
     begun = true;
     const sizes = new Map<string, Info>();
     for (let i = 0; i < total; i++) {
+      while (held && !stop) await new Promise((ok) => setTimeout(ok, 200));
       if (stop) throw new Error("Stopped.");
       const t = from + i / FPS;
       let now = docAt(doc, sceneId, t);
@@ -444,6 +473,7 @@ export async function exportScene(sceneId: string, progress: (done: number) => v
     throw e;
   } finally {
     holdClips(false);
+    held = false;
     making = false;
   }
 }
