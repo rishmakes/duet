@@ -1,7 +1,8 @@
 import { agentIsDriving } from "../ui/dialog";
 import { runCommand } from "../commands";
 import { emptyDoc } from "../document/types";
-import { inTestDesign, keepTestDesign, leaveTestDesign, startTestDesign } from "../project/project";
+import { inTestDesign, keepTestDesign, leaveTestDesign, openProjectAt, startTestDesign } from "../project/project";
+import { homeDir } from "@tauri-apps/api/path";
 import { invoke } from "@tauri-apps/api/core";
 import { currentDoc, getState, seenDoc } from "../state/store";
 import { clipPictureOf, clipState } from "../video/clips";
@@ -45,6 +46,7 @@ How to check a change:
 6. dev_history lists the last steps and who made each one. dev_errors lists what went wrong since the last look.
 7. After Duet's code changes, dev_reload loads the interface again. Wait three seconds after it: a call made while it loads is lost. The test design is lost too, so start a new one.
 8. dev_leave_test_design throws the test design away and brings the project back. Always finish with it.
+9. For mockups in a file: dev_keep_test_design saves a test design as a new file; dev_open_project opens a file that already exists, in its own tab.
 
 A line reads: number, kind, "name", then its marks. The marks are the style names on it (sel is selected, on is switched on, folded is folded shut), its value if it is a box, and off if it cannot be pressed. Lines pushed in are inside the line above.
 4b. dev_drag drags across the canvas through points given in design coordinates, as a hand would with the current tool: paint with the brush, draw a box, move something.
@@ -63,6 +65,11 @@ export const BUILDER_TOOLS: ToolDef[] = [
     inputSchema: { type: "object", properties: { path: str }, required: ["path"] },
   },
   { name: "dev_leave_test_design", description: "Builder tool. Throw the test design away and bring back the project that was open before it.", inputSchema: { type: "object", properties: {} } },
+  {
+    name: "dev_open_project",
+    description: "Builder tool. Open a project file in its own tab, with no window to ask which, and work in it from then on. For mockups the designer asked for in a file. A test design on screen is thrown away first. Give the full path of a .duet file.",
+    inputSchema: { type: "object", properties: { path: str }, required: ["path"] },
+  },
   {
     name: "dev_read_interface",
     description: "Builder tool. What the interface shows right now, as numbered lines of words: buttons, boxes, rows and text, with their marks.",
@@ -646,6 +653,18 @@ export async function callBuilderTool(name: string, raw: unknown, by?: string): 
     const why = await leaveTestDesign();
     if (!why && by) bindAi(by, getState().project.file);
     return why ? fail(why) : { text: "The test design is gone and the project is back." };
+  }
+  if (name === "dev_open_project") {
+    const path = String(a.path ?? "").replace(/^~(?=\/)/, await homeDir());
+    if (!path.endsWith(".duet")) return fail("Give the full path of a .duet file.");
+    if (inTestDesign()) {
+      const why = await leaveTestDesign();
+      if (why) return fail(why);
+    }
+    if (!(await openProjectAt(path))) return fail(`${path} could not be opened. Is the path right?`);
+    if (by) bindAi(by, getState().project.file);
+    await settle();
+    return { text: `"${getState().project.name}" is open, and you work in it from now on. Every change is saved into it.` };
   }
   if (name === "dev_read_interface") return { text: `${inTestDesign() ? "" : "This is a real project, not a test design.\n"}${readInterface(a.filter, a.max)}` };
   if (name === "dev_press") return press(a);
