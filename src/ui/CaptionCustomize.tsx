@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { dispatch, dragCancel, dragPreview, getState, useStore, workDoc } from "../state/store";
-import { SPOKEN_COLOURS, captionsIn } from "../document/captions";
+import { SPOKEN_COLOURS, captionsIn, lookOf } from "../document/captions";
+import { NameField } from "./CaptionLooks";
+import { saveStyle } from "./customLooks";
 import type { El, Plate, Shadow } from "../document/types";
 import FontPicker from "./FontPicker";
 import { fetchFamily } from "../project/fonts";
@@ -123,6 +125,18 @@ function Fold({ title, name, children }: { title: string; name: string; children
   );
 }
 
+/** Keeps the look the captions have now among your styles, under a name asked for in place of the button. */
+function SaveAsMine({ style }: { style: () => Partial<El> }) {
+  const [naming, setNaming] = useState(false);
+  return naming ? (
+    <NameField className="cz-save-name" onDone={(n) => (n && saveStyle(style(), n), setNaming(false))} />
+  ) : (
+    <button type="button" className="pill cz-save" data-name="save-as-my-style" onClick={() => setNaming(true)}>
+      Save as my style
+    </button>
+  );
+}
+
 const round = (n: number) => Math.round(n * 100) / 100;
 
 export default function CaptionCustomize({ top }: { top: ReactNode }) {
@@ -180,9 +194,12 @@ export default function CaptionCustomize({ top }: { top: ReactNode }) {
   return (
     <aside className="right customize" data-name="customize">
       {top}
-      <div className="cz-head">
-        <div className="cz-title">Customize</div>
-        <div className="cz-sub">Every caption in this video</div>
+      <div className="cz-head cz-head-save">
+        <div>
+          <div className="cz-title">Customize</div>
+          <div className="cz-sub">Every caption in this video</div>
+        </div>
+        <SaveAsMine style={() => lookOf(first, frame)} />
       </div>
       <div className="cz-body">
         <div className="cz-row">

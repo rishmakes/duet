@@ -12772,7 +12772,7 @@ button.ctx-item.store-make-option:hover {
 .captions-tile.on .captions-tile-name {
   color: var(--text);
 }
-/* a custom tile: the face picks it, the name renames it, the cross shows on hover */
+/* one of your styles: the face picks it, the ⋯ on hover renames, duplicates or deletes it */
 .captions-tile.custom {
   position: relative;
   cursor: default;
@@ -12788,17 +12788,14 @@ button.ctx-item.store-make-option:hover {
 .captions-tile.custom.off .captions-tile-face {
   cursor: default;
 }
-.captions-tile.custom .captions-tile-name {
-  cursor: text;
-}
-.captions-tile-remove {
+.captions-tile-more {
   position: absolute;
   top: 6px;
   right: 6px;
-  width: 20px;
+  width: 24px;
   height: 20px;
   border: 0;
-  border-radius: 50%;
+  border-radius: 10px;
   background: rgba(0, 0, 0, 0.55);
   color: #ffffff;
   font-size: 13px;
@@ -12807,9 +12804,40 @@ button.ctx-item.store-make-option:hover {
   cursor: pointer;
   opacity: 0;
 }
-.captions-tile.custom:hover .captions-tile-remove,
-.captions-tile-remove:focus-visible {
+.captions-tile.custom:hover .captions-tile-more,
+.captions-tile.custom.menu-open .captions-tile-more,
+.captions-tile-more:focus-visible {
   opacity: 1;
+}
+.captions-tile-menu {
+  min-width: 150px;
+}
+/* the empty tile that keeps the look you made */
+.captions-tile.save .captions-tile-face {
+  width: 100%;
+  flex-direction: column;
+  gap: 6px;
+  background: none;
+  border: 1px dashed var(--line);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.captions-tile.save button.captions-tile-face:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.captions-tile.save button.captions-tile-face:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.captions-save-plus {
+  font-size: 20px;
+  line-height: 1;
+}
+.captions-tile.save .captions-tile-rename {
+  width: 100%;
 }
 .captions-tile-rename {
   font-size: 12px;
@@ -13412,6 +13440,26 @@ button.ctx-item.store-make-option:hover {
 /* Customize (#404): the right panel while captions are the work. Labels sit outside the controls, few boxes */
 .customize .cz-head {
   padding: 16px 16px 6px;
+}
+.customize .cz-head-save {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.customize .cz-save {
+  flex: none;
+  border-color: var(--accent);
+}
+.customize .cz-save-name {
+  width: 140px;
+  font-size: 12px;
+  padding: 5px 8px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
 }
 .customize .cz-title {
   font-size: 17px;

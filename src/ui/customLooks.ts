@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { keepCustom, sameLook } from "../document/captions";
+import { copyLook, keepCustom, nameStyle, sameLook } from "../document/captions";
 import type { CustomLook } from "../document/captions";
 import type { El } from "../document/types";
 
@@ -41,6 +41,11 @@ export function keepStyle(props: Partial<El>) {
 
 /** A named look stays as it is; the next new style starts a new Custom look. An empty name changes nothing. */
 export const renameLook = (id: string, name: string) => name.trim() && write(get().map((l) => (l.id === id ? { ...l, name: name.trim() } : l)));
+
+/** Keeps the style the captions have now under a name the designer gives it. */
+export const saveStyle = (props: Partial<El>, name: string) => write(nameStyle(get(), props, name, () => crypto.randomUUID()));
+
+export const duplicateLook = (id: string) => write(copyLook(get(), id, () => crypto.randomUUID()));
 
 export function removeLook(id: string) {
   removed = get().find((l) => l.id === id)?.props ?? null;

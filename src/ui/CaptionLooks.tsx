@@ -5,7 +5,8 @@ import { CAPTION_FONTS, CAPTION_FONTS_2, CAPTION_LOOKS, SPOKEN_COLOURS, captionP
 import { fetchFamily } from "../project/fonts";
 import type { CaptionLook, CustomLook } from "../document/captions";
 import type { El } from "../document/types";
-import { keepStyle, removeLook, renameLook, useCustomLooks } from "./customLooks";
+import { duplicateLook, keepStyle, removeLook, renameLook, saveStyle, useCustomLooks } from "./customLooks";
+import { useDismiss } from "./useDismiss";
 import Shelf from "./Shelf";
 
 /**
@@ -77,39 +78,80 @@ function readyProps(look: (typeof CAPTION_LOOKS)[number]): Partial<El> {
   return { ...captionProps(look.key, { width: 1080, height: 1080 }), spokenFill: look.unlit ? undefined : (look.lit ?? SPOKEN_COLOURS[0]) };
 }
 
-/** A custom look's tile: pick it to use it, click its name to rename it, the cross removes it. */
+/** A box to type a style's name in: Enter or leaving it keeps the name, Esc leaves it as it was. */
+export function NameField({ initial = "", onDone, className = "captions-tile-rename" }: { initial?: string; onDone: (name: string | null) => void; className?: string }) {
+  return (
+    <input
+      className={className}
+      data-name="style-name"
+      autoFocus
+      defaultValue={initial}
+      placeholder="Name this style"
+      onBlur={(e) => onDone(e.currentTarget.value.trim() || null)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        if (e.key === "Escape") onDone(null);
+        e.stopPropagation();
+      }}
+    />
+  );
+}
+
+/** One of your styles: pick it to use it; the ⋯ on hover renames, duplicates or deletes it. */
 function CustomTile({ look, on, off, apply }: { look: CustomLook; on: boolean; off: boolean; apply: () => void }) {
   const [naming, setNaming] = useState(false);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  useDismiss(!!menu, () => setMenu(null), ".captions-tile-menu, .captions-tile-more");
   const name = look.name ?? "Custom";
+  const act = (f: () => void) => () => (setMenu(null), f());
   return (
-    <div className={`captions-tile custom${on ? " on" : ""}${off ? " off" : ""}`} data-name={`captions-tile-custom-${look.name ?? "new"}`}>
+    <div className={`captions-tile custom${on ? " on" : ""}${off ? " off" : ""}${menu ? " menu-open" : ""}`} data-name={`captions-tile-custom-${look.name ?? "new"}`}>
       <button className="captions-tile-face" disabled={off} onClick={apply}>
         <StyleSample props={look.props} />
       </button>
-      <button className="captions-tile-remove" data-name="captions-tile-remove" title={`Remove ${name}`} onClick={() => removeLook(look.id)}>
-        ×
+      <button
+        className="captions-tile-more"
+        data-name="captions-tile-more"
+        title={`More for ${name}`}
+        onClick={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          setMenu(menu ? null : { x: Math.min(r.right - 150, window.innerWidth - 160), y: r.bottom + 4 });
+        }}
+      >
+        ⋯
       </button>
-      {naming ? (
-        <input
-          className="captions-tile-rename"
-          data-name="captions-tile-rename"
-          autoFocus
-          defaultValue={look.name ?? ""}
-          placeholder="Name this style"
-          onBlur={(e) => {
-            renameLook(look.id, e.currentTarget.value);
-            setNaming(false);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") e.currentTarget.blur();
-            if (e.key === "Escape") setNaming(false);
-            e.stopPropagation();
-          }}
-        />
+      {menu && (
+        <div className="ctx captions-tile-menu" style={{ left: menu.x, top: menu.y }}>
+          <div className="ctx-item" data-name="style-rename" onClick={act(() => setNaming(true))}>
+            Rename
+          </div>
+          <div className="ctx-item" data-name="style-duplicate" onClick={act(() => duplicateLook(look.id))}>
+            Duplicate
+          </div>
+          <div className="ctx-item danger" data-name="style-delete" onClick={act(() => removeLook(look.id))}>
+            Delete
+          </div>
+        </div>
+      )}
+      {naming ? <NameField initial={look.name ?? ""} onDone={(n) => (n && renameLook(look.id, n), setNaming(false))} /> : <span className="captions-tile-name">{name}</span>}
+    </div>
+  );
+}
+
+/** The empty tile at the end of your styles: it asks for a name and keeps the look the captions have now. */
+function SaveTile({ style }: { style: Partial<El> | null }) {
+  const [naming, setNaming] = useState(false);
+  return (
+    <div className="captions-tile save" data-name="captions-tile-save">
+      {naming && style ? (
+        <div className="captions-tile-face">
+          <NameField onDone={(n) => (n && saveStyle(style, n), setNaming(false))} />
+        </div>
       ) : (
-        <span className="captions-tile-name" title="Click to rename" onClick={() => setNaming(true)}>
-          {name}
-        </span>
+        <button className="captions-tile-face" disabled={!style} onClick={() => setNaming(true)}>
+          <span className="captions-save-plus">+</span>
+          <span>Save the look you made</span>
+        </button>
       )}
     </div>
   );
@@ -153,24 +195,23 @@ export default function CaptionsPanel() {
   return (
     <div className="captions-panel" data-name="captions-panel">
       <div className="captions-panel-hint">{count ? "Pick a style. Every caption changes." : "Make captions first with Auto captions under the timeline, then pick a style."}</div>
-      {ordered.length > 0 && (
-        <Shelf name="captions-yours" title="Your styles" count={ordered.length}>
-          <div className="captions-tiles">
-            {ordered.map((l) => (
-              <CustomTile
-                key={l.id}
-                look={l}
-                on={now === null && !!style && sameLook(style, l.props)}
-                off={!count}
-                apply={() => {
-                  const ids = all();
-                  if (ids.length) dispatch("style_captions", { ids, look: "bold", custom: { name: l.name ?? "Custom", props: l.props } });
-                }}
-              />
-            ))}
-          </div>
-        </Shelf>
-      )}
+      <Shelf name="captions-yours" title="Your styles" count={ordered.length}>
+        <div className="captions-tiles">
+          {ordered.map((l) => (
+            <CustomTile
+              key={l.id}
+              look={l}
+              on={now === null && !!style && sameLook(style, l.props)}
+              off={!count}
+              apply={() => {
+                const ids = all();
+                if (ids.length) dispatch("style_captions", { ids, look: "bold", custom: { name: l.name ?? "Custom", props: l.props } });
+              }}
+            />
+          ))}
+          <SaveTile style={count ? style : null} />
+        </div>
+      </Shelf>
       <Shelf name="captions-ready" title="Ready styles" count={CAPTION_LOOKS.length}>
         <div className="captions-tiles">
           {CAPTION_LOOKS.map((l) => (

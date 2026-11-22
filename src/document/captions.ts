@@ -270,3 +270,25 @@ export function keepCustom(looks: CustomLook[], props: Partial<El>, id: () => st
   if (open) return looks.map((l) => (l === open ? { ...l, props } : l));
   return [{ id: id(), name: null, props }, ...looks];
 }
+
+/**
+ * The designer names the style the captions have now (#338). The new Custom look of that style takes the name;
+ * otherwise the style is kept as a new look under it, after the new Custom one.
+ */
+export function nameStyle(looks: CustomLook[], props: Partial<El>, name: string, id: () => string): CustomLook[] {
+  const n = name.trim();
+  if (!n) return looks;
+  const open = looks.find((l) => l.name === null && sameLook(l.props, props));
+  if (open) return looks.map((l) => (l === open ? { ...l, name: n } : l));
+  const at = looks.findIndex((l) => l.name !== null);
+  const look: CustomLook = { id: id(), name: n, props };
+  return at < 0 ? [...looks, look] : [...looks.slice(0, at), look, ...looks.slice(at)];
+}
+
+/** A copy of a look, named as a copy, right after it. */
+export function copyLook(looks: CustomLook[], of: string, id: () => string): CustomLook[] {
+  const at = looks.findIndex((l) => l.id === of);
+  if (at < 0) return looks;
+  const look = looks[at];
+  return [...looks.slice(0, at + 1), { id: id(), name: `${look.name ?? "Custom"} copy`, props: look.props }, ...looks.slice(at + 1)];
+}

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { runCommand } from "./index";
 import { emptyDoc } from "../document/types";
 import type { Doc } from "../document/types";
-import { captionChunks, captionMates, captionWords, captionsIn, keepCustom, lookNow, lookOf, sameLook } from "../document/captions";
+import { captionChunks, captionMates, captionWords, captionsIn, copyLook, keepCustom, lookNow, nameStyle, lookOf, sameLook } from "../document/captions";
 import { wordsOfEdit } from "../document/words";
 
 // "so today we um talk about money" with a long pause after "today"
@@ -208,6 +208,29 @@ describe("caption looks", () => {
     looks = [{ ...looks[0], name: "Mine" }];
     looks = keepCustom(looks, { fontSize: 80 }, id);
     expect(looks.map((l) => [l.name, l.props.fontSize])).toEqual([[null, 80], ["Mine", 70]]);
+  });
+  it("names the style the captions have now, as the new Custom look or as a new look (#338)", () => {
+    let n = 0;
+    const id = () => `n${++n}`;
+    const looks = [
+      { id: "c", name: null, props: { fontSize: 80 } },
+      { id: "m", name: "Mine", props: { fontSize: 70 } },
+    ];
+    // the Custom look of this style takes the name
+    expect(nameStyle(looks, { fontSize: 80 }, " Day reels ", id).map((l) => [l.id, l.name])).toEqual([["c", "Day reels"], ["m", "Mine"]]);
+    // a style that is no Custom look comes in under the name, before the named ones
+    expect(nameStyle(looks, { fontSize: 50 }, "Gold", id).map((l) => [l.id, l.name])).toEqual([["c", null], ["n1", "Gold"], ["m", "Mine"]]);
+    // no name, no change
+    expect(nameStyle(looks, { fontSize: 80 }, "  ", id)).toBe(looks);
+  });
+  it("copies a look right after it (#338)", () => {
+    const looks = [
+      { id: "a", name: "Mine", props: { fontSize: 70 } },
+      { id: "b", name: null, props: { fontSize: 80 } },
+    ];
+    const copied = copyLook(looks, "a", () => "a2");
+    expect(copied.map((l) => [l.id, l.name, l.props.fontSize])).toEqual([["a", "Mine", 70], ["a2", "Mine copy", 70], ["b", null, 80]]);
+    expect(copyLook(looks, "zz", () => "x")).toBe(looks);
   });
   it("leaves out sound tags and a word said twice in a row", () => {
     const heard = ["[music]", "go", "there", "There,", "*pew*", "(laughs)", "now", "♪"].map((w, i) => ({ w, s: i, e: i + 0.5, clip: "v", src: "/a.mp4" }));
