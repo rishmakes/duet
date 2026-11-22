@@ -15,7 +15,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import ContextMenu from "./ui/ContextMenu";
 import { installMenu } from "./ui/menu";
 import { setMinimized } from "./ai/chat";
-import { clampW, fitStudio, getLayout, isColorOpen, keepMode, modeOf, setLayout, STRIP_W, useLayout, useWindowWidth, type Mode } from "./ui/layout";
+import { clampW, fitStudio, getLayout, isColorOpen, keepMode, modeOf, setLayout, STRIP_W, useLayout, useWindowWidth } from "./ui/layout";
 import { toggleTheme, useTheme } from "./ui/theme";
 import Icon from "./ui/Icons";
 import { ProjectsSidebar, ProjectMenu } from "./ui/ChatHome";
@@ -40,6 +40,7 @@ import Update from "./ui/Update";
 import Feedback from "./ui/Feedback";
 import Settings from "./ui/Settings";
 import Home from "./ui/Home";
+import SpaceSwitch from "./ui/SpaceSwitch";
 import Kitchen, { RecipesPage } from "./ui/Kitchen";
 import LayersPanel from "./ui/LayersPanel";
 import PropertiesPanel from "./ui/PropertiesPanel";
@@ -369,15 +370,8 @@ export default function App() {
             {project.path ? STATUS[project.status] : "Not saved yet"}
           </span>
         </div>
-        {/* Home, Kitchen or Studio: where you are, in the middle so it stays put whatever the sides hold */}
-        <div className="pill mode-switch space-switch">
-          <button className={cooking ? "active" : ""} data-name="space-kitchen" onClick={() => (setHomeOpen(false), setLayout({ space: "kitchen" }))} title="Work with AI agents: chat, mark what to change, or follow a recipe step by step">
-            Kitchen
-          </button>
-          <button className={cooking ? "" : "active"} data-name="space-edit" onClick={() => (setHomeOpen(false), setLayout({ space: "edit" }))} title="Every tool, to work on the design yourself">
-            Studio
-          </button>
-        </div>
+        {/* Kitchen or Studio, and what Studio is for: in the middle so it stays put whatever the sides hold */}
+        <SpaceSwitch onGo={() => setHomeOpen(false)} />
         <div className="top-side end" data-tauri-drag-region>
           <button
             className="pill icon theme-toggle"
@@ -439,9 +433,9 @@ export default function App() {
             <PanelStrip
               side={dock.swapped ? "l" : "r"}
               label="the design panel"
-              items={[{ key: "design", name: "Design" }, { key: "motion", name: "Video" }, { key: "photo", name: "Photo" }].map((t) => ({ ...t, on: dock.mode === t.key }))}
-              // the kind of work changes, and the panel stays folded: it was put away on purpose
-              onPick={(k) => setLayout({ mode: k as Mode })}
+              // what Studio is for is chosen at the top; folded, the panel only says what it holds
+              items={[{ key: "properties", name: "Properties", on: false }]}
+              onPick={openRight}
               onOpen={openRight}
             />
           )}

@@ -1,6 +1,6 @@
 /** One icon set for the whole app: 24 grid, round ends, same stroke weight everywhere. */
 
-export type IconName = "speed" | "blade" | "stretch" | "silence" | "cut-here" | "cut-close" | "cut-before" | "cut-after" | "move" | "frame" | "rect" | "ellipse" | "text" | "hand" | "zoom" | "image" | "film" | "scene" | "heart" | "printer" | "screens" | "plus" | "pen" | "brush" | "eraser" | "mask" | "group" | "lock" | "unlock" | "eye" | "eye-off" | "sound" | "sound-off" | "component" | "instance" | "panel-left" | "panel-right" | "arrow" | "search" | "settings" | "skills" | "new-chat" | "folder" | "trash" | "close" | "unlist" | "restore" | "dots" | "grid" | "list" | "copy" | "move-to" | "marker" | "comment" | "sun" | "moon" | "home" | "feedback" | "fold" | "skill-auto-layout" | "skill-mobile-screens" | "skill-spacing" | "skill-type-scale" | "skill-contrast" | "skill-plain-words" | "skill-bold-blocks" | "skill-bento" | "skill-calm-and-trusted" | "skill-friendly-and-modern" | "skill-prototypes" | "skill-custom" | "plugin-connect" | "plugin-voice" | "captions" | "cuts-all" | "cut-remove" | "magnet";
+export type IconName = "speed" | "blade" | "stretch" | "silence" | "cut-here" | "cut-close" | "cut-before" | "cut-after" | "move" | "frame" | "rect" | "ellipse" | "text" | "hand" | "zoom" | "image" | "film" | "scene" | "heart" | "printer" | "screens" | "plus" | "pen" | "brush" | "eraser" | "mask" | "group" | "lock" | "unlock" | "eye" | "eye-off" | "sound" | "sound-off" | "component" | "instance" | "panel-left" | "panel-right" | "arrow" | "search" | "settings" | "skills" | "new-chat" | "folder" | "trash" | "close" | "unlist" | "restore" | "dots" | "grid" | "list" | "copy" | "move-to" | "marker" | "comment" | "sun" | "moon" | "home" | "feedback" | "fold" | "skill-auto-layout" | "skill-mobile-screens" | "skill-spacing" | "skill-type-scale" | "skill-contrast" | "skill-plain-words" | "skill-bold-blocks" | "skill-bento" | "skill-calm-and-trusted" | "skill-friendly-and-modern" | "skill-prototypes" | "skill-custom" | "plugin-connect" | "plugin-voice" | "captions" | "cuts-all" | "cut-remove" | "magnet" | "wand" | "shapes" | "chevron-down" | "check";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   move: <path d="M5.5 3.5l13 6.3-5.7 1.8-1.8 5.9z" />,
@@ -74,6 +74,22 @@ const PATHS: Record<IconName, React.ReactNode> = {
     </>
   ),
   plus: <path d="M12 5.5v13M5.5 12h13" />,
+  // Kitchen: a wand, work made with AI agents (the spark is the Store's)
+  wand: (
+    <>
+      <path d="M4.5 19.5 14 10" />
+      <path d="M16.5 3.5v3M15 5h3M19.5 9v2M18.5 10h2M11 4v1.5M10.25 4.75h1.5" />
+    </>
+  ),
+  // Design in Studio: a square with a circle over its corner
+  shapes: (
+    <>
+      <path d="M13.5 9.2V5.5a1.5 1.5 0 0 0-1.5-1.5H5.5A1.5 1.5 0 0 0 4 5.5V12a1.5 1.5 0 0 0 1.5 1.5h3.7" />
+      <circle cx="15" cy="15" r="5.5" />
+    </>
+  ),
+  "chevron-down": <path d="M7 10l5 5 5-5" />,
+  check: <path d="M5.5 12.5l4 4 9-9" />,
   image: (
     <>
       <rect x="4" y="5" width="16" height="14" rx="2.5" />

@@ -4,7 +4,8 @@ import { newId } from "../commands";
 import { dispatch, getState, select, setPagesView } from "../state/store";
 import { getTabs, getUntitled, listedProjects, newDesignTab, openProject, openProjectAt } from "../project/project";
 import type { Recent } from "../project/project";
-import { keepMode, setLayout } from "./layout";
+import { keepMode, setLayout, useLayout } from "./layout";
+import { studioIcon } from "./SpaceSwitch";
 import { getChat, newTask } from "../ai/chat";
 import { sendToTask } from "../ai/agent";
 import Icon from "./Icons";
@@ -48,6 +49,7 @@ const keep = (key: string, value: string) => {
 
 
 export default function Home({ onClose, fromProject }: HomeProps) {
+  const mode = useLayout((d) => d.mode);
   // any project open behind Home, saved or not, is somewhere the switch can go back to
   const canGoBack = fromProject || !!getState().project.file || getTabs().length > 0 || getUntitled().length > 0;
   // where the box for your own size hangs: under the Custom size button, or under the tile in the open kind
@@ -294,6 +296,7 @@ export default function Home({ onClose, fromProject }: HomeProps) {
                 onClose();
               }}
             >
+              <Icon name={space === "kitchen" ? "wand" : studioIcon(mode)} size={14} />
               {space === "kitchen" ? "Kitchen" : "Studio"}
             </button>
           ))}

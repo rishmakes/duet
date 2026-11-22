@@ -159,6 +159,8 @@ button {
 /* top bar */
 .top {
   position: relative;
+  /* above the canvas and panels below it, so the Studio for menu opens over them */
+  z-index: 40;
   grid-area: top;
   /* the two sides, with the mode switch kept in the middle while there is room for it */
   display: grid;
@@ -263,6 +265,59 @@ button {
 }
 .mode-switch button.active:hover {
   color: #fff;
+}
+/* Kitchen and Studio wear their icons; Studio's shows what it is for. The switch holds its menu, so it is the menu's anchor */
+.top > .space-switch.pill {
+  position: relative;
+}
+.space-switch button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.space-switch .studio-caret {
+  margin-left: 4px;
+  opacity: 0.8;
+}
+/* "Studio for": a small menu under Studio, the one you are in ticked */
+.studio-for {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 70;
+  min-width: 180px;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: 0 12px 32px var(--shadow-strong);
+}
+.studio-for-title {
+  padding: 6px 10px 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.space-switch .studio-for button {
+  width: 100%;
+  gap: 9px;
+  padding: 7px 10px;
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-weight: 400;
+  text-align: left;
+}
+.space-switch .studio-for button:hover {
+  background: var(--panel-2);
+}
+.studio-for button svg {
+  color: var(--muted);
+  flex: none;
+}
+.studio-for button span {
+  flex: 1;
+}
+.studio-for .studio-tick {
+  color: var(--text);
 }
 
 /* side panels */
@@ -9306,42 +9361,6 @@ input.chathome-name.rename {
   background: var(--panel);
   border-bottom: 1px solid var(--line);
 }
-.panel-kind .kind-quiet {
-  display: flex;
-  width: 100%;
-  padding: 0;
-  margin: 0;
-  border-radius: 0;
-  background: var(--panel);
-  box-sizing: border-box;
-  border-bottom: 1px solid var(--line);
-}
-/* same look as the Layers and Assets tabs: plain words, the open one underlined */
-.panel-kind .kind-quiet button {
-  flex: 1;
-  padding: 11px 0;
-  border: none;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
-  background: none;
-  color: var(--muted);
-  font: inherit;
-  font-size: inherit;
-  font-weight: 400;
-  cursor: pointer;
-  box-shadow: none;
-  transition: color 0.12s ease;
-}
-.panel-kind .kind-quiet button:hover:not(.on) {
-  color: var(--text);
-}
-.panel-kind .kind-quiet button.on {
-  background: none;
-  color: var(--text);
-  font-weight: 400;
-  border-bottom-color: var(--accent);
-  box-shadow: none;
-}
 /* the two views of the right panel, side by side: the open one is the white button standing up a little */
 .panel-extra {
   display: flex;
@@ -11925,9 +11944,14 @@ button.ctx-item.store-make-option:hover {
   align-items: stretch;
   border-bottom: 1px solid var(--line);
 }
-.panel-kind-row .kind-quiet {
-  flex: 1;
-  border-bottom: none;
+/* the right panel's name, after the arrow that puts it away */
+.panel-title {
+  align-self: center;
+  font-size: 14px;
+  font-weight: 600;
+}
+.panel-kind-row {
+  min-height: 44px;
 }
 .panel-strip {
   display: flex;

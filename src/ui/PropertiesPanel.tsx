@@ -21,7 +21,6 @@ import SpeedGraph from "./SpeedGraph";
 import CommentsList from "./CommentsList";
 import ColorPanel from "./ColorPanel";
 import { FoldButton } from "./PanelStrip";
-import KindSwitch from "./KindSwitch";
 import { rootOf } from "./BeforeAfter";
 import { gradablesIn } from "../document/grade";
 import FontPicker from "./FontPicker";
@@ -1126,7 +1125,7 @@ export default function PropertiesPanel() {
     else if (mode === "motion") setLayout({ videoTab: next });
   };
 
-  // the top of the right panel: the kind of work, and under it the one extra each kind has.
+  // the top of the right panel: its name, and under it the one extra each kind has.
   // Design can turn to Prototype; Video and Photo can turn to Colour. Off is the plain panel.
   const extra = mode === "design"
     ? { name: "Prototype", on: prototyping, title: "Connect screens so they can be clicked through", set: (on: boolean) => setLayout({ prototyping: on }) }
@@ -1134,7 +1133,7 @@ export default function PropertiesPanel() {
   const kindRow = (
     <div className="panel-kind-row">
       <FoldButton side={swapped ? "l" : "r"} folding title="Put the design panel away" onClick={() => setLayout({ rightHidden: true })} />
-      <KindSwitch />
+      <span className="panel-title">Properties</span>
     </div>
   );
   const switchElement = (
