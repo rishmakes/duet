@@ -14,8 +14,9 @@ import type { CutMoveKind } from "../document/types";
 import { sameLook } from "../document/captions";
 import { CustomTile, applyStyle, useCaptionFonts, useCaptionStyle, useYourStyles } from "./CaptionLooks";
 import Shelf from "./Shelf";
-import { ASSETS_CHIPS, finds, shelfOn } from "./assetsFind";
-import type { AssetsChip } from "./assetsFind";
+import { ASSETS_CHIPS, finds, setAssetsChip, shelfOn, useAssetsChip } from "./assetsFind";
+import Star from "./Star";
+import { faveOf, useFavourites } from "./favourites";
 
 /** Pixel steps or numbers parsed from a comma-separated string. */
 function parseNumbers(raw: string): number[] {
@@ -633,11 +634,12 @@ function Components({ list }: { list: ReturnType<typeof componentsIn> }) {
   );
 }
 
-/** A transition as a tile: it plays while the pointer is on it. */
+/** A transition as a tile: it plays while the pointer is on it, and its star keeps it in Favourites. */
 function TransitionTile({ kind }: { kind: CutMoveKind }) {
   return (
     <div className="asset-tile" data-name={`asset-transition-${kind}`} title={CUT_MOVE_NAMES[kind]}>
       <span className={`asset-tile-face cut-preview cut-preview-${kind}`} aria-hidden="true" />
+      <Star fave={faveOf.transition(kind)} name={CUT_MOVE_NAMES[kind]} />
       <span className="asset-tile-name">{CUT_MOVE_NAMES[kind]}</span>
     </div>
   );
@@ -645,7 +647,7 @@ function TransitionTile({ kind }: { kind: CutMoveKind }) {
 
 /**
  * Assets (#338): one library for everything ready-made. A search and chips at the top narrow it down;
- * below, shelves that fold shut: Transitions, Effects (coming soon, said only when opened), Your styles
+ * below, shelves that fold shut: Favourites (anything starred), Transitions, Effects (coming soon, said only when opened), Your styles
  * (the same ones as in Captions), Brand kit, Design system and Components.
  */
 export default function AssetsPanel() {
@@ -653,7 +655,8 @@ export default function AssetsPanel() {
   useStore((s) => s.transientDoc);
   useCaptionFonts();
   const [query, setQuery] = useState("");
-  const [chip, setChip] = useState<AssetsChip>("all");
+  const chip = useAssetsChip();
+  const faves = useFavourites();
   const { count, style } = useCaptionStyle();
   const yours = useYourStyles();
 
@@ -667,7 +670,15 @@ export default function AssetsPanel() {
   const comps = componentsIn(doc).filter((c) => finds(query, c.name));
   const brandFound = finds(query, "Brand kit", "colours", "fonts", "logo", ...(doc.brand?.colours.map((c) => c.name) ?? []), ...(doc.brand?.fonts ?? []));
   const systemFound = finds(query, "Design system", "text styles", "spacing", "corners", ...Object.values(doc.styles ?? {}).map((t) => t.name));
+  // starred things in the order they were starred; a style deleted since drops out
+  const faveTiles = faves.flatMap((f) => {
+    const kind = CUT_MOVES.find((k) => faveOf.transition(k) === f);
+    if (kind) return moves.includes(kind) ? [<TransitionTile key={f} kind={kind} />] : [];
+    const l = styles.find((x) => faveOf.style(x.id) === f);
+    return l ? [<CustomTile key={f} look={l} on={!!style && sameLook(style, l.props)} off={!count} apply={() => applyStyle(l)} />] : [];
+  });
   const shown = {
+    favourites: shelfOn("favourites", chip) && (faveTiles.length > 0 || !query.trim()),
     transitions: shelfOn("transitions", chip) && moves.length > 0,
     effects: shelfOn("effects", chip) && finds(query, "Effects"),
     yours: shelfOn("yours", chip) && (styles.length > 0 || !query.trim()),
@@ -690,11 +701,16 @@ export default function AssetsPanel() {
       </label>
       <div className="assets-chips">
         {ASSETS_CHIPS.map(([key, name]) => (
-          <button key={key} type="button" className={`assets-chip${chip === key ? " on" : ""}`} data-name={`assets-chip-${key}`} aria-pressed={chip === key} onClick={() => setChip(key)}>
+          <button key={key} type="button" className={`assets-chip${chip === key ? " on" : ""}`} data-name={`assets-chip-${key}`} aria-pressed={chip === key} onClick={() => setAssetsChip(key)}>
             {name}
           </button>
         ))}
       </div>
+      {shown.favourites && (
+        <Shelf name="assets-favourites" title="Favourites" count={faveTiles.length}>
+          {faveTiles.length ? <div className="asset-tiles">{faveTiles}</div> : <div className="empty">Star a tile and it waits here.</div>}
+        </Shelf>
+      )}
       {shown.transitions && (
         <Shelf name="assets-transitions" title="Transitions" count={moves.length}>
           <div className="asset-tiles">

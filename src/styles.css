@@ -4427,9 +4427,24 @@ option {
   font-size: 12px;
 }
 .cut-list-title {
+  display: flex;
+  align-items: center;
   padding: 9px 6px 4px;
   color: var(--muted);
   font-size: 11px;
+}
+/* All › opens Assets on Transitions */
+.cut-all {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+.cut-all:hover {
+  color: var(--text);
 }
 /* four rows show at a time; more scroll with a thin bar */
 .cut-list {
@@ -12746,6 +12761,7 @@ button.ctx-item.store-make-option:hover {
   height: 88px;
 }
 .asset-tile {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -12777,6 +12793,39 @@ button.ctx-item.store-make-option:hover {
   padding-left: 2px;
   font-size: 12px;
   color: var(--muted);
+}
+/* the star in a tile's corner (#338): shows on hover, and stays lit once starred */
+.tile-star {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #ffffff;
+  cursor: pointer;
+  opacity: 0;
+}
+.captions-tile.custom:hover .tile-star,
+.captions-tile.custom.menu-open .tile-star {
+  right: 34px;
+}
+.asset-tile:hover .tile-star,
+.captions-tile.custom:hover .tile-star,
+.tile-star:focus-visible,
+.tile-star.on {
+  opacity: 1;
+}
+.tile-star.on {
+  color: #ffd25e;
+}
+.tile-star.on svg {
+  fill: currentColor;
 }
 .assets-soon {
   padding: 0 0 4px 18px;

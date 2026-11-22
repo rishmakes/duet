@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from "react";
 /** The chips above the Assets shelves (#338). "all" shows every shelf. */
 export type AssetsChip = "all" | "transitions" | "effects" | "yours" | "brand";
 
@@ -11,6 +12,7 @@ export const ASSETS_CHIPS: [AssetsChip, string][] = [
 
 /** The shelves in Assets, top to bottom, and the chip that shows each one alone (none: only under All). */
 export const ASSETS_SHELVES = {
+  favourites: null,
   transitions: "transitions",
   effects: "effects",
   yours: "yours",
@@ -28,4 +30,20 @@ export const shelfOn = (shelf: AssetsShelf, chip: AssetsChip) => chip === "all" 
 export function finds(query: string, ...names: string[]): boolean {
   const q = query.trim().toLowerCase();
   return !q || names.some((n) => n.toLowerCase().includes(q));
+}
+
+// the picked chip lives outside the panel, so the picker at a cut can open Assets on Transitions
+let chip: AssetsChip = "all";
+const listeners = new Set<() => void>();
+
+export function setAssetsChip(next: AssetsChip) {
+  chip = next;
+  listeners.forEach((l) => l());
+}
+
+export function useAssetsChip(): AssetsChip {
+  return useSyncExternalStore((l) => {
+    listeners.add(l);
+    return () => listeners.delete(l);
+  }, () => chip);
 }

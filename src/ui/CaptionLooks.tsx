@@ -8,6 +8,8 @@ import type { El } from "../document/types";
 import { duplicateLook, removeLook, renameLook, saveStyle, useCustomLooks } from "./customLooks";
 import { useDismiss } from "./useDismiss";
 import Shelf from "./Shelf";
+import Star from "./Star";
+import { faveOf } from "./favourites";
 
 /**
  * Caption styles (#71, #404): each look as a big tile showing example words in it, and while the pointer
@@ -109,6 +111,7 @@ export function CustomTile({ look, on, off, apply }: { look: CustomLook; on: boo
       <button className="captions-tile-face" disabled={off} onClick={apply}>
         <StyleSample props={look.props} />
       </button>
+      <Star fave={faveOf.style(look.id)} name={name} />
       <button
         className="captions-tile-more"
         data-name="captions-tile-more"

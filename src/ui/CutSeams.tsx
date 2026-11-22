@@ -7,6 +7,9 @@ import type { CutMoveKind, Doc, El } from "../document/types";
 import { dispatch } from "../state/store";
 import { copyCut, getCopiedCut, pasteCut, pickCut, usePickedCut } from "./pickedCut";
 import { useDismiss } from "./useDismiss";
+import { faveOf, useFavourites } from "./favourites";
+import { setAssetsChip } from "./assetsFind";
+import { setLayout } from "./layout";
 
 /** The ready-made transitions a cut can have. */
 const CHOICES: [CutMoveKind, string][] = CUT_MOVES.map((k) => [
@@ -65,6 +68,7 @@ export default function CutSeams({
     setUp(menu.y + h > window.innerHeight - 8 && menu.top - h > 8);
   }, [menu, find]);
   const picked = usePickedCut();
+  const faves = useFavourites();
   useDismiss(!!menu, () => setMenu(null), ".cut-menu, .cut-plus, .cut-badge");
   // each time the picker opens, its search starts empty
   useEffect(() => setFind(""), [menu?.id]);
@@ -164,24 +168,49 @@ export default function CutSeams({
                 onKeyDown={(e) => e.stopPropagation()}
               />
             </label>
-            <div className="cut-list-title">Transitions</div>
-            <div className="cut-list">
-              {inOrder()
-                .filter(([, name]) => name.toLowerCase().includes(find.trim().toLowerCase()))
-                .map(([kind, name]) => (
-                  <div
-                    key={kind}
-                    className={`cut-row ${open.cutIn?.kind === kind ? "on" : ""}`}
-                    data-name={`cut-choice-${kind}`}
-                    onClick={() => choose(open.id, kind)}
-                  >
-                    {/* a small picture of the transition, moving: one shot giving way to the next */}
-                    <span className={`cut-preview cut-preview-${kind}`} aria-hidden="true" />
-                    {name}
+            {(() => {
+              const shown = inOrder().filter(([, name]) => name.toLowerCase().includes(find.trim().toLowerCase()));
+              const starred = faves.flatMap((f) => shown.filter(([k]) => faveOf.transition(k) === f));
+              const row = ([kind, name]: [CutMoveKind, string]) => (
+                <div key={kind} className={`cut-row ${open.cutIn?.kind === kind ? "on" : ""}`} data-name={`cut-choice-${kind}`} onClick={() => choose(open.id, kind)}>
+                  {/* a small picture of the transition, moving: one shot giving way to the next */}
+                  <span className={`cut-preview cut-preview-${kind}`} aria-hidden="true" />
+                  {name}
+                </div>
+              );
+              return (
+                <>
+                  {starred.length > 0 && (
+                    <>
+                      <div className="cut-list-title">Favourites</div>
+                      <div className="cut-list" data-name="cut-favourites">
+                        {starred.map(row)}
+                      </div>
+                    </>
+                  )}
+                  <div className="cut-list-title">
+                    Transitions
+                    <button
+                      type="button"
+                      className="cut-all"
+                      data-name="cut-all"
+                      title="See every transition in Assets"
+                      onClick={() => {
+                        setMenu(null);
+                        setAssetsChip("transitions");
+                        setLayout({ leftTab: "assets", leftHidden: false });
+                      }}
+                    >
+                      All ›
+                    </button>
                   </div>
-                ))}
-              {!inOrder().some(([, name]) => name.toLowerCase().includes(find.trim().toLowerCase())) && <div className="cut-none">No transition is called that.</div>}
-            </div>
+                  <div className="cut-list">
+                    {shown.map(row)}
+                    {!shown.length && <div className="cut-none">No transition is called that.</div>}
+                  </div>
+                </>
+              );
+            })()}
             {(open.cutIn || copied) && <div className="ctx-line" />}
             {open.cutIn && (
               <div
