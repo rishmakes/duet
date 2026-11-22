@@ -4,7 +4,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { exportDesign } from "../project/exporter";
 import { openPhotoshopFile, savePhotoshopFile } from "../project/photoshop";
 import { openSvgFile } from "../project/svgImport";
-import { exportDesignData, getRecents, inTauri, newProject, openProject, openProjectAt, saveNow } from "../project/project";
+import { exportDesignData, getRecents, inTauri, openProject, openProjectAt, saveNow } from "../project/project";
 import { currentDoc, getState, redo, undo } from "../state/store";
 import { getLayout, resetLayout, setLayout } from "./layout";
 import { askToFindProject } from "./findProject";
@@ -55,7 +55,7 @@ export async function installMenu() {
   const file = await Submenu.new({
     text: "File",
     items: [
-      await item("New project…", () => void newProject(), "CmdOrCtrl+N"),
+      await item("New project…", () => send("duet:home"), "CmdOrCtrl+N"),
       await item("Open…", () => void openProject(), "CmdOrCtrl+O"),
       await item("Open a Photoshop file…", () => void openPhotoshopFile()),
       await item("Import an SVG as layers…", () => void openSvgFile()),
@@ -136,7 +136,6 @@ export async function installMenu() {
       await item("Show or hide the layers panel", () => setLayout({ leftHidden: !getLayout().leftHidden }), "CmdOrCtrl+Alt+1"),
       await item("Show or hide the design panel", () => setLayout({ rightHidden: !getLayout().rightHidden }), "CmdOrCtrl+Alt+2"),
       await item("Swap the panel sides", () => setLayout({ swapped: !getLayout().swapped })),
-      await item("Show or hide the history line", () => setLayout({ historyLine: !getLayout().historyLine })),
       await item("Reset the layout", resetLayout),
       await line(),
       await MenuItem.new({ text: "Present", enabled: hasFrames(), action: () => send("duet:present"), accelerator: "CmdOrCtrl+Enter" }),

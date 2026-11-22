@@ -11,7 +11,7 @@ import type { Actor } from "../commands";
 const STEP = 30;
 const OLD_STEP = 10;
 const PAD = 16;
-const Y = 24;
+const Y = 16;
 
 function outlineFor(actor: Actor, by?: string, version?: string): string {
   if (version) return "#fff";
@@ -28,7 +28,19 @@ function getX(i: number, len: number): number {
 
 const timeText = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
-export default function HistoryStrip() {
+/** Duet's mark: two rings, yours and the AI's, linked. Drawn here so it stays sharp and follows the light and dark look. */
+function DuetMark() {
+  return (
+    <svg className="duet-mark" width="22" height="16" viewBox="0 0 22 16" fill="none" strokeWidth="2.2" aria-hidden="true">
+      <circle cx="7" cy="8" r="6" stroke="var(--text)" />
+      <circle cx="14.6" cy="8" r="6" stroke="var(--accent)" />
+      {/* the first ring passes over the second at the bottom, so they link instead of lying on top of each other */}
+      <path d="M11.915 11.441A6 6 0 0 1 9.536 13.438" stroke="var(--text)" />
+    </svg>
+  );
+}
+
+export default function HistoryStrip({ dev }: { dev?: boolean }) {
   const timeline = useStore((s) => s.timeline);
   const cursor = useStore((s) => s.cursor);
   const said = useChat((s) => s.messages);
@@ -82,7 +94,7 @@ export default function HistoryStrip() {
 
       <div className="scroller" ref={scroller}>
         <div className="lanes" style={{ width }}>
-          <svg width={width} height={48} className="links">
+          <svg width={width} height={32} className="links">
             {timeline.length > 1 && (
               <line
                 x1={getX(0, timeline.length)}
@@ -100,17 +112,11 @@ export default function HistoryStrip() {
             const asked = words ? ` · You asked: “${words.length > 90 ? `${words.slice(0, 89).trimEnd()}…` : words}”` : "";
             const ringX = getX(i, timeline.length);
             const outlineColor = outlineFor(e.actor, e.by, e.version);
-            const ringRadius = e.version ? 8 : (isOld ? 4 : 6);
-            const dotTop = Y - ringRadius - 7;
-            const verTop = words ? 0 : 2;
+            const ringRadius = e.version ? 6 : isOld ? 3 : 4.5;
+            const dotTop = Y - ringRadius - 6;
 
             return (
               <Fragment key={i}>
-                {e.version && (
-                  <span className={`ver-text ${i > cursor && line.has(i) ? "future" : ""} ${!line.has(i) ? "other" : ""}`} style={{ left: ringX, top: verTop }}>
-                    {e.version}
-                  </span>
-                )}
                 {words && (
                   <span
                     className={`req-dot ${i > cursor && line.has(i) ? "future" : ""} ${!line.has(i) ? "other" : ""}`}
@@ -132,7 +138,8 @@ export default function HistoryStrip() {
                   onMouseEnter={(ev) => {
                     const r = ev.currentTarget.getBoundingClientRect();
                     setTip({
-                      text: `${who} · ${e.label} · ${timeText(e.time)}${asked}`,
+                      // the line is too thin to write a version's name over its ring, so the name is in the tip
+                      text: `${e.version ? `Version “${e.version}” · ` : ""}${who} · ${e.label} · ${timeText(e.time)}${asked}`,
                       x: r.left + r.width / 2,
                       y: r.top,
                     });
@@ -158,6 +165,12 @@ export default function HistoryStrip() {
           Versions{versions ? ` (${versions})` : ""}
         </button>
       </div>
+
+      <span className="hist-brand">
+        <DuetMark />
+        Duet
+        {dev && <i className="checkmark" title="Duet dev, used only to build and check Duet itself. It never opens your projects by itself.">dev</i>}
+      </span>
 
       {tip && (
         <div className="tip" style={{ left: tip.x, top: tip.y - 10 }}>

@@ -1,16 +1,14 @@
 import { useEffect, useState } from "react";
 import { saveVersion } from "../project/project";
 import { restoreDoc, stepDoc, useStore } from "../state/store";
-import { useLayout } from "./layout";
 import { useDismiss } from "./useDismiss";
 
 /**
  * Save a version, and go back to one. Opened from File, with Cmd or Ctrl + Shift + S, or from the
- * history line when it is shown. It does not need the history line to be there.
+ * history line. It sits just above the history line.
  */
 export default function Versions() {
   const timeline = useStore((s) => s.timeline);
-  const lineShown = useLayout((d) => d.historyLine);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [note, setNote] = useState<string | null>(null);
@@ -32,7 +30,7 @@ export default function Versions() {
   };
 
   return (
-    <div className={`popover versions-pop ${lineShown ? "over-line" : ""}`}>
+    <div className="popover versions-pop">
       <div className="pop-title">
         Save a version
         <span className="pop-close" title="Close" onClick={() => setOpen(false)}>

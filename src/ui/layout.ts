@@ -47,10 +47,6 @@ export interface Dock {
   maskPaint: string | null;
   /** How tall the timeline's rows are, pulled by its top edge. */
   timeH: number;
-  /** The history line along the bottom. Hidden unless asked for: the chat holds the history. */
-  historyLine: boolean;
-  /** Set once the designer turns the history line on or off themselves. Until then it is on. */
-  historyLineChosen?: boolean;
   /** In each space, whether the Projects sidebar is open or folded to a thin strip. */
   projectsOpen: Record<Space, boolean>;
   /** In Colour, a change goes to every picture and clip in the scene, not only the picked ones. */
@@ -132,7 +128,6 @@ export const defaults = (): Dock => ({
   timeTool: "select",
   maskPaint: null,
   timeH: 170,
-  historyLine: true,
   projectsOpen: { kitchen: false, edit: false },
   gradeEvery: false,
   rulers: false,
@@ -173,8 +168,6 @@ export function parseLayout(raw: unknown): Dock {
     const space: Space = r.space === "kitchen" ? "kitchen" : "edit";
     const videoTab: RightTab = r.videoTab === "color" ? "color" : "properties";
     const photoTab: RightTab = r.photoTab === "properties" ? "properties" : "color";
-    // the history line was hidden by default before 0.12.1; it shows unless the designer hid it themselves
-    const historyLine = r.historyLineChosen ? r.historyLine !== false : true;
     const rawTrackH = (r as Record<string, unknown>).trackH as Partial<TrackHeights> | undefined;
     const trackH: TrackHeights = {
       titles: typeof rawTrackH?.titles === "number" ? Math.max(18, Math.min(160, Math.round(rawTrackH.titles))) : DEFAULT_TRACK_H.titles,
@@ -192,7 +185,7 @@ export function parseLayout(raw: unknown): Dock {
     const chatInPanel = r.chatInPanel === true;
     const panelChatH = typeof r.panelChatH === "number" && Number.isFinite(r.panelChatH) ? Math.max(PANEL_CHAT_MIN, Math.round(r.panelChatH)) : 360;
     const recipeOn = typeof r.recipeOn === "string" ? r.recipeOn : null;
-    return { ...defaults(), ...r, recipeFull: false, chatFull: false, canvasMax: false, projectsOpen, chatDocked, chatInPanel, panelChatH, recipeOn, prototyping: false, mode, space, timeLook, timeTool: "select", maskPaint: null, timeMax: false, videoTab, photoTab, historyLine, trackH, rowH };
+    return { ...defaults(), ...r, recipeFull: false, chatFull: false, canvasMax: false, projectsOpen, chatDocked, chatInPanel, panelChatH, recipeOn, prototyping: false, mode, space, timeLook, timeTool: "select", maskPaint: null, timeMax: false, videoTab, photoTab, trackH, rowH };
   }
   return defaults();
 }
@@ -213,7 +206,6 @@ const listeners = new Set<() => void>();
 export const getLayout = () => state;
 
 export function setLayout(patch: Partial<Dock>) {
-  if ("historyLine" in patch) patch = { ...patch, historyLineChosen: true };
   state = { ...state, ...patch };
   try {
     localStorage.setItem(KEY, JSON.stringify(state));

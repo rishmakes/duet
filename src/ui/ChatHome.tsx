@@ -4,7 +4,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import type { Recent } from "../project/project";
 import { ask, message } from "./dialog";
 import type { Trashed } from "../project/project";
-import { checkListed, closeProject, closeTab, closeUntitled, copyProject, getTabs, getUntitled, liveKey, newDesignTab, tabTitle, listedProjects, moveProjectTo, renameProject, inTauri, openProjectAt, removeRecent, TRASH_DAYS, trashDelete, trashList, trashProject, trashRestore } from "../project/project";
+import { checkListed, closeProject, closeTab, closeUntitled, copyProject, getTabs, getUntitled, liveKey, tabTitle, listedProjects, moveProjectTo, renameProject, inTauri, openProjectAt, removeRecent, TRASH_DAYS, trashDelete, trashList, trashProject, trashRestore } from "../project/project";
 import { currentDoc, getState, isParked, useStore } from "../state/store";
 import { closeTask, readyToLeave } from "../ai/agent";
 import { AGENTS, showThread, useChat } from "../ai/chat";
@@ -535,11 +535,8 @@ export function ProjectsSidebar() {
   const space = useLayout((d) => d.space);
   const folded = useLayout((d) => !d.projectsOpen[d.space]);
   const fold = (open: boolean) => setLayout({ projectsOpen: { ...getLayout().projectsOpen, [space]: open } });
-  // Home is a page of Studio's
-  const goHome = () => {
-    if (space !== "edit") setLayout({ space: "edit" });
-    window.dispatchEvent(new Event("duet:home"));
-  };
+  // something new starts on Home, where you pick what to make
+  const goHome = () => window.dispatchEvent(new Event("duet:home"));
   // the skills are a page of their own, over whichever space you are in
   const openSkills = () => window.dispatchEvent(new Event("duet:skills-page"));
   const openRecipes = () => window.dispatchEvent(new Event("duet:recipes-page"));
@@ -623,14 +620,11 @@ export function ProjectsSidebar() {
               <Icon name="fold" size={18} className="fold-open" />
             </button>
             {/* the same things in the same order as the open panel, as icons */}
-            <button className="rail-btn" title="New design" onClick={() => void newDesignTab()}>
+            <button className="rail-btn" title="New design" onClick={goHome}>
               <Icon name="new-chat" size={18} />
             </button>
             <button className="rail-btn" title="Find a project" onClick={() => (fold(true), askToFindProject())}>
               <Icon name="search" size={18} />
-            </button>
-            <button className="rail-btn" title="Home" onClick={goHome}>
-              <Icon name="home" size={18} />
             </button>
             <button className="rail-btn" title="Store" onClick={openSkills}>
               <Icon name="skills" size={18} />
@@ -650,6 +644,9 @@ export function ProjectsSidebar() {
                 <FoldedProject key={r.path} k={r.path} on={r.path === current.file} />
               ))}
             </div>
+            <span className="rail-early" title="Duet is in early access. Some things are unfinished and you may meet bugs. Save versions of work that matters.">
+              Early access
+            </span>
             <button className="rail-btn" title="Tell the creator what went wrong or what you want. Cmd or Ctrl, Shift, F" onClick={askFeedback}>
               <Icon name="feedback" size={18} />
             </button>
@@ -667,7 +664,7 @@ export function ProjectsSidebar() {
             </button>
           </div>
           <div className="side-items">
-            <button className="chathome-item" onClick={() => void newDesignTab()}>
+            <button className="chathome-item" onClick={goHome}>
               <Icon name="new-chat" size={16} />
               New design
             </button>
@@ -687,10 +684,6 @@ export function ProjectsSidebar() {
                 }}
               />
             </label>
-            <button className="chathome-item" onClick={goHome}>
-              <Icon name="home" size={16} />
-              Home
-            </button>
             <button className="chathome-item" onClick={openSkills}>
               <Icon name="skills" size={16} />
               Store
@@ -725,6 +718,9 @@ export function ProjectsSidebar() {
               <Icon name="settings" size={16} />
               Settings
             </button>
+            <i className="early-tag" title="Duet is in early access. Some things are unfinished and you may meet bugs. Save versions of work that matters.">
+              Early access
+            </i>
             <button className="rail-btn" title="Tell the creator what went wrong or what you want. Cmd or Ctrl, Shift, F" onClick={askFeedback}>
               <Icon name="feedback" size={16} />
             </button>

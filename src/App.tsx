@@ -8,7 +8,7 @@ import { loadSkills } from "./ai/skills";
 import { loadScripts } from "./store/scripts";
 import { loadKits } from "./store/kits";
 import CanvasView from "./canvas/CanvasView";
-import { findProjects, flushPack, inTauri, newProject, openProject, openProjectAt, isCheckCopy, restoreLast, saveNow, startAutosave, trashList } from "./project/project";
+import { findProjects, flushPack, inTauri, openProject, openProjectAt, isCheckCopy, restoreLast, saveNow, startAutosave, trashList } from "./project/project";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -248,8 +248,8 @@ export default function App() {
       startMcp().then((f) => (alive ? stops.push(f) : f()));
       startAgentListeners().then((f) => (alive ? stops.push(f) : f()));
     }
-    // the menu bar and other parts of the app ask for these
-    const openHome = () => (setHomeFromProject(true), setHomeOpen(true));
+    // the menu bar and other parts of the app ask for these; Home is a page of Studio's, so it opens there
+    const openHome = () => (setLayout({ space: "edit" }), setHomeFromProject(true), setHomeOpen(true));
     const openPresent = () => setPresenting(true);
     const openSend = () => setSending(true);
     const openSettings = () => setSettings(true);
@@ -277,8 +277,9 @@ export default function App() {
         e.preventDefault();
         openProject();
       } else if (k === "n") {
+        // something new always starts on Home, where you pick what to make
         e.preventDefault();
-        newProject();
+        openHome();
       } else if (k === "1" && !e.shiftKey && !e.altKey) {
         e.preventDefault();
         setLayout({ mode: "design" });
@@ -331,10 +332,10 @@ export default function App() {
   // Kitchen, like Chat, is a whole page of its own: no tools or panels around it, only your projects on the left
   const cooking = dock.space === "kitchen";
   // building a recipe full screen leaves only your projects and the top bar around it
-  const recipeFull = cooking && dock.recipeFull && !!dock.recipeOn;
   const chatFull = dock.chatFull;
   useEffect(() => installTilde(), []);
-  const hist = dock.historyLine && !recipeFull ? "48px" : "0";
+  // the history line is always there, in every space: it is how you get back to any moment of your work
+  const hist = "32px";
   // the chat has a column of its own on the left, or floats over the canvas
   // the chat floats over the canvas, or sits under the right panel
   const chatCol = 0;
@@ -354,15 +355,15 @@ export default function App() {
   };
 
   return (
-    <div className={`app ${timeMax ? "time-max" : ""} ${dock.swapped ? "swapped" : ""} ${check ? "check" : ""} ${MAC ? "mac" : ""} ${full ? "fs" : ""} ${dock.historyLine && !recipeFull ? "" : "no-hist"}`} style={appStyle}>
-      {/* the top row: the name, how it is saved, the kind of work, and Export; on a Mac it shares the row with the window buttons */}
+    <div className={`app ${timeMax ? "time-max" : ""} ${dock.swapped ? "swapped" : ""} ${check ? "check" : ""} ${MAC ? "mac" : ""} ${full ? "fs" : ""}`} style={appStyle}>
+      {/* the top row: Home, the name, how it is saved, the kind of work, and Export; on a Mac it shares the row with the window buttons */}
       <header className="top" data-tauri-drag-region>
         <div className="top-side" data-tauri-drag-region>
-          <span className="logo" data-tauri-drag-region>
-            Du<b>et</b>
-            {check && <i className="checkmark" title="Duet dev, used only to build and check Duet itself. It never opens your projects by itself.">dev</i>}
-            <i className="early-tag" title="Duet is in early access. Some things are unfinished and you may meet bugs. Save versions of work that matters.">Early access</i>
-          </span>
+          <button className="top-home" data-name="space-home" onClick={() => window.dispatchEvent(new Event("duet:home"))} title="Home: start something new, or open your recent work">
+            <Icon name="home" size={14} />
+            Home
+          </button>
+          <span className="top-sep" />
           <FileName />
           <span data-tauri-drag-region className={`status ${project.status}`} title={project.error ?? undefined}>
             {project.path ? STATUS[project.status] : "Not saved yet"}
@@ -370,9 +371,6 @@ export default function App() {
         </div>
         {/* Home, Kitchen or Studio: where you are, in the middle so it stays put whatever the sides hold */}
         <div className="pill mode-switch space-switch">
-          <button data-name="space-home" onClick={() => (setLayout({ space: "edit" }), setHomeFromProject(true), setHomeOpen(true))} className="home-btn" title="Home: start something new, or open your recent work">
-            <Icon name="home" size={14} />
-          </button>
           <button className={cooking ? "active" : ""} data-name="space-kitchen" onClick={() => (setHomeOpen(false), setLayout({ space: "kitchen" }))} title="Work with AI agents: chat, mark what to change, or follow a recipe step by step">
             Kitchen
           </button>
@@ -458,7 +456,7 @@ export default function App() {
       )}
       {skillsOpen && <StorePage key={storeOn ?? ""} startOn={storeOn} onClose={() => setSkillsOpen(false)} />}
       {recipesOpen && <RecipesPage onClose={() => setRecipesOpen(false)} />}
-      {dock.historyLine && !recipeFull && <HistoryStrip />}
+      <HistoryStrip dev={check} />
       <Versions />
       {presenting && <PresentView onClose={() => setPresenting(false)} />}
       <ContextMenu />
@@ -467,7 +465,7 @@ export default function App() {
       <Update />
       <Feedback />
       {settings && <Settings check={check} onClose={() => setSettings(false)} />}
-      {homeOpen && !cooking && <Home dev={check} fromProject={homeFromProject || projectBehind} onClose={() => setHomeOpen(false)} />}
+      {homeOpen && !cooking && <Home fromProject={homeFromProject || projectBehind} onClose={() => setHomeOpen(false)} />}
     </div>
   );
 }

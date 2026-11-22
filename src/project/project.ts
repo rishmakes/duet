@@ -968,12 +968,6 @@ async function saveTo(picked: string) {
   }
 }
 
-/** Start a new, empty project in a folder you choose. */
-export async function newProject() {
-  // no file yet: it gets one once something real happens in it (see hasWork), so New never leaves an empty Untitled behind
-  await newDesignTab();
-}
-
 /** The first free "<name>", "<name> 2", … in the projects folder. */
 async function freePath(name: string): Promise<string> {
   const dir = await invoke<string>("default_projects_dir");

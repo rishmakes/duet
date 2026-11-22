@@ -18,8 +18,6 @@ interface HomeProps {
   onClose: () => void;
   /** True when Home was opened from a project: only then is there somewhere to go back to. */
   fromProject: boolean;
-  /** True in Duet dev, which wears its DEV tag here too so the top row matches a project's. */
-  dev?: boolean;
 }
 
 // what Home remembers between visits, on this computer
@@ -49,7 +47,7 @@ const keep = (key: string, value: string) => {
 };
 
 
-export default function Home({ onClose, fromProject, dev }: HomeProps) {
+export default function Home({ onClose, fromProject }: HomeProps) {
   // any project open behind Home, saved or not, is somewhere the switch can go back to
   const canGoBack = fromProject || !!getState().project.file || getTabs().length > 0 || getUntitled().length > 0;
   // where the box for your own size hangs: under the Custom size button, or under the tile in the open kind
@@ -270,16 +268,13 @@ export default function Home({ onClose, fromProject, dev }: HomeProps) {
   return (
     <div className="home-screen" data-name="home-screen">
       <header className={`home-bar ${MAC ? "mac" : ""}`} data-tauri-drag-region>
-        <span className="logo home-logo" data-tauri-drag-region>
-          Du<b>et</b>
-          {dev && <i className="checkmark">dev</i>}
-          <i className="early-tag" title="Duet is in early access. Some things are unfinished and you may meet bugs. Save versions of work that matters.">Early access</i>
+        {/* the same top left as a project's, so you always know where you are: here, Home itself */}
+        <span className="top-home on" data-name="home-space-home" data-tauri-drag-region>
+          <Icon name="home" size={14} />
+          Home
         </span>
-        {/* the same switch as the top of a project, in the same place, so you always know where you are */}
+        {/* the same switch as the top of a project, in the same place */}
         <div className="pill mode-switch space-switch">
-          <button className="active home-btn" data-name="home-space-home" title="Home">
-            <Icon name="home" size={14} />
-          </button>
           {/* never locked: with a project behind Home they go back to it; with none they start a new one there */}
           {(["kitchen", "edit"] as const).map((space) => (
             <button
