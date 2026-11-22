@@ -223,10 +223,10 @@ export function lookNow(el: El, frame: { width: number; height: number }): Capti
   return CAPTION_LOOKS.find((l) => same(captionProps(l.key, frame)))?.key ?? null;
 }
 
-/** A caption style the designer made, kept on this computer: its name (none yet shows as "Custom") and its style at 1080. */
+/** A caption style the designer saved under a name, kept on this computer, with its style at 1080. */
 export interface CustomLook {
   id: string;
-  name: string | null;
+  name: string;
   props: Partial<El>;
 }
 
@@ -260,29 +260,10 @@ export function sameLook(a: unknown, b: unknown): boolean {
   return true;
 }
 
-/**
- * The custom looks after the captions took a style. A style that is already a look changes nothing;
- * otherwise it goes into the one unnamed Custom look, made first if there is none.
- */
-export function keepCustom(looks: CustomLook[], props: Partial<El>, id: () => string): CustomLook[] {
-  if (looks.some((l) => sameLook(l.props, props))) return looks;
-  const open = looks.find((l) => l.name === null);
-  if (open) return looks.map((l) => (l === open ? { ...l, props } : l));
-  return [{ id: id(), name: null, props }, ...looks];
-}
-
-/**
- * The designer names the style the captions have now (#338). The new Custom look of that style takes the name;
- * otherwise the style is kept as a new look under it, after the new Custom one.
- */
+/** The designer saves the style the captions have now under a name (#338); it comes in last. No name, no change. */
 export function nameStyle(looks: CustomLook[], props: Partial<El>, name: string, id: () => string): CustomLook[] {
   const n = name.trim();
-  if (!n) return looks;
-  const open = looks.find((l) => l.name === null && sameLook(l.props, props));
-  if (open) return looks.map((l) => (l === open ? { ...l, name: n } : l));
-  const at = looks.findIndex((l) => l.name !== null);
-  const look: CustomLook = { id: id(), name: n, props };
-  return at < 0 ? [...looks, look] : [...looks.slice(0, at), look, ...looks.slice(at)];
+  return n ? [...looks, { id: id(), name: n, props }] : looks;
 }
 
 /** A copy of a look, named as a copy, right after it. */
@@ -290,5 +271,5 @@ export function copyLook(looks: CustomLook[], of: string, id: () => string): Cus
   const at = looks.findIndex((l) => l.id === of);
   if (at < 0) return looks;
   const look = looks[at];
-  return [...looks.slice(0, at + 1), { id: id(), name: `${look.name ?? "Custom"} copy`, props: look.props }, ...looks.slice(at + 1)];
+  return [...looks.slice(0, at + 1), { id: id(), name: `${look.name} copy`, props: look.props }, ...looks.slice(at + 1)];
 }

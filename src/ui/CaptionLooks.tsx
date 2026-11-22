@@ -5,7 +5,7 @@ import { CAPTION_FONTS, CAPTION_FONTS_2, CAPTION_LOOKS, SPOKEN_COLOURS, captionP
 import { fetchFamily } from "../project/fonts";
 import type { CaptionLook, CustomLook } from "../document/captions";
 import type { El } from "../document/types";
-import { duplicateLook, keepStyle, removeLook, renameLook, saveStyle, useCustomLooks } from "./customLooks";
+import { duplicateLook, removeLook, renameLook, saveStyle, useCustomLooks } from "./customLooks";
 import { useDismiss } from "./useDismiss";
 import Shelf from "./Shelf";
 
@@ -13,8 +13,8 @@ import Shelf from "./Shelf";
  * Caption styles (#71, #404): each look as a big tile showing example words in it, and while the pointer
  * is on it the words light up one after another, the way they will when spoken. Picking one changes
  * every caption in the open video. Changing the look in detail is the Customize panel on the right.
- * Once the captions match none of the looks, their style is kept as a Custom tile first in the list,
- * on this computer for every project. Naming it keeps it; the next new style starts a new Custom tile.
+ * The look stays on the captions in the project. To use it again in another video, the designer saves it
+ * under a name: it shows in Your styles, on this computer for every project (#338).
  */
 
 const EXAMPLE = ["Pick", "a", "style"];
@@ -102,10 +102,10 @@ function CustomTile({ look, on, off, apply }: { look: CustomLook; on: boolean; o
   const [naming, setNaming] = useState(false);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   useDismiss(!!menu, () => setMenu(null), ".captions-tile-menu, .captions-tile-more");
-  const name = look.name ?? "Custom";
+  const name = look.name;
   const act = (f: () => void) => () => (setMenu(null), f());
   return (
-    <div className={`captions-tile custom${on ? " on" : ""}${off ? " off" : ""}${menu ? " menu-open" : ""}`} data-name={`captions-tile-custom-${look.name ?? "new"}`}>
+    <div className={`captions-tile custom${on ? " on" : ""}${off ? " off" : ""}${menu ? " menu-open" : ""}`} data-name={`captions-tile-custom-${look.name}`}>
       <button className="captions-tile-face" disabled={off} onClick={apply}>
         <StyleSample props={look.props} />
       </button>
@@ -133,7 +133,7 @@ function CustomTile({ look, on, off, apply }: { look: CustomLook; on: boolean; o
           </button>
         </div>
       )}
-      {naming ? <NameField initial={look.name ?? ""} onDone={(n) => (n && renameLook(look.id, n), setNaming(false))} /> : <span className="captions-tile-name">{name}</span>}
+      {naming ? <NameField initial={look.name} onDone={(n) => (n && renameLook(look.id, n), setNaming(false))} /> : <span className="captions-tile-name">{name}</span>}
     </div>
   );
 }
@@ -184,20 +184,15 @@ export default function CaptionsPanel() {
   const style = useMemo(() => (styleKey ? (JSON.parse(styleKey) as Partial<El>) : null), [styleKey]);
   const custom = useCustomLooks();
   useEffect(() => {
-    if (style && now === null) keepStyle(style);
-  }, [style, now]);
-  useEffect(() => {
     for (const l of custom) if (l.props.fontFamily) void fetchFamily(l.props.fontFamily);
   }, [custom]);
   const all = () => captionsIn(currentDoc(getState()), getState().clock.scene);
-  // the new Custom tile first, then the named ones
-  const ordered = [...custom.filter((l) => l.name === null), ...custom.filter((l) => l.name !== null)];
   return (
     <div className="captions-panel" data-name="captions-panel">
       <div className="captions-panel-hint">{count ? "Pick a style. Every caption changes." : "Make captions first with Auto captions under the timeline, then pick a style."}</div>
-      <Shelf name="captions-yours" title="Your styles" count={ordered.length}>
+      <Shelf name="captions-yours" title="Your styles" count={custom.length}>
         <div className="captions-tiles">
-          {ordered.map((l) => (
+          {custom.map((l) => (
             <CustomTile
               key={l.id}
               look={l}
@@ -205,7 +200,7 @@ export default function CaptionsPanel() {
               off={!count}
               apply={() => {
                 const ids = all();
-                if (ids.length) dispatch("style_captions", { ids, look: "bold", custom: { name: l.name ?? "Custom", props: l.props } });
+                if (ids.length) dispatch("style_captions", { ids, look: "bold", custom: { name: l.name, props: l.props } });
               }}
             />
           ))}

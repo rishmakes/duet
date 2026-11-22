@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { runCommand } from "./index";
 import { emptyDoc } from "../document/types";
 import type { Doc } from "../document/types";
-import { captionChunks, captionMates, captionWords, captionsIn, copyLook, keepCustom, lookNow, nameStyle, lookOf, sameLook } from "../document/captions";
+import { captionChunks, captionMates, captionWords, captionsIn, copyLook, lookNow, nameStyle, lookOf, sameLook } from "../document/captions";
 import { wordsOfEdit } from "../document/words";
 
 // "so today we um talk about money" with a long pause after "today"
@@ -196,40 +196,19 @@ describe("caption looks", () => {
     expect(out.spokenBox).toBeUndefined();
     expect(sameLook(lookOf(out, small.elements.s), props)).toBe(true);
   });
-  it("keeps one Custom look that follows the captions until it is named", () => {
-    let n = 0;
-    const id = () => `l${++n}`;
-    let looks = keepCustom([], { fontSize: 60 }, id);
-    expect(looks).toEqual([{ id: "l1", name: null, props: { fontSize: 60 } }]);
-    looks = keepCustom(looks, { fontSize: 70 }, id);
-    expect(looks).toEqual([{ id: "l1", name: null, props: { fontSize: 70 } }]);
-    // a style that already is a look changes nothing, even off by rounding
-    expect(keepCustom(looks, { fontSize: 70.2 }, id)).toBe(looks);
-    looks = [{ ...looks[0], name: "Mine" }];
-    looks = keepCustom(looks, { fontSize: 80 }, id);
-    expect(looks.map((l) => [l.name, l.props.fontSize])).toEqual([[null, 80], ["Mine", 70]]);
-  });
-  it("names the style the captions have now, as the new Custom look or as a new look (#338)", () => {
-    let n = 0;
-    const id = () => `n${++n}`;
-    const looks = [
-      { id: "c", name: null, props: { fontSize: 80 } },
-      { id: "m", name: "Mine", props: { fontSize: 70 } },
-    ];
-    // the Custom look of this style takes the name
-    expect(nameStyle(looks, { fontSize: 80 }, " Day reels ", id).map((l) => [l.id, l.name])).toEqual([["c", "Day reels"], ["m", "Mine"]]);
-    // a style that is no Custom look comes in under the name, before the named ones
-    expect(nameStyle(looks, { fontSize: 50 }, "Gold", id).map((l) => [l.id, l.name])).toEqual([["c", null], ["n1", "Gold"], ["m", "Mine"]]);
+  it("saves the style the captions have now under a name, last (#338)", () => {
+    const looks = [{ id: "m", name: "Mine", props: { fontSize: 70 } }];
+    expect(nameStyle(looks, { fontSize: 50 }, " Gold ", () => "n1")).toEqual([...looks, { id: "n1", name: "Gold", props: { fontSize: 50 } }]);
     // no name, no change
-    expect(nameStyle(looks, { fontSize: 80 }, "  ", id)).toBe(looks);
+    expect(nameStyle(looks, { fontSize: 80 }, "  ", () => "x")).toBe(looks);
   });
   it("copies a look right after it (#338)", () => {
     const looks = [
       { id: "a", name: "Mine", props: { fontSize: 70 } },
-      { id: "b", name: null, props: { fontSize: 80 } },
+      { id: "b", name: "Gold", props: { fontSize: 80 } },
     ];
     const copied = copyLook(looks, "a", () => "a2");
-    expect(copied.map((l) => [l.id, l.name, l.props.fontSize])).toEqual([["a", "Mine", 70], ["a2", "Mine copy", 70], ["b", null, 80]]);
+    expect(copied.map((l) => [l.id, l.name, l.props.fontSize])).toEqual([["a", "Mine", 70], ["a2", "Mine copy", 70], ["b", "Gold", 80]]);
     expect(copyLook(looks, "zz", () => "x")).toBe(looks);
   });
   it("leaves out sound tags and a word said twice in a row", () => {
