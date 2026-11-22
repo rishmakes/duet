@@ -373,6 +373,12 @@ export default function App() {
         {/* Kitchen or Studio, and what Studio is for: in the middle so it stays put whatever the sides hold */}
         <SpaceSwitch onGo={() => setHomeOpen(false)} />
         <div className="top-side end" data-tauri-drag-region>
+          {/* Present comes and goes with Design; the light and dark switch always sits just before Export */}
+          {!cooking && dock.mode === "design" && (
+            <button className="pill" disabled={!hasFrames} onClick={() => setPresenting(true)} title="Click through your screens (Cmd or Ctrl Enter)">
+              Present
+            </button>
+          )}
           <button
             className="pill icon theme-toggle"
             title={theme === "light" ? "Dark look" : "Light look"}
@@ -381,11 +387,6 @@ export default function App() {
           >
             <Icon name={theme === "light" ? "moon" : "sun"} size={15} />
           </button>
-          {!cooking && dock.mode === "design" && (
-            <button className="pill" disabled={!hasFrames} onClick={() => setPresenting(true)} title="Click through your screens (Cmd or Ctrl Enter)">
-              Present
-            </button>
-          )}
           <ExportMenu />
         </div>
       </header>

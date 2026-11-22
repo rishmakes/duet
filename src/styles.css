@@ -1108,7 +1108,7 @@ body.eyedropping * {
 .tabs {
   display: flex;
   align-items: flex-end;
-  padding: 6px 0 0 6px;
+  padding: 4px 0 0 4px;
   /* a shade darker than the panel, so the picked tab, in the panel's own colour, runs into it */
   background: color-mix(in srgb, var(--panel) 35%, var(--bg));
   border-bottom: 1px solid var(--line);
@@ -1116,15 +1116,15 @@ body.eyedropping * {
 /* every tab the same width, icon over name, lined up on the left; they give way only on a narrow panel */
 .tab {
   position: relative;
-  flex: 0 1 84px;
-  min-width: 56px;
-  height: 62px;
+  flex: 0 1 72px;
+  min-width: 54px;
+  height: 50px;
   margin-bottom: -1px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 3px;
   padding: 0;
   border: none;
   border-radius: 10px 10px 0 0;
@@ -1150,18 +1150,6 @@ body.eyedropping * {
 }
 .tab.on svg {
   color: var(--accent);
-}
-/* a short purple mark on top of the picked tab */
-.tab.on::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 50%;
-  width: 24px;
-  height: 3px;
-  margin-left: -12px;
-  border-radius: 0 0 3px 3px;
-  background: var(--accent);
 }
 .tabs .fold-btn {
   align-self: center;

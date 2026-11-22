@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CUT_MOVE_NAMES, clipBefore, moveLength } from "../document/moves";
 import { spanOf } from "../document/time";
@@ -51,10 +51,19 @@ export default function CutSeams({
   items: El[];
   pps: number;
 }) {
-  const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(
+  // y is just under the cut's button, top just over it: the card opens below, or above when there is no room below
+  const [menu, setMenu] = useState<{ id: string; x: number; y: number; top: number } | null>(
     null,
   );
   const [find, setFind] = useState("");
+  const card = useRef<HTMLDivElement>(null);
+  const [up, setUp] = useState(false);
+  // measured before it is painted, so the card never shows below and then jumps
+  useLayoutEffect(() => {
+    if (!menu || !card.current) return;
+    const h = card.current.offsetHeight;
+    setUp(menu.y + h > window.innerHeight - 8 && menu.top - h > 8);
+  }, [menu, find]);
   const picked = usePickedCut();
   useDismiss(!!menu, () => setMenu(null), ".cut-menu, .cut-plus, .cut-badge");
   // each time the picker opens, its search starts empty
@@ -95,7 +104,7 @@ export default function CutSeams({
                 setMenu(
                   menu?.id === b.id
                     ? null
-                    : { id: b.id, x: r.left + r.width / 2, y: r.bottom + 4 },
+                    : { id: b.id, x: r.left + r.width / 2, y: r.bottom + 4, top: r.top - 4 },
                 );
               }}
             >
@@ -121,7 +130,7 @@ export default function CutSeams({
               setMenu(
                 menu?.id === b.id
                   ? null
-                  : { id: b.id, x: r.left + r.width / 2, y: r.bottom + 4 },
+                  : { id: b.id, x: r.left + r.width / 2, y: r.bottom + 4, top: r.top - 4 },
               );
             }}
           >
@@ -136,8 +145,9 @@ export default function CutSeams({
         // on the page itself, over everything: inside the timeline the shade outside the work area lay over it
         createPortal(
           <div
+            ref={card}
             className="ctx cut-menu"
-            style={{ left: Math.max(8, menu.x - 105), top: menu.y }}
+            style={up ? { left: Math.max(8, menu.x - 105), bottom: window.innerHeight - menu.top } : { left: Math.max(8, menu.x - 105), top: menu.y }}
             data-name="cut-menu"
             onPointerDown={(e) => e.stopPropagation()}
           >
