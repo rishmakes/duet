@@ -43,6 +43,9 @@ export function AutoCaptionsBox({ scene, clips, picked, onClose, onError }: { sc
   // the colour the spoken word lights up in, or "" for none
   const [lit, setLit] = useState(() => remembered(LIT, (v) => v === "none" || SPOKEN_COLOURS.includes(v), SPOKEN_COLOURS[0], (v) => (v === "none" ? "" : v)));
   const words = useStore((s) => currentDoc(s).words);
+  // a look that lights no word, or lights it in its own colour, has no colour to pick
+  const info = CAPTION_LOOKS.find((l) => l.key === look);
+  const unlit = !!info?.unlit || !!info?.styled;
   const missing = [...new Set(clips.map((el) => el.src))].filter((src) => !words?.[src]);
 
   const go = async () => {
@@ -88,12 +91,12 @@ export function AutoCaptionsBox({ scene, clips, picked, onClose, onError }: { sc
           ))}
         </div>
       </div>
-      <div className={`captions-row${look === "one" ? " off" : ""}`}>
+      <div className={`captions-row${unlit ? " off" : ""}`}>
         <span>Light up the spoken word</span>
         <div className="captions-lit">
-          <button className={!lit ? "none on" : "none"} data-name="captions-lit-none" title="No colour" disabled={look === "one"} onClick={() => setLit("")} />
+          <button className={!lit ? "none on" : "none"} data-name="captions-lit-none" title="No colour" disabled={unlit} onClick={() => setLit("")} />
           {SPOKEN_COLOURS.map((c) => (
-            <button key={c} className={lit === c ? "on" : ""} style={{ background: c }} data-name={`captions-lit-${c.slice(1)}`} title="Light up in this colour" disabled={look === "one"} onClick={() => setLit(c)} />
+            <button key={c} className={lit === c ? "on" : ""} style={{ background: c }} data-name={`captions-lit-${c.slice(1)}`} title="Light up in this colour" disabled={unlit} onClick={() => setLit(c)} />
           ))}
         </div>
       </div>

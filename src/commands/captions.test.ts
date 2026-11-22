@@ -240,3 +240,26 @@ describe("captions split again with another number of words (#404)", () => {
     expect(runCommand(doc, "split_captions", { sceneId: "f", per: 2 })).toBe(doc);
   });
 });
+
+describe("ready caption styles", () => {
+  it("each one is found again after it is picked, and the old looks still are", () => {
+    let doc = runCommand(talk(), "add_captions", { sceneId: "f", look: "bold", per: 3 });
+    const ids = captionsIn(doc, "f");
+    for (const look of ["there", "highlight", "plates", "cursive", "pen", "sticker", "stack", "rainbow", "bold"] as const) {
+      doc = runCommand(doc, "style_captions", { ids, look });
+      expect(lookNow(doc.elements[ids[0]], doc.elements.f)).toBe(look);
+    }
+  });
+  it("a style that lights no word keeps the words' moments so they can arrive one by one", () => {
+    const doc = runCommand(talk(), "add_captions", { sceneId: "f", look: "stack", per: 3, spokenFill: "#ffe14d" });
+    const two = captions(doc).find((el) => el.text.split(" ").length > 1)!;
+    expect(two.spokenFill).toBeUndefined();
+    expect(two.arrive).toBe("word");
+    expect(two.spoken?.length).toBeGreaterThan(1);
+  });
+  it("Right and there lights the spoken word yellow and writes the last word in Dancing Script", () => {
+    const doc = runCommand(talk(), "add_captions", { sceneId: "f", look: "there", per: 3 });
+    const two = captions(doc).find((el) => el.text.split(" ").length > 1)!;
+    expect(two).toMatchObject({ spokenFill: "#ffe14d", font2: "Dancing Script", font2Words: "last", fontWeight: 900 });
+  });
+});

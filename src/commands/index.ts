@@ -2851,9 +2851,10 @@ const addCaptions: CommandDef<AddCaptionsArgs> = {
     });
     if (old.length) next = deleteElements.run(next, { ids: old });
     const props = captionProps(look, f);
-    // a boxed look lights the spoken word in its own colour
-    // a look that lives by its spoken word, like Dim, always lights it in its own colour
-    const lit = boxedLook(look) || look === "dim" ? CAPTION_LOOKS.find((l) => l.key === look)?.lit : a.spokenFill;
+    // a boxed look, one that lives by its spoken word like Dim, and a ready style light it in their own
+    // colour; a look that lights no word never does
+    const info = CAPTION_LOOKS.find((l) => l.key === look);
+    const lit = info?.unlit ? undefined : info?.styled ? (info.lit ?? SPOKEN_COLOURS[0]) : boxedLook(look) || look === "dim" ? info?.lit : a.spokenFill;
     const width = captionRoom(f);
     const x = Math.round((f.width - width) / 2);
     const mid = captionMiddle(f);
@@ -2870,7 +2871,7 @@ const addCaptions: CommandDef<AddCaptionsArgs> = {
         width,
         height: 10,
         keepOrder: true,
-        props: { ...props, text, name: `Caption: ${text.slice(0, 30)}`, start: c.start, end: c.end, track: trackId, ...(lit && look !== "one" && c.spoken.length > 1 ? { spoken: c.spoken, spokenFill: lit } : {}) },
+        props: { ...props, text, name: `Caption: ${text.slice(0, 30)}`, start: c.start, end: c.end, track: trackId, ...(c.spoken.length > 1 && (lit || props.arrive) ? { spoken: c.spoken, ...(lit ? { spokenFill: lit } : {}) } : {}) },
       });
       const el = next.elements[id];
       hugCaption(el, f.width / 2, captionRoom(f));
@@ -2959,7 +2960,7 @@ function customProps(style: Partial<El>, frame: { width: number; height: number 
 const styleCaptions: CommandDef<StyleCaptionsArgs> = {
   label: (a) => `Captions look: ${a.custom?.name ?? CAPTION_LOOKS.find((l) => l.key === a.look)?.name ?? "changed"}`,
   run: (doc, a) => {
-    const found = a.custom ? { key: "bold" as CaptionLook, lit: undefined } : CAPTION_LOOKS.find((l) => l.key === a.look);
+    const found = a.custom ? { key: "bold" as CaptionLook, lit: undefined, unlit: undefined } : CAPTION_LOOKS.find((l) => l.key === a.look);
     const ids = a.ids.filter((id) => doc.elements[id]?.type === "text" && !isDerived(id));
     if (!found || !ids.length) return doc;
     const next = clone(doc);
@@ -2980,8 +2981,8 @@ const styleCaptions: CommandDef<StyleCaptionsArgs> = {
       } else if (el.spoken?.length) {
         if (found.lit) el.spokenFill = found.lit;
         else if (!el.spokenFill || CAPTION_LOOKS.some((l) => l.lit === el.spokenFill)) el.spokenFill = SPOKEN_COLOURS[0];
-        // one word at a time has nothing to light
-        if (found.key === "one") delete el.spokenFill;
+        // a look that lights no word, like one word at a time
+        if (found.unlit) delete el.spokenFill;
       } else if (found.key === "dim") {
         // text with no spoken words has nothing to light, so Dim keeps it bright
         el.fill = "#ffffff";

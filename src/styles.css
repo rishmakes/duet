@@ -12754,6 +12754,65 @@ button.ctx-item.store-make-option:hover {
 }
 .sample-custom.lit:not(.boxed) i:first-child { color: var(--lit); }
 .sample-custom.lit.boxed i:first-child { background: var(--lit); }
+.sample-custom.boxed i {
+  border-radius: 3px;
+  padding: 0 3px;
+}
+.sample-custom.bolden i:first-child { font-weight: 800; }
+.sample-custom.stack {
+  flex-direction: column;
+  gap: 0;
+  line-height: 1;
+}
+/* a hand-drawn box round the words, a little uneven like a pen line */
+.sample-custom.drawn {
+  border: 2px solid;
+  border-radius: 14px 4px 12px 5px / 5px 12px 4px 14px;
+  padding: 2px 10px;
+}
+.sample-custom.rainbow i {
+  background: linear-gradient(90deg, #ff5a5a, #ffb84d, #ffe14d, #7cf2c9, #4da3ff, #a68bff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+/* words that arrive as they are said: on hover each shows at its moment, with a small pop for pop */
+.captions-tile:hover .sample-custom.arrive i,
+.caption-look:hover .sample-custom.arrive i {
+  --pop: 1;
+  animation-name: arrive-3;
+  animation-timing-function: steps(1, end);
+}
+.captions-tile:hover .sample-custom.arrive.pop i,
+.caption-look:hover .sample-custom.arrive.pop i { --pop: 1.25; }
+.captions-tile:hover .sample-custom.arrive i:nth-child(2),
+.caption-look:hover .sample-custom.arrive i:nth-child(2) {
+  opacity: 0;
+  animation-name: arrive-2;
+}
+.captions-tile:hover .sample-custom.arrive i:nth-child(3),
+.caption-look:hover .sample-custom.arrive i:nth-child(3) {
+  opacity: 0;
+  animation-name: arrive-1;
+}
+.captions-tile:hover .sample-custom.arrive.lit:not(.boxed) i { animation-name: lit-custom, arrive-3; }
+.captions-tile:hover .sample-custom.arrive.lit:not(.boxed) i:nth-child(2) { animation-name: lit-custom, arrive-2; }
+.captions-tile:hover .sample-custom.arrive.lit:not(.boxed) i:nth-child(3) { animation-name: lit-custom, arrive-1; }
+/* a word's own turn starts its loop: it stays until the loop ends, so later words stay for less */
+@keyframes arrive-3 {
+  0% { opacity: 1; transform: scale(var(--pop)); }
+  8%, 100% { opacity: 1; transform: none; }
+}
+@keyframes arrive-2 {
+  0% { opacity: 1; transform: scale(var(--pop)); }
+  8% { opacity: 1; transform: none; }
+  66%, 100% { opacity: 0; }
+}
+@keyframes arrive-1 {
+  0% { opacity: 1; transform: scale(var(--pop)); }
+  8% { opacity: 1; transform: none; }
+  33%, 100% { opacity: 0; }
+}
 .captions-tile.custom:hover .look-sample i,
 .captions-tile.custom:hover .look-sample i:first-child {
   animation-play-state: running;

@@ -6,14 +6,26 @@ import type { EditWord } from "./words";
  * text on a Captions track, so it can be moved, restyled or deleted like any other text.
  */
 
-export type CaptionLook = "bold" | "quiet" | "pill" | "one" | "box" | "line" | "outline" | "glow" | "dim";
+export type CaptionLook = "bold" | "quiet" | "pill" | "one" | "box" | "line" | "outline" | "glow" | "dim" | "there" | "highlight" | "plates" | "cursive" | "pen" | "sticker" | "stack" | "rainbow";
 
-/** The looks, and the colour each one lights the spoken word in when it has its own. */
-export const CAPTION_LOOKS: { key: CaptionLook; name: string; lit?: string }[] = [
+/**
+ * The looks. `lit` is the colour a look lights the spoken word in when it has its own; `unlit` looks
+ * light no word. `styled` looks are the ready styles: fonts, colours and how the words arrive all set,
+ * their tile drawn from their own settings.
+ */
+export const CAPTION_LOOKS: { key: CaptionLook; name: string; lit?: string; unlit?: true; styled?: true }[] = [
+  { key: "there", name: "Right and there", styled: true },
+  { key: "highlight", name: "Highlight", lit: "#3d7bff", styled: true },
+  { key: "plates", name: "Plates", unlit: true, styled: true },
+  { key: "cursive", name: "Cursive", unlit: true, styled: true },
+  { key: "pen", name: "Pen box", unlit: true, styled: true },
+  { key: "sticker", name: "Sticker", lit: "#ff5fd2", styled: true },
+  { key: "stack", name: "Stack", unlit: true, styled: true },
+  { key: "rainbow", name: "Rainbow", unlit: true, styled: true },
   { key: "bold", name: "Bold pop" },
   { key: "quiet", name: "Quiet" },
   { key: "pill", name: "Pill" },
-  { key: "one", name: "One word" },
+  { key: "one", name: "One word", unlit: true },
   { key: "box", name: "Box", lit: "#7c5cff" },
   { key: "line", name: "Box, one line", lit: "#e5383b" },
   { key: "outline", name: "Outline" },
@@ -35,7 +47,18 @@ export const CAPTION_FONTS: Record<CaptionLook, string> = {
   outline: "Montserrat",
   glow: "Poppins",
   dim: "Montserrat",
+  there: "Montserrat",
+  highlight: "Poppins",
+  plates: "Anton",
+  cursive: "Montserrat",
+  pen: "Caveat",
+  sticker: "Luckiest Guy",
+  stack: "Anton",
+  rainbow: "Fredoka",
 };
+
+/** The second fonts the ready styles use for some of their words. */
+export const CAPTION_FONTS_2 = ["Dancing Script", "Great Vibes"];
 
 /** A look with a box behind the spoken word, whose colour is the look's own. */
 export const boxedLook = (look: CaptionLook) => look === "box" || look === "line";
@@ -131,6 +154,22 @@ export function captionProps(look: CaptionLook, frame: { width: number; height: 
       return { ...base, fontSize: px(52), fontWeight: 800, lineHeight: 1.5, spokenBox: true, plate: { fill: "#000000", radius: px(10), padX: px(12), padY: px(6), each: true } };
     case "line":
       return { ...base, fontSize: px(52), fontWeight: 800, lineHeight: 1.5, spokenBox: true, plate: { fill: "#000000", radius: px(12), padX: px(16), padY: px(8) } };
+    case "there":
+      return { ...base, fontSize: px(68), fontWeight: 900, ...edge(3), shadow: shadow(6, 0), font2: "Dancing Script", font2Words: "last" };
+    case "highlight":
+      return { ...base, fontSize: px(54), fontWeight: 600, caps: undefined, lineHeight: 1.4, spokenBox: true, spokenBold: true, shadow: shadow(2, 12) };
+    case "plates":
+      return { ...base, fill: "#111013", fontSize: px(64), fontWeight: 400, lineHeight: 1.45, arrive: "pop", plate: { fill: "#ffe14d", radius: px(6), padX: px(14), padY: px(4), each: true } };
+    case "cursive":
+      return { ...base, fontSize: px(60), fontWeight: 800, arrive: "word", font2: "Great Vibes", font2Words: "short", shadow: shadow(3, 14) };
+    case "pen":
+      return { ...base, fontSize: px(70), fontWeight: 700, caps: undefined, arrive: "word", drawnBox: "#ffffff", shadow: shadow(2, 10) };
+    case "sticker":
+      return { ...base, fill: "#ffe14d", fontSize: px(66), fontWeight: 400, arrive: "pop", sticker: "#ffffff", shadow: shadow(5, 12) };
+    case "stack":
+      return { ...base, fill: "#e5383b", fontSize: px(96), fontWeight: 400, lineHeight: 1, arrive: "word", breaks: "stack", shadow: shadow(4, 14) };
+    case "rainbow":
+      return { ...base, fontSize: px(68), fontWeight: 700, arrive: "pop", rainbow: true, copies: { n: 2, color: "#111013" } };
     default:
       return { ...base, fontSize: px(68), fontWeight: 900, ...edge(3), shadow: shadow(6, 0) };
   }
@@ -178,8 +217,9 @@ export function captionsIn(doc: Doc, sceneId: string | null | undefined): string
 
 /** The look a caption has, while it still is one: once its font, size, weight, outline or box changes, it is the designer's own. */
 export function lookNow(el: El, frame: { width: number; height: number }): CaptionLook | null {
+  const extras = ["font2", "font2Words", "breaks", "sticker", "drawnBox", "copies", "rainbow", "arrive", "spokenBox", "spokenBold"] as const;
   const same = (p: Partial<El>) =>
-    p.fontFamily === el.fontFamily && p.fontSize === el.fontSize && p.fontWeight === el.fontWeight && (p.stroke ?? null) === (el.stroke ?? null) && !p.plate === !el.plate && !!p.plate?.each === !!el.plate?.each && (p.fill ?? "#ffffff") === el.fill && !el.sticker && !el.drawnBox && !el.copies && !el.rainbow;
+    p.fontFamily === el.fontFamily && p.fontSize === el.fontSize && p.fontWeight === el.fontWeight && (p.stroke ?? null) === (el.stroke ?? null) && !p.plate === !el.plate && !!p.plate?.each === !!el.plate?.each && (p.fill ?? "#ffffff") === el.fill && extras.every((k) => sameLook(p[k] || null, el[k] || null));
   return CAPTION_LOOKS.find((l) => same(captionProps(l.key, frame)))?.key ?? null;
 }
 

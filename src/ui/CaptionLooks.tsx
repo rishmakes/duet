@@ -1,7 +1,7 @@
 import { useStore, currentDoc, dispatch, getState } from "../state/store";
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
-import { CAPTION_FONTS, CAPTION_LOOKS, captionsIn, lookNow, lookOf, sameLook } from "../document/captions";
+import { CAPTION_FONTS, CAPTION_FONTS_2, CAPTION_LOOKS, SPOKEN_COLOURS, captionProps, captionsIn, lookNow, lookOf, sameLook } from "../document/captions";
 import { fetchFamily } from "../project/fonts";
 import type { CaptionLook, CustomLook } from "../document/captions";
 import type { El } from "../document/types";
@@ -19,6 +19,8 @@ const EXAMPLE = ["Pick", "a", "style"];
 
 /** Example words drawn in a look. With `moving`, the spoken word walks along them. */
 export function LookSample({ look, words = EXAMPLE }: { look: CaptionLook; words?: string[] }) {
+  const ready = CAPTION_LOOKS.find((l) => l.key === look);
+  if (ready?.styled) return <StyleSample props={readyProps(ready)} words={words} />;
   const shown = look === "one" ? words.slice(-1) : words;
   return (
     <span className={`look-sample sample-${look}`} style={{ fontFamily: `"${CAPTION_FONTS[look]}", system-ui, sans-serif` }}>
@@ -31,31 +33,47 @@ export function LookSample({ look, words = EXAMPLE }: { look: CaptionLook; words
   );
 }
 
-/** Example words drawn in a custom look, sized down to the tile. */
-function CustomSample({ props, words = EXAMPLE }: { props: Partial<El>; words?: string[] }) {
+/** Example words drawn in a style from its own settings, sized down to the tile: a custom look or a ready style. */
+function StyleSample({ props, words = EXAMPLE }: { props: Partial<El>; words?: string[] }) {
   const k = 19 / Math.max(1, props.fontSize ?? 60);
   const px = (n: number | undefined) => `${Math.round((n ?? 0) * k * 10) / 10}px`;
   const plate = props.plate;
   const boxed = !!props.spokenBox;
   const box: CSSProperties = plate ? { background: plate.fill, borderRadius: px(plate.radius), padding: `${px(plate.padY)} ${px(plate.padX)}` } : {};
+  // copies stack down and to the right, under any shadow
+  const shadows = [
+    ...Array.from({ length: props.copies?.n ?? 0 }, (_, i) => `${(i + 1) * 2}px ${(i + 1) * 2}px 0 ${props.copies!.color}`),
+    ...(props.shadow ? [`${px(props.shadow.x)} ${px(props.shadow.y)} ${px(props.shadow.blur)} ${props.shadow.color}`] : []),
+  ];
+  const edge = props.sticker ? { colour: props.sticker, width: "4px" } : props.stroke ? { colour: props.stroke, width: px(props.strokeWidth) } : null;
   const word: CSSProperties = {
     ...(plate?.each ? box : {}),
-    ...(props.stroke ? { WebkitTextStroke: `${px(props.strokeWidth)} ${props.stroke}`, paintOrder: "stroke fill" } : {}),
-    ...(props.shadow ? { textShadow: `${px(props.shadow.x)} ${px(props.shadow.y)} ${px(props.shadow.blur)} ${props.shadow.color}` } : {}),
+    ...(edge ? { WebkitTextStroke: `${edge.width} ${edge.colour}`, paintOrder: "stroke fill" } : {}),
+    ...(shadows.length ? { textShadow: shadows.join(", ") } : {}),
   };
+  const second = (w: string, i: number) => !!props.font2 && (props.font2Words === "short" ? w.replace(/[^\p{L}\p{N}]/gu, "").length <= 2 : i === words.length - 1);
   const vars = { "--base": props.fill ?? "#ffffff", "--lit": props.spokenFill ?? "transparent", "--word-bg": plate?.each ? plate.fill : "transparent" } as CSSProperties;
+  const kinds = ["sample-custom", props.spokenFill ? "lit" : "", boxed ? "boxed" : "", props.spokenBold ? "bolden" : "", props.arrive ? `arrive ${props.arrive}` : "", props.rainbow ? "rainbow" : "", props.breaks === "stack" ? "stack" : "", props.drawnBox ? "drawn" : ""];
   return (
     <span
-      className={`look-sample sample-custom${props.spokenFill ? " lit" : ""}${boxed ? " boxed" : ""}`}
-      style={{ ...vars, ...(plate && !plate.each ? box : {}), fontFamily: `"${props.fontFamily}", system-ui, sans-serif`, fontWeight: props.fontWeight, textTransform: props.caps ? "uppercase" : undefined, letterSpacing: px(props.letterSpacing) }}
+      className={`look-sample ${kinds.filter(Boolean).join(" ")}`}
+      style={{ ...vars, ...(plate && !plate.each ? box : {}), ...(props.drawnBox ? { borderColor: props.drawnBox } : {}), fontFamily: `"${props.fontFamily}", system-ui, sans-serif`, fontWeight: props.fontWeight, textTransform: props.caps ? "uppercase" : undefined, letterSpacing: px(props.letterSpacing) }}
     >
       {words.map((w, i) => (
-        <i key={i} style={{ ...word, animationDelay: `${i * 0.45}s`, animationDuration: `${words.length * 0.45}s` }}>
+        <i
+          key={i}
+          style={{ ...word, animationDelay: `${i * 0.45}s`, animationDuration: `${words.length * 0.45}s`, ...(second(w, i) ? { fontFamily: `"${props.font2}", cursive`, textTransform: "none", fontWeight: 400 } : {}) }}
+        >
           {w}
         </i>
       ))}
     </span>
   );
+}
+
+/** A ready style's settings at 1080, with the colour it lights the spoken word in. */
+function readyProps(look: (typeof CAPTION_LOOKS)[number]): Partial<El> {
+  return { ...captionProps(look.key, { width: 1080, height: 1080 }), spokenFill: look.unlit ? undefined : (look.lit ?? SPOKEN_COLOURS[0]) };
 }
 
 /** A custom look's tile: pick it to use it, click its name to rename it, the cross removes it. */
@@ -65,7 +83,7 @@ function CustomTile({ look, on, off, apply }: { look: CustomLook; on: boolean; o
   return (
     <div className={`captions-tile custom${on ? " on" : ""}${off ? " off" : ""}`} data-name={`captions-tile-custom-${look.name ?? "new"}`}>
       <button className="captions-tile-face" disabled={off} onClick={apply}>
-        <CustomSample props={look.props} />
+        <StyleSample props={look.props} />
       </button>
       <button className="captions-tile-remove" data-name="captions-tile-remove" title={`Remove ${name}`} onClick={() => removeLook(look.id)}>
         ×
@@ -99,7 +117,7 @@ function CustomTile({ look, on, off, apply }: { look: CustomLook; on: boolean; o
 /** The fonts of every look, fetched once so the tiles and the captions show in them. */
 export function useCaptionFonts() {
   useEffect(() => {
-    for (const family of new Set(Object.values(CAPTION_FONTS))) void fetchFamily(family);
+    for (const family of new Set([...Object.values(CAPTION_FONTS), ...CAPTION_FONTS_2])) void fetchFamily(family);
   }, []);
 }
 
