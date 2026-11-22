@@ -335,6 +335,11 @@ impl Drop for Making {
 
 static MAKING: Mutex<Option<Making>> = Mutex::new(None);
 
+/// A video is being made right now. Duet must not quit under it.
+pub fn making_video() -> bool {
+    MAKING.lock().map(|m| m.is_some()).unwrap_or(true)
+}
+
 /// How the finished file is made: an MP4 to share, or a ProRes master to keep editing with.
 fn encoder_args(quality: u32, master: bool) -> Vec<String> {
     let mut args: Vec<String> = Vec::new();

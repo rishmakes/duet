@@ -28,14 +28,24 @@ impl Activity {
 }
 
 /// Whether an AI is working: a request is waiting for an answer, Duet's own chat agent is running,
-/// or an outside AI called a tool a moment ago.
-pub fn is_working(last_call: Option<Instant>, now: Instant, waiting: bool, chat_agent_running: bool) -> bool {
-    waiting || chat_agent_running || last_call.is_some_and(|t| now.saturating_duration_since(t) < GRACE)
+/// a video it asked for is being made, or an outside AI called a tool a moment ago.
+pub fn is_working(last_call: Option<Instant>, now: Instant, waiting: bool, busy: bool) -> bool {
+    waiting || busy || last_call.is_some_and(|t| now.saturating_duration_since(t) < GRACE)
 }
 
 fn working(app: &AppHandle) -> bool {
-    let last = app.try_state::<Arc<Activity>>().and_then(|a| *a.last_call.lock().unwrap());
-    is_working(last, Instant::now(), crate::ai::request_waiting(app), crate::ai::chat_agent_running(app))
+    let activity = app.try_state::<Arc<Activity>>();
+    // a video answers the AI at once and is made afterwards, so it counts as work on its own,
+    // and the grace after it covers the moment before the next video in line starts
+    let making = crate::video::making_video();
+    if making {
+        if let Some(a) = &activity {
+            a.touch();
+        }
+    }
+    let last = activity.and_then(|a| *a.last_call.lock().unwrap());
+    let busy = making || crate::ai::chat_agent_running(app);
+    is_working(last, Instant::now(), crate::ai::request_waiting(app), busy)
 }
 
 /// The designer closed the window. If an AI is working, hide the window and keep going; the answer
@@ -171,7 +181,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn working_while_waiting_or_chatting_or_just_called() {
+    fn working_while_waiting_or_chatting_or_making_a_video_or_just_called() {
         let now = Instant::now();
         assert!(is_working(None, now, true, false));
         assert!(is_working(None, now, false, true));
