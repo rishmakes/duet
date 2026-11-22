@@ -40,6 +40,7 @@ import Update from "./ui/Update";
 import Feedback from "./ui/Feedback";
 import Settings from "./ui/Settings";
 import Home from "./ui/Home";
+import ExportPage from "./ui/ExportPage";
 import SpaceSwitch from "./ui/SpaceSwitch";
 import Kitchen, { RecipesPage } from "./ui/Kitchen";
 import LayersPanel from "./ui/LayersPanel";
@@ -165,17 +166,21 @@ export default function App() {
   // what the Store opens on, when something asks for it by name, like Voice to text from Transcribe
   const [storeOn, setStoreOn] = useState<string | null>(null);
   const [recipesOpen, setRecipesOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   useEffect(() => {
     const open = (e: Event) => {
       setStoreOn((e as CustomEvent<{ thing?: string } | undefined>).detail?.thing ?? null);
       setSkillsOpen(true);
     };
     const openRecipes = () => setRecipesOpen(true);
+    const openExport = () => setExportOpen(true);
     window.addEventListener("duet:skills-page", open);
     window.addEventListener("duet:recipes-page", openRecipes);
+    window.addEventListener("duet:export-page", openExport);
     return () => {
       window.removeEventListener("duet:skills-page", open);
       window.removeEventListener("duet:recipes-page", openRecipes);
+      window.removeEventListener("duet:export-page", openExport);
     };
   }, []);
   // in full screen there are no window buttons, so the name moves to the very left
@@ -451,6 +456,7 @@ export default function App() {
       )}
       {skillsOpen && <StorePage key={storeOn ?? ""} startOn={storeOn} onClose={() => setSkillsOpen(false)} />}
       {recipesOpen && <RecipesPage onClose={() => setRecipesOpen(false)} />}
+      {exportOpen && <ExportPage onClose={() => setExportOpen(false)} />}
       <HistoryStrip dev={check} />
       <Versions />
       {presenting && <PresentView onClose={() => setPresenting(false)} />}

@@ -13,6 +13,8 @@ export interface Job {
   n: number;
   /** What it makes, in words: the frame's name. */
   what: string;
+  /** The kind of file, in words, like MP4. */
+  kind?: string;
   /** The project it comes from. */
   project: string;
   /** The AI that asked. */
@@ -60,6 +62,8 @@ const listeners = new Set<() => void>();
 let hooks: JobHooks = { free: () => true, ended: () => {}, log: () => {} };
 let running = false;
 let next = 1;
+/** The whole line held: the running job paused, and no new one starts until it is let go. */
+let held = false;
 
 export function setJobHooks(h: JobHooks) {
   hooks = h;
@@ -77,7 +81,7 @@ const changed = () => {
 export const allJobs = (): readonly Job[] => jobs;
 
 /** Put a job in the line. It starts when the ones before it are done. */
-export function addJob(info: Pick<Job, "what" | "project" | "by" | "file" | "seconds">, run: (progress: (done: number) => void) => Promise<string | null>, control?: JobControl): Job | { error: string } {
+export function addJob(info: Pick<Job, "what" | "kind" | "project" | "by" | "file" | "seconds">, run: (progress: (done: number) => void) => Promise<string | null>, control?: JobControl): Job | { error: string } {
   const waiting = jobs.filter((j) => j.state === "waiting").length;
   if (waiting >= MOST_WAITING) return { error: `${waiting} videos are already waiting. Wait for some to finish (ask with jobs), then try again.` };
   const job: Job = { ...info, n: next++, state: "waiting", done: 0, asked: Date.now() };
@@ -100,7 +104,7 @@ async function work() {
   running = true;
   try {
     for (let job = jobs.find((j) => j.state === "waiting"); job; job = jobs.find((j) => j.state === "waiting")) {
-      while (!hooks.free()) await new Promise((ok) => setTimeout(ok, 2000));
+      while (!hooks.free() || held) await new Promise((ok) => setTimeout(ok, held ? 300 : 2000));
       const run = runs.get(job.n)!;
       job.state = "running";
       job.started = Date.now();
@@ -146,6 +150,16 @@ export function pauseJob(n: number, on: boolean): boolean {
   job.paused = on;
   changed();
   return true;
+}
+
+export const lineHeld = () => held;
+
+/** Hold the whole line, or let it go: the running job pauses and carries on with it. */
+export function holdLine(on: boolean) {
+  held = on;
+  const now = jobs.find((j) => j.state === "running");
+  if (now && !!now.paused !== on) pauseJob(now.n, on);
+  else changed();
 }
 
 /** Give up on a job: one waiting is taken out of the line, one running is stopped where it is. */
@@ -231,6 +245,7 @@ export function jobsText(): string {
   if (!jobs.length) return "No videos have been asked for since Duet opened. Every video ever made is kept in renders.log in Duet's folder.";
   const busy = jobs.filter((j) => j.state === "running" || j.state === "waiting");
   const lines = jobs.map(jobLine);
+  if (held && busy.length) lines.push("", "The designer has paused the whole line. Nothing new starts until they carry on.");
   if (busy.length) {
     const last = busy[busy.length - 1];
     lines.push("", `Ask again in about ${askAgainIn(secondsLeft(last))} seconds, not sooner. You can keep working in Duet meanwhile.`);
@@ -268,5 +283,6 @@ export function resetJobs() {
   runs.clear();
   controls.clear();
   running = false;
+  held = false;
   next = 1;
 }

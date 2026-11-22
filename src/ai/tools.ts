@@ -2004,7 +2004,7 @@ async function exportVideo(args: Args, by?: string): Promise<ToolResult> {
   const path = R.file ?? R.getState().project.path;
   const where = said();
   const span = scene.workArea ? scene.workArea.end - scene.workArea.start : scene.duration;
-  const job = queueVideo(scene.id, { ...defaultChoice(), fps: Number(args.fps) || 30, longSide: Number(args.size) || 0, quality, master: args.master === true, ...(to ? { to } : {}) }, { project: path ? tabName(path) : "Untitled", by }, doc);
+  const job = queueVideo(scene.id, { ...defaultChoice(), fps: Number(args.fps) || 30, longSide: Number(args.size) || 0, quality, master: args.master === true, ...(to ? { to } : {}) }, { project: path ? tabName(path) : "Untitled", by: by ?? "an AI" }, doc);
   if (!("n" in job)) return fail(job.error);
   jobWhere.set(job.n, where);
   const left = secondsLeft(job);

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { MOST_WAITING, aboutTime, addJob, allJobs, askAgainIn, jobsText, moveJob, pauseJob, resetJobs, setJobHooks, stopJob } from "./jobs";
+import { MOST_WAITING, aboutTime, addJob, allJobs, askAgainIn, holdLine, jobsText, lineHeld, moveJob, pauseJob, resetJobs, setJobHooks, stopJob } from "./jobs";
 import type { Job } from "./jobs";
 
 const tick = () => new Promise((ok) => setTimeout(ok, 0));
@@ -130,5 +130,24 @@ describe("the job line", () => {
     finish();
     for (let i = 0; i < 8; i++) await tick();
     expect(order).toEqual(["D", "B", "C"]);
+  });
+  it("holds the whole line: the running one pauses and the next does not start", async () => {
+    const held: boolean[] = [];
+    let finish!: (f: string | null) => void;
+    let nextRan = false;
+    addJob(info("H"), () => new Promise((ok) => (finish = ok)), { pause: (on) => held.push(on), stop: () => finish(null) });
+    addJob(info("N"), async () => ((nextRan = true), "/x/n.mp4"));
+    await tick();
+    holdLine(true);
+    expect(lineHeld()).toBe(true);
+    expect(allJobs()[0].paused).toBe(true);
+    expect(jobsText()).toContain("paused the whole line");
+    finish("/x/h.mp4");
+    await new Promise((ok) => setTimeout(ok, 400));
+    expect(nextRan).toBe(false);
+    holdLine(false);
+    await new Promise((ok) => setTimeout(ok, 400));
+    expect(nextRan).toBe(true);
+    expect(held).toEqual([true]);
   });
 });

@@ -168,6 +168,18 @@ export const BUILDER_TOOLS: ToolDef[] = [
     },
   },
   {
+    name: "dev_drag_export",
+    description: "Builder tool. On the Export page, drag a waiting video by its grip the way a hand would, and let go before another waiting video, or at the end of the line. The answer says the order of the line after it.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        video: { ...str, description: "The name of the waiting video to drag, as its row starts." },
+        before: { ...str, description: "The name of the waiting video to let go before. Left out, it goes to the end of the line." },
+      },
+      required: ["video"],
+    },
+  },
+  {
     name: "dev_history",
     description: "Builder tool. The last steps in the history: what each one is called, who made it, and where the design is now.",
     inputSchema: { type: "object", properties: { last: { ...num, description: "How many steps, counting back from the newest. 12 if left out." } } },
@@ -593,6 +605,29 @@ async function dropTransition(a: Args): Promise<ToolResult> {
   return { text: `Dropped ${CUT_MOVE_NAMES[kind]} on the cut before "${a.clip}". During the drag ${shown} of ${pluses.length} cuts without a transition showed their +, and the cut ${lit ? "lit up" : "did NOT light up"} under the tile.\nNow:\n${timelineNow()}` };
 }
 
+async function dragExport(a: Args): Promise<ToolResult> {
+  const rows = () => Array.from(document.querySelectorAll<HTMLElement>(".export-page [data-waiting]"));
+  const named = (n: unknown) => rows().find((r) => r.querySelector("b")?.textContent?.trim().startsWith(String(n ?? "")));
+  const row = named(a.video);
+  const grip = row?.querySelector<HTMLElement>(".export-grip");
+  if (!row || !grip) return fail(`No waiting video called "${a.video}" on the Export page. Open it first.`);
+  const target = a.before ? named(a.before) : null;
+  if (a.before && !target) return fail(`No waiting video called "${a.before}" to let go before.`);
+  const g = grip.getBoundingClientRect();
+  const x = g.left + g.width / 2;
+  const last = rows()[rows().length - 1].getBoundingClientRect();
+  const y = target ? target.getBoundingClientRect().top + 4 : last.bottom + 10;
+  const at = (cy: number) => ({ bubbles: true, cancelable: true, button: 0, pointerId: 1, clientX: x, clientY: cy });
+  grip.dispatchEvent(new PointerEvent("pointerdown", at(g.top + g.height / 2)));
+  await settle();
+  for (let i = 1; i <= 6; i++) window.dispatchEvent(new PointerEvent("pointermove", at(g.top + ((y - g.top) * i) / 6)));
+  await settle();
+  window.dispatchEvent(new PointerEvent("pointerup", at(y)));
+  await settle();
+  const order = Array.from(document.querySelectorAll<HTMLElement>(".export-page .export-rows")[0]?.querySelectorAll(".export-row b") ?? []).map((b) => b.textContent?.trim());
+  return { text: `Dragged "${a.video}" ${target ? `before "${a.before}"` : "to the end"}.\nThe line now: ${order.join(" | ")}` };
+}
+
 async function dropFootage(a: Args): Promise<ToolResult> {
   // a row in Media, by the name it shows (its length shows beside it)
   const source = Array.from(document.querySelectorAll<HTMLElement>(".clip-row[draggable='true']")).find((r) => r.textContent?.trim().startsWith(String(a.item ?? "")));
@@ -747,6 +782,7 @@ export async function callBuilderTool(name: string, raw: unknown, by?: string): 
   if (name === "dev_drag_clip") return dragClip(a);
   if (name === "dev_drop_footage") return dropFootage(a);
   if (name === "dev_drop_transition") return dropTransition(a);
+  if (name === "dev_drag_export") return dragExport(a);
   if (name === "dev_history") {
     const s = getState();
     const from = Math.max(0, s.timeline.length - (typeof a.last === "number" && a.last > 0 ? Math.floor(a.last) : 12));

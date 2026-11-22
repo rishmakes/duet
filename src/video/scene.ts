@@ -385,7 +385,7 @@ export function queueVideo(sceneId: string, choice: ExportChoice, who: Pick<Job,
   if (!scene?.duration) return { error: "This frame has no length yet." };
   const seconds = scene.workArea && !choice.whole ? scene.workArea.end - scene.workArea.start : scene.duration;
   return addJob(
-    { what: scene.name, seconds, file: choice.to, ...who },
+    { what: scene.name, kind: choice.master ? "ProRes master" : "MP4", seconds, file: choice.to, ...who },
     async (progress) => {
       await preloadPictures(doc);
       return exportScene(sceneId, progress, choice, doc);

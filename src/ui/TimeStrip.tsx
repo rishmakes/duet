@@ -1760,13 +1760,9 @@ export default function TimeStrip() {
           </div>
         ) : (
           <div className="export-anchor" data-name="export-making">
-            {making.state === "waiting" ? (
-              <span className="time-note">Waiting for another video to finish</span>
-            ) : (
-              <span className="time-note">
-                {making.paused ? "Paused at" : "Making your video,"} {Math.round(making.done * 100)}%
-              </span>
-            )}
+            <button className="time-note export-open" data-name="open-export-page" onClick={() => window.dispatchEvent(new Event("duet:export-page"))} title="See every video in the line">
+              {making.state === "waiting" ? "Waiting for another video to finish" : `${making.paused ? "Paused at" : "Making your video,"} ${Math.round(making.done * 100)}%`}
+            </button>
             {making.state === "running" && (
               <button className="pill" data-name="pause-export" onClick={() => pauseJob(making.n, !making.paused)} title={making.paused ? "Carry on making the video" : "Hold the video here and carry on later"}>
                 {making.paused ? "Resume" : "Pause"}
