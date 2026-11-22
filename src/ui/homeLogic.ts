@@ -61,10 +61,12 @@ export function shownKinds(hidden: string[]): HomeKind[] {
   return HOME_KINDS.map((k) => k.id).filter((id) => !hidden.includes(id));
 }
 
-/** The kind whose sizes are open: the last one picked, or the first one showing. Null when every kind is hidden. */
-export function openKind(last: string | null, hidden: string[]): HomeKind | null {
-  const shown = shownKinds(hidden);
-  return shown.find((id) => id === last) ?? shown[0] ?? null;
+/** What Home shows below the kinds: New (your own size and the sizes used before), or one kind's sizes. */
+export type HomeTab = "new" | HomeKind;
+
+/** The tab Home opens on: New for someone who has made things before, else the first kind showing (Social media). */
+export function firstTab(hasHistory: boolean, hidden: string[]): HomeTab {
+  return hasHistory ? "new" : (shownKinds(hidden)[0] ?? "new");
 }
 
 /** Hide a kind. The last one showing cannot be hidden, so Home never goes empty. */
@@ -73,26 +75,33 @@ export function hideKind(hidden: string[], id: HomeKind): string[] {
   return [...hidden, id];
 }
 
-export interface CustomPreset {
-  label: string;
+/** A size someone started a project with, from any kind or their own. */
+export interface UsedSize {
+  name: string;
   width: number;
   height: number;
+  video: boolean;
 }
 
-export const CUSTOM_PRESETS: CustomPreset[] = [
-  { label: "1080 × 1080 Square", width: 1080, height: 1080 },
-  { label: "1080 × 1350 Portrait", width: 1080, height: 1350 },
-  { label: "1080 × 1920 Story", width: 1080, height: 1920 },
-  { label: "1280 × 720 Video", width: 1280, height: 720 },
-  { label: "1920 × 1080 Slide", width: 1920, height: 1080 },
-];
+/** Puts a size first among the ones used before. The same size used again moves up instead of showing twice; at most 8 are kept. */
+export function rememberSize(list: UsedSize[], size: UsedSize): UsedSize[] {
+  const same = (u: UsedSize) => u.width === size.width && u.height === size.height && u.video === size.video;
+  return [size, ...list.filter((u) => !same(u))].slice(0, 8);
+}
+
+/** The outline of a size, fitted inside a small box, so a card shows its shape. */
+export function outlineOf(width: number, height: number, box = 46): { width: number; height: number } {
+  const k = box / Math.max(width, height);
+  return { width: Math.max(8, Math.round(width * k)), height: Math.max(8, Math.round(height * k)) };
+}
 
 /** How long ago, in plain words. */
 export function ago(ms: number, now = Date.now()): string {
   const s = Math.max(0, Math.round((now - ms) / 1000));
   if (s < 60) return "just now";
-  if (s < 3600) return `${Math.max(1, Math.round(s / 60))} minutes ago`;
-  if (s < 86400) return `${Math.max(1, Math.round(s / 3600))} hours ago`;
+  const n = (count: number, unit: string) => `${count} ${unit}${count === 1 ? "" : "s"} ago`;
+  if (s < 3600) return n(Math.max(1, Math.round(s / 60)), "minute");
+  if (s < 86400) return n(Math.max(1, Math.round(s / 3600)), "hour");
   const d = Math.round(s / 86400);
   return d === 1 ? "yesterday" : `${d} days ago`;
 }

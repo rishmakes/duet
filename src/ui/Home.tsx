@@ -9,9 +9,9 @@ import { studioIcon } from "./SpaceSwitch";
 import { getChat, newTask } from "../ai/chat";
 import { sendToTask } from "../ai/agent";
 import Icon from "./Icons";
-import { clampDim, CREATE_TILES, CUSTOM_PRESETS, editedAgo, hideKind, HOME_KINDS, openKind, ratioOf, shownKinds, startsVideo } from "./homeLogic";
+import { clampDim, CREATE_TILES, editedAgo, firstTab, hideKind, HOME_KINDS, outlineOf, ratioOf, rememberSize, shownKinds, startsVideo } from "./homeLogic";
 import { pickPhoto, placePhoto } from "../project/imageImport";
-import type { CreateTile, HomeKind } from "./homeLogic";
+import type { CreateTile, HomeTab, UsedSize } from "./homeLogic";
 import { resetPageFocus } from "./pageFocus";
 import { isProjectOpen, ProjectMenu, TrashView, usePreview } from "./ChatHome";
 
@@ -22,23 +22,22 @@ interface HomeProps {
 }
 
 // what Home remembers between visits, on this computer
-const LAST_KIND = "duet.home.kind";
 const HIDDEN_KINDS = "duet.home.hidden";
-const readHidden = (): string[] => {
+const USED_SIZES = "duet.home.used";
+const readList = <T,>(key: string, ok: (x: unknown) => boolean): T[] => {
   try {
-    const v = JSON.parse(localStorage.getItem(HIDDEN_KINDS) ?? "[]");
-    return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
+    const v = JSON.parse(localStorage.getItem(key) ?? "[]");
+    return Array.isArray(v) ? (v.filter(ok) as T[]) : [];
   } catch {
     return [];
   }
 };
-const readLast = (): string | null => {
-  try {
-    return localStorage.getItem(LAST_KIND);
-  } catch {
-    return null;
-  }
-};
+const readHidden = () => readList<string>(HIDDEN_KINDS, (x) => typeof x === "string");
+const readUsed = () =>
+  readList<UsedSize>(USED_SIZES, (x) => {
+    const u = x as UsedSize;
+    return !!u && typeof u.name === "string" && u.width > 0 && u.height > 0 && typeof u.video === "boolean";
+  });
 const keep = (key: string, value: string) => {
   try {
     localStorage.setItem(key, value);
@@ -52,44 +51,32 @@ export default function Home({ onClose, fromProject }: HomeProps) {
   const mode = useLayout((d) => d.mode);
   // any project open behind Home, saved or not, is somewhere the switch can go back to
   const canGoBack = fromProject || !!getState().project.file || getTabs().length > 0 || getUntitled().length > 0;
-  // where the box for your own size hangs: under the Custom size button, or under the tile in the open kind
-  const [customAt, setCustomAt] = useState<"top" | "tray" | null>(null);
-  const customOpen = customAt !== null;
-  const setCustomOpen = (on: boolean) => setCustomAt(on ? "top" : null);
   const [hidden, setHidden] = useState<string[]>(readHidden);
-  const [last, setLast] = useState<string | null>(readLast);
-  const kind = openKind(last, hidden);
-  const pickKind = (id: HomeKind) => {
-    setLast(id);
-    keep(LAST_KIND, id);
-    setCustomAt(null);
-  };
+  const [used, setUsed] = useState<UsedSize[]>(readUsed);
+  const [recents, setRecents] = useState<Recent[]>(() => listedProjects());
+  // someone who has made things before opens on New; the very first time, on Social media
+  const [tab, setTab] = useState<HomeTab>(() => firstTab(recents.length > 0 || used.length > 0, hidden));
   const setHiddenKinds = (next: string[]) => {
     setHidden(next);
     keep(HIDDEN_KINDS, JSON.stringify(next));
   };
-  const [customW, setCustomW] = useState(1080);
-  const [customH, setCustomH] = useState(1350);
+  const [ownW, setOwnW] = useState(1080);
+  const [ownH, setOwnH] = useState(1350);
+  const [ownVideo, setOwnVideo] = useState(false);
+  const [allUsed, setAllUsed] = useState(false);
   const [askText, setAskText] = useState("");
-  const [recents, setRecents] = useState<Recent[]>(() => listedProjects());
-  const popoverRef = useRef<HTMLDivElement>(null);
-  const askInputRef = useRef<HTMLInputElement>(null);
+  const askInputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Esc closes popover first if open, else closes Home
+  // Esc goes back to the project Home was opened from
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        if (customOpen) {
-          setCustomOpen(false);
-          return;
-        }
-        if (fromProject) onClose();
-      }
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      if (fromProject) onClose();
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [customOpen, onClose, fromProject]);
+  }, [onClose, fromProject]);
 
   const [trash, setTrash] = useState(false);
   const [menu, setMenu] = useState<{ x: number; y: number; r: Recent } | null>(null);
@@ -105,21 +92,11 @@ export default function Home({ onClose, fromProject }: HomeProps) {
     };
   }, []);
 
-  // Dismiss popover on outside click
-  useEffect(() => {
-    if (!customOpen) return;
-    const onPointer = (e: PointerEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (popoverRef.current && !popoverRef.current.contains(target) && !target?.closest(".custom-anchor")) {
-        setCustomOpen(false);
-      }
-    };
-    window.addEventListener("pointerdown", onPointer);
-    return () => window.removeEventListener("pointerdown", onPointer);
-  }, [customOpen]);
-
   /** A new project with one frame of this size. A video opens in the editor with its timeline, empty and ready for clips. */
   const startSized = async (name: string, width: number, height: number, video: boolean, pages = true) => {
+    const nextUsed = rememberSize(used, { name, width, height, video });
+    setUsed(nextUsed);
+    keep(USED_SIZES, JSON.stringify(nextUsed));
     resetPageFocus();
     await newDesignTab();
     // screens for an app sit side by side on the open canvas; everything else is one page at a time
@@ -164,12 +141,7 @@ export default function Home({ onClose, fromProject }: HomeProps) {
     if (tile.width && tile.height) await startSized(tile.title, tile.width, tile.height, startsVideo(tile), tile.group !== "screens");
   };
 
-  const handleCreateCustom = async () => {
-    const video = customAt === "tray" && kind === "video";
-    const pages = !(customAt === "tray" && kind === "screens");
-    setCustomAt(null);
-    await startSized(video ? "Video" : "Custom", clampDim(customW, 1080), clampDim(customH, 1350), video, pages);
-  };
+  const createOwn = () => void startSized(ownVideo ? "Video" : "Your size", clampDim(ownW, 1080), clampDim(ownH, 1350), ownVideo);
 
   const handleAsk = (textToSend?: string) => {
     const q = (textToSend ?? askText).trim();
@@ -211,59 +183,10 @@ export default function Home({ onClose, fromProject }: HomeProps) {
     return <div className={`shape-${tile.shape}`} />;
   };
 
-  const customBox = () => (
-    <div ref={popoverRef} className="custom-popover" data-name="custom-size-popover" onClick={(e) => e.stopPropagation()}>
-      <div className="popover-head">
-        <span className="popover-title">{customAt === "tray" && kind === "video" ? "Your own video size" : "Your own size"}</span>
-        <button type="button" className="popover-close" title="Close" onClick={() => setCustomAt(null)}>
-          ×
-        </button>
-      </div>
-      <div className="dimension-fields">
-        <div className="dim-field">
-          <label className="field-label">Width</label>
-          <div className="field-input-box">
-            <input type="number" min={10} max={20000} value={customW} onChange={(e) => setCustomW(Number(e.target.value) || 0)} onKeyDown={(e) => e.key === "Enter" && void handleCreateCustom()} />
-          </div>
-        </div>
-        <div className="dim-field">
-          <label className="field-label">Height</label>
-          <div className="field-input-box">
-            <input type="number" min={10} max={20000} value={customH} onChange={(e) => setCustomH(Number(e.target.value) || 0)} onKeyDown={(e) => e.key === "Enter" && void handleCreateCustom()} />
-          </div>
-        </div>
-      </div>
-      <div className="popover-presets">
-        <div className="preset-list-title">Presets</div>
-        <div className="preset-pills">
-          {CUSTOM_PRESETS.map((p) => (
-            <button
-              key={p.label}
-              type="button"
-              className={`preset-pill ${customW === p.width && customH === p.height ? "active" : ""}`}
-              onClick={() => {
-                setCustomW(p.width);
-                setCustomH(p.height);
-              }}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="popover-actions">
-        <button type="button" className="pill" onClick={() => setCustomAt(null)}>
-          Cancel
-        </button>
-        <button type="button" className="pill primary" onClick={() => void handleCreateCustom()}>
-          Create
-        </button>
-      </div>
-    </div>
-  );
-
   const kinds = shownKinds(hidden);
+  const kind = tab === "new" ? null : tab;
   const kindLabel = HOME_KINDS.find((k) => k.id === kind)?.label ?? "";
+  const shownUsed = allUsed ? used : used.slice(0, 3);
 
   const visibleRecents = recents.slice(0, 12);
 
@@ -305,117 +228,209 @@ export default function Home({ onClose, fromProject }: HomeProps) {
       </header>
 
       <main className="home-content">
-        <div className="home-hero">
-          <h2 className="home-headline">What will you make today?</h2>
-          <p className="home-sub">Pick a kind and its sizes open below. Duet remembers your last pick.</p>
-        </div>
-
-        {/* Kinds in a row; the open one shows its sizes below */}
-        <section className="kinds-section">
-          <div className="kinds-row" data-name="home-kinds">
-            {kinds.map((id) => (
-              <button key={id} type="button" className={`kind-btn ${id === kind ? "on" : ""}`} data-name={`home-kind-${id}`} onClick={() => pickKind(id)}>
-                <span className={`kind-swatch kind-${id}`}>
-                  <Icon name={HOME_KINDS.find((k) => k.id === id)!.icon} size={28} />
-                </span>
-                <span className="kind-name">{HOME_KINDS.find((k) => k.id === id)?.label}</span>
-              </button>
-            ))}
-            <span className="kinds-gap" />
-            <div className="kind-btn-wrap custom-anchor">
-              <button type="button" className={`kind-btn plain ${customAt === "top" ? "on" : ""}`} data-name="home-custom-size" onClick={() => setCustomAt(customAt === "top" ? null : "top")}>
-                <span className="kind-swatch">
-                  <Icon name="plus" size={20} />
-                </span>
-                <span className="kind-name">Custom size</span>
-              </button>
-              {customAt === "top" && customBox()}
+        <div className="home-top">
+          <div className="home-start">
+            <div className="home-hero">
+              <h2 className="home-headline">What will you make today?</h2>
+              <p className="home-sub">Pick a kind and its sizes open below.</p>
             </div>
-            <button type="button" className="kind-btn plain" data-name="home-open-file" onClick={() => void openFile()}>
-              <span className="kind-swatch">
-                <Icon name="folder" size={20} />
-              </span>
-              <span className="kind-name">Open a file</span>
-            </button>
-            {hidden.length > 0 && (
-              <button type="button" className="kinds-all" data-name="home-show-kinds" title="Bring back the kinds you hid" onClick={() => setHiddenKinds([])}>
-                Show all kinds
-              </button>
-            )}
-          </div>
 
-          {kind && (
-            <div className="sizes-tray" data-name={`home-sizes-${kind}`}>
-              <div className="section-label">
-                <span>{kindLabel}</span>
-                {kinds.length > 1 && (
-                  <button type="button" className="home-trash" data-name="home-hide-kind" title={`Take ${kindLabel} off Home. You can bring it back.`} onClick={() => setHiddenKinds(hideKind(hidden, kind))}>
-                    Hide this kind
+            {/* New and Open a file first, then the kinds; the picked one shows what it holds in the tray below */}
+            <section className="kinds-section">
+              <div className="kinds-row" data-name="home-kinds">
+                <button type="button" className={`kind-btn plain ${tab === "new" ? "on" : ""}`} data-name="home-new" onClick={() => setTab("new")}>
+                  <span className="kind-swatch">
+                    <Icon name="plus" size={22} />
+                  </span>
+                  <span className="kind-name">New</span>
+                </button>
+                <button type="button" className="kind-btn plain" data-name="home-open-file" onClick={() => void openFile()}>
+                  <span className="kind-swatch">
+                    <Icon name="file" size={22} />
+                  </span>
+                  <span className="kind-name">Open a file</span>
+                </button>
+                <span className="kinds-gap" />
+                {kinds.map((id) => (
+                  <button key={id} type="button" className={`kind-btn ${id === tab ? "on" : ""}`} data-name={`home-kind-${id}`} onClick={() => setTab(id)}>
+                    <span className={`kind-swatch kind-${id}`}>
+                      <Icon name={HOME_KINDS.find((k) => k.id === id)!.icon} size={28} />
+                    </span>
+                    <span className="kind-name">{HOME_KINDS.find((k) => k.id === id)?.label}</span>
+                  </button>
+                ))}
+                {hidden.length > 0 && (
+                  <button type="button" className="kinds-all" data-name="home-show-kinds" title="Bring back the kinds you hid" onClick={() => setHiddenKinds([])}>
+                    Show all kinds
                   </button>
                 )}
               </div>
-              <div className="sizes-row">
-                {CREATE_TILES.filter((t) => t.group === kind).map((tile) => (
-                  <div key={tile.id} data-name={`create-tile-${tile.id}`} className="size-card" onClick={() => void handleTileClick(tile)}>
-                    {/* a small mark of what it opens as: a design, a video, a photo, or screens */}
-                    <span className={`size-medium ${startsVideo(tile) ? "video" : ""}`} title={startsVideo(tile) ? "Opens as a video, with a timeline" : tile.kind === "photo" ? "Opens your photo to edit" : tile.group === "screens" ? "Opens on the open canvas, for screens" : "Opens as a design"}>
-                      <Icon name={startsVideo(tile) ? "film" : tile.kind === "photo" ? "image" : tile.group === "screens" ? "screens" : "pen"} size={15} />
-                    </span>
-                    <div className="ratio-box">{renderShape(tile)}</div>
-                    <div className="create-title">{tile.title}</div>
-                    <div className="create-dims">{[ratioOf(tile.width, tile.height), tile.dims].filter(Boolean).join(" · ")}</div>
+
+              {tab === "new" ? (
+                <div className="sizes-tray new-tray" data-name="home-new-tray">
+                  <div className="own-size">
+                    <div className="section-label">Your own size</div>
+                    <div className="own-box" data-name="home-own-size">
+                      <div className="own-head">Width and height</div>
+                      <div className="own-dims">
+                        <label className="own-field" title="Width">
+                          <input type="number" min={10} max={20000} value={ownW} onChange={(e) => setOwnW(Number(e.target.value) || 0)} onKeyDown={(e) => e.key === "Enter" && createOwn()} />
+                          <span>px</span>
+                        </label>
+                        <button
+                          type="button"
+                          className="own-swap"
+                          title="Swap width and height"
+                          onClick={() => {
+                            setOwnW(ownH);
+                            setOwnH(ownW);
+                          }}
+                        >
+                          <Icon name="swap" size={15} />
+                        </button>
+                        <label className="own-field" title="Height">
+                          <input type="number" min={10} max={20000} value={ownH} onChange={(e) => setOwnH(Number(e.target.value) || 0)} onKeyDown={(e) => e.key === "Enter" && createOwn()} />
+                          <span>px</span>
+                        </label>
+                      </div>
+                      <div className="own-actions">
+                        <div className="own-medium">
+                          <button type="button" className={ownVideo ? "" : "on"} onClick={() => setOwnVideo(false)} title="Opens as a design">
+                            Design
+                          </button>
+                          <button type="button" className={ownVideo ? "on" : ""} onClick={() => setOwnVideo(true)} title="Opens as a video, with a timeline">
+                            Video
+                          </button>
+                        </div>
+                        <button type="button" className="own-create" data-name="home-own-create" onClick={createOwn}>
+                          Create
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                ))}
-                {kind !== "photo" && (
-                  <div className={`size-card own custom-anchor ${customAt === "tray" ? "highlight" : ""}`} data-name="create-tile-own-size" onClick={() => setCustomAt(customAt === "tray" ? null : "tray")}>
-                    <div className="own-title">+ Your own size</div>
-                    <div className="create-dims">width &amp; height</div>
-                    {customAt === "tray" && customBox()}
+                  {used.length > 0 && (
+                    <div className="used-sizes">
+                      <div className="section-label">Used before</div>
+                      <div className="used-row">
+                        {shownUsed.map((u) => {
+                          const o = outlineOf(u.width, u.height);
+                          return (
+                            <div
+                              key={`${u.width}x${u.height}${u.video ? "v" : ""}`}
+                              className="size-card used-card"
+                              data-name="home-used-size"
+                              title={u.video ? "Opens as a video, with a timeline" : "Opens as a design"}
+                              onClick={() => void startSized(u.name, u.width, u.height, u.video)}
+                            >
+                              {u.video && (
+                                <span className="size-medium video">
+                                  <Icon name="film" size={15} />
+                                </span>
+                              )}
+                              <div className="ratio-box">
+                                <span className="used-outline" style={o} />
+                              </div>
+                              <div className="create-title">{u.name}</div>
+                              <div className="create-dims">
+                                {u.width} × {u.height}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {used.length > 3 && (
+                          <button type="button" className="used-more" title={allUsed ? "Show fewer" : "Show all the sizes you used"} onClick={() => setAllUsed(!allUsed)}>
+                            <Icon name={allUsed ? "fold" : "arrow"} size={16} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                kind && (
+                  <div className="sizes-tray" data-name={`home-sizes-${kind}`}>
+                    <div className="section-label">
+                      <span>{kindLabel}</span>
+                      {kinds.length > 1 && (
+                        <button
+                          type="button"
+                          className="home-trash"
+                          data-name="home-hide-kind"
+                          title={`Take ${kindLabel} off Home. You can bring it back.`}
+                          onClick={() => {
+                            setHiddenKinds(hideKind(hidden, kind));
+                            setTab("new");
+                          }}
+                        >
+                          Hide this kind
+                        </button>
+                      )}
+                    </div>
+                    <div className="sizes-row">
+                      {CREATE_TILES.filter((t) => t.group === kind).map((tile) => (
+                        <div key={tile.id} data-name={`create-tile-${tile.id}`} className="size-card" onClick={() => void handleTileClick(tile)}>
+                          {/* a small mark of what it opens as: a design, a video, a photo, or screens */}
+                          <span className={`size-medium ${startsVideo(tile) ? "video" : ""}`} title={startsVideo(tile) ? "Opens as a video, with a timeline" : tile.kind === "photo" ? "Opens your photo to edit" : tile.group === "screens" ? "Opens on the open canvas, for screens" : "Opens as a design"}>
+                            <Icon name={startsVideo(tile) ? "film" : tile.kind === "photo" ? "image" : tile.group === "screens" ? "screens" : "pen"} size={15} />
+                          </span>
+                          <div className="ratio-box">{renderShape(tile)}</div>
+                          <div className="create-title">{tile.title}</div>
+                          <div className="create-dims">{[ratioOf(tile.width, tile.height), tile.dims].filter(Boolean).join(" · ")}</div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                )}
+                )
+              )}
+            </section>
+          </div>
+
+          {/* asking Duet: a card of its own beside the kinds */}
+          <aside className="home-ask" data-name="home-ask">
+            <div className="ask-head">
+              <span className="ask-mark">
+                <Icon name="skills" size={17} />
+              </span>
+              <div>
+                <div className="ask-title">Or ask Duet</div>
+                <div className="ask-sub">Say what you want, Duet makes it with you</div>
               </div>
             </div>
-          )}
-        </section>
-
-        {/* Quiet Ask Box */}
-        <div className="home-chat-banner">
-          <div className="chat-ai-quiet" title="Duet Assistant">
-            <Icon name="skills" size={17} />
-          </div>
-          <div className="chat-input-wrap">
-            <input
-              ref={askInputRef}
-              className="chat-text-input"
-              placeholder="Or tell Duet what you want to make…"
-              value={askText}
-              onChange={(e) => setAskText(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleAsk()}
-            />
-            <div className="chat-suggestions">
-              {["Café poster", "Modern logo", "App store screenshot"].map((chip) => (
+            <div className="ask-try">
+              <div className="section-label">Try</div>
+              {["A poster for my café", "A modern logo", "App store screenshots"].map((idea) => (
                 <button
-                  key={chip}
+                  key={idea}
                   type="button"
-                  className="chat-chip"
+                  className="ask-idea"
                   onClick={() => {
-                    setAskText(chip);
+                    setAskText(idea);
                     askInputRef.current?.focus();
                   }}
                 >
-                  {chip}
+                  {idea}
                 </button>
               ))}
             </div>
-          </div>
-          <button
-            type="button"
-            className="chat-send-btn"
-            title="Create with Duet"
-            onClick={() => handleAsk()}
-          >
-            <Icon name="arrow" size={15} />
-          </button>
+            <div className="ask-box">
+              <textarea
+                ref={askInputRef}
+                data-name="home-ask-input"
+                placeholder="What shall we make today?"
+                value={askText}
+                onChange={(e) => setAskText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleAsk();
+                  }
+                }}
+              />
+              <button type="button" className="ask-send" title="Make it with Duet (Enter)" onClick={() => handleAsk()}>
+                <Icon name="send" size={17} />
+              </button>
+            </div>
+          </aside>
         </div>
 
         {/* Recent Work */}

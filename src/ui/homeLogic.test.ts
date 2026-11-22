@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ago, clampDim, CREATE_TILES, CUSTOM_PRESETS, editedAgo, hideKind, HOME_KINDS, openKind, ratioOf, shownKinds, startsVideo } from "./homeLogic";
+import { ago, clampDim, CREATE_TILES, editedAgo, firstTab, hideKind, HOME_KINDS, outlineOf, ratioOf, rememberSize, shownKinds, startsVideo } from "./homeLogic";
 
 describe("homeLogic pure helpers", () => {
   it("gives every kind its sizes, with real numbers", () => {
@@ -31,12 +31,11 @@ describe("homeLogic pure helpers", () => {
     expect(CREATE_TILES.filter((t) => t.group === "video").every(startsVideo)).toBe(true);
   });
 
-  it("opens the last kind picked, or the first one showing", () => {
-    expect(openKind(null, [])).toBe("social");
-    expect(openKind("video", [])).toBe("video");
-    expect(openKind("video", ["video"])).toBe("social");
-    expect(openKind("nonsense", ["social"])).toBe("video");
-    expect(openKind(null, HOME_KINDS.map((k) => k.id))).toBe(null);
+  it("opens on New for someone who made things before, else on the first kind showing", () => {
+    expect(firstTab(true, [])).toBe("new");
+    expect(firstTab(false, [])).toBe("social");
+    expect(firstTab(false, ["social"])).toBe("video");
+    expect(firstTab(false, HOME_KINDS.map((k) => k.id))).toBe("new");
   });
 
   it("hides a kind without changing the list it was given, and never the last one", () => {
@@ -49,10 +48,24 @@ describe("homeLogic pure helpers", () => {
     expect(hideKind(["print"], "print")).toEqual(["print"]);
   });
 
-  it("defines the 5 custom presets", () => {
-    expect(CUSTOM_PRESETS).toHaveLength(5);
-    expect(CUSTOM_PRESETS.map((p) => p.width)).toEqual([1080, 1080, 1080, 1280, 1920]);
-    expect(CUSTOM_PRESETS.map((p) => p.height)).toEqual([1080, 1350, 1920, 720, 1080]);
+  it("remembers sizes used before, newest first, never twice, at most 8", () => {
+    const reel = { name: "Reel", width: 1080, height: 1920, video: true };
+    const post = { name: "Post", width: 1080, height: 1080, video: false };
+    const start: never[] = [];
+    let list = rememberSize(start, reel);
+    list = rememberSize(list, post);
+    expect(list.map((u) => u.name)).toEqual(["Post", "Reel"]);
+    list = rememberSize(list, { ...reel, name: "Custom" });
+    expect(list.map((u) => u.name)).toEqual(["Custom", "Post"]);
+    expect(rememberSize(list, { ...post, video: true })).toHaveLength(3);
+    expect(start).toEqual([]);
+    for (let i = 0; i < 12; i++) list = rememberSize(list, { name: "S", width: 100 + i, height: 100, video: false });
+    expect(list).toHaveLength(8);
+  });
+
+  it("fits a size's outline in a small box", () => {
+    expect(outlineOf(1080, 1920)).toEqual({ width: 26, height: 46 });
+    expect(outlineOf(1584, 396)).toEqual({ width: 46, height: 12 });
   });
 
   it("formats relative times into plain words", () => {
@@ -61,6 +74,9 @@ describe("homeLogic pure helpers", () => {
     expect(ago(base - 30_000, base)).toBe("just now");
     expect(ago(base - 120_000, base)).toBe("2 minutes ago");
     expect(ago(base - 7_200_000, base)).toBe("2 hours ago");
+    // one is never plural: "1 hours ago" showed on Home
+    expect(ago(base - 60_000, base)).toBe("1 minute ago");
+    expect(ago(base - 3_600_000, base)).toBe("1 hour ago");
     expect(ago(base - 86_400_000, base)).toBe("yesterday");
     expect(ago(base - 259_200_000, base)).toBe("3 days ago");
   });
