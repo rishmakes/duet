@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { ReactNode } from "react";
 import Icon from "./Icons";
 import { getLayout, setLayout, useLayout } from "./layout";
@@ -11,13 +12,16 @@ export function toggleShelf(name: string) {
 /**
  * A shelf of tiles under a name and a count (#338). Its arrow folds it shut, and Duet remembers which
  * shelves are shut, so someone who only uses their own styles never scrolls past the ready ones.
- * Used by Captions and Assets.
+ * Used by Captions and Assets. A shelf that `startsShut` (Effects) is not remembered: it is shut each time.
  */
-export default function Shelf({ name, title, count, children }: { name: string; title: string; count?: number; children: ReactNode }) {
-  const open = useLayout((d) => !d.shelvesShut.includes(name));
+export default function Shelf({ name, title, count, startsShut, children }: { name: string; title: string; count?: number; startsShut?: boolean; children: ReactNode }) {
+  const kept = useLayout((d) => !d.shelvesShut.includes(name));
+  const [here, setHere] = useState(false);
+  const open = startsShut ? here : kept;
+  const toggle = () => (startsShut ? setHere(!here) : toggleShelf(name));
   return (
     <section className={`shelf${open ? " open" : ""}`} data-name={`shelf-${name}`}>
-      <button type="button" className="shelf-head" aria-expanded={open} onClick={() => toggleShelf(name)}>
+      <button type="button" className="shelf-head" aria-expanded={open} onClick={toggle}>
         <span className={`fold-arrow ${open ? "" : "folded"}`}>
           <Icon name="arrow" size={10} />
         </span>

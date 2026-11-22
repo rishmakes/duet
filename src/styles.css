@@ -2247,11 +2247,6 @@ option {
 .brand-make-btn-init {
   margin: 6px 0 14px;
 }
-.brand-comp-head {
-  margin-top: 16px;
-  border-top: 1px solid var(--line);
-  padding-top: 12px;
-}
 .brand-assets-section {
   margin: 8px 0;
 }
@@ -12712,6 +12707,81 @@ button.ctx-item.store-make-option:hover {
 }
 .shelf:not(.open) .shelf-head {
   margin-bottom: 0;
+}
+
+/* Assets (#338): a search, chips to narrow it, then shelves of tiles */
+.assets-panel {
+  padding: 10px 12px 16px;
+}
+.assets-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 16px;
+}
+.assets-chip {
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.assets-chip:hover {
+  color: var(--text);
+}
+.assets-chip.on {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.asset-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px 10px;
+}
+.asset-tiles .captions-tile-face {
+  height: 88px;
+}
+.asset-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* the small moving picture from the picker at a cut, as big as a tile. At rest it shows the first shot
+   giving way to the next across the tile, so each transition looks its own; with the pointer on it, it plays */
+.asset-tile-face.cut-preview {
+  width: 100%;
+  height: 88px;
+  border-radius: 10px;
+}
+.asset-tile-face.cut-preview::after {
+  animation-name: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent 10%, #000 90%);
+  mask-image: linear-gradient(90deg, transparent 10%, #000 90%);
+}
+.asset-tile:hover .asset-tile-face.cut-preview::after {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+.asset-tile:hover .cut-preview-dissolve::after {
+  animation-name: cut-fade;
+}
+.asset-tile:hover .cut-preview-dip-black::after,
+.asset-tile:hover .cut-preview-dip-white::after {
+  animation-name: cut-dip;
+}
+.asset-tile-name {
+  padding-left: 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.assets-soon {
+  padding: 0 0 4px 18px;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 /* Caption looks (#71): tiles in the Captions tab and the Auto captions box, with example words */

@@ -97,8 +97,8 @@ export function NameField({ initial = "", onDone, className = "captions-tile-ren
   );
 }
 
-/** One of your styles: pick it to use it; the ⋯ on hover renames, duplicates or deletes it. */
-function CustomTile({ look, on, off, apply }: { look: CustomLook; on: boolean; off: boolean; apply: () => void }) {
+/** One of your styles: pick it to use it; the ⋯ on hover renames, duplicates or deletes it. Shown in Captions and Assets. */
+export function CustomTile({ look, on, off, apply }: { look: CustomLook; on: boolean; off: boolean; apply: () => void }) {
   const [naming, setNaming] = useState(false);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   useDismiss(!!menu, () => setMenu(null), ".captions-tile-menu, .captions-tile-more");
@@ -164,8 +164,8 @@ export function useCaptionFonts() {
   }, []);
 }
 
-export default function CaptionsPanel() {
-  useCaptionFonts();
+/** How many captions the open video has, the ready look they have now, and their style now. Captions and Assets share it. */
+export function useCaptionStyle() {
   const count = useStore((s) => captionsIn(currentDoc(s), s.clock.scene).length);
   // the look these captions have now, while it is still one of Duet's
   const now = useStore((s) => {
@@ -182,11 +182,30 @@ export default function CaptionsPanel() {
     return first && frame ? JSON.stringify(lookOf(first, frame)) : "";
   });
   const style = useMemo(() => (styleKey ? (JSON.parse(styleKey) as Partial<El>) : null), [styleKey]);
+  return { count, now, style };
+}
+
+const allCaptions = () => captionsIn(currentDoc(getState()), getState().clock.scene);
+
+/** Gives every caption in the open video one of your styles. */
+export function applyStyle(l: CustomLook) {
+  const ids = allCaptions();
+  if (ids.length) dispatch("style_captions", { ids, look: "bold", custom: { name: l.name, props: l.props } });
+}
+
+/** Your styles, with their fonts fetched so the tiles show in them. */
+export function useYourStyles(): CustomLook[] {
   const custom = useCustomLooks();
   useEffect(() => {
     for (const l of custom) if (l.props.fontFamily) void fetchFamily(l.props.fontFamily);
   }, [custom]);
-  const all = () => captionsIn(currentDoc(getState()), getState().clock.scene);
+  return custom;
+}
+
+export default function CaptionsPanel() {
+  useCaptionFonts();
+  const { count, now, style } = useCaptionStyle();
+  const custom = useYourStyles();
   return (
     <div className="captions-panel" data-name="captions-panel">
       <div className="captions-panel-hint">{count ? "Pick a style. Every caption changes." : "Make captions first with Auto captions under the timeline, then pick a style."}</div>
@@ -198,10 +217,7 @@ export default function CaptionsPanel() {
               look={l}
               on={!!style && sameLook(style, l.props)}
               off={!count}
-              apply={() => {
-                const ids = all();
-                if (ids.length) dispatch("style_captions", { ids, look: "bold", custom: { name: l.name, props: l.props } });
-              }}
+              apply={() => applyStyle(l)}
             />
           ))}
           <SaveTile style={count ? style : null} />
@@ -216,7 +232,7 @@ export default function CaptionsPanel() {
               data-name={`captions-tile-${l.key}`}
               disabled={!count}
               onClick={() => {
-                const ids = all();
+                const ids = allCaptions();
                 if (ids.length) dispatch("style_captions", { ids, look: l.key });
               }}
             >

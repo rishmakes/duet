@@ -8,6 +8,14 @@ import { currentDoc, dispatch, getState, select, useStore } from "../state/store
 import { loadKits, saveKit, useKits } from "../store/kits";
 import { ColorPicker } from "./ColorPicker";
 import Icon from "./Icons";
+import { CUT_MOVE_NAMES } from "../document/moves";
+import { CUT_MOVES } from "../document/types";
+import type { CutMoveKind } from "../document/types";
+import { sameLook } from "../document/captions";
+import { CustomTile, applyStyle, useCaptionFonts, useCaptionStyle, useYourStyles } from "./CaptionLooks";
+import Shelf from "./Shelf";
+import { ASSETS_CHIPS, finds, shelfOn } from "./assetsFind";
+import type { AssetsChip } from "./assetsFind";
 
 /** Pixel steps or numbers parsed from a comma-separated string. */
 function parseNumbers(raw: string): number[] {
@@ -96,11 +104,29 @@ function place(componentId: string) {
   if (currentDoc().elements[id]) select([id]);
 }
 
-export default function AssetsPanel() {
-  useStore((s) => s.timeline[s.cursor]);
-  useStore((s) => s.transientDoc);
-  const sel = useStore((s) => s.selection);
 
+/** Kits saved on this computer, to use in this project: brand kits under Brand kit, design systems under Design system. */
+function UseKits({ system }: { system: boolean }) {
+  const kits = useKits().filter((k) => !!k.kit.system === system);
+  if (!kits.length) return null;
+  return (
+    <div className="brand-assets-section">
+      <div className="brand-assets-label">Use a saved {system ? "design system" : "brand kit"}</div>
+      {kits.map((k) => (
+        <div key={k.id} className="skill asset kit-use-row">
+          <div className="grow">{k.kit.name}</div>
+          <button type="button" className="mini primary kit-use-btn" onClick={() => dispatch("use_kit", { kit: k.kit })}>
+            Use
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** This project's colours, fonts, logo, brand assets and voice. */
+function BrandKit() {
+  const sel = useStore((s) => s.selection);
   const doc = currentDoc();
   const brand = doc.brand;
 
@@ -128,55 +154,10 @@ export default function AssetsPanel() {
   const hexToAdd = pickedFill ?? "#888888";
 
   const logoEl = brand?.logoId ? doc.elements[brand.logoId] : null;
-  const list = componentsIn(doc);
-
-  useEffect(() => {
-    void loadKits();
-  }, []);
-
-  const savedKits = useKits();
-
   const brandAssets = liveAssets(doc);
-  const uiComponents = liveComponents(doc);
-  const textStylesList = Object.entries(doc.styles ?? {});
-
-  const docSpacing = (doc.system?.spacing ?? []).join(", ");
-  const docCorners = (doc.system?.corners ?? []).join(", ");
-
-  const [spacingStr, setSpacingStr] = useState(docSpacing);
-  const [cornersStr, setCornersStr] = useState(docCorners);
-
-  useEffect(() => {
-    setSpacingStr(docSpacing);
-  }, [docSpacing]);
-
-  useEffect(() => {
-    setCornersStr(docCorners);
-  }, [docCorners]);
-
-  const commitSpacing = () => {
-    const nums = parseNumbers(spacingStr);
-    const current = doc.system?.spacing ?? [];
-    const same = nums.length === current.length && nums.every((v, i) => v === current[i]);
-    if (!same) {
-      dispatch("set_design_system", { spacing: nums });
-    }
-  };
-
-  const commitCorners = () => {
-    const nums = parseNumbers(cornersStr);
-    const current = doc.system?.corners ?? [];
-    const same = nums.length === current.length && nums.every((v, i) => v === current[i]);
-    if (!same) {
-      dispatch("set_design_system", { corners: nums });
-    }
-  };
-
-  const isSingleTextPicked = sel.length === 1 && pickedEl?.type === "text";
 
   return (
-    <div className="skills">
-      <div className="h">Brand kit</div>
+    <>
       {!brand ? (
         <div className="brand-kit-empty">
           <div className="empty">Keep this project's colours, fonts, logo and voice in one place.</div>
@@ -422,8 +403,55 @@ export default function AssetsPanel() {
           onClose={() => setPicker(null)}
         />
       )}
+      <UseKits system={false} />
+    </>
+  );
+}
 
-      <div className="h brand-comp-head">Design system</div>
+/** How this project's screens are built: text styles, spacing, corners and UI components. */
+function DesignSystem() {
+  const sel = useStore((s) => s.selection);
+  const doc = currentDoc();
+  const pickedEl = sel.length === 1 ? doc.elements[sel[0]] : null;
+  const uiComponents = liveComponents(doc);
+  const textStylesList = Object.entries(doc.styles ?? {});
+
+  const docSpacing = (doc.system?.spacing ?? []).join(", ");
+  const docCorners = (doc.system?.corners ?? []).join(", ");
+
+  const [spacingStr, setSpacingStr] = useState(docSpacing);
+  const [cornersStr, setCornersStr] = useState(docCorners);
+
+  useEffect(() => {
+    setSpacingStr(docSpacing);
+  }, [docSpacing]);
+
+  useEffect(() => {
+    setCornersStr(docCorners);
+  }, [docCorners]);
+
+  const commitSpacing = () => {
+    const nums = parseNumbers(spacingStr);
+    const current = doc.system?.spacing ?? [];
+    const same = nums.length === current.length && nums.every((v, i) => v === current[i]);
+    if (!same) {
+      dispatch("set_design_system", { spacing: nums });
+    }
+  };
+
+  const commitCorners = () => {
+    const nums = parseNumbers(cornersStr);
+    const current = doc.system?.corners ?? [];
+    const same = nums.length === current.length && nums.every((v, i) => v === current[i]);
+    if (!same) {
+      dispatch("set_design_system", { corners: nums });
+    }
+  };
+
+  const isSingleTextPicked = sel.length === 1 && pickedEl?.type === "text";
+
+  return (
+    <>
       {!hasDesignSystem(doc) ? (
         <div className="brand-kit-empty">
           <div className="empty">
@@ -575,8 +603,15 @@ export default function AssetsPanel() {
           <SaveKitRow defaultName="My design system" withSystem={true} />
         </>
       )}
+      <UseKits system={true} />
+    </>
+  );
+}
 
-      <div className="h brand-comp-head">Components</div>
+/** The components in this design, each placed as a copy with a click. */
+function Components({ list }: { list: ReturnType<typeof componentsIn> }) {
+  return (
+    <>
       {list.length === 0 && (
         <div className="empty">
           Select anything, such as a logo, a picture, a button or a whole frame, and press Cmd Option K to make it a component. Then you can place as many copies as you like, and changing the original changes them all.
@@ -594,30 +629,115 @@ export default function AssetsPanel() {
           <span className="add-copy">Place</span>
         </div>
       ))}
+    </>
+  );
+}
 
-      {savedKits.length > 0 && (
-        <>
-          <div className="h brand-comp-head">Use a kit</div>
-          {savedKits.map((k) => (
-            <div key={k.id} className="skill asset kit-use-row">
-              <div className="grow">
-                <div>{k.kit.name}</div>
-                <div className="hint2">{k.kit.system ? "Design system" : "Brand kit"}</div>
-              </div>
-              <button
-                type="button"
-                className="mini primary kit-use-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  dispatch("use_kit", { kit: k.kit });
-                }}
-              >
-                Use
-              </button>
-            </div>
-          ))}
-        </>
+/** A transition as a tile: it plays while the pointer is on it. */
+function TransitionTile({ kind }: { kind: CutMoveKind }) {
+  return (
+    <div className="asset-tile" data-name={`asset-transition-${kind}`} title={CUT_MOVE_NAMES[kind]}>
+      <span className={`asset-tile-face cut-preview cut-preview-${kind}`} aria-hidden="true" />
+      <span className="asset-tile-name">{CUT_MOVE_NAMES[kind]}</span>
+    </div>
+  );
+}
+
+/**
+ * Assets (#338): one library for everything ready-made. A search and chips at the top narrow it down;
+ * below, shelves that fold shut: Transitions, Effects (coming soon, said only when opened), Your styles
+ * (the same ones as in Captions), Brand kit, Design system and Components.
+ */
+export default function AssetsPanel() {
+  useStore((s) => s.timeline[s.cursor]);
+  useStore((s) => s.transientDoc);
+  useCaptionFonts();
+  const [query, setQuery] = useState("");
+  const [chip, setChip] = useState<AssetsChip>("all");
+  const { count, style } = useCaptionStyle();
+  const yours = useYourStyles();
+
+  useEffect(() => {
+    void loadKits();
+  }, []);
+
+  const doc = currentDoc();
+  const moves = CUT_MOVES.filter((k) => finds(query, CUT_MOVE_NAMES[k]));
+  const styles = yours.filter((l) => finds(query, l.name));
+  const comps = componentsIn(doc).filter((c) => finds(query, c.name));
+  const brandFound = finds(query, "Brand kit", "colours", "fonts", "logo", ...(doc.brand?.colours.map((c) => c.name) ?? []), ...(doc.brand?.fonts ?? []));
+  const systemFound = finds(query, "Design system", "text styles", "spacing", "corners", ...Object.values(doc.styles ?? {}).map((t) => t.name));
+  const shown = {
+    transitions: shelfOn("transitions", chip) && moves.length > 0,
+    effects: shelfOn("effects", chip) && finds(query, "Effects"),
+    yours: shelfOn("yours", chip) && (styles.length > 0 || !query.trim()),
+    brand: shelfOn("brand", chip) && brandFound,
+    system: shelfOn("system", chip) && systemFound,
+    components: shelfOn("components", chip) && (comps.length > 0 || !query.trim()),
+  };
+
+  return (
+    <div className="skills assets-panel" data-name="assets-panel">
+      <label className="cut-find assets-find">
+        <Icon name="search" size={13} />
+        <input
+          placeholder="Find transitions, styles, components…"
+          value={query}
+          data-name="assets-find"
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => e.stopPropagation()}
+        />
+      </label>
+      <div className="assets-chips">
+        {ASSETS_CHIPS.map(([key, name]) => (
+          <button key={key} type="button" className={`assets-chip${chip === key ? " on" : ""}`} data-name={`assets-chip-${key}`} aria-pressed={chip === key} onClick={() => setChip(key)}>
+            {name}
+          </button>
+        ))}
+      </div>
+      {shown.transitions && (
+        <Shelf name="assets-transitions" title="Transitions" count={moves.length}>
+          <div className="asset-tiles">
+            {moves.map((k) => (
+              <TransitionTile key={k} kind={k} />
+            ))}
+          </div>
+        </Shelf>
       )}
+      {shown.effects && (
+        <Shelf name="assets-effects" title="Effects" startsShut>
+          <div className="assets-soon">Effects are coming soon.</div>
+        </Shelf>
+      )}
+      {shown.yours && (
+        <Shelf name="assets-yours" title="Your styles" count={styles.length}>
+          {styles.length ? (
+            <div className="asset-tiles">
+              {styles.map((l) => (
+                <CustomTile key={l.id} look={l} on={!!style && sameLook(style, l.props)} off={!count} apply={() => applyStyle(l)} />
+              ))}
+            </div>
+          ) : (
+            <div className="empty">Styles you save in Captions show here.</div>
+          )}
+        </Shelf>
+      )}
+      {shown.brand && (
+        <Shelf name="assets-brand" title="Brand kit">
+          <BrandKit />
+        </Shelf>
+      )}
+      {shown.system && (
+        <Shelf name="assets-system" title="Design system">
+          <DesignSystem />
+        </Shelf>
+      )}
+      {shown.components && (
+        <Shelf name="assets-components" title="Components" count={comps.length}>
+          <Components list={comps} />
+        </Shelf>
+      )}
+      {!Object.values(shown).some(Boolean) && <div className="empty">Nothing here is called that.</div>}
     </div>
   );
 }
