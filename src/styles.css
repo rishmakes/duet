@@ -12812,6 +12812,17 @@ button.ctx-item.store-make-option:hover {
 .captions-tile-menu {
   min-width: 150px;
 }
+.captions-tile-menu .ctx-item {
+  width: 100%;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+}
+.captions-tile-menu .ctx-item.danger {
+  color: #ff7a6e;
+}
 /* the empty tile that keeps the look you made */
 .captions-tile.save .captions-tile-face {
   width: 100%;

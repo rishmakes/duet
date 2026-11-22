@@ -122,15 +122,15 @@ function CustomTile({ look, on, off, apply }: { look: CustomLook; on: boolean; o
       </button>
       {menu && (
         <div className="ctx captions-tile-menu" style={{ left: menu.x, top: menu.y }}>
-          <div className="ctx-item" data-name="style-rename" onClick={act(() => setNaming(true))}>
+          <button type="button" className="ctx-item" data-name="style-rename" onClick={act(() => setNaming(true))}>
             Rename
-          </div>
-          <div className="ctx-item" data-name="style-duplicate" onClick={act(() => duplicateLook(look.id))}>
+          </button>
+          <button type="button" className="ctx-item" data-name="style-duplicate" onClick={act(() => duplicateLook(look.id))}>
             Duplicate
-          </div>
-          <div className="ctx-item danger" data-name="style-delete" onClick={act(() => removeLook(look.id))}>
+          </button>
+          <button type="button" className="ctx-item danger" data-name="style-delete" onClick={act(() => removeLook(look.id))}>
             Delete
-          </div>
+          </button>
         </div>
       )}
       {naming ? <NameField initial={look.name ?? ""} onDone={(n) => (n && renameLook(look.id, n), setNaming(false))} /> : <span className="captions-tile-name">{name}</span>}
@@ -201,7 +201,7 @@ export default function CaptionsPanel() {
             <CustomTile
               key={l.id}
               look={l}
-              on={now === null && !!style && sameLook(style, l.props)}
+              on={!!style && sameLook(style, l.props)}
               off={!count}
               apply={() => {
                 const ids = all();
