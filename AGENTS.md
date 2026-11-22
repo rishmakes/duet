@@ -48,6 +48,7 @@ Restart `tauri dev` after installing a new npm package. Vite re-bundles dependen
 - Permission levels (suggest, ask first, auto) are enforced in `src/ai/tools.ts`, not left to the agent.
 - Designer language in the interface. No commit, tag, JSON or id in front of a designer.
 - Only build and promise what is real. Half-built features stay out of the interface.
+  - One exception, on the creator's word for a marketing reason (22 Nov 2026, #338): the Assets panel shows Effects as "coming soon" until the first effect exists. No other "coming soon" without his word.
 - Nothing copied from other design tools. Own icons, colours and code.
 - Commits carry the author's identity only. No tool names or attribution lines.
 - Every commit names its issue (`#123`). The same day, move that issue to "Built - not tested" on the board "Duet: where everything stands" (project 6).
