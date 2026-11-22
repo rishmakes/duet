@@ -6,6 +6,7 @@ import { fetchFamily } from "../project/fonts";
 import type { CaptionLook, CustomLook } from "../document/captions";
 import type { El } from "../document/types";
 import { keepStyle, removeLook, renameLook, useCustomLooks } from "./customLooks";
+import Shelf from "./Shelf";
 
 /**
  * Caption styles (#71, #404): each look as a big tile showing example words in it, and while the pointer
@@ -152,37 +153,45 @@ export default function CaptionsPanel() {
   return (
     <div className="captions-panel" data-name="captions-panel">
       <div className="captions-panel-hint">{count ? "Pick a style. Every caption changes." : "Make captions first with Auto captions under the timeline, then pick a style."}</div>
-      <div className="captions-tiles">
-        {ordered.map((l) => (
-          <CustomTile
-            key={l.id}
-            look={l}
-            on={now === null && !!style && sameLook(style, l.props)}
-            off={!count}
-            apply={() => {
-              const ids = all();
-              if (ids.length) dispatch("style_captions", { ids, look: "bold", custom: { name: l.name ?? "Custom", props: l.props } });
-            }}
-          />
-        ))}
-        {CAPTION_LOOKS.map((l) => (
-          <button
-            key={l.key}
-            className={`captions-tile${now === l.key ? " on" : ""}`}
-            data-name={`captions-tile-${l.key}`}
-            disabled={!count}
-            onClick={() => {
-              const ids = all();
-              if (ids.length) dispatch("style_captions", { ids, look: l.key });
-            }}
-          >
-            <span className="captions-tile-face">
-              <LookSample look={l.key} />
-            </span>
-            <span className="captions-tile-name">{l.name}</span>
-          </button>
-        ))}
-      </div>
+      {ordered.length > 0 && (
+        <Shelf name="captions-yours" title="Your styles" count={ordered.length}>
+          <div className="captions-tiles">
+            {ordered.map((l) => (
+              <CustomTile
+                key={l.id}
+                look={l}
+                on={now === null && !!style && sameLook(style, l.props)}
+                off={!count}
+                apply={() => {
+                  const ids = all();
+                  if (ids.length) dispatch("style_captions", { ids, look: "bold", custom: { name: l.name ?? "Custom", props: l.props } });
+                }}
+              />
+            ))}
+          </div>
+        </Shelf>
+      )}
+      <Shelf name="captions-ready" title="Ready styles" count={CAPTION_LOOKS.length}>
+        <div className="captions-tiles">
+          {CAPTION_LOOKS.map((l) => (
+            <button
+              key={l.key}
+              className={`captions-tile${now === l.key ? " on" : ""}`}
+              data-name={`captions-tile-${l.key}`}
+              disabled={!count}
+              onClick={() => {
+                const ids = all();
+                if (ids.length) dispatch("style_captions", { ids, look: l.key });
+              }}
+            >
+              <span className="captions-tile-face">
+                <LookSample look={l.key} />
+              </span>
+              <span className="captions-tile-name">{l.name}</span>
+            </button>
+          ))}
+        </div>
+      </Shelf>
     </div>
   );
 }

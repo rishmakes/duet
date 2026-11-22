@@ -12683,6 +12683,37 @@ button.ctx-item.store-make-option:hover {
   background: linear-gradient(135deg, transparent 45%, var(--muted) 45%, var(--muted) 55%, transparent 55%), var(--panel-2);
 }
 
+/* Shelves (#338): a name, a count and an arrow that folds the tiles shut, in Captions and Assets */
+.shelf + .shelf {
+  margin-top: 16px;
+}
+.shelf-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 2px 0;
+  margin-bottom: 10px;
+  background: none;
+  border: 0;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+.shelf-head .fold-arrow {
+  margin-right: 0;
+}
+.shelf-count {
+  color: var(--muted);
+  font-weight: 400;
+}
+.shelf:not(.open) .shelf-head {
+  margin-bottom: 0;
+}
+
 /* Caption looks (#71): tiles in the Captions tab and the Auto captions box, with example words */
 .captions-panel {
   padding: 10px 12px;

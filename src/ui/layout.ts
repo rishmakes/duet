@@ -97,6 +97,8 @@ export interface Dock {
   trackH: TrackHeights;
   /** How tall a track in Edit is, by its id, once the designer has changed it. */
   rowH?: Record<string, number>;
+  /** The shelves in Captions and Assets folded shut, by name. */
+  shelvesShut: string[];
 }
 
 const KEY = "duet:layout";
@@ -153,6 +155,7 @@ export const defaults = (): Dock => ({
   videoTab: "properties",
   photoTab: "color",
   trackH: { ...DEFAULT_TRACK_H },
+  shelvesShut: [],
 });
 export const CHAT_MIN = { w: 280, h: 140 };
 export const PANEL_CHAT_MIN = 160;
@@ -185,7 +188,8 @@ export function parseLayout(raw: unknown): Dock {
     const chatInPanel = r.chatInPanel === true;
     const panelChatH = typeof r.panelChatH === "number" && Number.isFinite(r.panelChatH) ? Math.max(PANEL_CHAT_MIN, Math.round(r.panelChatH)) : 360;
     const recipeOn = typeof r.recipeOn === "string" ? r.recipeOn : null;
-    return { ...defaults(), ...r, recipeFull: false, chatFull: false, canvasMax: false, projectsOpen, chatDocked, chatInPanel, panelChatH, recipeOn, prototyping: false, mode, space, timeLook, timeTool: "select", maskPaint: null, timeMax: false, videoTab, photoTab, trackH, rowH };
+    const shelvesShut = Array.isArray(r.shelvesShut) ? r.shelvesShut.filter((n): n is string => typeof n === "string") : [];
+    return { ...defaults(), ...r, recipeFull: false, chatFull: false, canvasMax: false, projectsOpen, chatDocked, chatInPanel, panelChatH, recipeOn, shelvesShut, prototyping: false, mode, space, timeLook, timeTool: "select", maskPaint: null, timeMax: false, videoTab, photoTab, trackH, rowH };
   }
   return defaults();
 }
