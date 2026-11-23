@@ -1142,7 +1142,7 @@ export default function PropertiesPanel() {
               <Icon name="sliders" size={16} />
             </button>
             <button type="button" className={extra.on ? "on" : ""} aria-pressed={extra.on} aria-label={extra.name} data-name={`extra-${extra.name.toLowerCase()}`} title={extra.title} onClick={() => extra.set(true)}>
-              {mode === "design" ? <Icon name="prototype" size={16} /> : <ColourPie size={20} />}
+              {mode === "design" ? <Icon name="prototype" size={18} /> : <ColourPie size={20} />}
             </button>
           </div>
         )}
