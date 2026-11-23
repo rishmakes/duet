@@ -8,7 +8,7 @@ import KindSelect from "./KindSelect";
 import { currentDoc, useStore } from "../state/store";
 import { useLayout } from "./layout";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import { clearFinished, pauseJob, stopJob } from "../ai/jobs";
+import { clearFinished, pauseJob, startPlanned, stopJob } from "../ai/jobs";
 import type { Job } from "../ai/jobs";
 import { logError } from "../errorLog";
 import { useJobs, whereItIs } from "./ExportPage";
@@ -92,8 +92,9 @@ export default function ExportMenu({ pageOpen, onBack }: { pageOpen: boolean; on
 
 /** The line of files, newest work first, in rows that alternate so each one is easy to find. */
 function QueuePart({ jobs, close }: { jobs: readonly Job[]; close: () => void }) {
-  const firstWaiting = jobs.find((j) => j.state === "waiting");
+  const firstWaiting = jobs.find((j) => j.state === "waiting" && !j.planned);
   const busy = jobs.filter((j) => j.state === "running" || j.state === "waiting");
+  const planned = jobs.some((j) => j.planned && j.state === "waiting");
   const over = jobs.filter((j) => !busy.includes(j)).reverse();
   const rows = [...busy, ...over];
   if (!rows.length) return <div className="hint2">Nothing here yet. Files you export show up in this list.</div>;
@@ -122,6 +123,11 @@ function QueuePart({ jobs, close }: { jobs: readonly Job[]; close: () => void })
                 </span>
               )}
             </div>
+            {j.planned && j.state === "waiting" && (
+              <button className="x-act" data-name="export-glance-start" onClick={() => startPlanned([j.n])}>
+                Start
+              </button>
+            )}
             {j.state === "running" && (
               <button className="x-act" data-name="export-glance-pause" onClick={() => pauseJob(j.n, !j.paused)}>
                 {j.paused ? "Resume" : "Pause"}
@@ -134,6 +140,11 @@ function QueuePart({ jobs, close }: { jobs: readonly Job[]; close: () => void })
         ))}
       </div>
       <div className="x-foot">
+        {planned && (
+          <button className="x-act" data-name="export-glance-start-all" onClick={() => startPlanned()}>
+            Start
+          </button>
+        )}
         <button
           className="x-act"
           data-name="export-clear-finished"

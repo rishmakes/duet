@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import { aboutTime, afterLine, allJobs, clearFinished, guessSeconds, holdLine, lineHeld, setAfterLine, moveJob, pauseJob, putFirst, secondsLeft, stopJob, subscribeJobs } from "../ai/jobs";
+import { aboutTime, addPlanned, afterLine, allJobs, clearFinished, guessSeconds, holdLine, lineHeld, setAfterLine, startPlanned, moveJob, pauseJob, putFirst, secondsLeft, stopJob, subscribeJobs } from "../ai/jobs";
 import type { AfterLine, Job } from "../ai/jobs";
 import { logError } from "../errorLog";
 import { currentDoc, dragCancel, dragCommit, dragPreview, useStore } from "../state/store";
@@ -43,6 +43,7 @@ const took = (j: Job) => {
 };
 
 export function whereItIs(j: Job, first: boolean): string {
+  if (j.planned) return "planned, starts when you press Start";
   if (j.state === "running") return j.paused ? "paused" : `${Math.round(j.done * 100)}%, ${aboutTime(secondsLeft(j))} left`;
   return first ? "up next" : "waiting";
 }
@@ -53,9 +54,10 @@ function QueueTab() {
   const over = jobs.filter((j) => j.state === "done" || j.state === "failed" || j.state === "stopped").reverse();
   const paused = busy.filter((j) => j.state === "running" && j.paused).length;
   const making = busy.filter((j) => j.state === "running").length - paused;
-  const waiting = busy.length - making - paused;
+  const planned = busy.filter((j) => j.planned).length;
+  const waiting = busy.length - making - paused - planned;
   const held = lineHeld();
-  const firstWaiting = busy.find((j) => j.state === "waiting");
+  const firstWaiting = busy.find((j) => j.state === "waiting" && !j.planned);
 
   // a waiting video is dragged by its grip; the line it would land before shows while it moves
   const list = useRef<HTMLDivElement>(null);
@@ -95,7 +97,7 @@ function QueueTab() {
   return (
     <>
       <div className="export-sum">
-        <span>{busy.length ? [making && `${making} being made`, paused && `${paused} paused`, waiting && `${waiting} waiting`].filter(Boolean).join(", ") : "Nothing is being made."}</span>
+        <span>{busy.length ? [making && `${making} being made`, paused && `${paused} paused`, waiting && `${waiting} waiting`, planned && `${planned} planned`].filter(Boolean).join(", ") : "Nothing is being made."}</span>
         {busy.length > 0 && (
           <label className="export-after" title="What the computer does once every export in the line is made. You get a minute to cancel.">
             When it is all done
@@ -106,7 +108,12 @@ function QueueTab() {
             </select>
           </label>
         )}
-        {busy.length > 0 && (
+        {planned > 0 && (
+          <button className="pill primary" data-name="export-start" onClick={() => startPlanned()} title="Start making the planned files, in their order">
+            Start
+          </button>
+        )}
+        {busy.length > planned && (
           <button className="pill" data-name="pause-all" onClick={() => holdLine(!held)} title={held ? "Carry on with the line" : "Hold the line: the video being made pauses, and none starts after it"}>
             {held ? "Resume all" : "Pause all"}
           </button>
@@ -142,6 +149,11 @@ function QueueTab() {
                   {j.by ? `Asked by ${j.by}` : "You"} · {whereItIs(j, j === firstWaiting)}
                 </span>
               </div>
+              {j.planned && (
+                <button className="pill" data-name="export-start-one" onClick={() => startPlanned([j.n])} title="Start this one now, keeping its place in the line">
+                  Start
+                </button>
+              )}
               {j.state === "running" && (
                 <button className={`pill ${j.paused ? "primary" : ""}`} data-name="export-pause" onClick={() => pauseJob(j.n, !j.paused)}>
                   {j.paused ? "Resume" : "Pause"}
@@ -271,14 +283,19 @@ function SetUpTab({ sceneId, onQueued }: { sceneId?: string; onQueued: () => voi
   const go = (now: boolean) => {
     setProblem("");
     const made: number[] = [];
-    for (const r of rows) {
-      const job = queueVideo(scene.id, { ...base, ...r }, { project: projectName }, doc);
-      if (!("n" in job)) {
-        setProblem(job.error);
-        break;
+    // Add to queue only plans: nothing starts until the designer presses Start
+    const add = () => {
+      for (const r of rows) {
+        const job = queueVideo(scene.id, { ...base, ...r }, { project: projectName }, doc);
+        if (!("n" in job)) {
+          setProblem(job.error);
+          break;
+        }
+        made.push(job.n);
       }
-      made.push(job.n);
-    }
+    };
+    if (now) add();
+    else addPlanned(add);
     if (now) putFirst(made);
     if (made.length) {
       rememberExport(projectFile, { ...base, ...rows[0] });
@@ -435,7 +452,7 @@ function SetUpTab({ sceneId, onQueued }: { sceneId?: string; onQueued: () => voi
           <button className="pill primary" data-name="export-now" onClick={() => go(true)} title="Make it next, before anything still waiting">
             Export now
           </button>
-          <button className="pill" data-name="export-add-queue" onClick={() => go(false)} title="Make it after everything already in the line">
+          <button className="pill" data-name="export-add-queue" onClick={() => go(false)} title="Plan it in the line. It starts when you press Start in the Queue">
             Add to queue
           </button>
         </div>

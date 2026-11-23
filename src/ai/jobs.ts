@@ -32,6 +32,8 @@ export interface Job {
   error?: string;
   /** Held halfway by the designer, to carry on later. */
   paused?: boolean;
+  /** Put in the line by the designer to start later: it waits until they press Start. */
+  planned?: boolean;
 }
 
 /** How a running job is held or given up on. A job without it can only be taken out while it waits. */
@@ -94,10 +96,32 @@ const changed = () => {
 export const allJobs = (): readonly Job[] => jobs;
 
 /** Put a job in the line. It starts when the ones before it are done. */
+let planning = false;
+
+/** Add jobs that only wait: the designer is planning the line and starts it themselves. */
+export function addPlanned<T>(make: () => T): T {
+  planning = true;
+  try {
+    return make();
+  } finally {
+    planning = false;
+  }
+}
+
+/** Let planned jobs go: the given ones, or every planned one. They are made in their order in the line. */
+export function startPlanned(ns?: number[]) {
+  for (const j of jobs) if (j.planned && j.state === "waiting" && (!ns || ns.includes(j.n))) j.planned = false;
+  changed();
+  void work();
+}
+
+/** The next one to be made: the first waiting one that is not planned. */
+const nextUp = () => jobs.find((j) => j.state === "waiting" && !j.planned);
+
 export function addJob(info: Pick<Job, "what" | "kind" | "project" | "by" | "file" | "seconds">, run: (progress: (done: number) => void) => Promise<string | null>, control?: JobControl): Job | { error: string } {
   const waiting = jobs.filter((j) => j.state === "waiting").length;
   if (waiting >= MOST_WAITING) return { error: `${waiting} exports are already waiting. Wait for some to finish (ask with jobs), then try again.` };
-  const job: Job = { ...info, n: next++, state: "waiting", done: 0, asked: Date.now() };
+  const job: Job = { ...info, n: next++, state: "waiting", done: 0, asked: Date.now(), ...(planning ? { planned: true } : {}) };
   jobs.push(job);
   runs.set(job.n, run);
   if (resting) {
@@ -121,7 +145,7 @@ async function work() {
   running = true;
   let ran = false;
   try {
-    for (let job = jobs.find((j) => j.state === "waiting"); job; job = jobs.find((j) => j.state === "waiting")) {
+    for (let job = nextUp(); job; job = nextUp()) {
       while (!hooks.free() || held) await new Promise((ok) => setTimeout(ok, held ? 300 : 2000));
       const run = runs.get(job.n)!;
       job.state = "running";
@@ -156,7 +180,8 @@ async function work() {
   } finally {
     running = false;
   }
-  if (ran && after !== "nothing") restSoon(after);
+  // planned files still waiting for Start keep the computer awake
+  if (ran && after !== "nothing" && !jobs.some((j) => j.state === "waiting")) restSoon(after);
 }
 
 export const afterLine = () => after;
@@ -291,6 +316,7 @@ export function aboutTime(s: number): string {
 export function jobLine(j: Job): string {
   switch (j.state) {
     case "waiting":
+      if (j.planned) return `${name(j)}: planned by the designer. It starts when they press Start.`;
       return `${name(j)}: waiting in line, done in ${aboutTime(secondsLeft(j))}.`;
     case "running":
       if (j.paused) return `${name(j)}: paused by the designer at ${Math.round(j.done * 100)}%. It carries on when they say so.`;

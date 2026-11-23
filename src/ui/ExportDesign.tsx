@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { putFirst } from "../ai/jobs";
+import { addPlanned, putFirst } from "../ai/jobs";
 import {
   countFiles,
   queueDesign,
@@ -92,14 +92,19 @@ export default function DesignSetUp({ onQueued }: { onQueued: () => void }) {
   const go = (now: boolean) => {
     setProblem("");
     const queued: number[] = [];
-    for (const f of files) {
-      const job = queueDesign(ids, f, { project: projectName }, dir, doc);
-      if (!("n" in job)) {
-        setProblem(job.error);
-        break;
+    // Add to queue only plans: nothing starts until the designer presses Start
+    const add = () => {
+      for (const f of files) {
+        const job = queueDesign(ids, f, { project: projectName }, dir, doc);
+        if (!("n" in job)) {
+          setProblem(job.error);
+          break;
+        }
+        queued.push(job.n);
       }
-      queued.push(job.n);
-    }
+    };
+    if (now) add();
+    else addPlanned(add);
     if (now) putFirst(queued);
     if (queued.length) {
       rememberDesign(projectFile, files, dir);
@@ -280,7 +285,7 @@ export default function DesignSetUp({ onQueued }: { onQueued: () => void }) {
             data-name="export-add-queue"
             disabled={!made}
             onClick={() => go(false)}
-            title="Make it after everything already in the line"
+            title="Plan it in the line. It starts when you press Start in the Queue"
           >
             Add to queue
           </button>

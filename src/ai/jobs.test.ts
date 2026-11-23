@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MOST_WAITING, REST_WARNING, aboutTime, afterLine, cancelRest, restingAt, setAfterLine, addJob, allJobs, askAgainIn, clearFinished, holdLine, jobsText, lineHeld, moveJob, pauseJob, resetJobs, setJobHooks, stopJob } from "./jobs";
+import { addPlanned, startPlanned, MOST_WAITING, REST_WARNING, aboutTime, afterLine, cancelRest, restingAt, setAfterLine, addJob, allJobs, askAgainIn, clearFinished, holdLine, jobsText, lineHeld, moveJob, pauseJob, resetJobs, setJobHooks, stopJob } from "./jobs";
 import type { Job } from "./jobs";
 
 const tick = () => new Promise((ok) => setTimeout(ok, 0));
@@ -13,6 +13,28 @@ describe("the job line", () => {
     ended = [];
     logged = [];
     setJobHooks({ free: () => true, ended: (j) => ended.push({ ...j }), log: (l) => logged.push(l) });
+  });
+
+  it("keeps planned files waiting until Start, then makes them in order", async () => {
+    const order: string[] = [];
+    addPlanned(() => {
+      addJob(info("A"), async () => (order.push("A"), "/x/a.png"));
+      addJob(info("B"), async () => (order.push("B"), "/x/b.png"));
+    });
+    await tick();
+    expect(order).toEqual([]);
+    expect(allJobs().map((j) => [j.state, j.planned])).toEqual([
+      ["waiting", true],
+      ["waiting", true],
+    ]);
+    // one not planned goes straight past them
+    addJob(info("C"), async () => (order.push("C"), "/x/c.png"));
+    await tick();
+    expect(order).toEqual(["C"]);
+    startPlanned();
+    await tick();
+    await tick();
+    expect(order).toEqual(["C", "A", "B"]);
   });
 
   it("answers at once and runs videos one after another", async () => {
