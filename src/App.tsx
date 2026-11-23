@@ -397,7 +397,7 @@ export default function App() {
           >
             <Icon name={theme === "light" ? "moon" : "sun"} size={15} />
           </button>
-          <ExportMenu />
+          <ExportMenu pageOpen={!!exportOpen} onBack={() => setExportOpen(null)} />
         </div>
       </header>
       {/* in every space, down the left: your projects, open ones first; they take the place of tabs */}

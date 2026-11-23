@@ -255,14 +255,12 @@ function SetUpTab({ sceneId, onQueued }: { sceneId?: string; onQueued: () => voi
   const scene = doc.elements[sceneId ?? openScene ?? ""];
   const [base, setBase] = useState<ExportChoice>(() => lastChoice(projectFile));
   const [rows, setRows] = useState<FileRow[]>(() => [{ master: !!base.master, quality: base.quality, mute: !!base.mute }]);
-  const [more, setMore] = useState(false);
   const [problem, setProblem] = useState("");
   const [look, setLook] = useState<number | null>(null);
   if (!scene?.duration) return <p className="export-empty">Open a scene to export it.</p>;
 
   const part = base.whole || !scene.workArea ? { start: 0, end: scene.duration } : scene.workArea;
   const span = part.end - part.start;
-  const [w, h] = exportSize(scene, base.longSide);
   const sameSize = base.longSide === 0 || base.longSide >= Math.max(scene.width, scene.height);
   const setRow = (i: number, r: Partial<FileRow>) => setRows(rows.map((x, k) => (k === i ? { ...x, ...r } : x)));
 
@@ -362,12 +360,8 @@ function SetUpTab({ sceneId, onQueued }: { sceneId?: string; onQueued: () => voi
           + Add a file type
         </button>
 
-        <button className="export-field export-more" data-name="export-size-fps" onClick={() => setMore(!more)}>
-          <span className="export-label">Size and frames a second</span>
-          <span>{sameSize && base.fps === 30 ? "Same as your scene" : `${w} × ${h}, ${base.fps} a second`} ›</span>
-        </button>
-        {more && (
-          <div className="export-file">
+        <span className="export-label">Size and frames a second</span>
+        <div className="export-file">
             <select data-name="export-size" value={sameSize ? 0 : base.longSide} onChange={(e) => setBase({ ...base, longSide: Number(e.target.value) })}>
               <option value={0}>
                 Same as your scene, {exportSize(scene, 0).join(" × ")}
@@ -385,8 +379,7 @@ function SetUpTab({ sceneId, onQueued }: { sceneId?: string; onQueued: () => voi
                 </option>
               ))}
             </select>
-          </div>
-        )}
+        </div>
 
         <div className="export-tiles">
           <div>
@@ -430,13 +423,10 @@ export default function ExportPage({ onClose, tab: startTab, sceneId }: { onClos
   }, [onClose]);
   return (
     <section className="skills-page export-page" data-name="export-page">
-      <div className="skills-page-head">
-        <h2>
-          <button className="export-close" data-name="close-export-page" title="Back to your work (Esc)" onClick={onClose}>
-            ✕
-          </button>
-          Export
-        </h2>
+      <div className="skills-page-head export-head">
+        <button className="export-close" data-name="close-export-page" title="Back to your work (Esc)" onClick={onClose}>
+          ✕
+        </button>
         <div className="kind-quiet export-tabs">
           <button className={tab === "export" ? "on" : ""} data-name="export-tab-export" onClick={() => setTab("export")}>
             Export

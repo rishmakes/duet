@@ -22,8 +22,8 @@ function glanceLine(j: Job, first: boolean): string {
   return line[0].toUpperCase() + line.slice(1);
 }
 
-/** The top-bar Export: two halves, making a file the way the last one was made, and the line of files being made. */
-export default function ExportMenu() {
+/** The top-bar Export: two halves, making a file the way the last one was made, and the line of files being made. While the Export page is open it takes you back to your work instead. */
+export default function ExportMenu({ pageOpen, onBack }: { pageOpen: boolean; onBack: () => void }) {
   const [open, setOpen] = useState(false);
   useDismiss(open, () => setOpen(false), ".zoomwrap.exportwrap");
   const [note, setNote] = useState("");
@@ -42,6 +42,14 @@ export default function ExportMenu() {
   // after an export starts, show the line so the designer sees it begin, without changing which half opens next time
   const started = () => setTab("queue");
 
+  if (pageOpen)
+    return (
+      <div className="zoomwrap exportwrap">
+        <button className="pill" data-name="export-back" onClick={onBack} title="Close the Export page (Esc)">
+          Back to work
+        </button>
+      </div>
+    );
   return (
     <div className="zoomwrap exportwrap">
       <button className="pill primary" data-name="export-menu" onClick={toggle}>
@@ -145,7 +153,7 @@ function VideoPart({ setNote, close, started }: { setNote: (s: string) => void; 
   const projectFile = useStore((s) => s.project.file);
   const projectName = useStore((s) => s.project.name);
   const scene = sceneId ? doc.elements[sceneId] : undefined;
-  if (!scene?.duration) return <div className="hint2">Open a scene to export it.</div>;
+  if (!scene?.duration) return <div className="hint2">Open a scene first.</div>;
   const last = lastChoice(projectFile);
   const [w, h] = exportSize(scene, last.longSide);
   const part = last.whole || !scene.workArea ? "whole scene" : "work area";

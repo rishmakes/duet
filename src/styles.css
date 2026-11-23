@@ -14004,8 +14004,7 @@ button.ctx-item.store-make-option:hover {
   place-items: center;
   width: 32px;
   height: 32px;
-  margin-right: 10px;
-  vertical-align: 3px;
+  flex: none;
   border: 1px solid var(--line);
   border-radius: 50%;
   background: var(--panel);
@@ -14016,13 +14015,15 @@ button.ctx-item.store-make-option:hover {
 .export-close:hover {
   color: var(--text);
 }
-.export-page .skills-page-head h2 {
-  font-size: 26px;
-  font-weight: 700;
+/* the cross and the two tabs are the page's heading */
+.export-head {
+  justify-content: flex-start;
+  gap: 14px;
 }
 .export-tabs button {
-  padding: 6px 18px;
-  font-size: 13px;
+  padding: 8px 22px;
+  font-size: 15px;
+  font-weight: 600;
 }
 .export-badge {
   display: inline-grid;
@@ -14132,14 +14133,6 @@ button.ctx-item.store-make-option:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.export-more {
-  margin-top: 6px;
-  padding: 12px 14px;
-  cursor: pointer;
-}
-.export-more .export-label {
-  margin: 0;
 }
 .export-file {
   display: flex;
