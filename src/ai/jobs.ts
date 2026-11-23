@@ -121,7 +121,8 @@ const nextUp = () => jobs.find((j) => j.state === "waiting" && !j.planned);
 export function addJob(info: Pick<Job, "what" | "kind" | "project" | "by" | "file" | "seconds">, run: (progress: (done: number) => void) => Promise<string | null>, control?: JobControl): Job | { error: string } {
   const waiting = jobs.filter((j) => j.state === "waiting").length;
   if (waiting >= MOST_WAITING) return { error: `${waiting} exports are already waiting. Wait for some to finish (ask with jobs), then try again.` };
-  const job: Job = { ...info, n: next++, state: "waiting", done: 0, asked: Date.now(), ...(planning ? { planned: true } : {}) };
+  // planning only while the line is still: added to a line that is going, it follows that line, made in its turn, or waiting with it while paused
+  const job: Job = { ...info, n: next++, state: "waiting", done: 0, asked: Date.now(), ...(planning && !running ? { planned: true } : {}) };
   jobs.push(job);
   runs.set(job.n, run);
   if (resting) {

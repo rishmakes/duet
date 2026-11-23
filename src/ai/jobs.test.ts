@@ -37,6 +37,28 @@ describe("the job line", () => {
     expect(order).toEqual(["C", "A", "B"]);
   });
 
+  it("a file added to a line that is going joins it, and waits with it while paused", async () => {
+    const order: string[] = [];
+    let finishFirst!: () => void;
+    const a = addJob(info("A"), async () => (await new Promise<void>((ok) => (finishFirst = ok)), order.push("A"), "/x/a.mp4"), { pause: () => {}, stop: () => {} });
+    holdLine(true);
+    addPlanned(() => addJob(info("B"), async () => (order.push("B"), "/x/b.mp4")));
+    expect(allJobs().map((j) => [j.state, !!j.planned])).toEqual([
+      ["running", false],
+      ["waiting", false],
+    ]);
+    finishFirst();
+    await tick();
+    await tick();
+    expect(order).toEqual(["A"]);
+    holdLine(false);
+    // a held line looks again every 300 ms
+    await new Promise((ok) => setTimeout(ok, 350));
+    await tick();
+    expect(order).toEqual(["A", "B"]);
+    expect("n" in a).toBe(true);
+  });
+
   it("answers at once and runs videos one after another", async () => {
     const order: string[] = [];
     let finishFirst!: () => void;
