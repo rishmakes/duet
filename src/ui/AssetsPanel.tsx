@@ -690,7 +690,7 @@ export default function AssetsPanel() {
 
   const doc = currentDoc();
   const moves = shelfFits("transitions", mode) ? CUT_MOVES.filter((k) => finds(query, CUT_MOVE_NAMES[k])) : [];
-  const styles = yours.filter((l) => finds(query, l.name));
+  const styles = shelfFits("yours", mode) ? yours.filter((l) => finds(query, l.name)) : [];
   const comps = componentsIn(doc).filter((c) => finds(query, c.name));
   const brandFound = finds(query, "Brand kit", "colours", "fonts", "logo", ...(doc.brand?.colours.map((c) => c.name) ?? []), ...(doc.brand?.fonts ?? []));
   const systemFound = finds(query, "Design system", "text styles", "spacing", "corners", ...Object.values(doc.styles ?? {}).map((t) => t.name));
@@ -705,7 +705,7 @@ export default function AssetsPanel() {
     favourites: shelfOn("favourites", chip) && (faveTiles.length > 0 || !query.trim()),
     transitions: shelfOn("transitions", chip) && moves.length > 0,
     effects: shelfOn("effects", chip) && shelfFits("effects", mode) && finds(query, "Effects"),
-    yours: shelfOn("yours", chip) && (styles.length > 0 || !query.trim()),
+    yours: shelfOn("yours", chip) && shelfFits("yours", mode) && (styles.length > 0 || !query.trim()),
     brand: shelfOn("brand", chip) && brandFound,
     system: shelfOn("system", chip) && systemFound,
     components: shelfOn("components", chip) && (comps.length > 0 || !query.trim()),
