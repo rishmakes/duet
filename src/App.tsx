@@ -41,6 +41,7 @@ import Feedback from "./ui/Feedback";
 import Settings from "./ui/Settings";
 import Home from "./ui/Home";
 import ExportPage from "./ui/ExportPage";
+import RestWarning from "./ui/RestWarning";
 import type { ExportTab } from "./ui/ExportPage";
 import SpaceSwitch from "./ui/SpaceSwitch";
 import Kitchen, { RecipesPage } from "./ui/Kitchen";
@@ -467,6 +468,7 @@ export default function App() {
       <ContextMenu />
       {videoCut && <VideoCut onClose={() => setVideoCut(false)} />}
       {sending && <SendCopy onClose={() => setSending(false)} />}
+      <RestWarning />
       <Update />
       <Feedback />
       {settings && <Settings check={check} onClose={() => setSettings(false)} />}

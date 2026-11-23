@@ -13810,6 +13810,30 @@ button.ctx-item.store-make-option:hover {
   margin-bottom: 14px;
   color: var(--muted);
 }
+.export-after {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 10px 0 auto;
+}
+/* every export made, the computer sleeps or shuts down in a minute: over everything, with Cancel */
+.rest-warning {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  max-width: calc(100vw - 32px);
+  padding: 12px 12px 12px 18px;
+  border-radius: var(--r-md);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  color: var(--text);
+}
 .export-rows {
   display: flex;
   flex-direction: column;
@@ -14017,7 +14041,8 @@ button.ctx-item.store-make-option:hover {
   display: flex;
   gap: 8px;
 }
-.export-file select {
+.export-file select,
+.export-after select {
   flex: 1;
   min-width: 0;
   appearance: none;

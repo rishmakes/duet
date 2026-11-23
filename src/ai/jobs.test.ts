@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { MOST_WAITING, aboutTime, addJob, allJobs, askAgainIn, holdLine, jobsText, lineHeld, moveJob, pauseJob, resetJobs, setJobHooks, stopJob } from "./jobs";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MOST_WAITING, REST_WARNING, aboutTime, afterLine, cancelRest, restingAt, setAfterLine, addJob, allJobs, askAgainIn, holdLine, jobsText, lineHeld, moveJob, pauseJob, resetJobs, setJobHooks, stopJob } from "./jobs";
 import type { Job } from "./jobs";
 
 const tick = () => new Promise((ok) => setTimeout(ok, 0));
@@ -149,5 +149,64 @@ describe("the job line", () => {
     await new Promise((ok) => setTimeout(ok, 400));
     expect(nextRan).toBe(true);
     expect(held).toEqual([true]);
+  });
+});
+
+describe("after the line", () => {
+  let rested: string[];
+  let warned: string[];
+  beforeEach(() => {
+    vi.useFakeTimers();
+    resetJobs();
+    rested = [];
+    warned = [];
+    setJobHooks({ free: () => true, ended: () => {}, log: () => {}, restSoon: (w) => warned.push(w), rest: (w) => rested.push(w) });
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const finish = async (what: string) => {
+    addJob(info(what), async () => `/x/${what}.mp4`);
+    await vi.advanceTimersByTimeAsync(0);
+  };
+
+  it("does nothing when the line ends, unless chosen", async () => {
+    await finish("A");
+    await vi.advanceTimersByTimeAsync(REST_WARNING * 2);
+    expect(warned).toEqual([]);
+    expect(rested).toEqual([]);
+  });
+
+  it("warns, waits a minute, then sleeps once and goes back to Do nothing", async () => {
+    setAfterLine("sleep");
+    await finish("A");
+    expect(warned).toEqual(["sleep"]);
+    expect(restingAt()?.what).toBe("sleep");
+    await vi.advanceTimersByTimeAsync(REST_WARNING - 1000);
+    expect(rested).toEqual([]);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(rested).toEqual(["sleep"]);
+    expect(restingAt()).toBeNull();
+    expect(afterLine()).toBe("nothing");
+  });
+
+  it("is cancelled within the minute and the computer stays awake", async () => {
+    setAfterLine("shutdown");
+    await finish("A");
+    cancelRest();
+    await vi.advanceTimersByTimeAsync(REST_WARNING * 2);
+    expect(rested).toEqual([]);
+    expect(afterLine()).toBe("nothing");
+  });
+
+  it("waits again when a new export joins during the minute", async () => {
+    setAfterLine("shutdown");
+    await finish("A");
+    let done!: () => void;
+    addJob(info("B"), () => new Promise((ok) => (done = () => ok("/x/b.mp4"))));
+    await vi.advanceTimersByTimeAsync(REST_WARNING * 2);
+    expect(rested).toEqual([]);
+    done();
+    await vi.advanceTimersByTimeAsync(REST_WARNING);
+    expect(rested).toEqual(["shutdown"]);
   });
 });

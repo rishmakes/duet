@@ -165,6 +165,54 @@ fn check_copy() -> bool {
     is_check_copy()
 }
 
+/// Put the computer to sleep ("sleep") or shut it down ("shutdown") once every export is made.
+/// Shutting down asks each app to close the normal way, so unsaved work is never thrown away.
+/// Duet dev only says what it would do: it runs beside real work and is driven by test agents.
+/// Answers true when the computer was told to.
+#[tauri::command(async)]
+fn rest_computer(what: String) -> Result<bool, String> {
+    if is_check_copy() {
+        return Ok(false);
+    }
+    let sleep = match what.as_str() {
+        "sleep" => true,
+        "shutdown" => false,
+        _ => return Err(format!("Unknown: {what}")),
+    };
+    #[cfg(target_os = "macos")]
+    let mut c = if sleep {
+        let mut c = quiet_command("pmset");
+        c.arg("sleepnow");
+        c
+    } else {
+        let mut c = quiet_command("osascript");
+        // loginwindow needs no extra permission, unlike System Events
+        c.args(["-e", "tell application \"loginwindow\" to «event aevtrsdn»"]);
+        c
+    };
+    #[cfg(windows)]
+    let mut c = if sleep {
+        let mut c = quiet_command("rundll32.exe");
+        c.args(["powrprof.dll,SetSuspendState", "0,1,0"]);
+        c
+    } else {
+        let mut c = quiet_command("shutdown");
+        c.args(["/s", "/t", "0"]);
+        c
+    };
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let mut c = {
+        let mut c = quiet_command("systemctl");
+        c.arg(if sleep { "suspend" } else { "poweroff" });
+        c
+    };
+    let out = c.output().map_err(err)?;
+    if !out.status.success() {
+        return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
+    }
+    Ok(true)
+}
+
 fn duet_home_dir() -> Result<std::path::PathBuf, String> {
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
@@ -786,6 +834,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
+            rest_computer,
             ai::agy_connect,
             connect::connect_status,
             connect::connect_start,

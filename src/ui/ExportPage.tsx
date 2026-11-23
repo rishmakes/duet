@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import { aboutTime, allJobs, guessSeconds, holdLine, lineHeld, moveJob, pauseJob, putFirst, secondsLeft, stopJob, subscribeJobs } from "../ai/jobs";
-import type { Job } from "../ai/jobs";
+import { aboutTime, afterLine, allJobs, guessSeconds, holdLine, lineHeld, setAfterLine, moveJob, pauseJob, putFirst, secondsLeft, stopJob, subscribeJobs } from "../ai/jobs";
+import type { AfterLine, Job } from "../ai/jobs";
 import { logError } from "../errorLog";
 import { currentDoc, useStore } from "../state/store";
 import { QUALITIES, SIZES, exportSize, queueVideo } from "../video/scene";
@@ -95,6 +95,16 @@ function QueueTab() {
     <>
       <div className="export-sum">
         <span>{busy.length ? [making && `${making} being made`, paused && `${paused} paused`, waiting && `${waiting} waiting`].filter(Boolean).join(", ") : "Nothing is being made."}</span>
+        {busy.length > 0 && (
+          <label className="export-after" title="What the computer does once every export in the line is made. You get a minute to cancel.">
+            When it is all done
+            <select data-name="export-after" value={afterLine()} onChange={(e) => setAfterLine(e.target.value as AfterLine)}>
+              <option value="nothing">Do nothing</option>
+              <option value="sleep">Sleep</option>
+              <option value="shutdown">Shut down</option>
+            </select>
+          </label>
+        )}
         {busy.length > 0 && (
           <button className="pill" data-name="pause-all" onClick={() => holdLine(!held)} title={held ? "Carry on with the line" : "Hold the line: the video being made pauses, and none starts after it"}>
             {held ? "Resume all" : "Pause all"}

@@ -2034,6 +2034,21 @@ setJobHooks({
     addMsg({ role: ok ? "note" : "error", text: ok ? `Made the video ${file}` : `The video ${job.what} was not made. ${job.error ?? ""}`.trim() }, where);
     recordStep({ at: job.ended ?? Date.now(), ms: (job.ended ?? 0) - (job.started ?? job.ended ?? 0), who: job.by ?? "Duet", tool: "export_video (finished)", args: { video: job.n }, text: jobLine(job), error: !ok });
   },
+  restSoon: (what) => {
+    // the window comes back, even if it was closed, so the minute can be cancelled; Duet stays open for it
+    void invoke("bring_back").catch(() => {});
+    void tellMac(what === "sleep" ? "Your computer sleeps in a minute" : "Your computer shuts down in a minute", "Every export is made. Cancel it in Duet.");
+  },
+  rest: (what) => {
+    const word = what === "sleep" ? "sleep" : "shut down";
+    invoke<boolean>("rest_computer", { what }).then(
+      (done) => {
+        // Duet dev never does it for real, it only says so
+        if (!done) void tellMac(`Duet dev would ${word} now`, "Duet dev never puts the computer to sleep or shuts it down.");
+      },
+      (e) => void tellMac(`Your computer could not ${word}`, String(e)),
+    );
+  },
 });
 
 async function tellMac(title: string, body: string) {

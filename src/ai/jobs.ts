@@ -48,7 +48,17 @@ export interface JobHooks {
   ended: (job: Job) => void;
   /** Keep one line in the render log. */
   log: (line: string) => void;
+  /** The line is empty and the computer sleeps or shuts down in a minute: say so. */
+  restSoon?: (what: Rest) => void;
+  /** Now put the computer to sleep, or shut it down. */
+  rest?: (what: Rest) => void;
 }
+
+/** What the computer does once every job is over. */
+export type AfterLine = "nothing" | Rest;
+export type Rest = "sleep" | "shutdown";
+/** How long the designer has to cancel before the computer sleeps or shuts down. */
+export const REST_WARNING = 60_000;
 
 /** Most jobs that may wait at once, so a runaway AI cannot pile up work. */
 export const MOST_WAITING = 20;
@@ -64,6 +74,9 @@ let running = false;
 let next = 1;
 /** The whole line held: the running job paused, and no new one starts until it is let go. */
 let held = false;
+let after: AfterLine = "nothing";
+/** The computer rests at this time, unless cancelled. */
+let resting: { what: Rest; at: number; timer: ReturnType<typeof setTimeout> } | null = null;
 
 export function setJobHooks(h: JobHooks) {
   hooks = h;
@@ -87,6 +100,10 @@ export function addJob(info: Pick<Job, "what" | "kind" | "project" | "by" | "fil
   const job: Job = { ...info, n: next++, state: "waiting", done: 0, asked: Date.now() };
   jobs.push(job);
   runs.set(job.n, run);
+  if (resting) {
+    clearTimeout(resting.timer);
+    resting = null;
+  }
   if (control) controls.set(job.n, control);
   // only the finished ones are let go, never one waiting or running
   while (jobs.length > KEPT) {
@@ -102,12 +119,14 @@ export function addJob(info: Pick<Job, "what" | "kind" | "project" | "by" | "fil
 async function work() {
   if (running) return;
   running = true;
+  let ran = false;
   try {
     for (let job = jobs.find((j) => j.state === "waiting"); job; job = jobs.find((j) => j.state === "waiting")) {
       while (!hooks.free() || held) await new Promise((ok) => setTimeout(ok, held ? 300 : 2000));
       const run = runs.get(job.n)!;
       job.state = "running";
       job.started = Date.now();
+      ran = true;
       changed();
       try {
         const file = await run((d) => {
@@ -137,6 +156,40 @@ async function work() {
   } finally {
     running = false;
   }
+  if (ran && after !== "nothing") restSoon(after);
+}
+
+export const afterLine = () => after;
+/** When the computer sleeps or shuts down, while that is coming. */
+export const restingAt = () => (resting ? { what: resting.what, at: resting.at } : null);
+
+/** Choose what the computer does when the line is empty. Do nothing also cancels a minute already counting. */
+export function setAfterLine(a: AfterLine) {
+  after = a;
+  if (a === "nothing") cancelRest();
+  else changed();
+}
+
+function restSoon(what: Rest) {
+  if (resting) return;
+  const timer = setTimeout(() => {
+    resting = null;
+    // done once: the next line ends with Do nothing until chosen again
+    after = "nothing";
+    changed();
+    hooks.rest?.(what);
+  }, REST_WARNING);
+  resting = { what, at: Date.now() + REST_WARNING, timer };
+  changed();
+  hooks.restSoon?.(what);
+}
+
+/** Keep the computer awake after all: the minute stops and the choice goes back to Do nothing. */
+export function cancelRest() {
+  if (resting) clearTimeout(resting.timer);
+  resting = null;
+  after = "nothing";
+  changed();
 }
 
 const find = (n: number) => jobs.find((j) => j.n === n);
@@ -291,4 +344,7 @@ export function resetJobs() {
   running = false;
   held = false;
   next = 1;
+  if (resting) clearTimeout(resting.timer);
+  resting = null;
+  after = "nothing";
 }
