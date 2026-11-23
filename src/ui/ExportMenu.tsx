@@ -199,7 +199,7 @@ function VideoPart({ setNote, close, started }: { setNote: (s: string) => void; 
           openPage("export", scene.id);
         }}
       >
-        More options <span>›</span>
+        Open Export panel <span>›</span>
       </button>
     </>
   );
@@ -263,7 +263,7 @@ function DesignPart({ photo, setNote, close, started }: { photo: boolean; setNot
           openPage("export");
         }}
       >
-        More options <span>›</span>
+        Open Export panel <span>›</span>
       </button>
     </>
   );
