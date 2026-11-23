@@ -13,6 +13,7 @@ import { keepDropped } from "../video/scene";
 import { CLIP_DRAG, lengthOf, mediaFrom, mediaKind, pickFolderIntoClips, pickIntoClips, placeFromClips, PICTURE_SECONDS, setDraggedFootage } from "../video/media";
 import type { ToPlace } from "../video/media";
 import { useDismiss } from "./useDismiss";
+import { MAC } from "./shortcuts";
 import { noPicks, pick, type PickAct } from "./mediaPick";
 
 /** One thing in Media: a scene of this video, a clip, a sound, a picture, or a folder. */
@@ -37,6 +38,10 @@ const isUsed = (m: Entry) => m.id.startsWith(USED);
 const isScene = (m: Entry) => m.kind === "scene";
 /** Kept in the file, so it can be renamed, moved and removed here. */
 const isKept = (m: Entry) => !isUsed(m) && !isScene(m);
+/** Scenes, folders and kept clips take a new name; a clip only the timeline plays is named on the timeline. */
+const renamable = (m: Entry) => !isUsed(m);
+/** The key that renames what is picked, as each system's file browser does: Enter on a Mac, F2 on Windows. */
+export const isRenameKey = (key: string, mac: boolean) => key === (mac ? "Enter" : "F2");
 
 /** Clips and sounds the video already plays that are not in Media yet, one row per file, named as on the timeline. */
 export function usedIn(doc: Doc, kept: MediaItem[]): MediaItem[] {
@@ -284,6 +289,7 @@ export default function ClipsPanel() {
         autoFocus
         defaultValue={m.name}
         onClick={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => e.stopPropagation()}
         onFocus={(e) => e.currentTarget.select()}
         onBlur={(e) => rename(m, e.currentTarget.value)}
         onKeyDown={(e) => {
@@ -293,7 +299,16 @@ export default function ClipsPanel() {
         }}
       />
     ) : (
-      <span className="name" onDoubleClick={() => !isScene(m) && !isUsed(m) && setRenaming(m.id)}>
+      // a double-click on the name renames; on the picture it still opens the scene or goes into the folder
+      <span
+        className="name"
+        title={renamable(m) ? "Double-click to rename" : undefined}
+        onDoubleClick={(e) => {
+          if (!renamable(m)) return;
+          e.stopPropagation();
+          setRenaming(m.id);
+        }}
+      >
         {m.name}
       </span>
     );
@@ -376,6 +391,10 @@ export default function ClipsPanel() {
   const active = useRef(false);
   const menuOpen = useRef(false);
   menuOpen.current = !!menu || !!showMenu;
+  // the one thing picked, if it can take a new name, for the rename key
+  const toRename = useRef<string | null>(null);
+  const one = picks.ids.length === 1 ? byId.get(picks.ids[0]) : undefined;
+  toRename.current = one && renamable(one) ? one.id : null;
   useEffect(() => {
     const down = (e: PointerEvent) => (active.current = !!panel.current?.contains(e.target as Node));
     const key = (e: KeyboardEvent) => {
@@ -386,6 +405,11 @@ export default function ClipsPanel() {
         e.preventDefault();
         e.stopImmediatePropagation();
         act({ type: "all" });
+      } else if (isRenameKey(e.key, MAC) && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+        if (menuOpen.current || !toRename.current) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        setRenaming(toRename.current);
       } else if (e.key === "Escape") {
         // an open menu closes first; the picks stay
         if (menuOpen.current) return;
@@ -586,9 +610,10 @@ export default function ClipsPanel() {
                 <span>Open on the timeline</span>
               </div>
             )}
-            {!isUsed(menuOn) && (
+            {renamable(menuOn) && (
               <div className="ctx-item" onClick={() => (setMenu(null), setRenaming(menuOn.id))}>
                 <span>Rename</span>
+                <kbd>{MAC ? "Enter" : "F2"}</kbd>
               </div>
             )}
             {!isScene(menuOn) && (menuOn.src || menuOn.kind === "folder") && (

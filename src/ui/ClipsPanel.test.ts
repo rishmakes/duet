@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { runCommand } from "../commands";
 import { emptyDoc } from "../document/types";
-import { entriesOf, shown, usedIn } from "./ClipsPanel";
+import { entriesOf, isRenameKey, shown, usedIn } from "./ClipsPanel";
 
 describe("Clips list", () => {
   it("shows the clips and sounds a video already plays, once per file, unless Clips has them", () => {
@@ -40,5 +40,14 @@ describe("Media", () => {
       ["Swirl", "video"],
     ]);
     expect([...shown(entriesOf(d), "scene", "")]).toEqual(["scene:f"]);
+  });
+});
+
+describe("Rename key in Media", () => {
+  it("is Enter on a Mac and F2 on Windows, as each system's file browser", () => {
+    expect(isRenameKey("Enter", true)).toBe(true);
+    expect(isRenameKey("F2", true)).toBe(false);
+    expect(isRenameKey("F2", false)).toBe(true);
+    expect(isRenameKey("Enter", false)).toBe(false);
   });
 });
