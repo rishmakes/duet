@@ -2028,7 +2028,7 @@ setJobHooks({
     // the designer stopped it themselves: nothing to tell
     if (job.state === "stopped" && !job.by) return;
     const file = job.file?.split(/[\\/]/).pop() ?? "";
-    void tellMac(ok ? "Video ready" : "Video not made", ok ? `${job.what}: ${file}` : `${job.what}: ${job.error ?? ""}`);
+    void tellMac(ok ? "Export ready" : "Export not made", ok ? `${job.what}: ${file}` : `${job.what}: ${job.error ?? ""}`);
     // the designer's own Export says how it went on the timeline; only an AI's video is told in the chat and the trail
     if (!job.by) return;
     addMsg({ role: ok ? "note" : "error", text: ok ? `Made the video ${file}` : `The video ${job.what} was not made. ${job.error ?? ""}`.trim() }, where);

@@ -1,21 +1,21 @@
 import { useEffect, useRef, useState } from "react";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import { aboutTime, allJobs, guessSeconds, holdLine, lineHeld, moveJob, pauseJob, secondsLeft, stopJob, subscribeJobs } from "../ai/jobs";
+import { aboutTime, allJobs, guessSeconds, holdLine, lineHeld, moveJob, pauseJob, putFirst, secondsLeft, stopJob, subscribeJobs } from "../ai/jobs";
 import type { Job } from "../ai/jobs";
 import { logError } from "../errorLog";
-import { drawElement } from "../canvas/render";
-import { docAt } from "../document/time";
-import type { Doc, El } from "../document/types";
 import { currentDoc, useStore } from "../state/store";
 import { QUALITIES, SIZES, exportSize, queueVideo } from "../video/scene";
 import type { ExportChoice } from "../video/scene";
 import { lastChoice, rememberExport, shortFolder } from "../video/exportPrefs";
 import { open as openDialog } from "./dialog";
+import ExportPicture from "./ExportPicture";
+import DesignSetUp from "./ExportDesign";
+import { useLayout } from "./layout";
 
 /**
- * Export, as its own page. Set up: how a scene is made into files. Queue: every video in the line, yours
- * and the ones an AI asked for, in the order they are made; pause one, stop one, drag a waiting one up or
- * down, and find the finished ones.
+ * Export, as its own page. Set up: how a scene, or a design's screens, are made into files. Queue: every
+ * export in the line, yours and the ones an AI asked for, in the order they are made; pause one, stop one,
+ * drag a waiting one up or down, and find the finished ones.
  */
 
 export type ExportTab = "setup" | "queue";
@@ -38,7 +38,7 @@ const clock = (ms: number) => {
 
 const took = (j: Job) => {
   const s = Math.max(1, Math.round(((j.ended ?? 0) - (j.started ?? 0)) / 1000));
-  return s < 90 ? `made in ${s} seconds` : `made in ${Math.round(s / 60)} minutes`;
+  return s === 1 ? "made in 1 second" : s < 90 ? `made in ${s} seconds` : `made in ${Math.round(s / 60)} minutes`;
 };
 
 export function whereItIs(j: Job, first: boolean): string {
@@ -176,28 +176,6 @@ function QueueTab() {
   );
 }
 
-/** The scene as it looks at the start of what is made, small. */
-function ScenePicture({ doc, scene, at }: { doc: Doc; scene: El; at: number }) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    const canvas = ref.current;
-    const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx) return;
-    const box = canvas.parentElement!.getBoundingClientRect();
-    const k = Math.min(box.width / scene.width, box.height / scene.height);
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.round(scene.width * k * dpr);
-    canvas.height = Math.round(scene.height * k * dpr);
-    canvas.style.width = `${scene.width * k}px`;
-    canvas.style.height = `${scene.height * k}px`;
-    ctx.setTransform(k * dpr, 0, 0, k * dpr, 0, 0);
-    const now = docAt(doc, scene.id, at);
-    const el = now.elements[scene.id];
-    if (el) drawElement(ctx, now, el, -el.x, -el.y);
-  }, [doc, scene, at]);
-  return <canvas ref={ref} />;
-}
-
 /** One file to make from the scene: its kind, how fine, and with sound or without. */
 interface FileRow {
   master: boolean;
@@ -211,12 +189,13 @@ function SetUpTab({ sceneId, onQueued }: { sceneId?: string; onQueued: () => voi
   const doc = useStore((s) => currentDoc(s));
   const projectFile = useStore((s) => s.project.file);
   const projectName = useStore((s) => s.project.name);
-  const scene = sceneId ? doc.elements[sceneId] : undefined;
+  const openScene = useStore((s) => s.clock.scene);
+  const scene = doc.elements[sceneId ?? openScene ?? ""];
   const [base, setBase] = useState<ExportChoice>(() => lastChoice(projectFile));
   const [rows, setRows] = useState<FileRow[]>(() => [{ master: !!base.master, quality: base.quality, mute: !!base.mute }]);
   const [more, setMore] = useState(false);
   const [problem, setProblem] = useState("");
-  if (!scene?.duration) return <p className="export-empty">Open a video and press Export video on its timeline to set it up here.</p>;
+  if (!scene?.duration) return <p className="export-empty">Open a scene to export it.</p>;
 
   const part = base.whole || !scene.workArea ? { start: 0, end: scene.duration } : scene.workArea;
   const span = part.end - part.start;
@@ -235,8 +214,7 @@ function SetUpTab({ sceneId, onQueued }: { sceneId?: string; onQueued: () => voi
       }
       made.push(job.n);
     }
-    // Export now: these go first, before anything still waiting
-    if (now) made.forEach((n, i) => moveJob(n, i));
+    if (now) putFirst(made);
     if (made.length) {
       rememberExport(projectFile, { ...base, ...rows[0] });
       onQueued();
@@ -257,7 +235,7 @@ function SetUpTab({ sceneId, onQueued }: { sceneId?: string; onQueued: () => voi
           </div>
         )}
         <div className="export-picture">
-          <ScenePicture doc={doc} scene={scene} at={part.start} />
+          <ExportPicture doc={doc} el={scene} at={part.start} />
         </div>
         <div className="export-caption">
           <span>{scene.name}</span>
@@ -371,6 +349,7 @@ export default function ExportPage({ onClose, tab: startTab, sceneId }: { onClos
   const [tab, setTab] = useState<ExportTab>(startTab);
   useEffect(() => setTab(startTab), [startTab, sceneId]);
   const busy = useJobs().filter((j) => j.state === "running" || j.state === "waiting").length;
+  const video = useLayout((d) => d.mode) === "motion";
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -394,7 +373,7 @@ export default function ExportPage({ onClose, tab: startTab, sceneId }: { onClos
           </button>
         </div>
       </div>
-      {tab === "setup" ? <SetUpTab key={sceneId} sceneId={sceneId} onQueued={() => setTab("queue")} /> : <QueueTab />}
+      {tab === "queue" ? <QueueTab /> : video ? <SetUpTab key={sceneId} sceneId={sceneId} onQueued={() => setTab("queue")} /> : <DesignSetUp onQueued={() => setTab("queue")} />}
     </section>
   );
 }

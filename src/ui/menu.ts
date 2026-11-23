@@ -1,8 +1,7 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { Menu, MenuItem, PredefinedMenuItem, Submenu } from "@tauri-apps/api/menu";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { exportDesign } from "../project/exporter";
-import { openPhotoshopFile, savePhotoshopFile } from "../project/photoshop";
+import { openPhotoshopFile } from "../project/photoshop";
 import { openSvgFile } from "../project/svgImport";
 import { exportDesignData, getRecents, inTauri, openProject, openProjectAt, saveNow } from "../project/project";
 import { currentDoc, getState, redo, undo } from "../state/store";
@@ -75,10 +74,7 @@ export async function installMenu() {
       await line(),
       await item("Cut and join clips", () => send("duet:video-cut")),
       await line(),
-      await item("Export as PNG…", () => void exportDesign("png", 2)),
-      await item("Export as SVG…", () => void exportDesign("svg", 1)),
-      await item("Export as PDF…", () => void exportDesign("pdf", 1)),
-      await item("Save as a Photoshop file…", () => void savePhotoshopFile()),
+      await item("Export…", () => send("duet:export-page", { tab: "setup" })),
       await item("Export the design data (.json)…", () => void exportDesignData()),
       await line(),
       await PredefinedMenuItem.new({ item: "CloseWindow" }),

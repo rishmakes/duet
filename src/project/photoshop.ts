@@ -1,12 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
-import { message, open, save } from "../ui/dialog";
+import { message, open } from "../ui/dialog";
 import { newId } from "../commands";
 import type { PlacedLayer } from "../commands";
-import { ancestors, turnOf, turnedBox, unionRect, worldPos, worldRect } from "../document/geometry";
+import { turnOf, turnedBox, unionRect, worldPos, worldRect } from "../document/geometry";
 import type { Blend, Doc, El } from "../document/types";
-import { currentDoc, dispatch, getState, select } from "../state/store";
+import { currentDoc, dispatch, select } from "../state/store";
 import { setLayout } from "../ui/layout";
-import { addPicture, assetB64, preloadPictures } from "./assets";
+import { addPicture, assetB64 } from "./assets";
 import { mergeGrade } from "../document/grade";
 import { renderPng } from "./exporter";
 
@@ -123,14 +123,6 @@ export async function openPhotoshopFile(source?: string | File, at?: { x: number
   }
 }
 
-/** The frame a Photoshop file is made from: the picked frame, or the one the picked thing sits in. */
-export function photoshopFrame(doc: Doc, selection: string[]): string | null {
-  const id = selection.find((i) => doc.elements[i]);
-  if (!id) return doc.rootIds.find((i) => doc.elements[i]?.type === "frame") ?? null;
-  const chain = [id, ...ancestors(doc, id)].filter((i) => doc.elements[i]?.type === "frame");
-  return chain.length ? chain[chain.length - 1] : null;
-}
-
 /** Draw one thing on its own, as it looks before its see-through and mixing are applied: those go into the layer. */
 function layerOf(doc: Doc, el: El, frameAt: { x: number; y: number }): PsdLayer {
   const look = { name: el.name, opacity: el.opacity, blend: el.blend, hidden: el.hidden };
@@ -157,33 +149,20 @@ function layerOf(doc: Doc, el: El, frameAt: { x: number; y: number }): PsdLayer 
 }
 
 /** Save a frame as a Photoshop file, each thing in it as its own layer, groups kept. Returns a short message. */
-export async function savePhotoshopFile(): Promise<string> {
-  const doc = currentDoc();
-  const id = photoshopFrame(doc, getState().selection);
-  if (!id) return "Pick a frame to save as a Photoshop file.";
+/** Write one frame as a Photoshop file: each thing in it a layer, the frame's own colour the bottom one. */
+export async function writePhotoshop(doc: Doc, id: string, path: string) {
   const frame = doc.elements[id];
-  try {
-    const path = await save({ title: "Save as a Photoshop file", defaultPath: `${frame.name}.psd`, filters: [{ name: "Photoshop", extensions: ["psd"] }] });
-    if (!path) return "";
-    const final = path.toLowerCase().endsWith(".psd") ? path : `${path}.psd`;
-    await preloadPictures(doc);
-    const frameAt = worldPos(doc, id);
-    const width = Math.max(1, Math.round(frame.width));
-    const height = Math.max(1, Math.round(frame.height));
-    const layers = frame.childIds
-      .map((c) => doc.elements[c])
-      .filter((c): c is El => !!c && c.type !== "sound")
-      .map((c) => layerOf(doc, c, frameAt));
-    // the frame's own colour is the bottom layer, when it has one
-    const empty: Doc = { ...doc, elements: { ...doc.elements, [id]: { ...frame, childIds: [], opacity: 1, rotation: 0 } } };
-    const background = renderPng(empty, id, 1);
-    if (!/^#?[0-9a-f]{6}00$/i.test(frame.fill)) {
-      layers.unshift({ name: "Background", group: false, left: 0, top: 0, width, height, opacity: 1, blend: "normal", hidden: false, png: background, children: [] });
-    }
-    await invoke("psd_write", { path: final, width, height, layers, composite: renderPng(doc, id, 1) });
-    return `Saved ${final.split(/[\\/]/).pop()}`;
-  } catch (e) {
-    await message(e instanceof Error ? e.message : String(e), { title: "Duet", kind: "error" });
-    return "Could not save the Photoshop file.";
+  const frameAt = worldPos(doc, id);
+  const width = Math.max(1, Math.round(frame.width));
+  const height = Math.max(1, Math.round(frame.height));
+  const layers = frame.childIds
+    .map((c) => doc.elements[c])
+    .filter((c): c is El => !!c && c.type !== "sound")
+    .map((c) => layerOf(doc, c, frameAt));
+  const empty: Doc = { ...doc, elements: { ...doc.elements, [id]: { ...frame, childIds: [], opacity: 1, rotation: 0 } } };
+  const background = renderPng(empty, id, 1);
+  if (!/^#?[0-9a-f]{6}00$/i.test(frame.fill)) {
+    layers.unshift({ name: "Background", group: false, left: 0, top: 0, width, height, opacity: 1, blend: "normal", hidden: false, png: background, children: [] });
   }
+  await invoke("psd_write", { path, width, height, layers, composite: renderPng(doc, id, 1) });
 }

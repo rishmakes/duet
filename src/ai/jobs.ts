@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 /**
- * Long work an AI asks for, like making a video, waits in a line here and runs one after another, on its
+ * Long work, like making a video or a design's files, waits in a line here and runs one after another, on its
  * own. The AI that asked gets an answer at once and is free; any AI can ask how the line is doing. When a
  * job ends, Duet says so itself, and every job is kept in renders.log in Duet's folder.
  */
@@ -83,7 +83,7 @@ export const allJobs = (): readonly Job[] => jobs;
 /** Put a job in the line. It starts when the ones before it are done. */
 export function addJob(info: Pick<Job, "what" | "kind" | "project" | "by" | "file" | "seconds">, run: (progress: (done: number) => void) => Promise<string | null>, control?: JobControl): Job | { error: string } {
   const waiting = jobs.filter((j) => j.state === "waiting").length;
-  if (waiting >= MOST_WAITING) return { error: `${waiting} videos are already waiting. Wait for some to finish (ask with jobs), then try again.` };
+  if (waiting >= MOST_WAITING) return { error: `${waiting} exports are already waiting. Wait for some to finish (ask with jobs), then try again.` };
   const job: Job = { ...info, n: next++, state: "waiting", done: 0, asked: Date.now() };
   jobs.push(job);
   runs.set(job.n, run);
@@ -191,6 +191,9 @@ export function moveJob(n: number, place: number): boolean {
   return true;
 }
 
+/** Make these waiting jobs next, in this order, before anything else still waiting. */
+export const putFirst = (ns: number[]) => ns.forEach((n, i) => moveJob(n, i));
+
 const secs = (ms: number) => Math.max(1, Math.round(ms / 1000));
 const name = (j: Job) => `${j.n}. ${j.what} (${j.project})`;
 
@@ -245,7 +248,7 @@ export function jobLine(j: Job): string {
 
 /** The whole line, for the jobs tool. */
 export function jobsText(): string {
-  if (!jobs.length) return "No videos have been asked for since Duet opened. Every video ever made is kept in renders.log in Duet's folder.";
+  if (!jobs.length) return "Nothing has been exported since Duet opened. Every export ever made is kept in renders.log in Duet's folder.";
   const busy = jobs.filter((j) => j.state === "running" || j.state === "waiting");
   const lines = jobs.map(jobLine);
   if (held && busy.length) lines.push("", "The designer has paused the whole line. Nothing new starts until they carry on.");

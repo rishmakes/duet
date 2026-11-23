@@ -38,7 +38,7 @@ Written 23 Nov 2026 after reading the code. Step 1 is being built under #360.
 2. **Queue page** (the Queue tab): rows with progress, pause, stop, drag to reorder, finished list, Show in folder.
 3. **Set up page, Video**: grid of what to export (whole scene, work area, chosen clips), rows of file kinds, folder, four summary tiles, Export now and Add to queue. Delete the timeline pop-up.
 4. **Dropdown** under the top-bar Export button: start with last settings, queue at a glance, open the whole queue.
-5. **Set up page, Design and Photo**: screens as ticked tiles, several kinds and sizes per export, file endings. Design and Photo jobs go through the same line. Delete `ExportMenu.tsx`.
+5. **Set up page, Design and Photo**: screens as ticked tiles, several kinds and sizes per export, file endings. Design and Photo jobs go through the same line. Delete `ExportMenu.tsx`. Done 23 Nov: `src/ui/ExportDesign.tsx`, `src/project/designExport.ts`; the dropdown's design part, the old one-at-a-time `exportDesign` and `savePhotoshopFile` and the File menu's four export items went, File, Export… opens this page.
 6. **After the queue**: Do nothing, Sleep, Shut down, with a cancel warning.
 7. **Later, own steps**: see-through video, GIF, queue surviving a restart, chosen clips.
 

@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { useDismiss } from "./useDismiss";
-import { exportDesign, exportTargets } from "../project/exporter";
-import type { Format } from "../project/exporter";
-import { savePhotoshopFile } from "../project/photoshop";
+import { exportTargets } from "../project/exporter";
+import { designFileName, queueDesign } from "../project/designExport";
 import { currentDoc, useStore } from "../state/store";
 import { useLayout } from "./layout";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
@@ -12,7 +11,7 @@ import { logError } from "../errorLog";
 import { useJobs, whereItIs } from "./ExportPage";
 import type { ExportTab } from "./ExportPage";
 import { exportSize, fileKindName, queueVideo } from "../video/scene";
-import { lastChoice, shortFolder } from "../video/exportPrefs";
+import { lastChoice, lastDesign, shortFolder } from "../video/exportPrefs";
 
 const openPage = (tab: ExportTab, scene?: string) => window.dispatchEvent(new CustomEvent("duet:export-page", { detail: { tab, scene } }));
 
@@ -23,7 +22,7 @@ function glanceLine(j: Job, first: boolean): string {
   return line[0].toUpperCase() + line.slice(1);
 }
 
-/** The top-bar Export: make the open video again the way the last one was made, or a design's screens, and see the line at a glance. */
+/** The top-bar Export: make the open video, or a design's screens, again the way the last ones were made, and see the line at a glance. */
 export default function ExportMenu() {
   const [open, setOpen] = useState(false);
   useDismiss(open, () => setOpen(false), ".zoomwrap.exportwrap");
@@ -138,55 +137,47 @@ function VideoPart({ setNote, close }: { setNote: (s: string) => void; close: ()
   );
 }
 
-/** Design and Photo: screens as PNG, SVG or PDF, and a Photoshop file in Photo. */
+/** Design and Photo: the picked things, or every screen, made the way the last ones were, or set up on the full page. */
 function DesignPart({ photo, setNote, close }: { photo: boolean; setNote: (s: string) => void; close: () => void }) {
-  const [format, setFormat] = useState<Format | "psd">("png");
-  const formats: (Format | "psd")[] = photo ? ["png", "svg", "pdf", "psd"] : ["png", "svg", "pdf"];
-  const chosen = !photo && format === "psd" ? "png" : format;
-  const [scale, setScale] = useState(2);
   const selection = useStore((s) => s.selection);
-  useStore((s) => s.timeline[s.cursor]);
-  const doc = currentDoc();
+  const doc = useStore((s) => currentDoc(s));
+  const projectFile = useStore((s) => s.project.file);
+  const projectName = useStore((s) => s.project.name);
   const ids = exportTargets(doc, selection);
-  const what =
-    ids.length === 0
-      ? "Nothing to export yet."
-      : ids.length === 1
-        ? `"${doc.elements[ids[0]].name}"`
-        : selection.length
-          ? `${ids.length} selected things`
-          : `All ${ids.length} screens`;
+  if (!ids.length) return <div className="hint2">Nothing to export yet. Draw a frame first.</div>;
+  const files = lastDesign(photo);
+  const what = ids.length === 1 ? doc.elements[ids[0]].name : selection.length ? `${ids.length} picked things` : `All ${ids.length} screens`;
   return (
     <>
-      <div className="x-title">Export {what}</div>
-      <div className="seg2">
-        {formats.map((f) => (
-          <span key={f} className={chosen === f ? "on" : ""} onClick={() => setFormat(f)}>
-            {f.toUpperCase()}
-          </span>
-        ))}
+      <span className="x-label">{what}</span>
+      <div className="x-start">
+        <span>{files.map(designFileName).join(" · ")}</span>
+        <button
+          className="mini primary"
+          data-name="export-last"
+          title="Make them the way your last ones were made"
+          onClick={() => {
+            const dir = lastChoice(projectFile).dir;
+            for (const f of files) {
+              const job = queueDesign(ids, f, { project: projectName }, dir, doc);
+              if (!("n" in job)) return setNote(job.error);
+            }
+            setNote("");
+          }}
+        >
+          Start
+        </button>
       </div>
-      {chosen === "png" && (
-        <div className="seg2">
-          {[1, 2, 3].map((k) => (
-            <span key={k} className={scale === k ? "on" : ""} onClick={() => setScale(k)}>
-              {k}x
-            </span>
-          ))}
-        </div>
-      )}
       <button
-        className="mini primary wide"
-        disabled={ids.length === 0}
-        onClick={async () => {
-          const r = chosen === "psd" ? await savePhotoshopFile() : await exportDesign(chosen, scale);
-          setNote(r);
-          if (r.startsWith("Saved")) close();
+        className="x-row"
+        data-name="export-set-up"
+        onClick={() => {
+          close();
+          openPage("setup");
         }}
       >
-        {ids.length > 1 && chosen !== "pdf" && chosen !== "psd" ? `Export ${ids.length} files` : "Export"}
+        Choose screens, files and sizes <span>›</span>
       </button>
-      <div className="hint2">Select something to export just that. With nothing selected, every screen is exported.</div>
     </>
   );
 }

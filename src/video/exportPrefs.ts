@@ -1,9 +1,11 @@
 import type { ExportChoice } from "./scene";
 import { defaultChoice } from "./scene";
+import type { DesignFile } from "../project/designExport";
 
-/** How the last video was made, and the folder each project last exported to. Kept on this computer. */
+/** How the last video and the last screens were made, and the folder each project last exported to. Kept on this computer. */
 interface Prefs {
   choice?: Omit<ExportChoice, "to" | "dir">;
+  design?: DesignFile[];
   dirs?: Record<string, string>;
 }
 
@@ -39,8 +41,28 @@ export function rememberExport(project: string | null, choice: ExportChoice) {
   const { to: _to, dir, ...rest } = choice;
   void _to;
   p.choice = rest;
+  keepFolder(p, project, dir);
+  write(p);
+}
+
+/** A project's folder is kept when chosen, and forgotten when it goes back to Duet's own. */
+function keepFolder(p: Prefs, project: string | null, dir: string | undefined) {
   if (project) p.dirs = { ...p.dirs, ...(dir ? { [project]: dir } : {}) };
   if (project && !dir && p.dirs) delete p.dirs[project];
+}
+
+/** The kinds of file the last screens were made into, PNG at twice the size to begin with. Photoshop files only in Photo. */
+export function lastDesign(photo: boolean): DesignFile[] {
+  const d = read().design;
+  const kept = Array.isArray(d) ? d.filter((f) => photo || f.kind !== "psd") : [];
+  return kept.length ? kept : [{ kind: "png", scale: 2, ending: "@2x" }];
+}
+
+/** Remember the kinds of file screens were just made into, and where, for the next time. */
+export function rememberDesign(project: string | null, files: DesignFile[], dir: string | undefined) {
+  const p = read();
+  p.design = files;
+  keepFolder(p, project, dir);
   write(p);
 }
 
