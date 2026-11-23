@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MOST_WAITING, REST_WARNING, aboutTime, afterLine, cancelRest, restingAt, setAfterLine, addJob, allJobs, askAgainIn, holdLine, jobsText, lineHeld, moveJob, pauseJob, resetJobs, setJobHooks, stopJob } from "./jobs";
+import { MOST_WAITING, REST_WARNING, aboutTime, afterLine, cancelRest, restingAt, setAfterLine, addJob, allJobs, askAgainIn, clearFinished, holdLine, jobsText, lineHeld, moveJob, pauseJob, resetJobs, setJobHooks, stopJob } from "./jobs";
 import type { Job } from "./jobs";
 
 const tick = () => new Promise((ok) => setTimeout(ok, 0));
@@ -115,6 +115,18 @@ describe("the job line", () => {
     await tick();
     expect(ended.map((j) => [j.what, j.state])).toEqual([["S", "stopped"]]);
     expect(logged[0]).toContain("\tstopped\t");
+  });
+
+  it("takes a finished video off the list, one at a time or all together", async () => {
+    const a = addJob(info("A"), async () => "/x/a.mp4");
+    addJob(info("B"), async () => "/x/b.mp4");
+    await tick();
+    await tick();
+    expect(allJobs().map((j) => j.state)).toEqual(["done", "done"]);
+    expect(stopJob("n" in a ? a.n : 0)).toBe(true);
+    expect(allJobs().map((j) => j.what)).toEqual(["B"]);
+    clearFinished();
+    expect(allJobs()).toEqual([]);
   });
 
   it("moves a waiting video up the line", async () => {

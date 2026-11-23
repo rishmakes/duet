@@ -5,13 +5,14 @@ import { designFileName, queueDesign } from "../project/designExport";
 import { currentDoc, useStore } from "../state/store";
 import { useLayout } from "./layout";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import { pauseJob } from "../ai/jobs";
+import { clearFinished, pauseJob, stopJob } from "../ai/jobs";
 import type { Job } from "../ai/jobs";
 import { logError } from "../errorLog";
 import { useJobs, whereItIs } from "./ExportPage";
 import type { ExportTab } from "./ExportPage";
-import { exportSize, fileKindName, queueVideo } from "../video/scene";
-import { lastChoice, lastDesign, shortFolder } from "../video/exportPrefs";
+import { QUALITIES, exportSize, queueVideo } from "../video/scene";
+import { lastChoice, lastDesign, lastMenuTab, rememberMenuTab, shortFolder } from "../video/exportPrefs";
+import type { MenuTab } from "../video/exportPrefs";
 
 const openPage = (tab: ExportTab, scene?: string) => window.dispatchEvent(new CustomEvent("duet:export-page", { detail: { tab, scene } }));
 
@@ -22,21 +23,25 @@ function glanceLine(j: Job, first: boolean): string {
   return line[0].toUpperCase() + line.slice(1);
 }
 
-/** The top-bar Export: make the open video, or a design's screens, again the way the last ones were made, and see the line at a glance. */
+/** The top-bar Export: two halves, making a file the way the last one was made, and the line of files being made. */
 export default function ExportMenu() {
   const [open, setOpen] = useState(false);
   useDismiss(open, () => setOpen(false), ".zoomwrap.exportwrap");
   const [note, setNote] = useState("");
+  const [tab, setTab] = useState<MenuTab>(lastMenuTab);
   const mode = useLayout((d) => d.mode);
   const jobs = useJobs();
   const busy = jobs.filter((j) => j.state === "running" || j.state === "waiting");
-  const firstWaiting = busy.find((j) => j.state === "waiting");
-  // at a glance: what is being made and waits first, then the newest finished ones, three at most
-  const glance = [...busy, ...jobs.filter((j) => !busy.includes(j)).reverse()].slice(0, 3);
+  const pick = (t: MenuTab) => {
+    setTab(t);
+    rememberMenuTab(t);
+  };
   const toggle = () => {
     setNote("");
     setOpen(!open);
   };
+  // after an export starts, show the line so the designer sees it begin, without changing which half opens next time
+  const started = () => setTab("queue");
 
   return (
     <div className="zoomwrap exportwrap">
@@ -45,49 +50,21 @@ export default function ExportMenu() {
       </button>
       {open && (
         <div className="zmenu export" data-name="export-dropdown">
-          {mode === "motion" ? <VideoPart setNote={setNote} close={() => setOpen(false)} /> : <DesignPart photo={mode === "photo"} setNote={setNote} close={() => setOpen(false)} />}
-          {note && <div className="hint2">{note}</div>}
-          {glance.length > 0 && (
-            <div className="x-line">
-              <span className="x-label">Queue</span>
-              {glance.map((j) => (
-                <div key={j.n} className="x-job" data-name={`export-glance-${j.what}`}>
-                  <b>
-                    {j.what}
-                    {j.kind ? ` · ${j.kind}` : ""}
-                  </b>
-                  {j.state === "running" ? (
-                    <button className="x-act" data-name="export-glance-pause" onClick={() => pauseJob(j.n, !j.paused)}>
-                      {j.paused ? "Resume" : "Pause"}
-                    </button>
-                  ) : j.state === "done" && j.file ? (
-                    <button className="x-act" data-name="export-glance-show" onClick={() => void revealItemInDir(j.file!).catch((e) => logError("show export", e))}>
-                      Show in Finder
-                    </button>
-                  ) : (
-                    <span />
-                  )}
-                  {j.state === "running" && (
-                    <span className="export-bar">
-                      <span style={{ width: `${Math.round(j.done * 100)}%` }} />
-                    </span>
-                  )}
-                  <span className="x-where">{glanceLine(j, j === firstWaiting)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-          {jobs.length > 0 && (
-            <button
-              className="x-row"
-              data-name="export-open-queue"
-              onClick={() => {
-                setOpen(false);
-                openPage("queue");
-              }}
-            >
-              Open the whole queue <span>›</span>
+          <div className="x-tabs">
+            <button className={tab === "export" ? "on" : ""} data-name="export-tab-export" onClick={() => pick("export")}>
+              Export
             </button>
+            <button className={tab === "queue" ? "on" : ""} data-name="export-tab-queue" onClick={() => pick("queue")}>
+              Queue{busy.length ? ` · ${busy.length}` : ""}
+            </button>
+          </div>
+          {tab === "export" ? (
+            <>
+              {mode === "motion" ? <VideoPart setNote={setNote} close={() => setOpen(false)} started={started} /> : <DesignPart photo={mode === "photo"} setNote={setNote} close={() => setOpen(false)} started={started} />}
+              {note && <div className="hint2">{note}</div>}
+            </>
+          ) : (
+            <QueuePart jobs={jobs} close={() => setOpen(false)} />
           )}
         </div>
       )}
@@ -95,8 +72,75 @@ export default function ExportMenu() {
   );
 }
 
-/** Video: the open scene, made again with the last settings, or set up on the full page. */
-function VideoPart({ setNote, close }: { setNote: (s: string) => void; close: () => void }) {
+/** The line of files, newest work first, in rows that alternate so each one is easy to find. */
+function QueuePart({ jobs, close }: { jobs: readonly Job[]; close: () => void }) {
+  const firstWaiting = jobs.find((j) => j.state === "waiting");
+  const busy = jobs.filter((j) => j.state === "running" || j.state === "waiting");
+  const over = jobs.filter((j) => !busy.includes(j)).reverse();
+  const rows = [...busy, ...over];
+  if (!rows.length) return <div className="hint2">Nothing here yet. Files you export show up in this list.</div>;
+  return (
+    <>
+      <div className="x-rows">
+        {rows.map((j) => (
+          <div key={j.n} className="x-job" data-name={`export-glance-${j.what}`}>
+            <span className="x-kind">{(j.kind ?? "File").split(/[ ,]/)[0]}</span>
+            <div className="x-what">
+              <b>{j.what}</b>
+              <span className="x-where">
+                {glanceLine(j, j === firstWaiting)}
+                {j.state === "done" && j.file && (
+                  <>
+                    {" · "}
+                    <button className="x-act" data-name="export-glance-show" onClick={() => void revealItemInDir(j.file!).catch((e) => logError("show export", e))}>
+                      Show in Finder
+                    </button>
+                  </>
+                )}
+              </span>
+              {j.state === "running" && (
+                <span className="export-bar">
+                  <span style={{ width: `${Math.round(j.done * 100)}%` }} />
+                </span>
+              )}
+            </div>
+            {j.state === "running" && (
+              <button className="x-act" data-name="export-glance-pause" onClick={() => pauseJob(j.n, !j.paused)}>
+                {j.paused ? "Resume" : "Pause"}
+              </button>
+            )}
+            <button className="x-remove" data-name="export-glance-remove" title={j.state === "running" ? "Stop making it" : j.state === "waiting" ? "Take it out of the line" : "Take it off the list"} onClick={() => stopJob(j.n)}>
+              ✕
+            </button>
+          </div>
+        ))}
+      </div>
+      <div className="x-foot">
+        <button
+          className="x-act"
+          data-name="export-clear-finished"
+          disabled={!over.length}
+          onClick={clearFinished}
+        >
+          Clear finished
+        </button>
+        <button
+          className="x-act"
+          data-name="export-open-queue"
+          onClick={() => {
+            close();
+            openPage("queue");
+          }}
+        >
+          Open the whole queue ›
+        </button>
+      </div>
+    </>
+  );
+}
+
+/** Video: the open scene, made again the way the last one was, or more options on the full page. */
+function VideoPart({ setNote, close, started }: { setNote: (s: string) => void; close: () => void; started: () => void }) {
   const doc = useStore((s) => currentDoc(s));
   const sceneId = useStore((s) => s.clock.scene);
   const projectFile = useStore((s) => s.project.file);
@@ -106,23 +150,29 @@ function VideoPart({ setNote, close }: { setNote: (s: string) => void; close: ()
   const last = lastChoice(projectFile);
   const [w, h] = exportSize(scene, last.longSide);
   const part = last.whole || !scene.workArea ? "whole scene" : "work area";
+  const quality = last.master ? "Full quality" : `${QUALITIES.find((q) => q.quality === last.quality)?.name ?? "Own"} quality`;
   return (
     <>
       <span className="x-label">{scene.name}</span>
-      <div className="x-start">
-        <span title={`${w} × ${h}, ${part}, into ${last.dir ? shortFolder(last.dir) : "Documents, Duet, Exports"}`}>{fileKindName({ ...last, mute: false }).replace(/, /g, " · ")} · {last.mute ? "No sound" : "Sound on"}</span>
-        <button
-          className="mini primary"
-          data-name="export-last"
-          title="Make it the way your last video was made"
-          onClick={() => {
-            const job = queueVideo(scene.id, last, { project: projectName }, doc);
-            setNote("n" in job ? "" : job.error);
-          }}
-        >
-          Start
-        </button>
+      <div className="x-what-line" title={`${w} × ${h}, ${part}, into ${last.dir ? shortFolder(last.dir) : "Documents, Duet, Exports"}`}>
+        <span className="x-kind">{last.master ? "MOV" : "MP4"}</span>
+        <span>
+          {quality} · {last.mute ? "no sound" : "with sound"}
+        </span>
       </div>
+      <button
+        className="pill primary wide x-go"
+        data-name="export-last"
+        title="Make it the way your last video was made"
+        onClick={() => {
+          const job = queueVideo(scene.id, last, { project: projectName }, doc);
+          setNote("n" in job ? "" : job.error);
+          if ("n" in job) started();
+        }}
+      >
+        Export
+      </button>
+      <div className="hint2">Starts now and joins the queue.</div>
       <button
         className="x-row"
         data-name="export-set-up"
@@ -131,14 +181,14 @@ function VideoPart({ setNote, close }: { setNote: (s: string) => void; close: ()
           openPage("setup", scene.id);
         }}
       >
-        Choose part, files and size <span>›</span>
+        More options <span>›</span>
       </button>
     </>
   );
 }
 
-/** Design and Photo: the picked things, or every screen, made the way the last ones were, or set up on the full page. */
-function DesignPart({ photo, setNote, close }: { photo: boolean; setNote: (s: string) => void; close: () => void }) {
+/** Design and Photo: the picked things, or every screen, made the way the last ones were, or more options on the full page. */
+function DesignPart({ photo, setNote, close, started }: { photo: boolean; setNote: (s: string) => void; close: () => void; started: () => void }) {
   const selection = useStore((s) => s.selection);
   const doc = useStore((s) => currentDoc(s));
   const projectFile = useStore((s) => s.project.file);
@@ -150,24 +200,26 @@ function DesignPart({ photo, setNote, close }: { photo: boolean; setNote: (s: st
   return (
     <>
       <span className="x-label">{what}</span>
-      <div className="x-start">
+      <div className="x-what-line">
         <span>{files.map(designFileName).join(" · ")}</span>
-        <button
-          className="mini primary"
-          data-name="export-last"
-          title="Make them the way your last ones were made"
-          onClick={() => {
-            const dir = lastChoice(projectFile).dir;
-            for (const f of files) {
-              const job = queueDesign(ids, f, { project: projectName }, dir, doc);
-              if (!("n" in job)) return setNote(job.error);
-            }
-            setNote("");
-          }}
-        >
-          Start
-        </button>
       </div>
+      <button
+        className="pill primary wide x-go"
+        data-name="export-last"
+        title="Make them the way your last ones were made"
+        onClick={() => {
+          const dir = lastChoice(projectFile).dir;
+          for (const f of files) {
+            const job = queueDesign(ids, f, { project: projectName }, dir, doc);
+            if (!("n" in job)) return setNote(job.error);
+          }
+          setNote("");
+          started();
+        }}
+      >
+        Export
+      </button>
+      <div className="hint2">Starts now and joins the queue.</div>
       <button
         className="x-row"
         data-name="export-set-up"
@@ -176,7 +228,7 @@ function DesignPart({ photo, setNote, close }: { photo: boolean; setNote: (s: st
           openPage("setup");
         }}
       >
-        Choose screens, files and sizes <span>›</span>
+        More options <span>›</span>
       </button>
     </>
   );

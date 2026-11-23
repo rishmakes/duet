@@ -215,11 +215,11 @@ export function holdLine(on: boolean) {
   else changed();
 }
 
-/** Give up on a job: one waiting is taken out of the line, one running is stopped where it is. */
+/** Give up on a job: one waiting or finished is taken off the list, one running is stopped where it is. */
 export function stopJob(n: number): boolean {
   const job = find(n);
   if (!job) return false;
-  if (job.state === "waiting") {
+  if (job.state !== "running") {
     jobs.splice(jobs.indexOf(job), 1);
     runs.delete(n);
     controls.delete(n);
@@ -227,9 +227,14 @@ export function stopJob(n: number): boolean {
     return true;
   }
   const control = controls.get(n);
-  if (job.state !== "running" || !control) return false;
+  if (!control) return false;
   control.stop();
   return true;
+}
+
+/** Take every finished job (made, stopped or not made) off the list. */
+export function clearFinished() {
+  for (const j of jobs.filter((x) => x.state !== "waiting" && x.state !== "running")) stopJob(j.n);
 }
 
 /** Move a waiting job to another place among the waiting ones, 0 being next. */
