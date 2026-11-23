@@ -162,9 +162,9 @@ button {
   /* above the canvas and panels below it, so the Studio for menu opens over them */
   z-index: 40;
   grid-area: top;
-  /* the two sides, with the mode switch kept in the middle while there is room for it */
+  /* the two sides always share the room equally, so Kitchen and Studio sit in the middle of the window whatever the sides hold */
   display: grid;
-  grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 12px;
   padding: 0 14px;
@@ -6018,6 +6018,10 @@ button.agent-perm {
 }
 .app.mac .top {
   padding-left: 80px; /* room for the window buttons */
+}
+/* the window buttons take room on the left only; move the switch back by half of it so it stays in the window's middle */
+.app.mac:not(.fs) .top > .space-switch.pill {
+  transform: translateX(-33px);
 }
 .app.mac.fs .top {
   padding-left: 14px;
