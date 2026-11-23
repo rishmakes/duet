@@ -31,6 +31,13 @@ export default function ExportMenu({ pageOpen, onBack }: { pageOpen: boolean; on
   const mode = useLayout((d) => d.mode);
   const jobs = useJobs();
   const busy = jobs.filter((j) => j.state === "running" || j.state === "waiting");
+  // something to make: an open scene in Video, a screen or a picked thing elsewhere
+  const canMake = useStore((s) => {
+    const doc = currentDoc(s);
+    return mode === "motion" ? !!doc.elements[s.clock.scene ?? ""]?.duration : exportTargets(doc, s.selection).length > 0;
+  });
+  // nothing to make and nothing in the line: the button rests, greyed out; with only the line, it opens on the line
+  const shown: ExportTab = canMake ? tab : "queue";
   const pick = (t: ExportTab) => {
     setTab(t);
     rememberMenuTab(t);
@@ -46,26 +53,26 @@ export default function ExportMenu({ pageOpen, onBack }: { pageOpen: boolean; on
     return (
       <div className="zoomwrap exportwrap">
         <button className="pill" data-name="export-back" onClick={onBack} title="Close the Export page (Esc)">
-          Back to work
+          Back
         </button>
       </div>
     );
   return (
     <div className="zoomwrap exportwrap">
-      <button className="pill primary" data-name="export-menu" onClick={toggle}>
+      <button className="pill primary" data-name="export-menu" disabled={!canMake && !jobs.length} title={!canMake && !jobs.length ? (mode === "motion" ? "Open a scene to export it" : "Draw a frame to export it") : undefined} onClick={toggle}>
         Export
       </button>
-      {open && (
+      {open && (canMake || jobs.length > 0) && (
         <div className="zmenu export" data-name="export-dropdown">
           <div className="x-tabs">
-            <button className={tab === "export" ? "on" : ""} data-name="export-tab-export" onClick={() => pick("export")}>
+            <button className={shown === "export" ? "on" : ""} data-name="export-tab-export" disabled={!canMake} onClick={() => pick("export")}>
               Export
             </button>
-            <button className={tab === "queue" ? "on" : ""} data-name="export-tab-queue" onClick={() => pick("queue")}>
+            <button className={shown === "queue" ? "on" : ""} data-name="export-tab-queue" onClick={() => pick("queue")}>
               Queue{busy.length ? ` · ${busy.length}` : ""}
             </button>
           </div>
-          {tab === "export" ? (
+          {shown === "export" ? (
             <>
               {mode === "motion" ? <VideoPart setNote={setNote} close={() => setOpen(false)} started={started} /> : <DesignPart photo={mode === "photo"} setNote={setNote} close={() => setOpen(false)} started={started} />}
               {note && <div className="hint2">{note}</div>}

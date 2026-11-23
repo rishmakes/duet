@@ -13999,26 +13999,13 @@ button.ctx-item.store-make-option:hover {
 .skills-page.export-page {
   padding: 24px max(24px, calc((100% - 1040px) / 2));
 }
-.export-close {
-  display: inline-grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  flex: none;
-  border: 1px solid var(--line);
-  border-radius: 50%;
-  background: var(--panel);
-  color: var(--muted);
-  font-size: 13px;
-  cursor: pointer;
+/* Export and Back trade places in the top bar, so they keep one width */
+.exportwrap > .pill {
+  min-width: 76px;
 }
-.export-close:hover {
-  color: var(--text);
-}
-/* the cross and the two tabs are the page's heading */
-.export-head {
-  justify-content: flex-start;
-  gap: 14px;
+.exportwrap > .pill:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 .export-tabs button {
   padding: 8px 22px;

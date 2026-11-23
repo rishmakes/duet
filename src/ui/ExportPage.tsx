@@ -13,6 +13,7 @@ import { open as openDialog } from "./dialog";
 import ExportPicture from "./ExportPicture";
 import DesignSetUp from "./ExportDesign";
 import { useLayout } from "./layout";
+import Icon from "./Icons";
 
 /**
  * Export, as its own page. Export: how a scene, or a design's screens, are made into files. Queue: every
@@ -423,10 +424,7 @@ export default function ExportPage({ onClose, tab: startTab, sceneId }: { onClos
   }, [onClose]);
   return (
     <section className="skills-page export-page" data-name="export-page">
-      <div className="skills-page-head export-head">
-        <button className="export-close" data-name="close-export-page" title="Back to your work (Esc)" onClick={onClose}>
-          ✕
-        </button>
+      <div className="skills-page-head">
         <div className="kind-quiet export-tabs">
           <button className={tab === "export" ? "on" : ""} data-name="export-tab-export" onClick={() => setTab("export")}>
             Export
@@ -435,6 +433,9 @@ export default function ExportPage({ onClose, tab: startTab, sceneId }: { onClos
             Queue {busy > 0 && <i className="export-badge">{busy}</i>}
           </button>
         </div>
+        <button className="page-close" data-name="close-export-page" title="Back to your work (Esc)" aria-label="Close" onClick={onClose}>
+          <Icon name="close" size={16} />
+        </button>
       </div>
       {tab === "queue" ? <QueueTab /> : video ? <SetUpTab key={sceneId} sceneId={sceneId} onQueued={() => setTab("queue")} /> : <DesignSetUp onQueued={() => setTab("queue")} />}
     </section>

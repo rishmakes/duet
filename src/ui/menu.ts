@@ -142,7 +142,7 @@ export async function installMenu() {
 
   const windowMenu = await Submenu.new({
     text: "Window",
-    items: [await PredefinedMenuItem.new({ item: "Minimize" }), await PredefinedMenuItem.new({ item: "Maximize" })],
+    items: [await PredefinedMenuItem.new({ item: "Minimize" }), await PredefinedMenuItem.new({ item: "Maximize" }), await line(), await item("Export panel", () => send("duet:export-page", { tab: "export" }))],
   });
 
   const help = await Submenu.new({
