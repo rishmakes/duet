@@ -14,7 +14,8 @@ import type { CutMoveKind } from "../document/types";
 import { sameLook } from "../document/captions";
 import { CustomTile, applyStyle, useCaptionFonts, useCaptionStyle, useYourStyles } from "./CaptionLooks";
 import Shelf from "./Shelf";
-import { ASSETS_CHIPS, finds, setAssetsChip, shelfOn, useAssetsChip } from "./assetsFind";
+import { chipsFor, finds, setAssetsChip, shelfFits, shelfOn, useAssetsChip } from "./assetsFind";
+import { useLayout } from "./layout";
 import Star from "./Star";
 import { faveOf, useFavourites } from "./favourites";
 import { TRANSITION_DRAG, putTransition, usePickedCut } from "./pickedCut";
@@ -674,7 +675,11 @@ export default function AssetsPanel() {
   useStore((s) => s.transientDoc);
   useCaptionFonts();
   const [query, setQuery] = useState("");
-  const chip = useAssetsChip();
+  const mode = useLayout((d) => d.mode);
+  const chips = chipsFor(mode);
+  // a chip left over from another kind of work, like Transitions after leaving Video, falls back to All
+  const picked = useAssetsChip();
+  const chip = chips.some(([k]) => k === picked) ? picked : "all";
   const faves = useFavourites();
   const { count, style } = useCaptionStyle();
   const yours = useYourStyles();
@@ -684,7 +689,7 @@ export default function AssetsPanel() {
   }, []);
 
   const doc = currentDoc();
-  const moves = CUT_MOVES.filter((k) => finds(query, CUT_MOVE_NAMES[k]));
+  const moves = shelfFits("transitions", mode) ? CUT_MOVES.filter((k) => finds(query, CUT_MOVE_NAMES[k])) : [];
   const styles = yours.filter((l) => finds(query, l.name));
   const comps = componentsIn(doc).filter((c) => finds(query, c.name));
   const brandFound = finds(query, "Brand kit", "colours", "fonts", "logo", ...(doc.brand?.colours.map((c) => c.name) ?? []), ...(doc.brand?.fonts ?? []));
@@ -699,7 +704,7 @@ export default function AssetsPanel() {
   const shown = {
     favourites: shelfOn("favourites", chip) && (faveTiles.length > 0 || !query.trim()),
     transitions: shelfOn("transitions", chip) && moves.length > 0,
-    effects: shelfOn("effects", chip) && finds(query, "Effects"),
+    effects: shelfOn("effects", chip) && shelfFits("effects", mode) && finds(query, "Effects"),
     yours: shelfOn("yours", chip) && (styles.length > 0 || !query.trim()),
     brand: shelfOn("brand", chip) && brandFound,
     system: shelfOn("system", chip) && systemFound,
@@ -711,7 +716,7 @@ export default function AssetsPanel() {
       <label className="cut-find assets-find">
         <Icon name="search" size={13} />
         <input
-          placeholder="Find transitions, styles, components…"
+          placeholder={mode === "motion" ? "Find transitions, styles, components…" : "Find styles, components…"}
           value={query}
           data-name="assets-find"
           onChange={(e) => setQuery(e.target.value)}
@@ -719,7 +724,7 @@ export default function AssetsPanel() {
         />
       </label>
       <div className="assets-chips">
-        {ASSETS_CHIPS.map(([key, name]) => (
+        {chips.map(([key, name]) => (
           <button key={key} type="button" className={`assets-chip${chip === key ? " on" : ""}`} data-name={`assets-chip-${key}`} aria-pressed={chip === key} onClick={() => setAssetsChip(key)}>
             {name}
           </button>

@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import type { Mode } from "./layout";
 /** The chips above the Assets shelves (#338). "all" shows every shelf. */
 export type AssetsChip = "all" | "transitions" | "effects" | "yours" | "brand";
 
@@ -25,6 +26,15 @@ export type AssetsShelf = keyof typeof ASSETS_SHELVES;
 
 /** Whether a shelf shows under the picked chip. */
 export const shelfOn = (shelf: AssetsShelf, chip: AssetsChip) => chip === "all" || ASSETS_SHELVES[shelf] === chip;
+
+/** Shelves that belong to some kinds of work only: transitions join clips in Video; effects are for Video and Photo. */
+const ONLY_IN: Partial<Record<AssetsShelf, Mode[]>> = { transitions: ["motion"], effects: ["motion", "photo"] };
+
+/** Whether a shelf belongs in this kind of work at all. */
+export const shelfFits = (shelf: AssetsShelf, mode: Mode) => !ONLY_IN[shelf] || ONLY_IN[shelf]!.includes(mode);
+
+/** The chips for this kind of work: a chip whose shelf does not belong here is left out. */
+export const chipsFor = (mode: Mode) => ASSETS_CHIPS.filter(([key]) => (Object.keys(ASSETS_SHELVES) as AssetsShelf[]).every((sh) => ASSETS_SHELVES[sh] !== key || shelfFits(sh, mode)));
 
 /** Whether any of these names holds what the designer typed; an empty search finds everything. */
 export function finds(query: string, ...names: string[]): boolean {
