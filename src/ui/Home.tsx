@@ -102,7 +102,8 @@ export default function Home({ onClose, fromProject }: HomeProps) {
     // screens for an app sit side by side on the open canvas; everything else is one page at a time
     setPagesView(pages);
     const id = newId("frame");
-    dispatch("create_preset_frame", { preset: { name, width, height }, x: 0, y: 0, id });
+    // a video's scene is its own work, not the size it was picked from ("Reel or Short"); a better word than Untitled comes later
+    dispatch("create_preset_frame", { preset: { name: video ? "Untitled" : name, width, height }, x: 0, y: 0, id });
     if (video) dispatch("set_duration", { id, seconds: 10 });
     select([id]);
     // a new project opens in Design unless it is told its space first

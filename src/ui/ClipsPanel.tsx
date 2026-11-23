@@ -353,6 +353,19 @@ export default function ClipsPanel() {
   const listOrder: string[] = [];
   if (view === "list") walk(undefined, 0);
   const nothing = view === "list" ? !rows.length : !tiles.length;
+  const hasFiles = media.some((m) => !isScene(m));
+  const welcome = (
+    <div className="clips-welcome">
+      <Icon name="film" size={26} />
+      <button className="clips-add-big" data-name="clips-add" onClick={() => void pickIntoClips()}>
+        Add clips, music, pictures
+      </button>
+      <div className="clips-welcome-sub">or drop files or a whole folder here</div>
+      <button className="linkish" onClick={() => void pickFolderIntoClips()}>
+        Add a folder
+      </button>
+    </div>
+  );
   order_.current = view === "list" ? listOrder : tiles.map((m) => m.id);
   // what is no longer shown (another view, a filter, a closed folder, removed) is no longer picked
   const shownKey = order_.current.join("\n");
@@ -409,16 +422,7 @@ export default function ClipsPanel() {
       onDrop={(e) => onDropHere(e, view === "grid" ? inside : null)}
     >
       {media.length === 0 ? (
-        <div className="clips-welcome">
-          <Icon name="film" size={26} />
-          <button className="clips-add-big" data-name="clips-add" onClick={() => void pickIntoClips()}>
-            Add clips, music, pictures
-          </button>
-          <div className="clips-welcome-sub">or drop files or a whole folder here</div>
-          <button className="linkish" onClick={() => void pickFolderIntoClips()}>
-            Add a folder
-          </button>
-        </div>
+        welcome
       ) : (
         <>
           <div className="clips-actions">
@@ -520,7 +524,9 @@ export default function ClipsPanel() {
               })}
             </div>
           )}
-          {!nothing && <div className="media-hint">Drag a clip onto the timeline to use it.</div>}
+          {/* the scene shows here too, so until a first clip comes in, the big way to add one stays under it */}
+          {!hasFiles && !filtering && welcome}
+          {!nothing && hasFiles && <div className="media-hint">Drag a clip onto the timeline to use it.</div>}
           {nothing && <div className="empty pad">{filtering ? "Nothing here matches." : "This folder is empty. Drop clips here."}</div>}
           <div className="media-foot">
             {several && (
