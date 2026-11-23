@@ -261,7 +261,8 @@ export default function App() {
     }
     // the menu bar and other parts of the app ask for these; Home is a page of Studio's, so it opens there
     const openHome = () => (setLayout({ space: "edit" }), setHomeFromProject(true), setHomeOpen(true));
-    const openPresent = () => setPresenting(true);
+    // Present has nothing to do with exporting, so it waits while the Export page is open
+    const openPresent = () => !document.querySelector('[data-name="export-page"]') && setPresenting(true);
     const openSend = () => setSending(true);
     const openSettings = () => setSettings(true);
     const openVideoCut = () => setVideoCut(true);
@@ -277,7 +278,7 @@ export default function App() {
       const k = e.key.toLowerCase();
       if (k === "enter") {
         e.preventDefault();
-        setPresenting(true);
+        openPresent();
       } else if (k === "s" && e.shiftKey) {
         e.preventDefault();
         window.dispatchEvent(new Event("duet:versions"));
@@ -384,7 +385,7 @@ export default function App() {
         <SpaceSwitch onGo={() => setHomeOpen(false)} />
         <div className="top-side end" data-tauri-drag-region>
           {/* Present comes and goes with Design; the light and dark switch always sits just before Export */}
-          {!cooking && dock.mode === "design" && (
+          {!cooking && dock.mode === "design" && !exportOpen && (
             <button className="pill" disabled={!hasFrames} onClick={() => setPresenting(true)} title="Click through your screens (Cmd or Ctrl Enter)">
               Present
             </button>
