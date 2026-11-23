@@ -2,7 +2,9 @@ import { useState } from "react";
 import { useDismiss } from "./useDismiss";
 import Icon from "./Icons";
 import { exportTargets } from "../project/exporter";
-import { designFileName, queueDesign } from "../project/designExport";
+import { designFileName, queueDesign, standardEnding, takesSize } from "../project/designExport";
+import type { DesignFile } from "../project/designExport";
+import KindSelect from "./KindSelect";
 import { currentDoc, useStore } from "../state/store";
 import { useLayout } from "./layout";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
@@ -11,7 +13,7 @@ import type { Job } from "../ai/jobs";
 import { logError } from "../errorLog";
 import { useJobs, whereItIs } from "./ExportPage";
 import { QUALITIES, exportSize, queueVideo } from "../video/scene";
-import { lastChoice, lastDesign, lastMenuTab, rememberMenuTab, shortFolder } from "../video/exportPrefs";
+import { lastChoice, lastDesign, lastMenuTab, rememberDesign, rememberMenuTab, shortFolder } from "../video/exportPrefs";
 import type { ExportTab } from "../video/exportPrefs";
 
 const openPage = (tab: ExportTab, scene?: string) => window.dispatchEvent(new CustomEvent("duet:export-page", { detail: { tab, scene } }));
@@ -203,32 +205,49 @@ function VideoPart({ setNote, close, started }: { setNote: (s: string) => void; 
   );
 }
 
-/** Design and Photo: the picked things, or every screen, made the way the last ones were, or more options on the full page. */
+/** Design and Photo: the picked things, or every screen, as one file type the designer picks here, or more options on the full page. */
 function DesignPart({ photo, setNote, close, started }: { photo: boolean; setNote: (s: string) => void; close: () => void; started: () => void }) {
   const selection = useStore((s) => s.selection);
   const doc = useStore((s) => currentDoc(s));
   const projectFile = useStore((s) => s.project.file);
   const projectName = useStore((s) => s.project.name);
+  // starts as the first file type made last time; the rest stay remembered for the Export panel
+  const [file, setFile] = useState<DesignFile>(() => lastDesign(photo)[0]);
   const ids = exportTargets(doc, selection);
   if (!ids.length) return <div className="hint2">Nothing to export yet. Draw a frame first.</div>;
-  const files = lastDesign(photo);
   const what = ids.length === 1 ? doc.elements[ids[0]].name : selection.length ? `${ids.length} picked things` : `All ${ids.length} screens`;
+  const change = (c: Partial<DesignFile>) => {
+    const next = { ...file, ...c };
+    setFile(file.ending === standardEnding(file) ? { ...next, ending: standardEnding(next) } : next);
+  };
   return (
     <>
       <span className="x-label">{what}</span>
-      <div className="x-what-line">
-        <span>{files.map(designFileName).join(" · ")}</span>
+      <span className="x-label">File type</span>
+      <div className="x-kind-pick">
+        <KindSelect value={file.kind} photo={photo} onChange={(kind) => change({ kind })} />
       </div>
+      {takesSize(file.kind) && (
+        <>
+          <span className="x-label">Scale</span>
+          <div className="kind-quiet x-scale">
+            {[1, 2, 3, 4].map((k) => (
+              <button key={k} className={file.scale === k ? "on" : ""} data-name={`export-scale-${k}`} onClick={() => change({ scale: k })}>
+                {k}x
+              </button>
+            ))}
+          </div>
+        </>
+      )}
       <button
         className="pill primary wide x-go"
         data-name="export-last"
-        title="Make them the way your last ones were made"
+        title={`Make ${designFileName(file)} files`}
         onClick={() => {
-          const dir = lastChoice(projectFile).dir;
-          for (const f of files) {
-            const job = queueDesign(ids, f, { project: projectName }, dir, doc);
-            if (!("n" in job)) return setNote(job.error);
-          }
+          const last = lastChoice(projectFile).dir;
+          const job = queueDesign(ids, file, { project: projectName }, last, doc);
+          if (!("n" in job)) return setNote(job.error);
+          rememberDesign(projectFile, [file, ...lastDesign(photo).slice(1)], last);
           setNote("");
           started();
         }}

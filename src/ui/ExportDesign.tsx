@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { putFirst } from "../ai/jobs";
-import { KIND_NAMES, countFiles, queueDesign, standardEnding, takesSize } from "../project/designExport";
-import type { DesignFile, DesignKind } from "../project/designExport";
+import { countFiles, queueDesign, standardEnding, takesSize } from "../project/designExport";
+import type { DesignFile } from "../project/designExport";
 import { exportTargets, screensOf } from "../project/exporter";
 import { currentDoc, useStore } from "../state/store";
 import { lastChoice, lastDesign, rememberDesign, shortFolder } from "../video/exportPrefs";
 import { open as openDialog } from "./dialog";
 import ExportPicture from "./ExportPicture";
+import KindSelect from "./KindSelect";
 import { useLayout } from "./layout";
 
 /** Set up for Design and Photo: tick the screens, choose the kinds of file each one becomes, and where they go. */
@@ -26,7 +27,6 @@ export default function DesignSetUp({ onQueued }: { onQueued: () => void }) {
   if (!shown.length) return <p className="export-empty">Nothing to export yet. Draw a frame first.</p>;
 
   const ids = shown.filter((id) => ticked.has(id));
-  const kinds: DesignKind[] = photo ? ["png", "jpg", "svg", "pdf", "psd"] : ["png", "jpg", "svg", "pdf"];
   const made = countFiles(doc, ids, files);
   const tick = (id: string) => {
     const next = new Set(ticked);
@@ -109,13 +109,7 @@ export default function DesignSetUp({ onQueued }: { onQueued: () => void }) {
         <span className="export-label">Files you get from each screen</span>
         {files.map((f, i) => (
           <div className="export-file" key={i} data-name="export-file">
-            <select data-name="export-kind" value={f.kind} onChange={(e) => setFile(i, { kind: e.target.value as DesignKind })}>
-              {kinds.map((k) => (
-                <option key={k} value={k}>
-                  {k === "pdf" ? "PDF, all in one" : KIND_NAMES[k]}
-                </option>
-              ))}
-            </select>
+            <KindSelect value={f.kind} photo={photo} onChange={(kind) => setFile(i, { kind })} />
             <select data-name="export-scale" value={f.scale} disabled={!takesSize(f.kind)} title={takesSize(f.kind) ? undefined : "This kind keeps its own size"} onChange={(e) => setFile(i, { scale: Number(e.target.value) })}>
               {[1, 2, 3, 4].map((k) => (
                 <option key={k} value={k}>

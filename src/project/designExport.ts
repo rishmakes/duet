@@ -24,6 +24,16 @@ export interface DesignFile {
 
 export const KIND_NAMES: Record<DesignKind, string> = { png: "PNG", jpg: "JPG", svg: "SVG", pdf: "PDF", psd: "Photoshop" };
 
+/** File types sorted by what they are, so the list stays easy to read as more types arrive. Photoshop files only in Photo. */
+export function kindGroups(photo: boolean): { name: string; kinds: DesignKind[] }[] {
+  return [
+    { name: "Picture", kinds: ["png", "jpg"] },
+    { name: "Vector", kinds: ["svg"] },
+    { name: "Document", kinds: ["pdf"] },
+    ...(photo ? [{ name: "Layered", kinds: ["psd"] as DesignKind[] }] : []),
+  ];
+}
+
 /** Only pictures made of pixels come in sizes. */
 export const takesSize = (k: DesignKind) => k === "png" || k === "jpg";
 

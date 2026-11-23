@@ -2062,6 +2062,24 @@ option {
   font-size: 11px;
   color: var(--muted);
 }
+.zmenu.export .x-kind-pick,
+.zmenu.export .x-scale {
+  display: flex;
+  margin-bottom: 12px;
+}
+.zmenu.export .x-kind-pick select {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+}
+.zmenu.export .x-scale button {
+  flex: 1;
+}
 .zmenu.export .x-what-line {
   display: flex;
   align-items: center;

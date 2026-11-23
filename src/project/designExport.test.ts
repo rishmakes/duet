@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { runCommand } from "../commands";
 import { emptyDoc } from "../document/types";
-import { countFiles, designFileName, plannedFiles, standardEnding } from "./designExport";
+import { countFiles, designFileName, kindGroups, plannedFiles, standardEnding } from "./designExport";
 
 function screens() {
   let d = runCommand(emptyDoc(), "create_element", { id: "a", type: "frame", x: 0, y: 0, width: 100, height: 100 });
@@ -41,5 +41,13 @@ describe("design export files", () => {
     expect(standardEnding({ kind: "svg", scale: 3 })).toBe("");
     expect(designFileName({ kind: "png", scale: 2 })).toBe("PNG 2x");
     expect(designFileName({ kind: "psd", scale: 2 })).toBe("Photoshop");
+  });
+});
+
+describe("kindGroups", () => {
+  it("sorts file types into Picture, Vector and Document, with Layered only in Photo", () => {
+    expect(kindGroups(false).map((g) => g.name)).toEqual(["Picture", "Vector", "Document"]);
+    expect(kindGroups(true).map((g) => g.name)).toEqual(["Picture", "Vector", "Document", "Layered"]);
+    expect(kindGroups(false).flatMap((g) => g.kinds)).toEqual(["png", "jpg", "svg", "pdf"]);
   });
 });
