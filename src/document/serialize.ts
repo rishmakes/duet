@@ -1,3 +1,4 @@
+import { keepFootage } from "../commands/media";
 import { isDerived, syncInstances } from "./components";
 import { relayout } from "./layout";
 import { keepTracks, oldTracks } from "./tracks";
@@ -291,7 +292,8 @@ export function parseDoc(text: string): Doc {
     const saved = new Set((el.tracks ?? []).map((t) => t.id));
     if (oldTracks(el) || el.childIds.some((c) => elements[c] && !saved.has(elements[c].track ?? ""))) keepTracks({ version: 1, rootIds: [], elements }, el.id);
   }
-  return relayout(syncInstances({ version: 1, rootIds: r.rootIds as string[], elements, ...(background ? { background } : {}), ...(styles ? { styles } : {}), ...(brand ? { brand } : {}), ...(system ? { system } : {}), ...(guides ? { guides } : {}), ...(comments.length ? { comments } : {}), ...(r.pages === true ? { pages: true as const } : {}), ...(media.length ? { media } : {}), ...(words ? { words } : {}), ...(boards ? { boards, board } : {}) }));
+  // Media keeps all the footage: clips an older file only had on the timeline are listed in Media too (#378)
+  return keepFootage(relayout(syncInstances({ version: 1, rootIds: r.rootIds as string[], elements, ...(background ? { background } : {}), ...(styles ? { styles } : {}), ...(brand ? { brand } : {}), ...(system ? { system } : {}), ...(guides ? { guides } : {}), ...(comments.length ? { comments } : {}), ...(r.pages === true ? { pages: true as const } : {}), ...(media.length ? { media } : {}), ...(words ? { words } : {}), ...(boards ? { boards, board } : {}) })));
 }
 
 /** A brand kit read from a file, keeping only what makes sense. */

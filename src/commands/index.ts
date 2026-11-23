@@ -20,7 +20,7 @@ import { freshName, keepTracks, newTrackId, stackByTrack, trackRows } from "../d
 import type { CreatePresetFrameArgs } from "./presets";
 import { setPages, addPage, reorderPages } from "./pages";
 import { openBoard } from "../document/boards";
-import { addMedia, moveMedia, newFolder, removeMedia, renameMedia } from "./media";
+import { addMedia, inside, keepFootage, moveMedia, newFolder, removeMedia, renameMedia } from "./media";
 import type { AddMediaArgs, MoveMediaArgs, NewFolderArgs, RemoveMediaArgs, RenameMediaArgs } from "./media";
 import { addBoard, deleteBoard, moveBoard, moveToBoard, openBoardCmd, renameBoard } from "./boards";
 import type { AddBoardArgs, DeleteBoardArgs, MoveBoardArgs, MoveToBoardArgs, OpenBoardArgs, RenameBoardArgs } from "./boards";
@@ -780,19 +780,7 @@ export interface DeleteArgs {
 const deleteElements: CommandDef<DeleteArgs> = {
   label: (a) => (a.ids.length > 1 ? `Delete ${a.ids.length} elements` : "Delete element"),
   run: (doc, a) => {
-    // A clip or sound taken off the timeline stays in Clips: the media is not the timeline (#378).
-    const keep: AddMediaArgs["items"] = [];
-    for (const id of a.ids) {
-      const el = doc.elements[id];
-      if (!el || isDerived(id)) continue;
-      for (const d of [id, ...descendants(doc, id)]) {
-        const e = doc.elements[d];
-        if (e && (e.type === "video" || e.type === "sound") && e.src && !keep.some((k) => k.src === e.src)) {
-          keep.push({ id: newId("clip"), name: e.name || e.src.split(/[\\/]/).pop() || "Clip", kind: e.type, src: e.src });
-        }
-      }
-    }
-    const next = clone(keep.length ? addMedia(doc, { items: keep }) : doc);
+    const next = clone(doc);
     for (const id of a.ids) {
       const el = next.elements[id];
       if (!el || isDerived(id)) continue; // the inside of a copy comes from its component
@@ -3167,19 +3155,31 @@ const fixWordsDef: CommandDef<FixWordsArgs> = {
   run: (doc, a) => fixWords(doc, a.fixes),
 };
 
-// ---- Clips: the clips, sounds, pictures and folders a video is made from ----
+// ---- Media: the clips, sounds, pictures and folders a video is made from ----
 const addMediaDef: CommandDef<AddMediaArgs> = {
-  label: (a) => (a.items.length === 1 ? `Add ${a.items[0].name} to Clips` : "Add to Clips"),
+  label: (a) => (a.items.length === 1 ? `Add ${a.items[0].name} to Media` : "Add to Media"),
   run: (doc, a) => addMedia(doc, a),
 };
 
 const removeMediaDef: CommandDef<RemoveMediaArgs> = {
-  label: () => "Remove from Clips",
-  run: (doc, a) => removeMedia(doc, a),
+  label: (a) => (a.fromVideo ? "Remove from Media and the video" : "Remove from Media"),
+  run: (doc, a) => {
+    if (!a.fromVideo) return removeMedia(doc, a);
+    // take the clips that play these files off the timeline first, unless another place in Media still holds the file
+    const media = doc.media ?? [];
+    const gone = new Set(a.ids);
+    for (const id of a.ids) for (const i of inside(media, id)) gone.add(i);
+    const held = new Set(media.filter((m) => !gone.has(m.id)).map((m) => m.src));
+    const files = new Set(media.filter((m) => gone.has(m.id) && m.src && !held.has(m.src)).map((m) => m.src));
+    const ids = Object.entries(doc.elements)
+      .filter(([id, el]) => (el.type === "video" || el.type === "sound") && el.src && files.has(el.src) && !isDerived(id))
+      .map(([id]) => id);
+    return removeMedia(ids.length ? deleteElements.run(doc, { ids }) : doc, a);
+  },
 };
 
 const newFolderDef: CommandDef<NewFolderArgs> = {
-  label: () => "New folder in Clips",
+  label: () => "New folder in Media",
   run: (doc, a) => newFolder(doc, a),
 };
 
@@ -3189,7 +3189,7 @@ const renameMediaDef: CommandDef<RenameMediaArgs> = {
 };
 
 const moveMediaDef: CommandDef<MoveMediaArgs> = {
-  label: () => "Move in Clips",
+  label: () => "Move in Media",
   run: (doc, a) => moveMedia(doc, a),
 };
 
@@ -3384,10 +3384,12 @@ export type CommandName = keyof typeof commands;
 type ArgsOf<N extends CommandName> = (typeof commands)[N] extends CommandDef<infer A> ? A : never;
 
 export function runCommand<N extends CommandName>(doc: Doc, name: N, args: ArgsOf<N>): Doc {
-  const out = (commands[name] as CommandDef<ArgsOf<N>>).run(doc, args);
-  if (out === doc) return doc;
+  // Media keeps all the footage the design plays, before and after every change (#378)
+  const before = keepFootage(doc);
+  const out = (commands[name] as CommandDef<ArgsOf<N>>).run(before, args);
+  if (out === before) return doc;
   // keep what was changed on a copy, rebuild the copies from their components, then line things up
-  return fitFootage(relayout(syncInstances(captureOverrides(doc, out))));
+  return keepFootage(fitFootage(relayout(syncInstances(captureOverrides(before, out)))));
 }
 
 export function commandLabel<N extends CommandName>(name: N, args: ArgsOf<N>): string {

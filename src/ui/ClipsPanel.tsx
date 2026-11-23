@@ -6,6 +6,7 @@ import type { IconName } from "./Icons";
 import { lengthText } from "../canvas/render";
 import { droppedPaths } from "../canvas/CanvasView";
 import { newId } from "../commands";
+import { inside as within, usedFiles } from "../commands/media";
 import type { Doc, MediaItem } from "../document/types";
 import { currentDoc, dispatch, getState, select, useStore } from "../state/store";
 import { openScene as openOnTimeline } from "../video/play";
@@ -32,36 +33,21 @@ const ICON: Record<Entry["kind"], IconName> = { scene: "scene", video: "film", s
 /** The type an item being moved inside Media carries. */
 const MOVE = "application/x-duet-clips-move";
 
-const USED = "used:";
 const SCENE = "scene:";
-const isUsed = (m: Entry) => m.id.startsWith(USED);
 const isScene = (m: Entry) => m.kind === "scene";
-/** Kept in the file, so it can be renamed, moved and removed here. */
-const isKept = (m: Entry) => !isUsed(m) && !isScene(m);
-/** Scenes, folders and kept clips take a new name; a clip only the timeline plays is named on the timeline. */
-const renamable = (m: Entry) => !isUsed(m);
+/** Kept in Media, so it can be moved and removed here; scenes are made and removed on the timeline. */
+const isKept = (m: Entry) => !isScene(m);
 /** The key that renames what is picked, as each system's file browser does: Enter on a Mac, F2 on Windows. */
 export const isRenameKey = (key: string, mac: boolean) => key === (mac ? "Enter" : "F2");
 
-/** Clips and sounds the video already plays that are not in Media yet, one row per file, named as on the timeline. */
-export function usedIn(doc: Doc, kept: MediaItem[]): MediaItem[] {
-  const listed = new Set(kept.map((m) => m.src).filter(Boolean));
-  const out = new Map<string, MediaItem>();
-  for (const el of Object.values(doc.elements)) {
-    if ((el.type !== "video" && el.type !== "sound") || !el.src || listed.has(el.src) || out.has(el.src)) continue;
-    out.set(el.src, { id: USED + el.src, name: el.name || el.src.split(/[\\/]/).pop() || "Clip", kind: el.type, src: el.src });
-  }
-  return [...out.values()];
-}
-
-/** Everything Media lists: the scenes of this video first, then what is kept, then what the video plays. */
+/** Everything Media lists: the scenes of this video first, then the footage. Media keeps all the footage the video plays (#378). */
 export function entriesOf(doc: Doc): Entry[] {
   const kept = doc.media ?? [];
   const scenes: Entry[] = doc.rootIds
     .map((id) => doc.elements[id])
     .filter((e) => e && e.type === "frame" && e.duration > 0)
     .map((e) => ({ id: SCENE + e.id, name: e.name, kind: "scene", length: e.duration }));
-  return [...scenes, ...kept, ...usedIn(doc, kept)];
+  return [...scenes, ...kept];
 }
 
 /** What shows: each thing that matches, and every folder on the way to one. Folders and order are never changed. */
@@ -136,6 +122,29 @@ export default function ClipsPanel() {
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [showMenu, setShowMenu] = useState<{ x: number; y: number } | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  /** Footage the video plays, asked about before it goes: how many clips would leave the timeline with it. */
+  const [ask, setAsk] = useState<{ ids: string[]; clips: number } | null>(null);
+  const used = useMemo(() => usedFiles(doc), [doc]);
+  /** How many clips on the timeline play what these take out of Media, folders counted with what is in them. */
+  const clipsUsing = (ids: string[]) => {
+    const kept = doc.media ?? [];
+    const gone = new Set(ids);
+    for (const id of ids) for (const i of within(kept, id)) gone.add(i);
+    const held = new Set(kept.filter((m) => !gone.has(m.id)).map((m) => m.src));
+    const files = new Set(kept.filter((m) => gone.has(m.id) && m.src && !held.has(m.src)).map((m) => m.src!));
+    return [...files].reduce((n, f) => n + (used.get(f) ?? 0), 0);
+  };
+  /** Take out of Media; footage the video still plays is asked about first. */
+  const remove = (ids: string[]) => {
+    const clips = clipsUsing(ids);
+    if (clips) setAsk({ ids, clips });
+    else dispatch("remove_media", { ids });
+  };
+  /** A small mark on footage the video plays, so it shows before anything is removed. */
+  const inVideo = (m: Entry) => {
+    const n = m.kind !== "folder" && "src" in m && m.src ? (used.get(m.src) ?? 0) : 0;
+    return n ? <span className="media-used" data-name="media-used" title={n === 1 ? "In your video once" : `In your video ${n} times`} /> : null;
+  };
   const [, redraw] = useState(0);
   useDismiss(!!menu, () => setMenu(null), ".ctx");
   useDismiss(!!showMenu, () => setShowMenu(null), ".ctx");
@@ -173,8 +182,7 @@ export default function ClipsPanel() {
       e.stopPropagation();
       const m = byId.get(moving);
       if (!m || isScene(m)) return;
-      if (isUsed(m)) dispatch("add_media", { items: [{ ...(m as MediaItem), id: newId("clip"), ...(into ? { folderId: into } : {}) }] });
-      else dispatch("move_media", { ids: [moving], folderId: into });
+      dispatch("move_media", { ids: [moving], folderId: into });
       if (into) setShut((s) => without(s, into));
       return;
     }
@@ -302,9 +310,8 @@ export default function ClipsPanel() {
       // a double-click on the name renames; on the picture it still opens the scene or goes into the folder
       <span
         className="name"
-        title={renamable(m) ? "Double-click to rename" : undefined}
+        title="Double-click to rename"
         onDoubleClick={(e) => {
-          if (!renamable(m)) return;
           e.stopPropagation();
           setRenaming(m.id);
         }}
@@ -345,11 +352,12 @@ export default function ClipsPanel() {
           )}
           <Icon name={ICON[m.kind]} size={14} className="ico" />
           {nameOrBox(m)}
+          {inVideo(m)}
           {isScene(m) && m.id === SCENE + openScene && <i className="media-open" title="Open on the timeline">▶</i>}
           <span className="media-end">
             {length !== null && <span className="clip-length">{lengthText(length)}</span>}
             {!several && isKept(m) && (
-              <button className="media-row-bin" title={folder ? "Remove this folder and what is in it from Media. The files stay on your computer." : "Remove from Media. The file stays on your computer."} onClick={(e) => (e.stopPropagation(), dispatch("remove_media", { ids: [m.id] }))}>
+              <button className="media-row-bin" title={folder ? "Remove this folder and what is in it from Media. The files stay on your computer." : "Remove from Media. The file stays on your computer."} onClick={(e) => (e.stopPropagation(), remove([m.id]))}>
                 <Icon name="trash" size={12} />
               </button>
             )}
@@ -394,7 +402,7 @@ export default function ClipsPanel() {
   // the one thing picked, if it can take a new name, for the rename key
   const toRename = useRef<string | null>(null);
   const one = picks.ids.length === 1 ? byId.get(picks.ids[0]) : undefined;
-  toRename.current = one && renamable(one) ? one.id : null;
+  toRename.current = one ? one.id : null;
   useEffect(() => {
     const down = (e: PointerEvent) => (active.current = !!panel.current?.contains(e.target as Node));
     const key = (e: KeyboardEvent) => {
@@ -534,11 +542,12 @@ export default function ClipsPanel() {
                         <span className={`media-check ${picked.has(m.id) ? "on" : ""}`} />
                       </span>
                       {!several && isKept(m) && (
-                        <button className="media-row-bin media-tile-bin" title="Remove from Media. The file stays on your computer." onClick={(e) => (e.stopPropagation(), dispatch("remove_media", { ids: [m.id] }))}>
+                        <button className="media-row-bin media-tile-bin" title="Remove from Media. The file stays on your computer." onClick={(e) => (e.stopPropagation(), remove([m.id]))}>
                           <Icon name="trash" size={12} />
                         </button>
                       )}
                       <Icon name={ICON[m.kind]} size={22} />
+                      {inVideo(m)}
                       {isScene(m) && m.id === SCENE + openScene && <i className="media-open media-tile-open" title="Open on the timeline">▶</i>}
                       {length !== null && <span className="media-tile-length">{lengthText(length)}</span>}
                     </div>
@@ -560,8 +569,8 @@ export default function ClipsPanel() {
                   <button
                     className="media-remove"
                     data-name="media-remove"
-                    title={removable.length < picks.ids.length ? "Remove from Media. The files stay on your computer. Scenes, and clips the timeline plays, stay." : "Remove from Media. The files stay on your computer."}
-                    onClick={() => (dispatch("remove_media", { ids: removable }), act({ type: "none" }))}
+                    title={removable.length < picks.ids.length ? "Remove from Media. The files stay on your computer. Scenes stay." : "Remove from Media. The files stay on your computer."}
+                    onClick={() => (remove(removable), act({ type: "none" }))}
                   >
                     <Icon name="trash" size={12} />
                     Remove
@@ -583,6 +592,19 @@ export default function ClipsPanel() {
             </div>
           </div>
         </>
+      )}
+      {ask && (
+        <div className="clips-note media-ask" data-name="media-ask">
+          <span>{ask.clips === 1 ? "This is in your video. Remove it from the video too?" : `This is in your video ${ask.clips} times. Remove it from the video too?`}</span>
+          <span className="media-ask-buttons">
+            <button className="media-select" data-name="media-ask-keep" onClick={() => setAsk(null)}>
+              Keep
+            </button>
+            <button className="media-remove" data-name="media-ask-remove" onClick={() => (dispatch("remove_media", { ids: ask.ids, fromVideo: true }), setAsk(null))}>
+              Remove from both
+            </button>
+          </span>
+        </div>
       )}
       {note && (
         <div className="clips-note" onClick={() => setNote(null)}>
@@ -610,7 +632,7 @@ export default function ClipsPanel() {
                 <span>Open on the timeline</span>
               </div>
             )}
-            {renamable(menuOn) && (
+            {(
               <div className="ctx-item" onClick={() => (setMenu(null), setRenaming(menuOn.id))}>
                 <span>Rename</span>
                 <kbd>{MAC ? "Enter" : "F2"}</kbd>
@@ -639,7 +661,7 @@ export default function ClipsPanel() {
             {isKept(menuOn) && (
               <>
                 <div className="ctx-line" />
-                <div className="ctx-item danger" onClick={() => (setMenu(null), dispatch("remove_media", { ids: [menuOn.id] }))}>
+                <div className="ctx-item danger" onClick={() => (setMenu(null), remove([menuOn.id]))}>
                   <span>{menuOn.kind === "folder" ? "Remove folder from Media" : "Remove from Media"}</span>
                 </div>
               </>

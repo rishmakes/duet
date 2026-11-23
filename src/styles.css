@@ -14585,3 +14585,30 @@ button.ctx-item.store-make-option:hover {
   margin: 0 0 8px;
   color: var(--muted);
 }
+/* footage the video plays: a small dot, so it shows before anything is removed (#378) */
+.media-used {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.media-tile-face .media-used {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  margin: 0;
+}
+.media-ask {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: default;
+  color: var(--text);
+}
+.media-ask-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}

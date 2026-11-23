@@ -76,21 +76,45 @@ describe("follow_footage (#343)", () => {
   });
 });
 
-describe("deleting a clip keeps its file in Clips (#378)", () => {
-  it("the file stays in Clips after its clip is taken off the timeline", () => {
+describe("Media keeps all the footage (#378)", () => {
+  it("a clip placed on the timeline lands in Media, and stays there when taken off", () => {
     let doc = runCommand(scene(true), "create_element", clip("a", 0, 4));
-    expect(doc.media ?? []).toHaveLength(0);
+    expect((doc.media ?? []).map((m) => m.src)).toEqual(["/m/a.mp4"]);
     doc = runCommand(doc, "delete_elements", { ids: ["a"] });
     expect(doc.elements.a).toBeUndefined();
     expect((doc.media ?? []).map((m) => m.src)).toEqual(["/m/a.mp4"]);
   });
 
-  it("a file already in Clips is not added twice, and never mutates", () => {
-    let doc = runCommand(scene(true), "create_element", clip("a", 0, 4));
-    doc = runCommand(doc, "add_media", { items: [{ id: "k", name: "a.mp4", kind: "video", src: "/m/a.mp4" }] });
+  it("a file already in Media is not added twice, and never mutates", () => {
+    let doc = runCommand(scene(true), "add_media", { items: [{ id: "k", name: "a.mp4", kind: "video", src: "/m/a.mp4" }] });
+    doc = runCommand(doc, "create_element", clip("a", 0, 4));
     const before = JSON.stringify(doc);
     const after = runCommand(doc, "delete_elements", { ids: ["a"] });
-    expect(after.media).toHaveLength(1);
+    expect(after.media?.map((m) => m.id)).toEqual(["k"]);
     expect(JSON.stringify(doc)).toBe(before);
+  });
+
+  it("footage the video plays stays in Media unless it goes from the video too", () => {
+    let doc = runCommand(scene(true), "create_element", clip("a", 0, 4));
+    const id = doc.media![0].id;
+    expect(runCommand(doc, "remove_media", { ids: [id] }).media).toHaveLength(1);
+    doc = runCommand(doc, "remove_media", { ids: [id], fromVideo: true });
+    expect(doc.elements.a).toBeUndefined();
+    expect(doc.media ?? []).toHaveLength(0);
+  });
+
+  it("a removed folder lets go of what the video plays, which moves to the top", () => {
+    let doc = runCommand(scene(true), "new_folder", { id: "f", name: "Takes" });
+    doc = runCommand(doc, "add_media", { items: [{ id: "k", name: "a.mp4", kind: "video", src: "/m/a.mp4", folderId: "f" }, { id: "u", name: "b.mp4", kind: "video", src: "/m/b.mp4", folderId: "f" }] });
+    doc = runCommand(doc, "create_element", clip("a", 0, 4));
+    doc = runCommand(doc, "remove_media", { ids: ["f"] });
+    expect(doc.media).toEqual([{ id: "k", name: "a.mp4", kind: "video", src: "/m/a.mp4" }]);
+  });
+
+  it("an old file lists the footage its timeline plays in Media when it opens", () => {
+    const old = runCommand(scene(true), "create_element", clip("a", 0, 4));
+    const { media: _m, ...bare } = old;
+    const opened = parseDoc(serializeDoc(bare as typeof old));
+    expect((opened.media ?? []).map((m) => m.src)).toEqual(["/m/a.mp4"]);
   });
 });

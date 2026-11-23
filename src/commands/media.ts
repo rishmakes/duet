@@ -1,6 +1,7 @@
+import { isDerived } from "../document/components";
 import type { Doc, MediaItem } from "../document/types";
 
-/** The Clips panel: clips, sounds, pictures and folders. Folders keep the order and nesting they were made with. */
+/** The Media panel: clips, sounds, pictures and folders. Folders keep the order and nesting they were made with. */
 
 export interface AddMediaArgs {
   items: MediaItem[];
@@ -8,6 +9,8 @@ export interface AddMediaArgs {
 
 export interface RemoveMediaArgs {
   ids: string[];
+  /** Also take every clip that plays these files off the timeline. Without it, footage in use stays in Media. */
+  fromVideo?: boolean;
 }
 
 export interface NewFolderArgs {
@@ -44,7 +47,7 @@ export function inside(media: MediaItem[], id: string): Set<string> {
   return out;
 }
 
-/** Put clips, sounds, pictures and folders into Clips, after what is there. A file already in Clips in the same folder is not added twice. Never mutates. */
+/** Put clips, sounds, pictures and folders into Media, after what is there. A file already in Media in the same folder is not added twice. Never mutates. */
 export function addMedia(doc: Doc, args: AddMediaArgs): Doc {
   const media = doc.media ?? [];
   const ids = new Set(media.map((m) => m.id));
@@ -66,13 +69,60 @@ export function addMedia(doc: Doc, args: AddMediaArgs): Doc {
   return added.length ? keep(doc, [...media, ...added]) : doc;
 }
 
-/** Take things out of Clips. A folder goes with everything in it. The files stay on the computer. Never mutates. */
+/** How many clips in the design play each file, by where the file is. The inside of a copy is not counted again. */
+export function usedFiles(doc: Doc): Map<string, number> {
+  const used = new Map<string, number>();
+  for (const [id, el] of Object.entries(doc.elements)) {
+    if ((el.type !== "video" && el.type !== "sound") || !el.src || isDerived(id)) continue;
+    used.set(el.src, (used.get(el.src) ?? 0) + 1);
+  }
+  return used;
+}
+
+/** A short id that is the same each time for the same file, so keeping footage gives the same result every time. */
+function idFor(src: string, taken: Set<string>): string {
+  let h = 0;
+  for (let i = 0; i < src.length; i++) h = (h * 31 + src.charCodeAt(i)) | 0;
+  const base = `clip-${(h >>> 0).toString(36)}`;
+  let id = base;
+  for (let n = 2; taken.has(id); n++) id = `${base}-${n}`;
+  return id;
+}
+
+/** Media keeps all the footage: every video and sound the design plays is listed, named as on the timeline (#378).
+ *  Runs after every change and when a file opens, so every way in lands in Media. Never mutates. */
+export function keepFootage(doc: Doc): Doc {
+  const media = doc.media ?? [];
+  const listed = new Set(media.map((m) => m.src).filter(Boolean));
+  const taken = new Set(media.map((m) => m.id));
+  const added: MediaItem[] = [];
+  for (const [id, el] of Object.entries(doc.elements)) {
+    if ((el.type !== "video" && el.type !== "sound") || !el.src || listed.has(el.src) || isDerived(id)) continue;
+    listed.add(el.src);
+    const m: MediaItem = { id: idFor(el.src, taken), name: el.name || el.src.split(/[\\/]/).pop() || "Clip", kind: el.type, src: el.src };
+    taken.add(m.id);
+    added.push(m);
+  }
+  return added.length ? keep(doc, [...media, ...added]) : doc;
+}
+
+/** Take things out of Media. A folder goes with everything in it. The files stay on the computer.
+ *  Footage the video still plays stays (take it off the timeline first, or use remove_media's fromVideo);
+ *  if its folder goes, it moves to the top. Never mutates. */
 export function removeMedia(doc: Doc, args: RemoveMediaArgs): Doc {
   const media = doc.media ?? [];
+  const used = usedFiles(doc);
   const gone = new Set(args.ids);
   for (const id of args.ids) for (const i of inside(media, id)) gone.add(i);
-  const left = media.filter((m) => !gone.has(m.id));
-  return left.length === media.length ? doc : keep(doc, left);
+  const stays = (m: MediaItem) => !gone.has(m.id) || (m.kind !== "folder" && !!m.src && used.has(m.src));
+  const kept = media.filter(stays);
+  const folders = new Set(kept.filter((m) => m.kind === "folder").map((m) => m.id));
+  const left = kept.map((m) => {
+    if (!m.folderId || folders.has(m.folderId)) return m;
+    const { folderId: _f, ...rest } = m;
+    return rest;
+  });
+  return left.length === media.length && left.every((m, i) => m === media[i]) ? doc : keep(doc, left);
 }
 
 /** A new empty folder. Never mutates. */
@@ -90,7 +140,7 @@ export function newFolder(doc: Doc, args: NewFolderArgs): Doc {
   return keep(doc, [...media, { id: args.id, name, kind: "folder", ...(parent ? { folderId: parent } : {}) }]);
 }
 
-/** A new name in Clips. Only the name Duet shows changes; the file keeps its own. Never mutates. */
+/** A new name in Media. Only the name Duet shows changes; the file keeps its own. Never mutates. */
 export function renameMedia(doc: Doc, args: RenameMediaArgs): Doc {
   const name = args.name.trim();
   const media = doc.media ?? [];
