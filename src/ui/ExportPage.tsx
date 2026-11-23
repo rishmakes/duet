@@ -205,6 +205,8 @@ interface FileRow {
 const clockText = (t: number) => `${Math.floor(t / 60)}:${String(Math.round(t % 60)).padStart(2, "0")}`;
 
 /** Good, Better, Best from left to right on the slider. */
+/** Common frame rates; anything else is typed in as Custom. */
+const FPS_CHOICES = [24, 25, 30, 60];
 const STEPS = [...QUALITIES].reverse();
 const stepOf = (quality: number) => Math.max(0, STEPS.findIndex((q) => q.quality === quality));
 
@@ -258,6 +260,7 @@ function SetUpTab({ sceneId, onQueued }: { sceneId?: string; onQueued: () => voi
   const [rows, setRows] = useState<FileRow[]>(() => [{ master: !!base.master, quality: base.quality, mute: !!base.mute }]);
   const [problem, setProblem] = useState("");
   const [look, setLook] = useState<number | null>(null);
+  const [customFps, setCustomFps] = useState(() => !FPS_CHOICES.includes(base.fps));
   if (!scene?.duration) return <p className="export-empty">Open a scene to export it.</p>;
 
   const part = base.whole || !scene.workArea ? { start: 0, end: scene.duration } : scene.workArea;
@@ -361,11 +364,12 @@ function SetUpTab({ sceneId, onQueued }: { sceneId?: string; onQueued: () => voi
           + Add a file type
         </button>
 
-        <span className="export-label">Size and frames a second</span>
-        <div className="export-file">
+        <div className="export-file export-two">
+          <label className="export-pick">
+            <span className="export-label">Size</span>
             <select data-name="export-size" value={sameSize ? 0 : base.longSide} onChange={(e) => setBase({ ...base, longSide: Number(e.target.value) })}>
               <option value={0}>
-                Same as your scene, {exportSize(scene, 0).join(" × ")}
+                Match scene, {exportSize(scene, 0).join(" × ")}
               </option>
               {SIZES.filter((z) => z.longSide > 0 && z.longSide < Math.max(scene.width, scene.height)).map((z) => (
                 <option key={z.longSide} value={z.longSide}>
@@ -373,13 +377,43 @@ function SetUpTab({ sceneId, onQueued }: { sceneId?: string; onQueued: () => voi
                 </option>
               ))}
             </select>
-            <select data-name="export-fps" value={base.fps} onChange={(e) => setBase({ ...base, fps: Number(e.target.value) })}>
-              {[24, 25, 30, 60].map((n) => (
-                <option key={n} value={n}>
-                  {n} a second
-                </option>
-              ))}
-            </select>
+          </label>
+          <label className="export-pick">
+            <span className="export-label">Frame rate</span>
+            <span className="export-fps">
+              <select
+                data-name="export-fps"
+                value={customFps ? "custom" : base.fps}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setCustomFps(v === "custom");
+                  if (v !== "custom") setBase({ ...base, fps: Number(v) });
+                }}
+              >
+                {FPS_CHOICES.map((n) => (
+                  <option key={n} value={n}>
+                    {n} fps
+                  </option>
+                ))}
+                <option value="custom">Custom</option>
+              </select>
+              {customFps && (
+                <input
+                  data-name="export-fps-custom"
+                  type="number"
+                  min={1}
+                  max={120}
+                  step={1}
+                  defaultValue={base.fps}
+                  aria-label="Frames per second"
+                  onChange={(e) => {
+                    const n = Math.round(Number(e.target.value));
+                    if (n >= 1 && n <= 120) setBase({ ...base, fps: n });
+                  }}
+                />
+              )}
+            </span>
+          </label>
         </div>
 
         <div className="export-tiles">

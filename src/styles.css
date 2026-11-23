@@ -3665,6 +3665,13 @@ option {
   border-radius: 2px;
 }
 
+/* in the light look the head is dark, so it shows against the white ruler */
+[data-theme="light"] .time-head::before {
+  background:
+    linear-gradient(90deg, transparent 4.2px, rgba(255, 255, 255, 0.45) 4.2px 4.8px, transparent 4.8px 7.7px, rgba(255, 255, 255, 0.45) 7.7px 8.3px, transparent 8.3px) 0 2px / 100% 6px no-repeat,
+    linear-gradient(180deg, #3a383d, #18171a);
+}
+
 /* settings screen */
 .settings-screen {
   position: fixed;
@@ -14157,6 +14164,39 @@ button.ctx-item.store-make-option:hover {
 }
 .export-file select:first-child {
   flex: 1.6;
+}
+/* Size and Frame rate, each with its own name above */
+.export-two {
+  gap: 10px;
+}
+.export-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.export-pick:first-child {
+  flex: 1.6;
+}
+.export-pick:last-child {
+  flex: 1;
+}
+.export-pick .export-label {
+  margin-top: 8px;
+}
+.export-fps {
+  display: flex;
+  gap: 6px;
+}
+.export-fps input {
+  width: 64px;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
 }
 .export-file select:disabled {
   opacity: 0.45;
