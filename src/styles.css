@@ -6935,6 +6935,11 @@ input.chathome-name.rename {
   background: var(--panel-2);
   color: var(--muted);
 }
+.chathome-clear {
+  align-self: flex-start;
+  margin: 8px 10px 12px;
+  font-size: 12px;
+}
 .chathome-label {
   margin: 14px 10px 4px;
   font-size: 11px;

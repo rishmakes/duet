@@ -709,6 +709,12 @@ export function ProjectsSidebar() {
                 {openNow.map((r) => row(r))}
                 {rest.length > 0 && <div className="chathome-label">Recent</div>}
                 {rest.map((r) => row(r, true))}
+                {/* files moved or deleted outside Duet stay listed, crossed out, until taken off: all at once here */}
+                {rest.some((r) => r.missing) && (
+                  <button className="linkbtn chathome-clear" data-name="recent-clear-missing" onClick={() => rest.filter((r) => r.missing).forEach((r) => removeRecent(r.path))} title="Takes them off this list. Nothing is deleted.">
+                    Remove the ones that cannot be found
+                  </button>
+                )}
                 {shown.length === 0 && <div className="chathome-none">{recents.length ? "No project has that in it." : "Your projects will be listed here."}</div>}
               </div>
             </div>
