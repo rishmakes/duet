@@ -27,8 +27,8 @@ export type AssetsShelf = keyof typeof ASSETS_SHELVES;
 /** Whether a shelf shows under the picked chip. */
 export const shelfOn = (shelf: AssetsShelf, chip: AssetsChip) => chip === "all" || ASSETS_SHELVES[shelf] === chip;
 
-/** Shelves that belong to some kinds of work only: transitions join clips in Video; effects are for Video and Photo. */
-const ONLY_IN: Partial<Record<AssetsShelf, Mode[]>> = { transitions: ["motion"], effects: ["motion", "photo"] };
+/** Shelves that belong to some kinds of work only: transitions join clips, so they live in Video. Effects are one library everywhere, each effect tagged with where it fits. */
+const ONLY_IN: Partial<Record<AssetsShelf, Mode[]>> = { transitions: ["motion"] };
 
 /** Whether a shelf belongs in this kind of work at all. */
 export const shelfFits = (shelf: AssetsShelf, mode: Mode) => !ONLY_IN[shelf] || ONLY_IN[shelf]!.includes(mode);

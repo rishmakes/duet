@@ -21,13 +21,13 @@ describe("finding in Assets (#338)", () => {
     expect(shelfOn("effects", "effects")).toBe(true);
   });
 
-  it("transitions only in Video, effects in Video and Photo, never in Design", () => {
+  it("transitions only in Video; effects everywhere", () => {
     expect(shelfFits("transitions", "motion")).toBe(true);
     expect(shelfFits("transitions", "photo")).toBe(false);
     expect(shelfFits("effects", "photo")).toBe(true);
-    expect(shelfFits("effects", "design")).toBe(false);
+    expect(shelfFits("effects", "design")).toBe(true);
     expect(shelfFits("components", "design")).toBe(true);
-    expect(chipsFor("design").map(([k]) => k)).toEqual(["all", "yours", "brand"]);
+    expect(chipsFor("design").map(([k]) => k)).toEqual(["all", "effects", "yours", "brand"]);
     expect(chipsFor("photo").map(([k]) => k)).toEqual(["all", "effects", "yours", "brand"]);
     expect(chipsFor("motion").map(([k]) => k)).toEqual(["all", "transitions", "effects", "yours", "brand"]);
   });
