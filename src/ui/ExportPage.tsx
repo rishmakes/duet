@@ -21,7 +21,7 @@ import { open as openDialog } from "./dialog";
 export type ExportTab = "setup" | "queue";
 
 /** Re-draw whenever the line moves. */
-function useJobs(): readonly Job[] {
+export function useJobs(): readonly Job[] {
   const [, moved] = useState(0);
   useEffect(() => subscribeJobs(() => moved((n) => n + 1)), []);
   return allJobs();
@@ -41,7 +41,7 @@ const took = (j: Job) => {
   return s < 90 ? `made in ${s} seconds` : `made in ${Math.round(s / 60)} minutes`;
 };
 
-function whereItIs(j: Job, first: boolean): string {
+export function whereItIs(j: Job, first: boolean): string {
   if (j.state === "running") return j.paused ? "paused" : `${Math.round(j.done * 100)}%, ${aboutTime(secondsLeft(j))} left`;
   return first ? "up next" : "waiting";
 }

@@ -2009,7 +2009,7 @@ option {
 }
 
 .zmenu.export {
-  width: 250px;
+  width: 300px;
   padding: 12px;
 }
 .zmenu.export .x-title {
@@ -2041,6 +2041,88 @@ option {
 }
 .zmenu.export .seg2:hover {
   background: none;
+}
+/* the top-bar dropdown: this scene, the queue at a glance, the whole queue */
+.zmenu.export .x-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.zmenu.export .x-start,
+.zmenu.export .x-line,
+.zmenu.export .x-job {
+  padding: 0;
+  border-radius: 0;
+  cursor: default;
+}
+.zmenu.export .x-start:hover,
+.zmenu.export .x-line:hover,
+.zmenu.export .x-job:hover {
+  background: none;
+}
+.zmenu.export .x-start {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+.zmenu.export .x-row {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.zmenu.export .x-row:hover {
+  background: var(--panel-3);
+}
+.zmenu.export .x-row span {
+  color: var(--muted);
+}
+.zmenu.export .x-line {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.zmenu.export .x-line .x-label {
+  margin-bottom: -4px;
+}
+.zmenu.export .x-job {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 8px;
+  align-items: center;
+}
+.zmenu.export .x-job b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.zmenu.export .x-act {
+  border: 0;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+}
+.zmenu.export .x-job .export-bar,
+.zmenu.export .x-where {
+  grid-column: 1 / -1;
+}
+.zmenu.export .x-where {
+  font-size: 12px;
+  color: var(--muted);
 }
 .pill:disabled {
   opacity: 0.4;
