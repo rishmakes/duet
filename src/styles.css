@@ -13975,7 +13975,13 @@ button.ctx-item.store-make-option:hover {
   border-radius: 50%;
 }
 .export-done-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin: 28px 0 10px;
+}
+.export-done-head h3 {
+  margin: 0;
   font-size: 12px;
   font-weight: 500;
   color: var(--muted);
@@ -13993,17 +13999,21 @@ button.ctx-item.store-make-option:hover {
 .skills-page.export-page {
   padding: 24px max(24px, calc((100% - 1040px) / 2));
 }
-.export-back {
-  margin-bottom: 6px;
-  padding: 0;
-  border: none;
-  background: none;
+.export-close {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin-right: 10px;
+  vertical-align: 3px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--panel);
   color: var(--muted);
-  font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
 }
-.export-back:hover {
+.export-close:hover {
   color: var(--text);
 }
 .export-page .skills-page-head h2 {
@@ -14046,7 +14056,37 @@ button.ctx-item.store-make-option:hover {
 }
 .export-part {
   align-self: flex-start;
-  margin-bottom: 6px;
+}
+.export-part button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+/* the scene as a strip: the lit part is what gets made, its ends drag */
+.export-strip {
+  position: relative;
+  height: 28px;
+  margin: 2px 7px;
+  border-radius: var(--r-sm);
+  background: var(--line);
+}
+.export-strip-lit {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.export-strip-end {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 12px;
+  margin-left: -6px;
+  border-radius: 4px;
+  background: var(--accent);
+  cursor: ew-resize;
+  touch-action: none;
 }
 .export-part button {
   padding: 6px 16px;
@@ -14136,6 +14176,62 @@ button.ctx-item.store-make-option:hover {
   color: var(--muted);
   font-size: 16px;
   cursor: pointer;
+}
+.export-row .export-x {
+  height: 32px;
+  width: 32px;
+  font-size: 12px;
+}
+/* one file of a video: its kind and sound on top, how fine below */
+.export-file.export-card {
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--panel);
+}
+.export-file-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.export-file-top .export-x {
+  height: 32px;
+  width: 32px;
+  font-size: 12px;
+}
+.export-sound {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.export-full {
+  font-size: 12px;
+  color: var(--muted);
+}
+.export-quality input {
+  width: 100%;
+  accent-color: var(--accent);
+}
+.export-quality div {
+  display: flex;
+  justify-content: space-between;
+}
+.export-quality div button {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.export-quality div button.on {
+  color: var(--text);
+  font-weight: 600;
 }
 .export-x:hover,
 .export-add:hover {

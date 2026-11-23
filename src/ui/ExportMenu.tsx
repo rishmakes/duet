@@ -9,10 +9,9 @@ import { clearFinished, pauseJob, stopJob } from "../ai/jobs";
 import type { Job } from "../ai/jobs";
 import { logError } from "../errorLog";
 import { useJobs, whereItIs } from "./ExportPage";
-import type { ExportTab } from "./ExportPage";
 import { QUALITIES, exportSize, queueVideo } from "../video/scene";
 import { lastChoice, lastDesign, lastMenuTab, rememberMenuTab, shortFolder } from "../video/exportPrefs";
-import type { MenuTab } from "../video/exportPrefs";
+import type { ExportTab } from "../video/exportPrefs";
 
 const openPage = (tab: ExportTab, scene?: string) => window.dispatchEvent(new CustomEvent("duet:export-page", { detail: { tab, scene } }));
 
@@ -28,11 +27,11 @@ export default function ExportMenu() {
   const [open, setOpen] = useState(false);
   useDismiss(open, () => setOpen(false), ".zoomwrap.exportwrap");
   const [note, setNote] = useState("");
-  const [tab, setTab] = useState<MenuTab>(lastMenuTab);
+  const [tab, setTab] = useState<ExportTab>(lastMenuTab);
   const mode = useLayout((d) => d.mode);
   const jobs = useJobs();
   const busy = jobs.filter((j) => j.state === "running" || j.state === "waiting");
-  const pick = (t: MenuTab) => {
+  const pick = (t: ExportTab) => {
     setTab(t);
     rememberMenuTab(t);
   };
@@ -178,7 +177,7 @@ function VideoPart({ setNote, close, started }: { setNote: (s: string) => void; 
         data-name="export-set-up"
         onClick={() => {
           close();
-          openPage("setup", scene.id);
+          openPage("export", scene.id);
         }}
       >
         More options <span>›</span>
@@ -225,7 +224,7 @@ function DesignPart({ photo, setNote, close, started }: { photo: boolean; setNot
         data-name="export-set-up"
         onClick={() => {
           close();
-          openPage("setup");
+          openPage("export");
         }}
       >
         More options <span>›</span>

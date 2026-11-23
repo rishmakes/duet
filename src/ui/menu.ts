@@ -74,7 +74,7 @@ export async function installMenu() {
       await line(),
       await item("Cut and join clips", () => send("duet:video-cut")),
       await line(),
-      await item("Export…", () => send("duet:export-page", { tab: "setup" })),
+      await item("Export…", () => send("duet:export-page", { tab: "export" })),
       await item("Export the design data (.json)…", () => void exportDesignData()),
       await line(),
       await PredefinedMenuItem.new({ item: "CloseWindow" }),

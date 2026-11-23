@@ -42,7 +42,7 @@ import Settings from "./ui/Settings";
 import Home from "./ui/Home";
 import ExportPage from "./ui/ExportPage";
 import RestWarning from "./ui/RestWarning";
-import type { ExportTab } from "./ui/ExportPage";
+import type { ExportTab } from "./video/exportPrefs";
 import SpaceSwitch from "./ui/SpaceSwitch";
 import Kitchen, { RecipesPage } from "./ui/Kitchen";
 import LayersPanel from "./ui/LayersPanel";

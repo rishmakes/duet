@@ -180,6 +180,18 @@ export const BUILDER_TOOLS: ToolDef[] = [
     },
   },
   {
+    name: "dev_drag_export_part",
+    description: "Builder tool. On the Export page, drag one end of the scene strip the way a hand would, and let go at a second. The answer says the part the page will make and the scene's work area after it.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        end: { type: "string", enum: ["start", "end"], description: "Which end of the lit part to drag." },
+        to: { ...num, description: "The second to let go at." },
+      },
+      required: ["end", "to"],
+    },
+  },
+  {
     name: "dev_history",
     description: "Builder tool. The last steps in the history: what each one is called, who made it, and where the design is now.",
     inputSchema: { type: "object", properties: { last: { ...num, description: "How many steps, counting back from the newest. 12 if left out." } } },
@@ -638,6 +650,27 @@ async function dragExport(a: Args): Promise<ToolResult> {
   return { text: `Dragged "${a.video}" ${target ? `before "${a.before}"` : "to the end"}.\nThe line now: ${order.join(" | ")}` };
 }
 
+async function dragExportPart(a: Args): Promise<ToolResult> {
+  const strip = document.querySelector<HTMLElement>(".export-page [data-name='export-strip']");
+  const handle = strip?.querySelector<HTMLElement>(`[data-name='export-part-${a.end === "end" ? "end" : "start"}']`);
+  const scene = currentDoc(getState()).elements[getState().clock.scene ?? ""];
+  if (!strip || !handle || !scene?.duration) return fail("The Export page is not open on a scene. Open it with Export video first.");
+  const s = strip.getBoundingClientRect();
+  const h = handle.getBoundingClientRect();
+  const y = h.top + h.height / 2;
+  const x0 = h.left + h.width / 2;
+  const x1 = s.left + (Math.max(0, Math.min(scene.duration, Number(a.to) || 0)) / scene.duration) * s.width;
+  const at = (x: number) => ({ bubbles: true, cancelable: true, button: 0, pointerId: 1, clientX: x, clientY: y });
+  handle.dispatchEvent(new PointerEvent("pointerdown", at(x0)));
+  for (let i = 1; i <= 8; i++) window.dispatchEvent(new PointerEvent("pointermove", at(x0 + ((x1 - x0) * i) / 8)));
+  await settle();
+  window.dispatchEvent(new PointerEvent("pointerup", at(x1)));
+  await settle();
+  const said = document.querySelector(".export-page .export-caption span + span")?.textContent?.trim();
+  const wa = currentDoc(getState()).elements[scene.id].workArea;
+  return { text: `Dragged the ${a.end === "end" ? "end" : "start"} to ${a.to} s. The page says it makes ${said}. Work area: ${wa ? `${wa.start} to ${wa.end} s` : "none (whole scene)"}.` };
+}
+
 async function dropFootage(a: Args): Promise<ToolResult> {
   // a row in Media, by the name it shows (its length shows beside it)
   const source = Array.from(document.querySelectorAll<HTMLElement>(".clip-row[draggable='true']")).find((r) => r.textContent?.trim().startsWith(String(a.item ?? "")));
@@ -793,6 +826,7 @@ export async function callBuilderTool(name: string, raw: unknown, by?: string): 
   if (name === "dev_drop_footage") return dropFootage(a);
   if (name === "dev_drop_transition") return dropTransition(a);
   if (name === "dev_drag_export") return dragExport(a);
+  if (name === "dev_drag_export_part") return dragExportPart(a);
   if (name === "dev_history") {
     const s = getState();
     const from = Math.max(0, s.timeline.length - (typeof a.last === "number" && a.last > 0 ? Math.floor(a.last) : 12));

@@ -1,24 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import { aboutTime, afterLine, allJobs, guessSeconds, holdLine, lineHeld, setAfterLine, moveJob, pauseJob, putFirst, secondsLeft, stopJob, subscribeJobs } from "../ai/jobs";
+import { aboutTime, afterLine, allJobs, clearFinished, guessSeconds, holdLine, lineHeld, setAfterLine, moveJob, pauseJob, putFirst, secondsLeft, stopJob, subscribeJobs } from "../ai/jobs";
 import type { AfterLine, Job } from "../ai/jobs";
 import { logError } from "../errorLog";
-import { currentDoc, useStore } from "../state/store";
+import { currentDoc, dragCancel, dragCommit, dragPreview, useStore } from "../state/store";
+import type { El } from "../document/types";
 import { QUALITIES, SIZES, exportSize, queueVideo } from "../video/scene";
 import type { ExportChoice } from "../video/scene";
 import { lastChoice, rememberExport, shortFolder } from "../video/exportPrefs";
+import type { ExportTab } from "../video/exportPrefs";
 import { open as openDialog } from "./dialog";
 import ExportPicture from "./ExportPicture";
 import DesignSetUp from "./ExportDesign";
 import { useLayout } from "./layout";
 
 /**
- * Export, as its own page. Set up: how a scene, or a design's screens, are made into files. Queue: every
+ * Export, as its own page. Export: how a scene, or a design's screens, are made into files. Queue: every
  * export in the line, yours and the ones an AI asked for, in the order they are made; pause one, stop one,
  * drag a waiting one up or down, and find the finished ones.
  */
-
-export type ExportTab = "setup" | "queue";
 
 /** Re-draw whenever the line moves. */
 export function useJobs(): readonly Job[] {
@@ -146,8 +146,8 @@ function QueueTab() {
                   {j.paused ? "Resume" : "Pause"}
                 </button>
               )}
-              <button className="pill" data-name="export-stop" onClick={() => stopJob(j.n)} title={isWaiting ? "Take it out of the line" : "Stop making it"}>
-                {isWaiting ? "Remove" : "Stop"}
+              <button className="export-x" data-name="export-remove" onClick={() => stopJob(j.n)} title={isWaiting ? "Take it out of the line" : "Stop making it"}>
+                ✕
               </button>
             </div>
           );
@@ -157,7 +157,12 @@ function QueueTab() {
 
       {over.length > 0 && (
         <>
-          <h3 className="export-done-head">Done</h3>
+          <div className="export-done-head">
+            <h3>Done</h3>
+            <button className="pill" data-name="export-clear-finished" onClick={clearFinished} title="Take every finished file off this list. The files stay where they are.">
+              Clear finished
+            </button>
+          </div>
           <div className="export-rows">
             {over.map((j) => (
               <div key={j.n} className="export-row" data-name={`export-done-${j.what}`}>
@@ -177,6 +182,9 @@ function QueueTab() {
                     Show in Finder
                   </button>
                 )}
+                <button className="export-x" data-name="export-remove" onClick={() => stopJob(j.n)} title="Take it off the list. The file stays where it is.">
+                  ✕
+                </button>
               </div>
             ))}
           </div>
@@ -195,6 +203,50 @@ interface FileRow {
 
 const clockText = (t: number) => `${Math.floor(t / 60)}:${String(Math.round(t % 60)).padStart(2, "0")}`;
 
+/** Good, Better, Best from left to right on the slider. */
+const STEPS = [...QUALITIES].reverse();
+const stepOf = (quality: number) => Math.max(0, STEPS.findIndex((q) => q.quality === quality));
+
+/**
+ * The scene as a strip: the part that is made is lit, and its two ends drag. Dragging marks the work area,
+ * the same one the timeline shows, so the two never disagree. While an end moves, the picture shows that moment.
+ */
+function PartStrip({ scene, part, onDragged, onLook }: { scene: El; part: { start: number; end: number }; onDragged: () => void; onLook: (t: number | null) => void }) {
+  const strip = useRef<HTMLDivElement>(null);
+  const length = scene.duration;
+  const grab = (e: React.PointerEvent, which: "start" | "end") => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const box = strip.current!.getBoundingClientRect();
+    let moved = false;
+    const move = (ev: PointerEvent) => {
+      const t = Math.max(0, Math.min(length, ((ev.clientX - box.left) / box.width) * length));
+      const to = which === "start" ? Math.min(part.end - 0.1, t) : Math.max(part.start + 0.1, t);
+      moved = true;
+      onLook(to);
+      dragPreview("set_work_area", { id: scene.id, start: which === "start" ? to : part.start, end: which === "end" ? to : part.end });
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      onLook(null);
+      if (!moved) return dragCancel();
+      dragCommit("Change the work area");
+      onDragged();
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+  const at = (t: number) => `${(t / length) * 100}%`;
+  return (
+    <div className="export-strip" ref={strip} data-name="export-strip">
+      <span className="export-strip-lit" style={{ left: at(part.start), width: `${((part.end - part.start) / length) * 100}%` }} />
+      <span className="export-strip-end" data-name="export-part-start" style={{ left: at(part.start) }} title="Drag to choose where the video starts" onPointerDown={(e) => grab(e, "start")} />
+      <span className="export-strip-end" data-name="export-part-end" style={{ left: at(part.end) }} title="Drag to choose where the video ends" onPointerDown={(e) => grab(e, "end")} />
+    </div>
+  );
+}
+
 function SetUpTab({ sceneId, onQueued }: { sceneId?: string; onQueued: () => void }) {
   const doc = useStore((s) => currentDoc(s));
   const projectFile = useStore((s) => s.project.file);
@@ -205,6 +257,7 @@ function SetUpTab({ sceneId, onQueued }: { sceneId?: string; onQueued: () => voi
   const [rows, setRows] = useState<FileRow[]>(() => [{ master: !!base.master, quality: base.quality, mute: !!base.mute }]);
   const [more, setMore] = useState(false);
   const [problem, setProblem] = useState("");
+  const [look, setLook] = useState<number | null>(null);
   if (!scene?.duration) return <p className="export-empty">Open a scene to export it.</p>;
 
   const part = base.whole || !scene.workArea ? { start: 0, end: scene.duration } : scene.workArea;
@@ -234,24 +287,23 @@ function SetUpTab({ sceneId, onQueued }: { sceneId?: string; onQueued: () => voi
   return (
     <div className="export-setup">
       <div className="export-left">
-        {scene.workArea && (
-          <div className="kind-quiet export-part">
-            <button className={base.whole ? "on" : ""} data-name="export-whole" onClick={() => setBase({ ...base, whole: true })}>
-              Whole scene
-            </button>
-            <button className={base.whole ? "" : "on"} data-name="export-work-area" onClick={() => setBase({ ...base, whole: false })}>
-              Work area
-            </button>
-          </div>
-        )}
         <div className="export-picture">
-          <ExportPicture doc={doc} el={scene} at={part.start} />
+          <ExportPicture doc={doc} el={scene} at={look ?? part.start} />
         </div>
         <div className="export-caption">
           <span>{scene.name}</span>
           <span>
             {clockText(part.start)} to {clockText(part.end)}
           </span>
+        </div>
+        <PartStrip scene={scene} part={part} onDragged={() => setBase((b) => ({ ...b, whole: false }))} onLook={setLook} />
+        <div className="kind-quiet export-part">
+          <button className={base.whole || !scene.workArea ? "on" : ""} data-name="export-whole" onClick={() => setBase({ ...base, whole: true })}>
+            Whole scene
+          </button>
+          <button className={base.whole || !scene.workArea ? "" : "on"} data-name="export-work-area" disabled={!scene.workArea} title={scene.workArea ? undefined : "Drag the ends of the strip to choose a part"} onClick={() => setBase({ ...base, whole: false })}>
+            Work area
+          </button>
         </div>
       </div>
 
@@ -274,26 +326,35 @@ function SetUpTab({ sceneId, onQueued }: { sceneId?: string; onQueued: () => voi
 
         <span className="export-label">Files</span>
         {rows.map((r, i) => (
-          <div className="export-file" key={i} data-name="export-file">
-            <select data-name="export-kind" value={r.master ? "master" : "mp4"} onChange={(e) => setRow(i, { master: e.target.value === "master" })}>
-              <option value="mp4">MP4</option>
-              <option value="master">ProRes MOV</option>
-            </select>
-            <select data-name="export-quality" value={r.quality} disabled={r.master} title={r.master ? "ProRes keeps everything" : undefined} onChange={(e) => setRow(i, { quality: Number(e.target.value) })}>
-              {QUALITIES.map((q) => (
-                <option key={q.quality} value={q.quality}>
-                  {q.name}
-                </option>
-              ))}
-            </select>
-            <select data-name="export-sound" value={r.mute ? "off" : "on"} onChange={(e) => setRow(i, { mute: e.target.value === "off" })}>
-              <option value="on">Sound on</option>
-              <option value="off">No sound</option>
-            </select>
-            {rows.length > 1 && (
-              <button className="export-x" data-name="export-file-remove" title="Do not make this file" onClick={() => setRows(rows.filter((_, k) => k !== i))}>
-                ×
-              </button>
+          <div className="export-file export-card" key={i} data-name="export-file">
+            <div className="export-file-top">
+              <select data-name="export-kind" value={r.master ? "master" : "mp4"} onChange={(e) => setRow(i, { master: e.target.value === "master" })}>
+                <option value="mp4">MP4</option>
+                <option value="master">ProRes MOV</option>
+              </select>
+              <label className="export-sound">
+                Sound
+                <button type="button" className={`sw ${r.mute ? "" : "on"}`} role="switch" aria-checked={!r.mute} data-name="export-sound" title={r.mute ? "No sound in this file" : "Sound in this file"} onClick={() => setRow(i, { mute: !r.mute })} />
+              </label>
+              {rows.length > 1 && (
+                <button className="export-x" data-name="export-file-remove" title="Do not make this file" onClick={() => setRows(rows.filter((_, k) => k !== i))}>
+                  ✕
+                </button>
+              )}
+            </div>
+            {r.master ? (
+              <span className="export-full">Full quality, to keep editing or grading elsewhere</span>
+            ) : (
+              <div className="export-quality">
+                <input type="range" min={0} max={STEPS.length - 1} step={1} value={stepOf(r.quality)} data-name="export-quality" onChange={(e) => setRow(i, { quality: STEPS[Number(e.target.value)].quality })} />
+                <div>
+                  {STEPS.map((q, k) => (
+                    <button key={q.name} className={k === stepOf(r.quality) ? "on" : ""} onClick={() => setRow(i, { quality: q.quality })}>
+                      {q.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         ))}
@@ -369,14 +430,16 @@ export default function ExportPage({ onClose, tab: startTab, sceneId }: { onClos
   }, [onClose]);
   return (
     <section className="skills-page export-page" data-name="export-page">
-      <button className="export-back" data-name="close-export-page" title="Back to your work (Esc)" onClick={onClose}>
-        ‹ Back to your work
-      </button>
       <div className="skills-page-head">
-        <h2>Export</h2>
+        <h2>
+          <button className="export-close" data-name="close-export-page" title="Back to your work (Esc)" onClick={onClose}>
+            ✕
+          </button>
+          Export
+        </h2>
         <div className="kind-quiet export-tabs">
-          <button className={tab === "setup" ? "on" : ""} data-name="export-tab-setup" onClick={() => setTab("setup")}>
-            Set up
+          <button className={tab === "export" ? "on" : ""} data-name="export-tab-export" onClick={() => setTab("export")}>
+            Export
           </button>
           <button className={tab === "queue" ? "on" : ""} data-name="export-tab-queue" onClick={() => setTab("queue")}>
             Queue {busy > 0 && <i className="export-badge">{busy}</i>}

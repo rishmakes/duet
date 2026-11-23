@@ -7,11 +7,11 @@ interface Prefs {
   choice?: Omit<ExportChoice, "to" | "dir">;
   design?: DesignFile[];
   dirs?: Record<string, string>;
-  menuTab?: MenuTab;
+  menuTab?: ExportTab;
 }
 
 /** Which half of the top-bar Export menu was open last: making a file, or the line of files being made. */
-export type MenuTab = "export" | "queue";
+export type ExportTab = "export" | "queue";
 
 const KEY = "duet.export";
 
@@ -74,8 +74,8 @@ export function rememberDesign(project: string | null, files: DesignFile[], dir:
 export const shortFolder = (dir: string) => dir.split(/[\\/]/).filter(Boolean).slice(-2).join(", ");
 
 /** The half of the Export menu the designer looked at last, so it opens there again. */
-export const lastMenuTab = (): MenuTab => (read().menuTab === "queue" ? "queue" : "export");
+export const lastMenuTab = (): ExportTab => (read().menuTab === "queue" ? "queue" : "export");
 
-export function rememberMenuTab(tab: MenuTab) {
+export function rememberMenuTab(tab: ExportTab) {
   write({ ...read(), menuTab: tab });
 }

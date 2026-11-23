@@ -27,6 +27,7 @@ import { DEFAULT_TRACK_H, NO_HEIGHTS, TIME_MIN_H, TRACK_MAX_H, TRACK_MIN_H, getL
 import { isMouseWheel, wheelZoomFactor } from "./wheel";
 import { useDismiss } from "./useDismiss";
 import { MAC } from "./shortcuts";
+import type { ExportTab } from "../video/exportPrefs";
 import { openBoard, pinnedOn } from "../document/boards";
 import { showComment } from "./commentFocus";
 import { rowLook, trackRows } from "../document/tracks";
@@ -64,8 +65,8 @@ interface Picked {
   props?: Moving[];
 }
 
-/** Open the Export page: on Set up for a scene, or on the line of videos. */
-const openExport = (tab: "setup" | "queue", scene?: string) => window.dispatchEvent(new CustomEvent("duet:export-page", { detail: { tab, scene } }));
+/** Open the Export page: on Export for a scene, or on the line of videos. */
+const openExport = (tab: ExportTab, scene?: string) => window.dispatchEvent(new CustomEvent("duet:export-page", { detail: { tab, scene } }));
 
 const clockText = (t: number) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, "0")}`;
 
@@ -1630,7 +1631,7 @@ export default function TimeStrip() {
             {waitingVideos ? `${making ? ", " : ""}${waitingVideos} waiting` : ""}
           </button>
         )}
-        <button className="pill primary" data-name="export-video" onClick={() => openExport("setup", frame.id)} title="Choose how this scene is made into a video">
+        <button className="pill primary" data-name="export-video" onClick={() => openExport("export", frame.id)} title="Choose how this scene is made into a video">
           Export video
         </button>
       </div>
