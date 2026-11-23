@@ -711,6 +711,19 @@ export default function AssetsPanel() {
     components: shelfOn("components", chip) && (comps.length > 0 || !query.trim()),
   };
 
+  // in Video what joins and dresses clips comes first; elsewhere components, the things reused most, come first and effects last
+  const video = mode === "motion";
+  const effectsShelf = shown.effects && (
+    <Shelf name="assets-effects" title="Effects" startsShut>
+      <div className="assets-soon">Effects are coming soon.</div>
+    </Shelf>
+  );
+  const componentsShelf = shown.components && (
+    <Shelf name="assets-components" title="Components" count={comps.length}>
+      <Components list={comps} />
+    </Shelf>
+  );
+
   return (
     <div className="skills assets-panel" data-name="assets-panel">
       <label className="cut-find assets-find">
@@ -735,6 +748,7 @@ export default function AssetsPanel() {
           {faveTiles.length ? <div className="asset-tiles">{faveTiles}</div> : <div className="empty">Star a tile and it waits here.</div>}
         </Shelf>
       )}
+      {!video && componentsShelf}
       {shown.transitions && (
         <Shelf name="assets-transitions" title="Transitions" count={moves.length}>
           <div className="asset-tiles">
@@ -744,11 +758,7 @@ export default function AssetsPanel() {
           </div>
         </Shelf>
       )}
-      {shown.effects && (
-        <Shelf name="assets-effects" title="Effects" startsShut>
-          <div className="assets-soon">Effects are coming soon.</div>
-        </Shelf>
-      )}
+      {video && effectsShelf}
       {shown.yours && (
         <Shelf name="assets-yours" title="Your styles" count={styles.length}>
           {styles.length ? (
@@ -772,11 +782,7 @@ export default function AssetsPanel() {
           <DesignSystem />
         </Shelf>
       )}
-      {shown.components && (
-        <Shelf name="assets-components" title="Components" count={comps.length}>
-          <Components list={comps} />
-        </Shelf>
-      )}
+      {video ? componentsShelf : effectsShelf}
       {!Object.values(shown).some(Boolean) && <div className="empty">Nothing here is called that.</div>}
     </div>
   );
