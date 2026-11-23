@@ -50,6 +50,9 @@ export default function CutSeams({
     setUp(menu.y + h > window.innerHeight - 8 && menu.top - h > 8);
   }, [menu, find]);
   const picked = usePickedCut();
+  // the cut a transition tile from Assets is over. Every hook stays above the early return below: the first cut on a
+  // track (a split) would otherwise add a hook and blank the screen (#423)
+  const [over, setOver] = useState<string | null>(null);
   const faves = useFavourites();
   useDismiss(!!menu, () => setMenu(null), ".cut-menu, .cut-plus, .cut-badge");
   // each time the picker opens, its search starts empty
@@ -65,7 +68,6 @@ export default function CutSeams({
     putTransition(id, kind);
   };
   // a transition tile from Assets lets go on a cut: the "+" or the badge there takes it
-  const [over, setOver] = useState<string | null>(null);
   const takes = (id: string) => ({
     onDragOver: (e: React.DragEvent) => {
       if (!e.dataTransfer.types.includes(TRANSITION_DRAG)) return;
