@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useDismiss } from "./useDismiss";
 import Icon from "./Icons";
-import { exportTargets } from "../project/exporter";
+import { exportTargets, pickedTargets } from "../project/exporter";
 import { designFileName, queueDesign, standardEnding, takesSize } from "../project/designExport";
 import type { DesignFile } from "../project/designExport";
 import KindSelect from "./KindSelect";
@@ -213,9 +213,9 @@ function DesignPart({ photo, setNote, close, started }: { photo: boolean; setNot
   const projectName = useStore((s) => s.project.name);
   // starts as the first file type made last time; the rest stay remembered for the Export panel
   const [file, setFile] = useState<DesignFile>(() => lastDesign(photo)[0]);
-  const ids = exportTargets(doc, selection);
-  if (!ids.length) return <div className="hint2">Nothing to export yet. Draw a frame first.</div>;
-  const what = ids.length === 1 ? doc.elements[ids[0]].name : selection.length ? `${ids.length} picked things` : `All ${ids.length} screens`;
+  // only what is picked: exporting every screen by surprise is a trap
+  const ids = pickedTargets(doc, selection);
+  const what = !ids.length ? "Select screens on the canvas" : ids.length === 1 ? doc.elements[ids[0]].name : `${ids.length} picked things`;
   const change = (c: Partial<DesignFile>) => {
     const next = { ...file, ...c };
     setFile(file.ending === standardEnding(file) ? { ...next, ending: standardEnding(next) } : next);
@@ -242,7 +242,8 @@ function DesignPart({ photo, setNote, close, started }: { photo: boolean; setNot
       <button
         className="pill primary wide x-go"
         data-name="export-last"
-        title={`Make ${designFileName(file)} files`}
+        disabled={!ids.length}
+        title={ids.length ? `Make ${designFileName(file)} files` : "Select the screens to export first"}
         onClick={() => {
           const last = lastChoice(projectFile).dir;
           const job = queueDesign(ids, file, { project: projectName }, last, doc);

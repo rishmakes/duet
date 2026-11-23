@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { runCommand } from "../commands";
 import { emptyDoc } from "../document/types";
 import { countFiles, designFileName, kindGroups, plannedFiles, standardEnding } from "./designExport";
+import { pickedTargets, screensByBoard } from "./exporter";
 
 function screens() {
   let d = runCommand(emptyDoc(), "create_element", { id: "a", type: "frame", x: 0, y: 0, width: 100, height: 100 });
@@ -49,5 +50,19 @@ describe("kindGroups", () => {
     expect(kindGroups(false).map((g) => g.name)).toEqual(["Picture", "Vector", "Document"]);
     expect(kindGroups(true).map((g) => g.name)).toEqual(["Picture", "Vector", "Document", "Layered"]);
     expect(kindGroups(false).flatMap((g) => g.kinds)).toEqual(["png", "jpg", "svg", "pdf"]);
+  });
+});
+
+describe("screensByBoard and pickedTargets", () => {
+  it("lists screens board by board, and picks only what is selected", () => {
+    const d = screens();
+    const withBoards = { ...d, boards: [{ id: "b1", name: "One" }, { id: "b2", name: "Two", rootIds: ["b"] }], board: "b1", rootIds: ["a"] };
+    expect(screensByBoard(withBoards)).toEqual([
+      { id: "b1", name: "One", open: true, screens: ["a"] },
+      { id: "b2", name: "Two", open: false, screens: ["b"] },
+    ]);
+    expect(screensByBoard(d)[0].screens).toEqual(["a", "b"]);
+    expect(pickedTargets(d, [])).toEqual([]);
+    expect(pickedTargets(d, ["b"])).toEqual(["b"]);
   });
 });

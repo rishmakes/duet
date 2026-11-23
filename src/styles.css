@@ -14472,10 +14472,28 @@ button.ctx-item.store-make-option:hover {
   font: inherit;
   cursor: pointer;
 }
+/* one board's screens, its name over them */
+.export-board + .export-board {
+  margin-top: 18px;
+}
+.export-board-head {
+  margin-bottom: 10px;
+}
+.export-board-name {
+  color: var(--text);
+  font-weight: 600;
+}
+.export-none {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
 .export-screens {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 16px 14px;
+}
+.export-boards {
   max-height: 560px;
   overflow: auto;
 }

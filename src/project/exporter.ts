@@ -8,8 +8,21 @@ export const screensOf = (doc: Doc): string[] => doc.rootIds.filter((i) => doc.e
 
 /** What would be exported: the selection, or every screen when nothing is selected. */
 export function exportTargets(doc: Doc, selection: string[]): string[] {
-  const picked = topLevelOnly(doc, selection.filter((i) => doc.elements[i]));
+  const picked = pickedTargets(doc, selection);
   return picked.length ? picked : screensOf(doc);
+}
+
+/** Only what is picked on the canvas, each thing once (not things inside a picked frame). Nothing picked is nothing. */
+export const pickedTargets = (doc: Doc, selection: string[]): string[] => topLevelOnly(doc, selection.filter((i) => doc.elements[i]));
+
+/** The screens on every board, board by board, the open one with its own things. A file with one canvas is one group with no name. */
+export function screensByBoard(doc: Doc): { id: string; name: string; open: boolean; screens: string[] }[] {
+  const isScreen = (i: string) => doc.elements[i]?.type === "frame" || doc.elements[i]?.type === "instance";
+  if (!doc.boards?.length) return [{ id: "", name: "", open: true, screens: screensOf(doc) }];
+  return doc.boards.map((b) => {
+    const open = b.id === (doc.board ?? doc.boards?.[0].id);
+    return { id: b.id, name: b.name, open, screens: (open ? doc.rootIds : (b.rootIds ?? [])).filter(isScreen) };
+  });
 }
 
 /** Draw one element to a PNG at the given scale. Returns base64 text. */
