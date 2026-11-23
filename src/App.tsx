@@ -15,7 +15,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import ContextMenu from "./ui/ContextMenu";
 import { installMenu } from "./ui/menu";
 import { setMinimized } from "./ai/chat";
-import { clampW, fitStudio, getLayout, isColorOpen, keepMode, modeOf, setLayout, STRIP_W, useLayout, useWindowWidth } from "./ui/layout";
+import { clampW, fitStudio, getLayout, isColorOpen, keepMode, modeOf, setLayout, spaceOf, STRIP_W, useLayout, useWindowWidth } from "./ui/layout";
 import { toggleTheme, useTheme } from "./ui/theme";
 import Icon from "./ui/Icons";
 import { ProjectsSidebar, ProjectMenu } from "./ui/ChatHome";
@@ -49,7 +49,7 @@ import LayersPanel from "./ui/LayersPanel";
 import PropertiesPanel from "./ui/PropertiesPanel";
 import Toolbar from "./ui/Toolbar";
 import PageStrip from "./ui/PageStrip";
-import { getState, useStore } from "./state/store";
+import { currentDoc, getState, useStore } from "./state/store";
 import "./styles.css";
 
 const STATUS: Record<string, string> = {
@@ -149,7 +149,7 @@ export default function App() {
     const kept = modeOf(project.path);
     // a new project being saved for the first time stays in the space it is in: a video started from Home stays in Video
     if (!kept && !before) return keepMode(project.path, getLayout().mode);
-    const m = kept ?? "design";
+    const m = kept ?? spaceOf(currentDoc());
     if (m !== getLayout().mode) setLayout({ mode: m });
   }, [project.path]);
   useEffect(() => {

@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import type { Doc } from "../document/types";
 
 /** Where the panels and the chat sit. Kept per person, on this computer. */
 
@@ -261,6 +262,11 @@ export function modeOf(path: string): Mode | null {
     return null;
   }
 }
+/** The space a project opens in when this computer has no memory of it: Video when it holds a video (alone or beside designs, since a video is the bigger piece of work), else Design. */
+export function spaceOf(doc: Doc): Mode {
+  return Object.values(doc.elements).some((e) => e.type === "frame" && e.parentId === null && e.duration > 0) ? "motion" : "design";
+}
+
 export function keepMode(path: string, mode: Mode) {
   try {
     const all = JSON.parse(localStorage.getItem(MODES) ?? "{}") as Record<string, Mode>;

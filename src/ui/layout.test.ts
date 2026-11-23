@@ -1,5 +1,7 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import { defaults, isColorOpen, keepMode, modeOf, parseLayout, rightTabOf } from "./layout";
+import { defaults, isColorOpen, keepMode, modeOf, parseLayout, rightTabOf, spaceOf } from "./layout";
+import { emptyDoc } from "../document/types";
+import { runCommand } from "../commands";
 
 const store = new Map<string, string>();
 const fakeStorage = {
@@ -185,4 +187,14 @@ describe("a new file does not inherit an old project's space", () => {
     keepMode("/Duet/Untitled.duet", "motion");
     expect(modeOf("/Duet/Untitled.duet")).toBe("motion");
   });
+});
+
+describe("a project this computer has not seen opens by what is in it", () => {
+  const design = runCommand(emptyDoc(), "create_element", { type: "frame", id: "d", x: 0, y: 0, width: 1080, height: 1350 });
+  const video = runCommand(emptyDoc(), "create_element", { type: "frame", id: "v", x: 0, y: 0, width: 1080, height: 1920 });
+  const timed = runCommand(video, "set_duration", { id: "v", seconds: 10 });
+  it("only designs opens in Design", () => expect(spaceOf(design)).toBe("design"));
+  it("only a video opens in Video", () => expect(spaceOf(timed)).toBe("motion"));
+  it("designs and a video open in Video", () => expect(spaceOf(runCommand(timed, "create_element", { type: "frame", id: "d", x: 1200, y: 0, width: 1080, height: 1350 }))).toBe("motion"));
+  it("an empty project opens in Design", () => expect(spaceOf(emptyDoc())).toBe("design"));
 });
