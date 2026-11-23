@@ -279,6 +279,98 @@ button {
   margin-left: 4px;
   opacity: 0.8;
 }
+/* Choose: Duet's own dropdown, a field and a small grouped list under it */
+.choose {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.export-file .choose {
+  flex: 1.6;
+}
+.choose-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.choose-field svg {
+  flex: none;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+.choose-field:hover,
+.choose-field.open {
+  border-color: var(--muted);
+}
+.choose-field.open svg {
+  transform: rotate(180deg);
+}
+.choose-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 80;
+  min-width: 220px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: 0 12px 32px var(--shadow-strong);
+}
+.choose-group {
+  padding: 8px 10px 3px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.choose-list button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.choose-list button:hover {
+  background: var(--panel-2);
+}
+.choose-label {
+  flex: none;
+  min-width: 34px;
+}
+.choose-hint {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 12px;
+}
+.choose-tick {
+  flex: none;
+  width: 14px;
+  display: flex;
+}
+
 /* "Studio for": a small menu under Studio, the one you are in ticked */
 .studio-for {
   position: absolute;
@@ -2067,15 +2159,39 @@ option {
   display: flex;
   margin-bottom: 12px;
 }
-.zmenu.export .x-kind-pick select {
-  flex: 1;
-  min-width: 0;
-  padding: 7px 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
+.zmenu.export .x-kind-pick {
+  padding: 0;
+  cursor: default;
+}
+.zmenu.export .x-kind-pick:hover {
+  background: none;
+}
+/* the menu's own rows are divs; the dropdown inside it keeps its own look */
+.zmenu .choose,
+.zmenu .choose-list > div {
+  display: block;
+  padding: 0;
+  cursor: default;
+}
+.zmenu .choose-list {
+  display: block;
+  padding: 4px;
   background: var(--panel);
-  color: var(--text);
-  font: inherit;
+  cursor: default;
+}
+.zmenu .choose-group {
+  display: block;
+  padding: 8px 10px 3px;
+  cursor: default;
+}
+.zmenu .choose:hover,
+.zmenu .choose-list:hover,
+.zmenu .choose-list > div:hover,
+.zmenu .choose-group:hover {
+  background: none;
+}
+.zmenu .choose-list:hover {
+  background: var(--panel);
 }
 .zmenu.export .x-scale button {
   flex: 1;
