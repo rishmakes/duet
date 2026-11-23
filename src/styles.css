@@ -11368,6 +11368,14 @@ button.ctx-item.store-make-option:hover {
   background: var(--panel-3);
   color: var(--text);
 }
+/* a cross that has to be found at once: a ring around it */
+.page-close.ringed {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+}
 
 /* Home: a play mark on the video tiles */
 .shape-play {
@@ -14001,7 +14009,13 @@ button.ctx-item.store-make-option:hover {
 }
 /* Export and Back trade places in the top bar, so they keep one width */
 .exportwrap > .pill {
-  min-width: 76px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 84px;
+  padding-left: 0;
+  padding-right: 0;
 }
 .exportwrap > .pill:disabled {
   opacity: 0.4;

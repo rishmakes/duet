@@ -433,7 +433,7 @@ export default function ExportPage({ onClose, tab: startTab, sceneId }: { onClos
             Queue {busy > 0 && <i className="export-badge">{busy}</i>}
           </button>
         </div>
-        <button className="page-close" data-name="close-export-page" title="Back to your work (Esc)" aria-label="Close" onClick={onClose}>
+        <button className="page-close ringed" data-name="close-export-page" title="Back to your work (Esc)" aria-label="Close" onClick={onClose}>
           <Icon name="close" size={16} />
         </button>
       </div>

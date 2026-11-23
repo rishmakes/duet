@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useDismiss } from "./useDismiss";
+import Icon from "./Icons";
 import { exportTargets } from "../project/exporter";
 import { designFileName, queueDesign } from "../project/designExport";
 import { currentDoc, useStore } from "../state/store";
@@ -53,6 +54,7 @@ export default function ExportMenu({ pageOpen, onBack }: { pageOpen: boolean; on
     return (
       <div className="zoomwrap exportwrap">
         <button className="pill" data-name="export-back" onClick={onBack} title="Close the Export page (Esc)">
+          <Icon name="back" size={14} />
           Back
         </button>
       </div>
