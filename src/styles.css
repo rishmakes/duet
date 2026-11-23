@@ -162,9 +162,9 @@ button {
   /* above the canvas and panels below it, so the Studio for menu opens over them */
   z-index: 40;
   grid-area: top;
-  /* the two sides always share the room equally, so Kitchen and Studio sit in the middle of the window whatever the sides hold */
+  /* Kitchen and Studio sit in the very middle of the window, as on Home; the two sides keep clear of them */
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) 240px minmax(0, 1fr);
   align-items: center;
   gap: 12px;
   padding: 0 14px;
@@ -178,11 +178,8 @@ button {
   min-width: 0;
 }
 .top-side.end {
+  grid-column: 3;
   justify-content: flex-end;
-}
-.top > .mode-switch.pill {
-  position: static;
-  transform: none;
 }
 /* top left: Home, a thin line, the project and how it is saved */
 .top-home {
@@ -267,9 +264,6 @@ button {
   color: #fff;
 }
 /* Kitchen and Studio wear their icons; Studio's shows what it is for. The switch holds its menu, so it is the menu's anchor */
-.top > .space-switch.pill {
-  position: relative;
-}
 .space-switch button {
   display: flex;
   align-items: center;
@@ -6018,10 +6012,6 @@ button.agent-perm {
 }
 .app.mac .top {
   padding-left: 80px; /* room for the window buttons */
-}
-/* the window buttons take room on the left only; move the switch back by half of it so it stays in the window's middle */
-.app.mac:not(.fs) .top > .space-switch.pill {
-  transform: translateX(-33px);
 }
 .app.mac.fs .top {
   padding-left: 14px;
