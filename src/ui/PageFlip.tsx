@@ -40,9 +40,9 @@ export default function PageFlipButton({ className }: { className: string }) {
       </button>
       <button className={pageView ? "" : "on"} data-name="view-canvas" aria-label="Open canvas" title={pageView ? "Switch to the open canvas, everything at once (Shift P)" : "Open canvas: everything at once (Shift P for page view)"} onClick={pick(false)}>
         <svg {...svg}>
-          <rect x="3" y="4.5" width="10" height="7.5" rx="1.5" />
-          <rect x="11" y="13" width="9.5" height="6.5" rx="1.5" />
-          <path d="M17 4.5v.01M20 7.5v.01" />
+          {/* the open canvas: an endless dotted surface with one frame on it */}
+          <path d="M4 4v.01M12 4v.01M20 4v.01M4 12v.01M4 20v.01M12 20.5v.01M20 20.5v.01" strokeWidth={2.2} />
+          <rect x="8.5" y="8.5" width="12" height="9" rx="1.5" />
         </svg>
       </button>
     </div>

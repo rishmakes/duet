@@ -100,9 +100,9 @@ const PATHS: Record<IconName, React.ReactNode> = {
   ),
   prototype: (
     <>
-      <rect x="3.5" y="4.5" width="7" height="11" rx="1.5" />
-      <rect x="13.5" y="8.5" width="7" height="11" rx="1.5" />
-      <path d="M10.5 10h3" />
+      {/* a phone screen you can play: try the design like an app */}
+      <rect x="6" y="3" width="12" height="18" rx="2.5" />
+      <path d="M10.5 9.5v5l4.2-2.5z" />
     </>
   ),
   // the left panel's tabs: what a video is made from, what is said, what is on the canvas, and what is ready to use
