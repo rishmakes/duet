@@ -14563,3 +14563,25 @@ button.ctx-item.store-make-option:hover {
   color: var(--text);
   font: inherit;
 }
+
+/* when a part of the screen fails: a plain way back instead of a blank window */
+.crash-catch {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: var(--bg);
+  color: var(--text);
+  text-align: center;
+}
+.crash-catch h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.crash-catch p {
+  margin: 0 0 8px;
+  color: var(--muted);
+}

@@ -3,6 +3,7 @@ import "./devQuiet"; // first, before React loads
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import CrashCatch, { catchStrayErrors } from "./ui/CrashCatch";
 import { watchForFreezes } from "./freezeWatch";
 import { initTheme } from "./ui/theme";
 
@@ -36,6 +37,7 @@ if (import.meta.env.PROD) {
 // A file dropped anywhere Duet does not take it must never be opened by the window itself: that would
 // replace Duet with the file, and the window could then not even be closed.
 watchForFreezes();
+catchStrayErrors();
 
 for (const ev of ["dragover", "drop"]) window.addEventListener(ev, (e) => e.preventDefault());
 
@@ -53,6 +55,8 @@ window.addEventListener(
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <App />
+    <CrashCatch>
+      <App />
+    </CrashCatch>
   </React.StrictMode>,
 );
