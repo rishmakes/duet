@@ -267,7 +267,12 @@ button {
 .space-switch button {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
+  /* Kitchen and Studio are always the same size, on Home, in Kitchen and in Studio, with or without Studio's arrow:
+     the switch holds the app together, so it never changes shape */
+  width: 112px;
+  flex: none;
 }
 .space-switch .studio-caret {
   margin-left: 4px;
