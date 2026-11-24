@@ -1,5 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { logError } from "../errorLog";
 import { listen } from "@tauri-apps/api/event";
 import { currentDoc, dispatch, useStore } from "../state/store";
 import type { El, Transcript } from "../document/types";
@@ -300,7 +301,11 @@ async function hear(src: string, languageKey: string, keep: (t: Transcript) => v
     const words = lang.prompt ? t.words.map((w) => ({ ...w, w: plainLetters(w.w) })).filter((w) => w.w) : t.words;
     keep({ language: lang.key, model: t.model, words });
   } catch (e) {
-    throw new Error(typeof e === "string" ? e : e instanceof Error ? e.message : "Voice to text could not hear this clip.");
+    const said = typeof e === "string" ? e : e instanceof Error ? e.message : "Voice to text could not hear this clip.";
+    // what the helper said as it ended goes to the error log; the designer reads only the plain words
+    const [plain, detail] = said.split("\n\u001f");
+    if (detail) logError("voice to text", new Error(detail));
+    throw new Error(plain);
   } finally {
     void off.then((f) => f());
     jobs.delete(src);

@@ -25,9 +25,22 @@ jobs:
       - run: npm ci
       - run: bash scripts/fetch-ffmpeg x86_64-pc-windows-msvc
         shell: bash
-      # Vulkan, so Voice to text listens on the graphics card (#375)
-      - run: bash scripts/fetch-vulkan
+      # The speech engine is built for the common PC, not for the machine that builds it: built "native" on a
+      # GitHub machine with AVX512, it crashed with "illegal instruction" on PCs without it (#440).
+      # The old build is cleared, because Cargo does not notice these settings changing.
+      - name: Speech engine for every PC
         shell: bash
+        run: |
+          {
+            echo "GGML_NATIVE=OFF"
+            echo "GGML_AVX=ON"
+            echo "GGML_AVX2=ON"
+            echo "GGML_FMA=ON"
+            echo "GGML_F16C=ON"
+            echo "GGML_BMI2=ON"
+            echo "GGML_AVX512=OFF"
+          } >> "$GITHUB_ENV"
+          cargo clean -p whisper-rs-sys --manifest-path src-tauri/Cargo.toml
       - run: npx tauri build --bundles nsis
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}

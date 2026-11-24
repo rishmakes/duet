@@ -421,17 +421,24 @@ pub fn voice_transcribe(app: AppHandle, path: String, language: String, prompt: 
     let (st, m) = stop_to_use().ok_or("Voice to text is not downloaded yet.")?;
     let model_path = own_dir()?.join(m.file);
     let prompt = with_own_words(prompt.unwrap_or_default(), &language);
-    // on Windows the graphics card listens; if its driver fails, the processor hears it again, and this
-    // computer goes straight to the processor from then on (an Intel HD 630 driver from 2020 crashed, #375)
-    let failed = own_dir()?.join("graphics-failed");
-    let mut answer = if cfg!(windows) && failed.exists() { None } else { listen(&app, &path, &model_path, &language, &prompt, st.search, false)? };
-    if cfg!(windows) && answer.as_ref().is_none_or(|a| a.get("error").is_some()) {
-        if answer.is_none() {
-            let _ = std::fs::write(&failed, "");
-        }
-        answer = listen(&app, &path, &model_path, &language, &prompt, st.search, true)?;
+    // Windows listens on the processor only for now (the graphics card listening is paused until it can be tried on a proper card, #440);
+    // the Mac listens on its graphics chip
+    let processor = cfg!(windows);
+    // what each run of the helper did, kept to tell why one ended without an answer
+    let mut notes: Vec<String> = Vec::new();
+    let (answer, note) = listen(&app, &path, &model_path, &language, &prompt, st.search, processor)?;
+    notes.push(note);
+    // every run, good or bad, is kept in ~/.duet/last-listen.txt, so a computer can be asked how Voice to text went
+    if let Ok(dir) = own_dir() {
+        let _ = std::fs::write(dir.join("last-listen.txt"), notes.join("\n"));
     }
-    let mut a = answer.ok_or("Voice to text stopped before it finished. The recording may have no sound, or the computer ran out of memory.")?;
+    let Some(mut a) = answer else {
+        // the plain words first; after a separator, what the helper said, for the error log and for the creator
+        return Err(format!(
+            "Voice to text stopped before it finished. The recording may have no sound, or the computer ran out of memory.{DETAIL_MARK}{}",
+            notes.join(" | ")
+        ));
+    };
     if let Some(e) = a.get("error").and_then(|e| e.as_str()) {
         return Err(e.to_string());
     }
@@ -443,13 +450,8 @@ pub fn voice_transcribe(app: AppHandle, path: String, language: String, prompt: 
 
 /// One run of the helper: its answer, or nothing if it ended without one. `processor` keeps it off
 /// the graphics card.
-fn listen(app: &AppHandle, path: &str, model_path: &std::path::Path, language: &str, prompt: &str, search: &str, processor: bool) -> Result<Option<Value>, String> {
+fn listen(app: &AppHandle, path: &str, model_path: &std::path::Path, language: &str, prompt: &str, search: &str, processor: bool) -> Result<(Option<Value>, String), String> {
     let mut cmd = crate::quiet_command(std::env::current_exe().map_err(|e| e.to_string())?);
-    if processor {
-        // on the processor the graphics stay hidden from the speech engine: a bad driver crashes it while it
-        // only sets the graphics up, even when they are not used. A device number that is not there hides them.
-        cmd.env("GGML_VK_VISIBLE_DEVICES", "99");
-    }
     let mut child = cmd
         .arg("--transcribe")
         .arg(model_path)
@@ -460,30 +462,78 @@ fn listen(app: &AppHandle, path: &str, model_path: &std::path::Path, language: &
         .arg(if processor { "processor" } else { "graphics" })
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        // what it says as it dies is kept (the last lines), so a run that ends without an answer can be understood
+        .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| format!("Voice to text could not start: {e}"))?;
     hearing().lock().unwrap().insert(path.to_string(), child.id());
     let out = child.stdout.take().ok_or("Voice to text could not start.")?;
+    let said = Arc::new(Mutex::new(std::collections::VecDeque::<String>::new()));
+    // the lines that say which graphics device the engine found and used, kept whole run for the note
+    let devices = Arc::new(Mutex::new(Vec::<String>::new()));
+    let reader = child.stderr.take().map(|err| {
+        let said = said.clone();
+        let devices = devices.clone();
+        std::thread::spawn(move || {
+            for line in BufReader::new(err).lines().map_while(Result::ok) {
+                let line: String = line.chars().take(200).collect();
+                let low = line.to_lowercase();
+                if (low.contains("vulkan") || low.contains("backend") || low.contains("using gpu") || low.contains("no gpu")) && devices.lock().unwrap().len() < 6 {
+                    devices.lock().unwrap().push(line.trim().to_string());
+                }
+                let mut q = said.lock().unwrap();
+                q.push_back(line);
+                if q.len() > 8 {
+                    q.pop_front();
+                }
+            }
+        })
+    });
     let mut answer: Option<Value> = None;
+    let mut stage = String::new();
+    let mut seconds = String::new();
     // each step and how far it is, so a slow computer never looks stuck
     for line in BufReader::new(out).lines().map_while(Result::ok) {
         if let Some(p) = line.strip_prefix("progress ") {
             let _ = app.emit("voice-progress", json!({ "path": path, "percent": p.trim().parse::<u32>().unwrap_or(0) }));
         } else if let Some(s) = line.strip_prefix("stage ") {
+            stage = s.trim().to_string();
             let _ = app.emit("voice-progress", json!({ "path": path, "stage": s.trim() }));
         } else if let Some(sec) = line.strip_prefix("seconds ") {
+            seconds = sec.trim().to_string();
             let _ = app.emit("voice-progress", json!({ "path": path, "seconds": sec.trim().parse::<f64>().unwrap_or(0.0) }));
         } else if line.starts_with('{') {
             answer = serde_json::from_str(&line).ok();
         }
     }
-    let _ = child.wait();
+    let status = child.wait();
+    if let Some(r) = reader {
+        let _ = r.join();
+    }
     if hearing().lock().unwrap().remove(path).is_none() {
         return Err("Stopped.".into());
     }
-    Ok(answer)
+    let tail = said.lock().unwrap().iter().cloned().collect::<Vec<_>>().join(" / ");
+    let device = devices.lock().unwrap().join(" / ");
+    let note = format!(
+        "{} run: ended {} at stage \"{}\" with {} s of sound, {}; model {}; device: {}; said: {}",
+        if processor { "processor" } else { "graphics" },
+        match &status {
+            Ok(st) => format!("{st}"),
+            Err(e) => format!("({e})"),
+        },
+        stage,
+        if seconds.is_empty() { "?" } else { &seconds },
+        if answer.is_some() { "with an answer" } else { "with no answer" },
+        model_path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default(),
+        if device.is_empty() { "not said" } else { &device },
+        if tail.is_empty() { "nothing" } else { &tail },
+    );
+    Ok((answer, note))
 }
+
+/// Between the words a designer reads and what the helper said, in an error from `voice_transcribe`.
+const DETAIL_MARK: &str = "\n\u{1f}";
 
 /// The helpers hearing recordings now, by the recording's path, so one can be stopped.
 fn hearing() -> &'static std::sync::Mutex<std::collections::HashMap<String, u32>> {
@@ -540,7 +590,7 @@ fn sound_of(path: &str) -> Result<Vec<f32>, String> {
 
 fn hear(model_path: &str, path: &str, language: &str, prompt: &str, search: &str, processor: bool) -> Result<Vec<Value>, String> {
     use whisper_rs::{DtwMode, DtwModelPreset, DtwParameters, FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
-    whisper_rs::install_logging_hooks();
+    // the engine's own messages (which graphics device it found and used) go to stderr, where the app keeps them
     say("stage sound");
     let sound = sound_of(path)?;
     say(&format!("seconds {:.1}", sound.len() as f64 / 16000.0));
