@@ -2076,7 +2076,9 @@ async function placeSound(args: Args, by?: string): Promise<ToolResult> {
   const sceneId = String(args.parentId);
   const scene = R.currentDoc().elements[sceneId];
   const start = Math.max(0, Math.min(scene.duration - 0.1, Number(args.start) || 0));
-  const end = Math.min(scene.duration, Math.round((start + length) * 1000) / 1000);
+  // in Edit the video is as long as what is on its timeline, so a long sound lengthens it (#426); in Motion it stops at the frame's end
+  const whole = Math.round((start + length) * 1000) / 1000;
+  const end = scene.followsFootage ? whole : Math.min(scene.duration, whole);
   const file = path.split(/[\\/]/).pop() ?? "Sound";
   const name = typeof args.name === "string" && args.name.trim() ? args.name.trim() : file;
   await ensureSaved();

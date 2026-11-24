@@ -75,15 +75,23 @@ describe("place_media", () => {
     expect(rows(doc)).toEqual(["c 0-2", "a 0-4"]);
   });
 
-  it("sound goes on a sound track and stops where the video stops", () => {
+  it("in Edit a sound goes on a sound track and makes the video as long as it is (#426)", () => {
     let doc = runCommand(blank(), "place_media", { id: "f", items: [clip("a", 4)], at: 0 });
     doc = runCommand(doc, "place_media", { id: "f", items: [clip("m", 60, "sound"), clip("b", 2)], at: 0, track: { index: 0 } });
     // the clip covers the start of the one under it, which keeps its place
     expect(time(doc, "b")).toEqual([0, 2]);
     expect(time(doc, "a")).toEqual([2, 4]);
     expect(doc.elements.a.clipFrom).toBe(2);
-    expect(time(doc, "m")).toEqual([0, 4]);
-    expect(rows(doc)).toEqual(["b 0-2, a 2-4", "m 0-4"]);
+    expect(time(doc, "m")).toEqual([0, 60]);
+    expect(doc.elements.f.duration).toBe(60);
+  });
+
+  it("in Motion a sound stops where the frame stops: the length is fixed", () => {
+    let doc = runCommand(runCommand(emptyDoc(), "create_element", { type: "frame", id: "f", x: 0, y: 0, width: 1920, height: 1080 }), "set_duration", { id: "f", seconds: 10 });
+    doc = runCommand(doc, "create_element", { type: "rect", id: "r", parentId: "f", x: 0, y: 0, width: 10, height: 10 });
+    doc = runCommand(doc, "place_media", { id: "f", items: [clip("m", 60, "sound")], at: 0, layers: true });
+    expect(time(doc, "m")).toEqual([0, 10]);
+    expect(doc.elements.f.duration).toBe(10);
   });
 
   it("in Motion the new layers go just above the picked one and keep the times", () => {

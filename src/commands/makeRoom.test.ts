@@ -20,7 +20,7 @@ describe("make_room (#399)", () => {
   it("a clip dragged over another covers it: the one under gets shorter and nothing jumps to another track", () => {
     let doc = runCommand(edit(), "set_timing", { ids: ["c"], start: 3, end: 5 });
     doc = runCommand(doc, "make_room", { ids: ["c"] });
-    expect(rows(doc)).toEqual(["a 0-3, b 5-7, c 3-5", "m 0-9"]);
+    expect(rows(doc)).toEqual(["a 0-3, b 5-7, c 3-5", "m 0-60"]);
     expect(doc.elements.b.clipFrom).toBe(1);
   });
 

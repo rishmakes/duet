@@ -1233,14 +1233,16 @@ const placeMedia: CommandDef<PlaceMediaArgs> = {
     if (empty) next.elements[a.id].duration = round(Math.max(1, pictures.length ? t : at + sounds.reduce((sum, it) => sum + it.seconds, 0)));
     // a scene that follows its footage grows after the change; one that does not (Motion) keeps its length
     else if (frame0.followsFootage && longest > next.elements[a.id].duration) next.elements[a.id].duration = round(longest);
-    // music is usually longer than the video: it stops where the video stops
+    // in Edit the video is as long as everything on its timeline, sound too (#426); in Motion the length is fixed, so a sound stops where the frame stops
+    const grows = !!frame0.followsFootage;
     let u = at;
     for (const it of sounds) {
-      const end = round(Math.min(next.elements[a.id].duration, u + it.seconds));
+      const end = round(grows ? u + it.seconds : Math.min(next.elements[a.id].duration, u + it.seconds));
       if (end - u < 0.01) break;
       put(it, u, end, soundTrack);
       u = end;
     }
+    if (grows && u > next.elements[a.id].duration) next.elements[a.id].duration = u;
     // sound dropped on a track of its own covers the sound under it, or pushes it along, the same way
     if (!motion && a.track && !a.aside && !pictures.length) next = makeRoom.run(next, { ids: sounds.map((it) => it.id), push: a.push });
     if (!motion) stackByTrack(next, a.id, made);
