@@ -441,6 +441,10 @@ pub fn voice_transcribe(app: AppHandle, path: String, language: String, prompt: 
         notes.push(note);
         answer = a;
     }
+    // every run, good or bad, is kept in ~/.duet/last-listen.txt, so a computer can be asked how Voice to text went
+    if let Ok(dir) = own_dir() {
+        let _ = std::fs::write(dir.join("last-listen.txt"), notes.join("\n"));
+    }
     let Some(mut a) = answer else {
         // the plain words first; after a separator, what the helper said, for the error log and for the creator
         return Err(format!(
@@ -483,12 +487,20 @@ fn listen(app: &AppHandle, path: &str, model_path: &std::path::Path, language: &
     hearing().lock().unwrap().insert(path.to_string(), child.id());
     let out = child.stdout.take().ok_or("Voice to text could not start.")?;
     let said = Arc::new(Mutex::new(std::collections::VecDeque::<String>::new()));
+    // the lines that say which graphics device the engine found and used, kept whole run for the note
+    let devices = Arc::new(Mutex::new(Vec::<String>::new()));
     let reader = child.stderr.take().map(|err| {
         let said = said.clone();
+        let devices = devices.clone();
         std::thread::spawn(move || {
             for line in BufReader::new(err).lines().map_while(Result::ok) {
+                let line: String = line.chars().take(200).collect();
+                let low = line.to_lowercase();
+                if (low.contains("vulkan") || low.contains("backend") || low.contains("using gpu") || low.contains("no gpu")) && devices.lock().unwrap().len() < 6 {
+                    devices.lock().unwrap().push(line.trim().to_string());
+                }
                 let mut q = said.lock().unwrap();
-                q.push_back(line.chars().take(200).collect());
+                q.push_back(line);
                 if q.len() > 8 {
                     q.pop_front();
                 }
@@ -520,8 +532,9 @@ fn listen(app: &AppHandle, path: &str, model_path: &std::path::Path, language: &
         return Err("Stopped.".into());
     }
     let tail = said.lock().unwrap().iter().cloned().collect::<Vec<_>>().join(" / ");
+    let device = devices.lock().unwrap().join(" / ");
     let note = format!(
-        "{} run: ended {} at stage \"{}\" with {} s of sound, {}; model {}; said: {}",
+        "{} run: ended {} at stage \"{}\" with {} s of sound, {}; model {}; device: {}; said: {}",
         if processor { "processor" } else { "graphics" },
         match &status {
             Ok(st) => format!("{st}"),
@@ -531,6 +544,7 @@ fn listen(app: &AppHandle, path: &str, model_path: &std::path::Path, language: &
         if seconds.is_empty() { "?" } else { &seconds },
         if answer.is_some() { "with an answer" } else { "with no answer" },
         model_path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default(),
+        if device.is_empty() { "not said" } else { &device },
         if tail.is_empty() { "nothing" } else { &tail },
     );
     Ok((answer, note))
@@ -594,7 +608,7 @@ fn sound_of(path: &str) -> Result<Vec<f32>, String> {
 
 fn hear(model_path: &str, path: &str, language: &str, prompt: &str, search: &str, processor: bool) -> Result<Vec<Value>, String> {
     use whisper_rs::{DtwMode, DtwModelPreset, DtwParameters, FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
-    whisper_rs::install_logging_hooks();
+    // the engine's own messages (which graphics device it found and used) go to stderr, where the app keeps them
     say("stage sound");
     let sound = sound_of(path)?;
     say(&format!("seconds {:.1}", sound.len() as f64 / 16000.0));
