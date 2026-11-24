@@ -157,6 +157,12 @@ function ChatBody({ docked = false, extra, onFold, full = false, foldable = fals
   itemsRef.current = items;
 
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // the settings page hangs from the bottom of the header, which is taller when the chat floats
+  const headRef = useRef<HTMLDivElement>(null);
+  const [pageTop, setPageTop] = useState<number | undefined>(undefined);
+  useLayoutEffect(() => {
+    if (settingsOpen) setPageTop(headRef.current?.offsetHeight);
+  }, [settingsOpen, docked, minimized]);
   /** The New task menu, and the AI picked in it. */
   const [taskPick, setTaskPick] = useState<AgentId | null>(null);
   const [mentionHidden, setMentionHidden] = useState(false);
@@ -654,6 +660,7 @@ function ChatBody({ docked = false, extra, onFold, full = false, foldable = fals
     >
       <div
         className="chead"
+        ref={headRef}
         onPointerDown={docked ? undefined : grab}
         title="Drag to move me. Let go near a corner and I will snap there."
         onClick={() => (!docked || foldable) && !justMoved.current && setMinimized(!minimized)}
@@ -849,6 +856,7 @@ function ChatBody({ docked = false, extra, onFold, full = false, foldable = fals
         {settingsOpen && (
           <div
             className="chat-settings"
+            style={pageTop !== undefined ? { top: pageTop } : undefined}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
