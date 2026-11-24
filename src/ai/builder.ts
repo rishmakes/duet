@@ -6,6 +6,7 @@ import { homeDir } from "@tauri-apps/api/path";
 import { invoke } from "@tauri-apps/api/core";
 import { currentDoc, getState, seenDoc } from "../state/store";
 import { clipPictureOf, clipState } from "../video/clips";
+import { soundState } from "../video/audioClock";
 import { seek } from "../video/play";
 import { getLayout, setLayout } from "../ui/layout";
 import { spanOf } from "../document/time";
@@ -199,7 +200,7 @@ export const BUILDER_TOOLS: ToolDef[] = [
   {
     name: "dev_video",
     description: "Builder tool. Stand in for the two system windows of the video screen. add: put a video file in the list by its full path. export: make the video at a full path. clear: empty the list. For a frame that plays: frame makes the video of the frame with id at a full path, and clock moves the clock to the second t and says what the canvas shows then.",
-    inputSchema: { type: "object", properties: { do: { type: "string", enum: ["add", "export", "clear", "frame", "clock"] }, path: str, id: str, t: { type: "number" } }, required: ["do"] },
+    inputSchema: { type: "object", properties: { do: { type: "string", enum: ["add", "export", "clear", "frame", "clock", "sound"] }, path: str, id: str, t: { type: "number" } }, required: ["do"] },
   },
   {
     name: "dev_look_at_window",
@@ -832,6 +833,7 @@ export async function callBuilderTool(name: string, raw: unknown, by?: string): 
     const from = Math.max(0, s.timeline.length - (typeof a.last === "number" && a.last > 0 ? Math.floor(a.last) : 12));
     return { text: s.timeline.slice(from).map((e, i) => `${from + i + 1} ${e.actor === "ai" ? (e.by ?? "an AI") : "you"}: ${e.label}${from + i === s.cursor ? "  <- now" : ""}`).join("\n") };
   }
+  if (name === "dev_video" && a.do === "sound") return { text: soundState() };
   if (name === "dev_video" && a.do === "frame") {
     try {
       const began = Date.now();

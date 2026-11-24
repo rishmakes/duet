@@ -6,6 +6,7 @@ import type { Doc } from "../document/types";
 import { logError } from "../errorLog";
 import { hiddenHere } from "../document/tracks";
 import { gainAt } from "../document/sound";
+import { clockRunning, viaClock } from "./audioClock";
 
 /**
  * The players behind video clips on the canvas. Each clip has its own hidden player, so the clip coming
@@ -329,6 +330,14 @@ export function syncClips(doc: Doc, sceneId: string | null, t: number, playing: 
       const at = fileTimeAt(el, start, t);
       // shown past its ends in a dissolve, it is not heard there: transitions change only the picture
       v.volume = t >= start && t < end ? gainAt(doc, el, scene, t) : 0;
+      // heard through the audio clock: the player only gives the picture, and a sound has nothing to show
+      const clocked = playing && clockRunning() && viaClock(el);
+      v.muted = clocked;
+      if (clocked && el.type === "sound") {
+        rolling.delete(v);
+        if (!v.paused) v.pause();
+        continue;
+      }
       v.playbackRate = el.speed || 1;
       // in a dissolve past where its file has footage, a clip holds its end picture still
       const last = Number.isFinite(v.duration) && v.duration > 0 ? v.duration - 0.04 : Infinity;
@@ -344,7 +353,7 @@ export function syncClips(doc: Doc, sceneId: string | null, t: number, playing: 
         // A player already on its picture is not moved again, or it would stall to find the same spot.
         rolling.delete(v);
         const gap = Math.abs(v.currentTime - at);
-        if (gap > 1 || (v.paused && gap > 0.05)) {
+        if (gap > (clocked ? 0.3 : 1) || (v.paused && gap > 0.05)) {
           wanted.delete(v);
           clearTimeout(settleTimers.get(v));
           v.currentTime = at;
@@ -433,6 +442,8 @@ export function clockFromClip(doc: Doc, sceneId: string, t: number): number | nu
     if (t < start || t >= end) continue;
     const v = clipPlayers.get(id);
     if (!v) continue;
+    // with the audio clock running the clips never set the pace
+    if (clockRunning()) return null;
     // a clip that is late does not hold the clock: the clock runs on, as in any editor
     if (v.paused || v.seeking || v.readyState < 3) continue;
     const at = frameTimeAt(el, start, v.currentTime);

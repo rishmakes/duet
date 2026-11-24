@@ -1,5 +1,6 @@
 import { currentDoc, getState, setClock, subscribe } from "../state/store";
-import { clipReport, clockFromClip, onClipPicture, syncClips } from "./clips";
+import { clipReport, clipsIn, clockFromClip, onClipPicture, syncClips } from "./clips";
+import { clockNow, onSoundReady, syncSound } from "./audioClock";
 import { logError } from "../errorLog";
 
 /** Playing a frame that has a length: the clock runs, the canvas follows, and clips keep in step. */
@@ -21,7 +22,8 @@ function tick(now: number) {
   }
   // a playing clip sets the pace; with none, the clock runs on its own
   const own = s.clock.t + (rate * (now - last)) / 1000;
-  const t = rate === 1 ? clockFromClip(currentDoc(s), scene.id, s.clock.t) ?? own : own;
+  const heard = rate === 1 ? clockNow() : null;
+  const t = heard !== null ? Math.max(s.clock.t, heard) : rate === 1 ? clockFromClip(currentDoc(s), scene.id, s.clock.t) ?? own : own;
   last = now;
   // running backwards, it stops at the start of the work area, or of the frame
   if (rate < 0) {
@@ -162,8 +164,12 @@ export function wireClips() {
     if (now === was && doc === lastDoc) return;
     was = now;
     lastDoc = doc;
+    // sound first: it decides whether the clips only give the picture
+    syncSound(doc, s.clock.scene, s.clock.t, lead, s.clock.scene && doc.elements[s.clock.scene]?.duration ? clipsIn(doc, s.clock.scene) : []);
     syncClips(doc, s.clock.scene, s.clock.t, lead);
   });
+  // a file's sound finished loading: run the sync again so a clip waiting for it joins the clock
+  onSoundReady(() => setClock({}));
   // a new picture from a clip means the canvas has to draw again
   onClipPicture(() => setClock({}));
 }
