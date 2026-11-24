@@ -852,6 +852,11 @@ function ChatBody({ docked = false, extra, onFold, full = false, foldable = fals
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
+            {/* a way back that sits on the page itself: a floating chat's header can be taller than the page's top edge hides */}
+            <button type="button" className="chat-settings-back" data-name="chat-settings-back" onClick={() => setSettingsOpen(false)}>
+              <Icon name="back" size={14} />
+              Back to chat
+            </button>
             {/* a side task: one AI works by itself beside this chat; kept out of the top row */}
             {members.length > 0 && (
               <div className="chat-settings-section">

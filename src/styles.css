@@ -14612,3 +14612,21 @@ button.ctx-item.store-make-option:hover {
   justify-content: flex-end;
   gap: 6px;
 }
+
+/* the way back on the chat's settings page */
+.chat-settings-back {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+.chat-settings-back:hover {
+  background: var(--panel);
+}
