@@ -313,12 +313,6 @@ const LATE = 0.07;
 /** Players of clips coming next that are already rolling silently towards their cut. */
 const rolling = new Set<HTMLMediaElement>();
 
-/** Seconds a player may sit before its clip's first sound and still not be heard repeating the clip before it. */
-const REPEAT_SLACK = 0.01;
-
-/** Whether a player is at a file time before where its clip starts: playing on from there would repeat sound. */
-export const arrivesBehind = (playerAt: number, clipStartsAt: number) => playerAt < clipStartsAt - REPEAT_SLACK;
-
 /** Put every clip of a frame on the picture that belongs to this moment, and play or hold it. */
 export function syncClips(doc: Doc, sceneId: string | null, t: number, playing: boolean) {
   if (held) return;
@@ -350,11 +344,7 @@ export function syncClips(doc: Doc, sceneId: string | null, t: number, playing: 
         // A player already on its picture is not moved again, or it would stall to find the same spot.
         rolling.delete(v);
         const gap = Math.abs(v.currentTime - at);
-        // a clip that comes in behind its first sound would play again what the clip before it just played:
-        // it goes to its place and stays silent until it is there (#424)
-        const behindStart = t >= start && arrivesBehind(v.currentTime, fileTimeAt(el, start, start));
-        if (behindStart) v.volume = 0;
-        if (gap > 1 || (v.paused && gap > 0.05) || behindStart) {
+        if (gap > 1 || (v.paused && gap > 0.05)) {
           wanted.delete(v);
           clearTimeout(settleTimers.get(v));
           v.currentTime = at;

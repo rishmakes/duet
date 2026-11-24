@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { arrivesBehind, clockLead } from "./clips";
+import { clockLead } from "./clips";
 
 describe("clockLead", () => {
   it("lets a clip on time or ahead set the clock", () => {
@@ -14,17 +14,5 @@ describe("clockLead", () => {
   });
   it("lets a clip far ahead go too", () => {
     expect(clockLead(54, 52.5)).toBeNull();
-  });
-});
-
-describe("arrivesBehind (#424)", () => {
-  it("spots a second half that starts before its first sound, so it would repeat the half before it", () => {
-    // measured in Duet dev: the player was at 4.801 s of the file when the cut asked for 5.019 s
-    expect(arrivesBehind(4.801, 5.0)).toBe(true);
-  });
-  it("lets a player that is on its place, or ahead of it, play", () => {
-    expect(arrivesBehind(5.0, 5.0)).toBe(false);
-    expect(arrivesBehind(4.995, 5.0)).toBe(false);
-    expect(arrivesBehind(5.2, 5.0)).toBe(false);
   });
 });
