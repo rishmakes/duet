@@ -43,6 +43,8 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: ./src-tauri -> target
+          # a fresh saved build: the one from before Vulkan holds an old compiler path (#440)
+          prefix-key: cpu1
       - name: Linux build tools
         if: matrix.platform == 'ubuntu-22.04'
         run: |
