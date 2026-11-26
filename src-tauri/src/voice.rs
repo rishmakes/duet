@@ -421,26 +421,13 @@ pub fn voice_transcribe(app: AppHandle, path: String, language: String, prompt: 
     let (st, m) = stop_to_use().ok_or("Voice to text is not downloaded yet.")?;
     let model_path = own_dir()?.join(m.file);
     let prompt = with_own_words(prompt.unwrap_or_default(), &language);
-    // on Windows the graphics card listens; if its driver fails, the processor hears it again, and this
-    // computer goes straight to the processor from then on (an Intel HD 630 driver from 2020 crashed, #375)
-    let failed = own_dir()?.join("graphics-failed");
-    // what each run of the helper did, kept to tell why one ended without an answer (a long recording stopped by itself, #440)
+    // Windows listens on the processor only for now (the graphics card listening is paused until it can be tried on a proper card, #440);
+    // the Mac listens on its graphics chip
+    let processor = cfg!(windows);
+    // what each run of the helper did, kept to tell why one ended without an answer
     let mut notes: Vec<String> = Vec::new();
-    let mut answer = if cfg!(windows) && failed.exists() {
-        None
-    } else {
-        let (a, note) = listen(&app, &path, &model_path, &language, &prompt, st.search, false)?;
-        notes.push(note);
-        a
-    };
-    if cfg!(windows) && answer.as_ref().is_none_or(|a| a.get("error").is_some()) {
-        if answer.is_none() {
-            let _ = std::fs::write(&failed, "");
-        }
-        let (a, note) = listen(&app, &path, &model_path, &language, &prompt, st.search, true)?;
-        notes.push(note);
-        answer = a;
-    }
+    let (answer, note) = listen(&app, &path, &model_path, &language, &prompt, st.search, processor)?;
+    notes.push(note);
     // every run, good or bad, is kept in ~/.duet/last-listen.txt, so a computer can be asked how Voice to text went
     if let Ok(dir) = own_dir() {
         let _ = std::fs::write(dir.join("last-listen.txt"), notes.join("\n"));
@@ -465,11 +452,6 @@ pub fn voice_transcribe(app: AppHandle, path: String, language: String, prompt: 
 /// the graphics card.
 fn listen(app: &AppHandle, path: &str, model_path: &std::path::Path, language: &str, prompt: &str, search: &str, processor: bool) -> Result<(Option<Value>, String), String> {
     let mut cmd = crate::quiet_command(std::env::current_exe().map_err(|e| e.to_string())?);
-    if processor {
-        // on the processor the graphics stay hidden from the speech engine: a bad driver crashes it while it
-        // only sets the graphics up, even when they are not used. A device number that is not there hides them.
-        cmd.env("GGML_VK_VISIBLE_DEVICES", "99");
-    }
     let mut child = cmd
         .arg("--transcribe")
         .arg(model_path)

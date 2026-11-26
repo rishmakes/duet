@@ -1,9 +1,7 @@
 {
   "bundle": {
     "resources": {
-      "binaries/ffmpeg-licences/*": "ffmpeg-licences/",
-      "binaries/vulkan-1.dll": "vulkan-1.dll",
-      "binaries/vulkan-licence/*": "vulkan-licence/"
+      "binaries/ffmpeg-licences/*": "ffmpeg-licences/"
     }
   }
 }

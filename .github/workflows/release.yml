@@ -43,6 +43,8 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: ./src-tauri -> target
+          # a fresh saved build: the one from before Vulkan holds an old compiler path (#440)
+          prefix-key: cpu1
       - name: Linux build tools
         if: matrix.platform == 'ubuntu-22.04'
         run: |
@@ -52,10 +54,6 @@ jobs:
       # the ffmpeg that ships inside Duet, pinned and checked, for the computer type being built
       - run: bash scripts/fetch-ffmpeg ${{ matrix.rust-targets || 'x86_64-pc-windows-msvc' }}
         if: matrix.platform != 'ubuntu-22.04'
-        shell: bash
-      # Vulkan, so Voice to text listens on the graphics card on Windows (#375)
-      - run: bash scripts/fetch-vulkan
-        if: matrix.platform == 'windows-latest'
         shell: bash
       # The speech engine is built for the common PC, not for the machine that builds it: built "native" on a
       # GitHub machine with AVX512, it crashed with "illegal instruction" on PCs without it (#440).

@@ -22,11 +22,10 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: ./src-tauri -> target
+          # a fresh saved build: the one from before Vulkan holds an old compiler path (#440)
+          prefix-key: cpu1
       - run: npm ci
       - run: bash scripts/fetch-ffmpeg x86_64-pc-windows-msvc
-        shell: bash
-      # Vulkan, so Voice to text listens on the graphics card (#375)
-      - run: bash scripts/fetch-vulkan
         shell: bash
       # The speech engine is built for the common PC, not for the machine that builds it: built "native" on a
       # GitHub machine with AVX512, it crashed with "illegal instruction" on PCs without it (#440).
@@ -51,5 +50,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: duet-windows-test
-          path: C:/t/release/bundle/nsis/*-setup.exe
+          path: src-tauri/target/release/bundle/nsis/*-setup.exe
           retention-days: 3
