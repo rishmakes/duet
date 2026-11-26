@@ -12839,9 +12839,17 @@ button.ctx-item.store-make-option:hover {
 }
 .transcribe-foot span {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--muted);
   font-size: 11px;
+}
+/* the buttons keep their words on one line; the note gives way instead */
+.transcribe-foot .pill {
+  flex: none;
+  white-space: nowrap;
 }
 .time-hearing {
   position: absolute;

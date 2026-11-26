@@ -123,7 +123,7 @@ export function AutoCaptionsBox({ scene, clips, picked, onClose, onError }: { sc
         {missing.length ? "Duet listens for the words first, on this computer. The captions come when it is done." : "Captions made before for the same part are replaced."}
       </div>
       <div className="transcribe-foot">
-        <span>Plain text you can change</span>
+        <span>Edit them anytime</span>
         <button className="pill" data-name="captions-cancel" onClick={onClose}>
           Cancel
         </button>
