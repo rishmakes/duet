@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { currentDoc, dispatch, useStore } from "../state/store";
-import { wordsOfEdit } from "../document/words";
+import { clipsWithWords, wordsOfEdit } from "../document/words";
 import type { EditWord, WordFix } from "../document/words";
 import { toSrt, toTxt, transcriptLines } from "../document/transcriptFile";
 import { message, save } from "./dialog";
 import { seek } from "../video/play";
-import { LANGUAGES, languageOf, useHearingAll } from "./Transcribe";
+import Icon from "./Icons";
+import { ASK_TRANSCRIBE, LANGUAGES, languageOf, useHearingAll } from "./Transcribe";
 
 /**
  * The Words tab in Video (#340): everything said in the open video, as it is cut now, in short lines with
@@ -24,7 +25,7 @@ export default function WordsPanel() {
   const words = useMemo(() => (sceneId ? wordsOfEdit(doc, sceneId) : []), [doc, sceneId]);
   const rows = useMemo(() => transcriptLines(words), [words]);
   const [note, setNote] = useState("");
-  const [menu, setMenu] = useState(false);
+  const [menu, setMenu] = useState<"export" | "more" | null>(null);
   // the picked words, by their place in the edit, and where a Shift-click run starts
   const [picked, setPicked] = useState<number[]>([]);
   const anchor = useRef(-1);
@@ -45,13 +46,16 @@ export default function WordsPanel() {
   const scene = sceneId ? doc.elements[sceneId] : null;
   const listening = useHearingAll().length > 0;
 
-  // the Export menu closes on a click anywhere else, or Escape
+  // the recordings in this video that have words, even when every word was taken out by hand
+  const heard = sceneId ? [...new Set(clipsWithWords(doc, sceneId).map((id) => doc.elements[id].src))] : [];
+
+  // the open menu closes on a click anywhere else, or Escape
   useEffect(() => {
     if (!menu) return;
     const away = (e: MouseEvent) => {
-      if (!(e.target as HTMLElement).closest("[data-name=words-export]")) setMenu(false);
+      if (!(e.target as HTMLElement).closest(".words-menu")) setMenu(null);
     };
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setMenu(false);
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setMenu(null);
     window.addEventListener("mousedown", away);
     window.addEventListener("keydown", esc);
     return () => {
@@ -61,7 +65,7 @@ export default function WordsPanel() {
   }, [menu]);
 
   const exportAs = async (kind: "srt" | "txt") => {
-    setMenu(false);
+    setMenu(null);
     try {
       const path = await save({
         title: "Export transcript",
@@ -125,19 +129,53 @@ export default function WordsPanel() {
       <div className="words-top">
         <div className="words-head">
           <div className="words-title">Words</div>
-          {words.length > 0 && (
-            <div className="words-export" data-name="words-export">
-              <button className="words-export-btn" data-name="words-export-button" aria-expanded={menu} onClick={() => setMenu(!menu)}>
-                Export
-              </button>
-              {menu && (
-                <div className="words-export-menu">
-                  <button data-name="words-export-srt" onClick={() => void exportAs("srt")}>Save as SRT</button>
-                  <button data-name="words-export-txt" onClick={() => void exportAs("txt")}>Save as TXT</button>
-                </div>
-              )}
-            </div>
-          )}
+          <div className="words-tools">
+            {words.length > 0 && (
+              <div className="words-menu" data-name="words-export">
+                <button className="words-menu-btn" data-name="words-export-button" aria-expanded={menu === "export"} onClick={() => setMenu(menu === "export" ? null : "export")}>
+                  Export
+                </button>
+                {menu === "export" && (
+                  <div className="words-menu-list">
+                    <button data-name="words-export-srt" onClick={() => void exportAs("srt")}>Save as SRT</button>
+                    <button data-name="words-export-txt" onClick={() => void exportAs("txt")}>Save as TXT</button>
+                  </div>
+                )}
+              </div>
+            )}
+            {heard.length > 0 && (
+              <div className="words-menu">
+                <button className="words-menu-btn" data-name="words-more-button" title="More" aria-label="More" aria-expanded={menu === "more"} onClick={() => setMenu(menu === "more" ? null : "more")}>
+                  <Icon name="dots" size={14} />
+                </button>
+                {menu === "more" && (
+                  <div className="words-menu-list">
+                    <button
+                      data-name="words-again"
+                      disabled={listening}
+                      onClick={() => {
+                        setMenu(null);
+                        window.dispatchEvent(new CustomEvent(ASK_TRANSCRIBE));
+                      }}
+                    >
+                      Transcribe again…
+                    </button>
+                    <button
+                      data-name="words-remove"
+                      disabled={listening}
+                      onClick={() => {
+                        setMenu(null);
+                        setNote("");
+                        dispatch("set_words", { src: heard, transcript: null });
+                      }}
+                    >
+                      Remove transcription
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
         <div className="words-sub">{words.length ? [scene?.name, heardIn].filter(Boolean).join(" · ") : listening ? "Listening for words…" : "Nothing heard yet"}</div>
       </div>

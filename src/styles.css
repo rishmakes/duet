@@ -13564,10 +13564,17 @@ button.ctx-item.store-make-option:hover {
   align-items: center;
   justify-content: space-between;
 }
-.words-export {
-  position: relative;
+.words-tools {
+  display: flex;
+  gap: 6px;
 }
-.words-export-btn {
+.words-menu {
+  position: relative;
+  display: flex;
+}
+.words-menu-btn {
+  display: flex;
+  align-items: center;
   padding: 4px 10px;
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
@@ -13575,11 +13582,11 @@ button.ctx-item.store-make-option:hover {
   font-size: 12px;
   cursor: pointer;
 }
-.words-export-btn:hover,
-.words-export-btn[aria-expanded="true"] {
+.words-menu-btn:hover,
+.words-menu-btn[aria-expanded="true"] {
   border-color: var(--accent);
 }
-.words-export-menu {
+.words-menu-list {
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
@@ -13593,7 +13600,8 @@ button.ctx-item.store-make-option:hover {
   border-radius: var(--r-md);
   box-shadow: 0 14px 40px var(--shadow-strong);
 }
-.words-export-menu button {
+.words-menu-list button {
+  white-space: nowrap;
   padding: 7px 10px;
   border: 0;
   border-radius: var(--r-sm);
@@ -13602,8 +13610,11 @@ button.ctx-item.store-make-option:hover {
   font-size: 12px;
   cursor: default;
 }
-.words-export-menu button:hover {
+.words-menu-list button:hover:enabled {
   background: var(--accent-soft);
+}
+.words-menu-list button:disabled {
+  color: var(--muted);
 }
 .words-foot {
   margin-top: 16px;

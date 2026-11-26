@@ -33,7 +33,7 @@ import { showComment } from "./commentFocus";
 import { rowLook, trackRows } from "../document/tracks";
 import type { TrackRow } from "../document/tracks";
 import { getPickedTrack, pickTrack, usePickedTrack } from "./pickedTrack";
-import { HearingCard, HearingLine, TranscribeBox, useHearingAll } from "./Transcribe";
+import { ASK_TRANSCRIBE, HearingCard, HearingLine, TranscribeBox, useHearingAll } from "./Transcribe";
 import { AutoCaptionsBox } from "./AutoCaptions";
 import CutSeams from "./CutSeams";
 
@@ -159,6 +159,11 @@ export default function TimeStrip() {
   // the Transcribe box, for one clip, opened from its menu or from the bar under the timeline
   const [askWords, setAskWords] = useState<string | null>(null);
   useDismiss(!!askWords, () => setAskWords(null), "[data-card='act-transcribe']");
+  useEffect(() => {
+    const open = () => setAskWords("open");
+    window.addEventListener(ASK_TRANSCRIBE, open);
+    return () => window.removeEventListener(ASK_TRANSCRIBE, open);
+  }, []);
   useDismiss(!!menu, () => setMenu(null), ".ctx");
   // the track picked by its name, which paste puts clips on, and the menu of a track's name
   const trackPick = usePickedTrack();

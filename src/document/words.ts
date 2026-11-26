@@ -49,7 +49,7 @@ const inside = (w: Word, from: number, to: number) => {
 };
 
 /** Every clip and sound in a frame that has words, in the frame's own order. */
-function clipsWithWords(doc: Doc, sceneId: string): string[] {
+export function clipsWithWords(doc: Doc, sceneId: string): string[] {
   const scene = doc.elements[sceneId];
   if (!scene) return [];
   return scene.childIds.filter((id) => {

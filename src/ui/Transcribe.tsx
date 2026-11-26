@@ -323,6 +323,9 @@ const secondsText = (s: number) => {
   return `${m} min ${n % 60} s`;
 };
 
+/** Ask the timeline to open the Transcribe box, from somewhere else (the Words panel). */
+export const ASK_TRANSCRIBE = "duet:transcribe";
+
 /** The box: which language is spoken in these clips, then Transcribe. Picked clips, or the whole video. */
 export function TranscribeBox({ els, scene, picked, onClose, onError }: { els: El[]; scene: El; picked: boolean; onClose: () => void; onError: (note: string) => void }) {
   const [key, setKey] = useState(lastLanguage);

@@ -71,6 +71,16 @@ describe("captions", () => {
   });
 });
 
+describe("removing the transcription", () => {
+  it("takes the words of every recording at once, and leaves the captions already made (#443)", () => {
+    const two = runCommand(talk(), "set_words", { src: "/more.mp4", transcript: { language: "en", model: "medium", words } });
+    const made = runCommand(two, "add_captions", { sceneId: "f", look: "bold", per: 3 });
+    const bare = runCommand(made, "set_words", { src: ["/talk.mp4", "/more.mp4"], transcript: null });
+    expect(bare.words).toBeUndefined();
+    expect(captions(bare)).toEqual(captions(made));
+  });
+});
+
 describe("the spoken word", () => {
   it("lights up each word of a caption while it is said, and is kept in the file", async () => {
     const { docAt } = await import("../document/time");

@@ -3135,15 +3135,15 @@ const reorderPagesDef: CommandDef<ReorderPagesArgs> = {
 
 // ---- Voice to text: the words heard in a recording (#340) ----
 export interface SetWordsArgs {
-  /** Where the recording is on the computer. */
-  src: string;
+  /** Where the recording is on the computer, or several recordings to take the words of at once. */
+  src: string | string[];
   /** Its words, or null to take them away. */
   transcript: Transcript | null;
 }
 
 const setWordsDef: CommandDef<SetWordsArgs> = {
   label: (a) => (a.transcript ? "Transcribe" : "Remove the words"),
-  run: (doc, a) => withWords(doc, a.src, a.transcript),
+  run: (doc, a) => [a.src].flat().reduce((next, src) => withWords(next, src, a.transcript), doc),
 };
 
 // ---- fix_words ----
