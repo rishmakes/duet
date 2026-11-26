@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { extractPayload } from "./clipboard";
 import { runCommand } from "../commands";
 import { parseDoc, serializeDoc } from "./serialize";
-import { hiddenHere, loudness, trackRows } from "./tracks";
+import { hiddenHere, loudness, shiftedRows, trackRows } from "./tracks";
 import { emptyDoc } from "./types";
 import type { Doc } from "./types";
 
@@ -17,6 +17,35 @@ function scene() {
 const names = (doc: Doc) => trackRows(doc, doc.elements.f).map((r) => `${r.name}: ${r.items.map((el) => el.id).join(" ")}`);
 
 describe("tracks", () => {
+  it("moves things dragged together by whole rows, only as far as there is room", () => {
+    // sideways, or over no row: each stays on its own
+    expect(shiftedRows([1, 2], 1, 1, 4)).toEqual([1, 2]);
+    expect(shiftedRows([1, 2], 1, null, 4)).toEqual([1, 2]);
+    expect(shiftedRows([1, 2], 2, 1, 4)).toEqual([0, 1]);
+    // no room above for the topmost, so no further than that
+    expect(shiftedRows([1, 2], 2, 0, 4)).toEqual([0, 1]);
+    expect(shiftedRows([0, 2], 2, 1, 4)).toEqual([0, 2]);
+    expect(shiftedRows([1, 2], 1, 3, 4)).toEqual([2, 3]);
+    // one thing alone goes where the pointer is
+    expect(shiftedRows([0], 0, 3, 4)).toEqual([3]);
+  });
+
+  it("moves several things down a track in one step, whichever is listed first", () => {
+    const clip = (id: string, type: "video" | "sound", start: number, end: number, track: string) => ({ id, type, start, end, track });
+    let doc = runCommand(emptyDoc(), "create_element", { id: "f", type: "frame", x: 0, y: 0, width: 100, height: 100 });
+    doc = runCommand(doc, "set_duration", { id: "f", seconds: 30 });
+    const things = [clip("d", "sound", 0, 10, "2"), clip("a", "video", 0, 10, "1"), clip("c", "video", 19, 29, "1"), clip("b", "video", 16, 29, "0")];
+    for (const t of things) {
+      doc = runCommand(doc, "create_element", { id: t.id, type: t.type, x: 0, y: 0, width: 10, height: 10, parentId: "f" });
+      doc.elements[t.id] = { ...doc.elements[t.id], start: t.start, end: t.end, track: t.track };
+    }
+    doc.elements.f.tracks = ["0", "1", "2", "3"].map((id) => ({ id, name: id }));
+    // b goes first, onto a row c has yet to leave (#444)
+    const moved = runCommand(doc, "set_track", { ids: ["b", "c", "a", "d"], track: [1, 2, 2, 3].map((index) => ({ index })) });
+    expect(["b", "c", "a", "d"].map((id) => moved.elements[id].track)).toEqual(["1", "2", "2", "3"]);
+    expect(names(moved).map((n) => n.split(": ")[1].split(" ").sort().join(" "))).toEqual(["", "b", "a c", "d"]);
+  });
+
   it("sorts things into title, clip and sound rows by itself until a track is touched", () => {
     const doc = scene();
     expect(doc.elements.f.tracks).toBeUndefined();

@@ -26,6 +26,16 @@ const overlap = (a: El, b: El, frame: El) => {
   return x.start < y.end - 0.001 && y.start < x.end - 0.001;
 };
 
+/**
+ * Where things dragged together land, by row number (top is 0): all move by as many rows as the one held
+ * moved, only as far as the topmost and bottommost have room, so each stays apart on its own row (#444).
+ * With the pointer over no row, they stay where they are.
+ */
+export function shiftedRows(own: number[], held: number, over: number | null, count: number): number[] {
+  const by = over === null ? 0 : Math.max(-Math.min(...own), Math.min(count - 1 - Math.max(...own), over - held));
+  return own.map((row) => row + by);
+}
+
 /** Sort things into as few rows as they fit in, front first, so none in a row show at the same time. */
 export function packRows(list: El[], frame: El): El[][] {
   const rows: El[][] = [];

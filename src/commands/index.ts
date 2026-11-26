@@ -1079,10 +1079,11 @@ const deleteTrack: CommandDef<DeleteTrackArgs> = {
 export interface SetTrackArgs {
   /** Clips or sounds in one frame that plays. */
   ids: string[];
-  track: TrackRef;
+  /** One track for all of them, or one each, in the order of ids. */
+  track: TrackRef | TrackRef[];
 }
 
-/** Move clips, sounds, text or shapes onto another track. They keep their time. */
+/** Move clips, sounds, text or shapes onto other tracks. They keep their time. */
 const setTrack: CommandDef<SetTrackArgs> = {
   label: (a) => (a.ids.length > 1 ? `Move ${a.ids.length} clips to another track` : "Move to another track"),
   run: (doc, a) => {
@@ -1090,12 +1091,14 @@ const setTrack: CommandDef<SetTrackArgs> = {
     const frameId = first?.parentId;
     if (!frameId || !scene(doc, frameId)) return doc;
     const next = clone(doc);
-    const track = findTrack(next, frameId, a.track);
-    if (!track) return doc;
+    // the rows are saved once, and every thing is on its new track before any is checked for covering another:
+    // moved one at a time, one could be sent back by a thing that was about to leave (#444)
+    const tracks = keepTracks(next, frameId);
     const moved: string[] = [];
-    for (const id of a.ids) {
+    for (const [i, id] of a.ids.entries()) {
       const el = next.elements[id];
-      if (!el || el.parentId !== frameId || el.track === track.id) continue;
+      const track = tracks[(Array.isArray(a.track) ? a.track[i] : a.track)?.index];
+      if (!el || el.parentId !== frameId || !track || el.track === track.id) continue;
       el.track = track.id;
       moved.push(id);
     }

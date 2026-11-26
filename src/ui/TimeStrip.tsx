@@ -30,7 +30,7 @@ import { MAC } from "./shortcuts";
 import type { ExportTab } from "../video/exportPrefs";
 import { openBoard, pinnedOn } from "../document/boards";
 import { showComment } from "./commentFocus";
-import { rowLook, trackRows } from "../document/tracks";
+import { rowLook, shiftedRows, trackRows } from "../document/tracks";
 import type { TrackRow } from "../document/tracks";
 import { getPickedTrack, pickTrack, usePickedTrack } from "./pickedTrack";
 import { ASK_TRANSCRIBE, HearingCard, HearingLine, TranscribeBox, useHearingAll } from "./Transcribe";
@@ -898,6 +898,9 @@ export default function TimeStrip() {
     const beside = look === "cut" ? (rowsRef.current.find((r) => r.items.some((it) => it.id === el.id))?.items ?? []).filter((o) => o.id !== el.id && (o.type === "sound") === (el.type === "sound")).map((o) => spanOf(o, frame)) : [];
     const floor = Math.max(0, ...beside.filter((sp) => sp.end <= span.start + 0.03).map((sp) => sp.end));
     const ceiling = Math.min(Infinity, ...beside.filter((sp) => sp.start >= span.end - 0.03).map((sp) => sp.start));
+    // the rows as they were when the drag began: the clips move by whole rows from there
+    const startRows = rowsRef.current;
+    const rowOf = (id: string) => startRows.findIndex((r) => r.items.some((it) => it.id === id));
     let moved = false;
     let lastMove: PointerEvent | null = null;
     const move = (ev: PointerEvent) => {
@@ -943,19 +946,15 @@ export default function TimeStrip() {
         let next = last > length ? runCommand(dragBase(), "set_duration", { id: frame.id, seconds: last }) : dragBase();
         const all = [el.id, ...others.map((o) => o.id)];
         if (look === "cut") {
-          // over another track, it goes on that track, with the clips moving with it; each one is put on its
-          // track before it moves, so the rows are kept as they were and none is bumped by where it lands
+          // over another track, it goes there, and the clips moving with it go up or down as many tracks; all are
+          // put on their tracks together before they move, so the rows are kept as they were and none is bumped
           const over = Array.from(lanes.current?.querySelectorAll<HTMLElement>("[data-row]") ?? []).find((r) => {
             const b = r.getBoundingClientRect();
             return ev.clientY >= b.top && ev.clientY < b.bottom;
           });
-          const row = over ? rowsRef.current[Number(over.dataset.row)] : undefined;
-          if (row?.track) next = runCommand(next, "set_track", { ids: all, track: row.track });
-          else
-            for (const id of all) {
-              const own = rowsRef.current.find((r) => r.items.some((it) => it.id === id))?.track;
-              if (own) next = runCommand(next, "set_track", { ids: [id], track: own });
-            }
+          const placed = all.filter((id) => rowOf(id) >= 0);
+          const to = shiftedRows(placed.map(rowOf), rowOf(el.id), over ? Number(over.dataset.row) : null, startRows.length);
+          next = runCommand(next, "set_track", { ids: placed, track: to.map((row) => startRows[row].track!) });
         }
         next = runCommand(next, "set_timing", { ids: [el.id], start, end: start + long });
         for (const o of others) next = runCommand(next, "set_timing", { ids: [o.id], start: o.span.start + shift, end: o.span.end + shift });
