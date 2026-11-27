@@ -225,7 +225,7 @@ export function seenDoc(s: State = state): Doc {
 }
 
 /** Changes that are about time itself. They are made to the design as it is, not as it looks at one moment. */
-const ABOUT_TIME = new Set<CommandName>(["set_duration", "set_timing", "set_key", "set_keys", "key_now", "set_curve", "remove_key", "set_entrance", "set_transition", "split_at", "ripple_delete", "cut_ranges"]);
+const ABOUT_TIME = new Set<CommandName>(["set_duration", "set_timing", "set_key", "set_keys", "key_now", "set_curve", "remove_key", "set_entrance", "set_transition", "split_at", "ripple_delete", "cut_ranges", "reset_sound"]);
 
 let posedCache: { doc: Doc; scene: string; t: number; out: Doc } | null = null;
 function pose(doc: Doc, box: Box = liveBox): Doc {
