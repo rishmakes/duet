@@ -77,8 +77,14 @@ const committed = () => {
 const RECENT_KEY = "duet:recent";
 /** How many projects the list keeps. The same everywhere, so opening one never pushes others off. */
 const RECENT_MAX = 200;
-/** Where the list is kept. Duet dev keeps its own, only until it closes, so it never touches a designer's list. */
-const kept = () => (checkCopy ? sessionStorage : localStorage);
+/** Where the list and the last project are kept. Duet dev keeps its own under other names, so it never touches a designer's list. */
+const kept = () => {
+  const own = (key: string) => (checkCopy ? `${key}-dev` : key);
+  return {
+    getItem: (key: string) => localStorage.getItem(own(key)),
+    setItem: (key: string, value: string) => localStorage.setItem(own(key), value),
+  };
+};
 
 export interface Recent {
   path: string;

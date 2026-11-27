@@ -215,6 +215,9 @@ export default function App() {
     // every launch starts at your projects; the last one is a click away ("Back to ...")
     void restoreLast().then(async () => {
       if (isCheckCopy()) setCheck(true);
+      // projects in Documents/Duet always show up in the list, even ones made before this app knew them.
+      // Looked for only now, once Duet knows whether it is Duet dev, which has its own folder and list
+      if (inTauri()) void invoke<string>("default_projects_dir").then((d) => findProjects(d)).catch(() => undefined);
       // a project file double-clicked in Finder or Explorer opens straight in, without Home
       const f = inTauri() ? await invoke<string | null>("launch_file").catch(() => null) : null;
       if (f) return (setHomeOpen(false), void openProjectAt(f));
@@ -245,8 +248,6 @@ export default function App() {
         }
         await Promise.race([flushPack().catch(() => undefined), new Promise((done) => setTimeout(done, 4000))]);
       });
-      // projects in Documents/Duet always show up in the list, even ones made before this app knew them
-      void invoke<string>("default_projects_dir").then((d) => findProjects(d)).catch(() => undefined);
       // the trash clears out what is older than 30 days, now and once a day
       void trashList();
       const daily = setInterval(() => void trashList(), 24 * 60 * 60 * 1000);
