@@ -13,6 +13,9 @@ export const dbText = (v: number) => (v <= fromDb(QUIETEST_DB) ? "Silent" : `${M
 
 const clamp = (v: number) => Math.max(0, Math.min(1, v));
 
+/** Whether a clip's sound was changed from how the file is: its volume, a fade or a volume point. */
+export const soundChanged = (el: El) => !!(el.keys.volume?.length || (el.volume ?? 1) !== 1 || el.fadeIn || el.fadeOut);
+
 /**
  * Loudness the way a person hears it, from 0 to 1: 1 is the file as it is, 0.5 sounds half as loud
  * (about 10 dB quieter), 0 is silent. A volume (0 to 1, the strength of the sound) is this to the power 1.66.

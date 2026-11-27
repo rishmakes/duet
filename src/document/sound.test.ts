@@ -102,6 +102,16 @@ describe("sound", () => {
     expect(frame).toBe(doc);
   });
 
+  it("reset sound puts several clips back in one step", () => {
+    let doc = withSound({ volume: 0.4, fadeIn: 1, fadeOut: 2 });
+    doc = runCommand(doc, "set_volume_line", { id: "m", keys: [{ t: 2, v: 0.2 }] });
+    doc = runCommand(doc, "reset_sound", { ids: ["m", "f"] });
+    expect(doc.elements.m).toMatchObject({ volume: 1, fadeIn: 0, fadeOut: 0 });
+    expect(doc.elements.m.keys.volume).toBeUndefined();
+    // nothing left to reset: nothing changes
+    expect(runCommand(doc, "reset_sound", { ids: ["m"] })).toBe(doc);
+  });
+
   it("lowering a stretch makes a smooth dip and leaves the rest alone", () => {
     const doc = withSound({ volume: 0.8 });
     const keys = dipKeys(doc.elements.m, doc.elements.f, 4, 6, -12);

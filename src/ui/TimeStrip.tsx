@@ -14,7 +14,7 @@ import { openScene, pause, seek, shuttle, togglePlay } from "../video/play";
 import Icon from "./Icons";
 import ClipFace from "./ClipFace";
 import VolumeLine from "./VolumeLine";
-import { fromLevel, levelText, toLevel } from "../document/sound";
+import { fromLevel, levelText, soundChanged, toLevel } from "../document/sound";
 import { setKeyFocus } from "./keyFocus";
 import { addMedia, clipKind, dropClips, keepDropped } from "../video/scene";
 import { allJobs, subscribeJobs } from "../ai/jobs";
@@ -2346,17 +2346,17 @@ export default function TimeStrip() {
               <div className="ctx-item" data-name="menu-volume" onClick={() => (setMenu(null), setLayout({ rightHidden: false, videoTab: "properties" }))}>
                 <span>Volume…</span>
               </div>
-              {!!(menu.el.keys.volume?.length || menu.el.volume !== 1 || menu.el.fadeIn || menu.el.fadeOut) && (
+              {soundChanged(menu.el) && (
                 <div
                   className="ctx-item"
                   data-name="menu-reset-volume"
                   onClick={() => {
                     const el = menu.el;
                     setMenu(null);
-                    dispatch("set_volume_line", { id: el.id, keys: [], volume: 1, fadeIn: 0, fadeOut: 0, label: "Reset volume" } as never);
+                    dispatch("reset_sound", { ids: [el.id] });
                   }}
                 >
-                  <span>Reset volume</span>
+                  <span>Reset sound</span>
                 </div>
               )}
               <div

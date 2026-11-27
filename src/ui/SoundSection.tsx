@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { currentDoc, dispatch, dragCancel, dragPreview, useStore } from "../state/store";
 import { spanOf } from "../document/time";
-import { fromLevel, toLevel, volumeAt } from "../document/sound";
+import { fromLevel, soundChanged, toLevel, volumeAt } from "../document/sound";
 import type { El } from "../document/types";
 
 type Kind = "volume" | "fadeIn" | "fadeOut";
@@ -66,12 +66,17 @@ export default function SoundSection({ els, scene }: { els: El[]; scene: El | nu
   return (
     <div className="sec sound-sec">
       <h4>Sound</h4>
+      <div className="grade-top">
+        <button className="mini" data-name="reset-sound" disabled={!els.some(soundChanged)} onClick={() => dispatch("reset_sound", { ids })}>
+          Reset sound
+        </button>
+      </div>
       <Row ids={ids} kind="volume" label="Volume" value={same((e) => volumeAt(e, t))} max={100} unit="%" hint="How loud it is. 100% is the file as it is, 50% sounds half as loud, 0 is silent." />
       <Row ids={ids} kind="fadeIn" label="Fade in" value={same((e) => e.fadeIn || 0)} max={most} unit="s" hint="Seconds the sound takes to rise at its start." />
       <Row ids={ids} kind="fadeOut" label="Fade out" value={same((e) => e.fadeOut || 0)} max={most} unit="s" hint="Seconds the sound takes to die away at its end." />
       <p className="sound-hint">
         {keyed
-          ? "The volume changes over time. Drag the points on the clip's line; pick one to pull its curve handles. Right-click the clip to reset it."
+          ? "The volume changes over time. Drag the points on the clip's line; pick one to pull its curve handles. Reset sound puts it back."
           : "Shape it over time on the clip: click its volume line to add a point, drag an end dot to start or finish at another level, or drag across a stretch to lower that part."}
       </p>
     </div>

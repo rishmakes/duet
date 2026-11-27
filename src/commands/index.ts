@@ -4,6 +4,7 @@ import { ancestors, canMask, canTurn, descendants, tidyAngle, topLevelOnly, turn
 import { canBeComponent, captureOverrides, detachInstance, isDerived, syncInstances } from "../document/components";
 import { orderByPosition, relayout } from "../document/layout";
 import { CUT_MOVES, MOVING, playsFile } from "../document/types";
+import { soundChanged } from "../document/sound";
 import { CUT_MOVE_MAX, CUT_MOVE_MIN, CUT_MOVE_NAMES, CUT_MOVE_SECONDS, clipBefore } from "../document/moves";
 import type { Blend, Comment, CommentMark, CutMoveKind, Doc, El, ElementType, Key, Layout, Moving, ShapeKey, TextStyle, Transcript } from "../document/types";
 import { fixWords, withWords, wordsOfEdit } from "../document/words";
@@ -2406,6 +2407,32 @@ const setVolumeLine: CommandDef<SetVolumeLineArgs> = {
   },
 };
 
+// ---- reset_sound ----
+export interface ResetSoundArgs {
+  ids: string[];
+}
+
+/** Puts the sound of clips back as the file is: full volume, no fades, no volume points. One step to undo. */
+const resetSound: CommandDef<ResetSoundArgs> = {
+  label: () => "Reset sound",
+  run: (doc, a) => {
+    const ids = a.ids.filter((id) => doc.elements[id] && playsFile(doc.elements[id]) && soundChanged(doc.elements[id]));
+    if (!ids.length) return doc;
+    const next = clone(doc);
+    for (const id of ids) {
+      const n = next.elements[id];
+      n.volume = 1;
+      n.fadeIn = 0;
+      n.fadeOut = 0;
+      if (n.keys.volume) {
+        n.keys = { ...n.keys };
+        delete n.keys.volume;
+      }
+    }
+    return next;
+  },
+};
+
 // ---- set_curve ----
 export interface SetCurveArgs {
   ids: string[];
@@ -3363,6 +3390,7 @@ export const commands = {
   set_key: setKey,
   set_keys: setKeys,
   set_volume_line: setVolumeLine,
+  reset_sound: resetSound,
   key_now: keyNow,
   set_curve: setCurve,
   remove_key: removeKey,
