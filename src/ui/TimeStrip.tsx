@@ -51,6 +51,14 @@ export const HEAD_WINDOW = "inset(0 0 0 calc(var(--sl, 0px) + var(--names, 150px
 /** Time under the canvas: a row for each thing in a frame that plays, when it shows, and where the clock is. */
 
 const SHORTEST = 0.1;
+
+/** An empty gap between clips on one track in Edit, picked to be closed. */
+interface Gap {
+  track: string;
+  sound: boolean;
+  start: number;
+  end: number;
+}
 /** How far the timeline zooms in, as a multiple of showing the whole video. */
 const MOST_ZOOM = 200;
 /** The height inside a video or sound bar in Edit, where its frames or sound are drawn. */
@@ -165,6 +173,24 @@ export default function TimeStrip() {
     return () => window.removeEventListener(ASK_TRANSCRIBE, open);
   }, []);
   useDismiss(!!menu, () => setMenu(null), ".ctx");
+  // an empty gap picked on a track in Edit, which D or its menu closes (#236)
+  const [gap, setGap] = useState<Gap | null>(null);
+  const gapRef = useRef(gap);
+  gapRef.current = gap;
+  const [gapMenu, setGapMenu] = useState<{ x: number; y: number } | null>(null);
+  useDismiss(!!gapMenu, () => setGapMenu(null), ".ctx");
+  // picking a clip, or any change to the design, lets go of the gap
+  useEffect(() => setGap(null), [doc]);
+  useEffect(() => {
+    if (selection.length) setGap(null);
+  }, [selection]);
+  const closeGapNow = () => {
+    const g = gapRef.current;
+    setGap(null);
+    setGapMenu(null);
+    const scene = getState().clock.scene;
+    if (g && scene) dispatch("close_gap", { sceneId: scene, track: g.track, sound: g.sound, at: (g.start + g.end) / 2 });
+  };
   // the track picked by its name, which paste puts clips on, and the menu of a track's name
   const trackPick = usePickedTrack();
   const [trackMenu, setTrackMenu] = useState<{ x: number; y: number; index: number; name: string; key: string } | null>(null);
@@ -444,7 +470,9 @@ export default function TimeStrip() {
         }
         return shuttle(k === "j" ? -1 : 1);
       }
-      // S splits at the playhead, as the razor does in other video editors (C is always Comment); D takes the clip away and closes the gap
+      // S splits at the playhead, as the razor does in other video editors (C is always Comment); D takes the clip away and closes the gap,
+      // or closes a picked empty gap (#236)
+      if (k === "d" && gapRef.current) return closeGapNow();
       cutNow(k === "d" ? "remove" : "split");
     };
     const up = (e: KeyboardEvent) => {
@@ -685,11 +713,24 @@ export default function TimeStrip() {
   const trackPicked = (row: DisplayRow) => !!row.track && trackPick?.frameId === frame.id && trackPick.index === row.track.index;
 
 
+  /** In Edit: the empty room on a row at a second, when a clip comes after it, so closing it means something (#236). */
+  const gapAt = (row: DisplayRow, t: number): Gap | null => {
+    if (!row.saved) return null;
+    const sound = rowLook(row.items) === "sound";
+    const spans = row.items.filter((el) => (el.type === "sound") === sound).map((el) => spanOf(el, frame));
+    if (spans.some((sp) => sp.start < t && sp.end > t)) return null;
+    const end = Math.min(...spans.filter((sp) => sp.start >= t).map((sp) => sp.start));
+    if (!Number.isFinite(end)) return null;
+    const start = Math.max(0, ...spans.filter((sp) => sp.end <= t).map((sp) => sp.end));
+    return end - start > 0.01 ? { track: row.saved.id, sound, start, end } : null;
+  };
+
   /**
    * In Edit: pulling across empty room draws a box and picks every clip it touches. Shift, Cmd or Ctrl
-   * keeps what was picked. A plain click still puts the playhead there.
+   * keeps what was picked. A plain click still puts the playhead there, and on a gap between clips it
+   * picks the gap, so D closes it (#236).
    */
-  const sweepClips = (e: React.PointerEvent) => {
+  const sweepClips = (e: React.PointerEvent, row?: DisplayRow) => {
     if (e.button !== 0) return;
     const x0 = e.clientX;
     const y0 = e.clientY;
@@ -715,7 +756,11 @@ export default function TimeStrip() {
       setSweepBox(null);
       if (!moved) {
         pause();
-        seek(Math.max(0, (x0 - lane.left) / pps));
+        const t = Math.max(0, (x0 - lane.left) / pps);
+        seek(t);
+        const g = row && !keep.length ? gapAt(row, t) : null;
+        setGap(g);
+        if (g) select([]);
       }
     };
     window.addEventListener("pointermove", move);
@@ -902,6 +947,8 @@ export default function TimeStrip() {
     const startRows = rowsRef.current;
     const rowOf = (id: string) => startRows.findIndex((r) => r.items.some((it) => it.id === id));
     let moved = false;
+    // an edge dragged with Cmd held, which moves the clips after it too
+    let rippled = false;
     let lastMove: PointerEvent | null = null;
     const move = (ev: PointerEvent) => {
       lastMove = ev;
@@ -986,7 +1033,27 @@ export default function TimeStrip() {
         if (snapTime !== null && Math.abs((to - snapTime) * pps) > 0.5) snapTime = null;
         setSnap(snapTime);
         dragPreview("stretch_clip", { id: el.id, edge: part, to });
+      } else if (look === "cut" && (ev.metaKey || ev.ctrlKey)) {
+        // with Cmd held, the clips after it on its track move with the edge, so no gap opens and none is covered (#236)
+        rippled = true;
+        const edge = part === "start" ? span.start : span.end;
+        let to = edge + by;
+        let snapTime: number | null = null;
+        if (!noSnap) {
+          const s = findSnap(to, targets);
+          if (s) {
+            to = s.time;
+            snapTime = s.time;
+          }
+        }
+        // the start shows no more than the start of its file, the end no more than its end
+        if (part === "start") to = Math.max(playsFile(el) ? frameTimeAt(el, span.start, 0) : -Infinity, Math.min(span.end - SHORTEST, to));
+        else to = Math.max(span.start + SHORTEST, file ? Math.min(frameTimeAt(el, span.start, file), to) : to);
+        if (snapTime !== null && Math.abs((to - snapTime) * pps) > 0.5) snapTime = null;
+        setSnap(snapTime);
+        dragPreview("ripple_trim", { id: el.id, edge: part, by: to - edge });
       } else if (part === "start") {
+        rippled = false;
         const least = playsFile(el) ? frameTimeAt(el, span.start, 0) : 0;
         const rawStart = span.start + by;
         let start = rawStart;
@@ -1003,6 +1070,7 @@ export default function TimeStrip() {
         setSnap(snapTime);
         dragPreview("set_timing", { ids: [el.id], start, end: span.end, ...(playsFile(el) ? { clipFrom: fileTimeAt(el, span.start, start) } : {}) });
       } else {
+        rippled = false;
         const most = file ? frameTimeAt(el, span.start, file) : length;
         const rawEnd = span.end + by;
         let end = rawEnd;
@@ -1022,7 +1090,7 @@ export default function TimeStrip() {
     };
     // pressing or letting go of Cmd mid-drag switches between covering and pushing without a move
     const key = (ev: KeyboardEvent) => {
-      if (part !== "all" || !moved || !lastMove || (ev.key !== "Meta" && ev.key !== "Control")) return;
+      if (stretch || !moved || !lastMove || (ev.key !== "Meta" && ev.key !== "Control")) return;
       const { clientX, clientY } = lastMove;
       move(new PointerEvent("pointermove", { clientX, clientY, metaKey: ev.metaKey, ctrlKey: ev.ctrlKey }));
     };
@@ -1034,7 +1102,7 @@ export default function TimeStrip() {
       setSnap(null);
       setDragHint(null);
       if (!moved && cmdClick) return pick(e, el.id);
-      if (moved) dragCommit(stretch ? "Stretch to change speed" : others.length ? `Move ${others.length + 1} clips in time` : "Change when it shows");
+      if (moved) dragCommit(stretch ? "Stretch to change speed" : rippled ? "Trim and move the rest along" : others.length ? `Move ${others.length + 1} clips in time` : "Change when it shows");
       // a click without a drag picks just this one
       else if (others.length) select([el.id]);
       if (!moved) anchor.current = el.id;
@@ -1971,7 +2039,23 @@ export default function TimeStrip() {
                 )}
                 <i className="names-grip" onPointerDown={pullNames} title="Pull to make the names wider or narrower" />
               </span>
-              <div className="time-lane" style={{ width: laneWidth }} onPointerDown={look === "layers" ? sweep : sweepClips}>
+              <div
+                className="time-lane"
+                style={{ width: laneWidth }}
+                onPointerDown={(e) => (look === "layers" ? sweep(e) : sweepClips(e, row))}
+                onContextMenu={(e) => {
+                  if (look !== "cut") return;
+                  const g = gapAt(row, (e.clientX - e.currentTarget.getBoundingClientRect().left) / pps);
+                  if (!g) return;
+                  e.preventDefault();
+                  setGap(g);
+                  select([]);
+                  setGapMenu({ x: e.clientX, y: e.clientY });
+                }}
+              >
+                {gap && row.saved?.id === gap.track && (rowLook(row.items) === "sound") === gap.sound && (
+                  <div className="time-gap" data-name="picked-gap" style={{ left: gap.start * pps, width: (gap.end - gap.start) * pps }} />
+                )}
                 {(() => {
                   const g = ghostOn(ri);
                   const push = g && g.push ? { at: g.at, by: g.push } : undefined;
@@ -2229,6 +2313,14 @@ export default function TimeStrip() {
           )}
         </div>
       )}
+      {gapMenu && gap && (
+        <div className="ctx" data-name="gap-menu" style={{ left: Math.max(10, Math.min(gapMenu.x, window.innerWidth - 230)), top: Math.max(10, Math.min(gapMenu.y, window.innerHeight - 80)) }}>
+          <div className="ctx-item" data-name="menu-close-gap" onClick={closeGapNow}>
+            <span>Close the gap</span>
+            <kbd>D</kbd>
+          </div>
+        </div>
+      )}
       {trackMenu && (
         <div className="ctx" data-name="track-menu" style={{ left: Math.max(10, Math.min(trackMenu.x, window.innerWidth - 230)), top: Math.max(10, Math.min(trackMenu.y, window.innerHeight - 200)) }}>
           <div
@@ -2330,7 +2422,7 @@ export default function TimeStrip() {
             onClick={() => {
               const el = menu.el;
               setMenu(null);
-              dispatch("ripple_delete", { ids: [el.id] });
+              dispatch("ripple_delete", { ids: selection.includes(el.id) ? selection : [el.id], ownTrack: true });
             }}
           >
             <span>Delete and close the gap</span>

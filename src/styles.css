@@ -4650,6 +4650,19 @@ option {
   opacity: 0.7;
 }
 
+/* an empty gap picked on a track in Edit: D closes it */
+.time-gap {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  border-radius: 4px;
+  background: var(--accent-soft);
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+  pointer-events: none;
+  z-index: 1;
+}
+
 /* right-click menu */
 .ctx {
   position: fixed;

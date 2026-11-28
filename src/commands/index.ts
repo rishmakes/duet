@@ -2724,6 +2724,11 @@ const makeRoom: CommandDef<MakeRoomArgs> = {
 // ---- ripple_delete ----
 export interface RippleDeleteArgs {
   ids: string[];
+  /**
+   * In Edit: close the gap only on the tracks they were on, so the other tracks stay where they are (#236).
+   * Left out, everything after them in the scene moves back.
+   */
+  ownTrack?: boolean;
 }
 
 const rippleDelete: CommandDef<RippleDeleteArgs> = {
@@ -2732,27 +2737,37 @@ const rippleDelete: CommandDef<RippleDeleteArgs> = {
     // only things that sit straight in a frame that plays have a place in time to close
     const ids = a.ids.filter((id) => doc.elements[id] && sceneOf(doc, id)?.id === doc.elements[id].parentId);
     if (!ids.length) return doc;
-    const scenes = new Map<string, { start: number; end: number }[]>();
+    // with ownTrack, each track (sounds apart from clips) closes only what was taken from it
+    const laneOf = (el: El) => (a.ownTrack && el.track ? `${el.track}|${el.type === "sound"}` : "");
+    const scenes = new Map<string, { start: number; end: number; lane: string }[]>();
     for (const id of ids) {
       const scene = sceneOf(doc, id)!;
-      scenes.set(scene.id, (scenes.get(scene.id) ?? []).concat(spanOf(doc.elements[id], scene)));
+      scenes.set(scene.id, (scenes.get(scene.id) ?? []).concat({ ...spanOf(doc.elements[id], scene), lane: laneOf(doc.elements[id]) }));
     }
     const next = deleteElements.run(doc, { ids });
     for (const [sceneId, spans] of scenes) {
-      // stretches of time taken out, joined where they touch, so a gap is closed once
-      const gaps: { start: number; end: number }[] = [];
-      for (const s of spans.sort((x, y) => x.start - y.start)) {
-        const last = gaps[gaps.length - 1];
-        if (last && s.start <= last.end + 0.004) last.end = Math.max(last.end, s.end);
-        else gaps.push({ ...s });
-      }
       const frame = next.elements[sceneId];
+      // stretches of time taken out, joined where they touch, so a gap is closed once
+      const gapsIn = (lane: string | null) => {
+        const gaps: { start: number; end: number }[] = [];
+        for (const s of spans.filter((sp) => lane === null || sp.lane === lane).sort((x, y) => x.start - y.start)) {
+          const last = gaps[gaps.length - 1];
+          if (last && s.start <= last.end + 0.004) last.end = Math.max(last.end, s.end);
+          else gaps.push({ start: s.start, end: s.end });
+        }
+        return gaps;
+      };
+      const own = a.ownTrack && spans.every((sp) => sp.lane);
       for (const c of frame.childIds) {
         const el = next.elements[c];
+        const gaps = gapsIn(own ? laneOf(el) || "-" : null);
         const by = round(gaps.filter((g) => g.end <= el.start + 0.004).reduce((sum, g) => sum + (g.end - g.start), 0));
         if (!by) continue;
         shiftTime(el, -by);
       }
+      // a scene that follows its footage takes the length of what is left by itself
+      if (own) continue;
+      const gaps = gapsIn(null);
       // the video is shorter by what was taken out
       frame.duration = Math.max(0.1, round(frame.duration - gaps.reduce((sum, g) => sum + (g.end - g.start), 0)));
       for (const c of frame.childIds) {
@@ -2760,6 +2775,99 @@ const rippleDelete: CommandDef<RippleDeleteArgs> = {
         if (el.end > frame.duration) el.end = frame.duration;
         if (el.start > frame.duration - 0.05) el.start = Math.max(0, round(frame.duration - 0.1));
       }
+    }
+    return next;
+  },
+};
+
+// ---- ripple_trim ----
+export interface RippleTrimArgs {
+  id: string;
+  /** Which edge of the clip is dragged. */
+  edge: "start" | "end";
+  /** Seconds the edge is dragged: plus is later, minus is earlier. */
+  by: number;
+}
+
+/**
+ * Drag a clip's edge in Edit and what comes after it on its track moves with it, so no gap opens and
+ * nothing is covered (#236). The end edge makes the clip longer or shorter where it ends. The start edge
+ * shows more or less of the start of its file while the clip stays where it starts on the timeline. Other
+ * tracks stay where they are. A clip never gets shorter than a tenth of a second or starts before its file.
+ */
+const rippleTrim: CommandDef<RippleTrimArgs> = {
+  label: () => "Trim and move the rest along",
+  run: (doc, a) => {
+    const el = doc.elements[a.id];
+    const scene = el ? sceneOf(doc, a.id) : undefined;
+    if (!el || !scene || scene.id !== el.parentId) return doc;
+    const span = spanOf(el, scene);
+    const speed = el.speed || 1;
+    let by = Number(a.by) || 0;
+    // the start edge cannot show more than the start of its file
+    if (a.edge === "start" && playsFile(el)) by = Math.max(by, -el.clipFrom / speed);
+    // a clip keeps a tenth of a second at least
+    by = a.edge === "end" ? Math.max(by, 0.1 - (span.end - span.start)) : Math.min(by, span.end - span.start - 0.1);
+    // how much longer the clip is, which is how far the rest moves along
+    const grow = round(a.edge === "end" ? by : -by);
+    if (!grow) return doc;
+    const next = clone(doc);
+    const e = next.elements[a.id];
+    if (a.edge === "start" && playsFile(e)) e.clipFrom = Math.max(0, round(e.clipFrom + by * speed));
+    e.end = round(span.end + grow);
+    const sound = el.type === "sound";
+    for (const id of next.elements[scene.id].childIds) {
+      const o = next.elements[id];
+      if (id === a.id || o.track !== el.track || (o.type === "sound") !== sound) continue;
+      const sp = spanOf(o, scene);
+      if (sp.start < span.end - 0.03) continue;
+      // one that ran to the end keeps its length as it moves on
+      if (!o.end) o.end = sp.end;
+      shiftTime(o, grow);
+    }
+    return next;
+  },
+};
+
+// ---- close_gap ----
+export interface CloseGapArgs {
+  /** The frame that plays. */
+  sceneId: string;
+  /** The track the gap is on. */
+  track: string;
+  /** A sound track's gap: sounds may sit on a track with clips, so they close their gaps among sounds. */
+  sound?: boolean;
+  /** Any second inside the empty room. */
+  at: number;
+}
+
+/**
+ * Close an empty gap on one track in Edit: what comes after it on that track moves back to meet what is
+ * before it, or the start (#236). Other tracks stay where they are. No step when there is no gap there.
+ */
+const closeGap: CommandDef<CloseGapArgs> = {
+  label: () => "Close the gap",
+  run: (doc, a) => {
+    const frame = doc.elements[a.sceneId];
+    if (!frame || !(frame.duration > 0)) return doc;
+    const sound = !!a.sound;
+    const mine = frame.childIds.filter((id) => {
+      const el = doc.elements[id];
+      return !!el && el.track === a.track && (el.type === "sound") === sound;
+    });
+    const spans = mine.map((id) => ({ id, ...spanOf(doc.elements[id], frame) }));
+    // the room must be empty: nothing on the track plays at that second
+    if (spans.some((sp) => sp.start < a.at - 0.001 && sp.end > a.at + 0.001)) return doc;
+    const from = Math.max(0, ...spans.filter((sp) => sp.end <= a.at + 0.001).map((sp) => sp.end));
+    const after = spans.filter((sp) => sp.start >= a.at - 0.001);
+    if (!after.length) return doc;
+    const by = round(Math.min(...after.map((sp) => sp.start)) - from);
+    if (by <= 0.001) return doc;
+    const next = clone(doc);
+    for (const sp of after) {
+      const el = next.elements[sp.id];
+      if (!el.end) el.end = sp.end;
+      shiftTime(el, -by);
     }
     return next;
   },
@@ -3411,6 +3519,8 @@ export const commands = {
   split_at: splitAt,
   make_room: makeRoom,
   ripple_delete: rippleDelete,
+  ripple_trim: rippleTrim,
+  close_gap: closeGap,
   cut_ranges: cutRanges,
   add_captions: addCaptions,
   split_captions: splitCaptions,

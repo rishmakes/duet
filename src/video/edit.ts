@@ -20,7 +20,8 @@ export function cutNow(kind: CutKind) {
   const t = s.clock.t;
   const mine = s.selection.filter((id) => now.elements[id]?.parentId === sceneId);
   if (kind === "remove") {
-    if (mine.length) dispatch("ripple_delete", { ids: mine });
+    // only their own tracks close up, so music and the rest stay where they are (#236)
+    if (mine.length) dispatch("ripple_delete", { ids: mine, ownTrack: true });
     return;
   }
   let under = cuttable(now, sceneId, t, mine.length ? mine : undefined);
