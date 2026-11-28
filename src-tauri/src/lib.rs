@@ -824,6 +824,11 @@ pub fn transcribe() {
     voice::transcribe_main()
 }
 
+/// The helper process that finds where someone is speaking in a recording. See voice.rs.
+pub fn find_speech() {
+    voice::find_speech_main()
+}
+
 pub fn run() {
     note_panics();
     tauri::Builder::default()
@@ -844,6 +849,7 @@ pub fn run() {
             voice::voice_cancel,
             voice::voice_remove,
             voice::voice_transcribe,
+            voice::voice_speech,
             voice::voice_stop,
             ai::agent_models,
             read_text_file,

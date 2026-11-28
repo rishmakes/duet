@@ -122,6 +122,21 @@ fn url(m: &Model) -> String {
     format!("https://huggingface.co/ggerganov/whisper.cpp/resolve/{COMMIT}/{}", m.file)
 }
 
+/// The voice finder: Silero VAD (MIT), in the file the whisper.cpp project publishes. It says, for
+/// each moment of a recording, whether someone is speaking. Tiny, so it comes with Voice to text and
+/// is fetched the first time it is needed, from one fixed version, kept only when its SHA-256 matches.
+const FINDER: Model = Model {
+    size: "finder",
+    file: "ggml-silero-v5.1.2.bin",
+    bytes: 885_098,
+    sha256: "29940d98d42b91fbd05ce489f3ecf7c72f0a42f027e4875919a28fb4c04ea2cf",
+};
+const FINDER_COMMIT: &str = "9ffd54a1e1ee413ddf265af9913beaf518d1639b";
+
+fn finder_url() -> String {
+    format!("https://huggingface.co/ggml-org/whisper-vad/resolve/{FINDER_COMMIT}/{}", FINDER.file)
+}
+
 #[derive(Default)]
 pub struct VoiceState {
     inner: Mutex<Inner>,
@@ -296,9 +311,10 @@ pub fn voice_cancel(app: AppHandle) {
 #[tauri::command]
 pub fn voice_remove(app: AppHandle) {
     if let Ok(dir) = own_dir() {
-        for m in &MODELS {
+        for m in MODELS.iter().chain([&FINDER]) {
             let _ = std::fs::remove_file(dir.join(m.file));
         }
+        let _ = std::fs::remove_dir_all(dir.join("speech"));
     }
     report(&app);
 }
@@ -747,9 +763,147 @@ fn fit_to_sound(loud: &[f32], s: f64, e: f64) -> (f64, f64) {
     (a as f64 / 100.0, ((b + 1) as f64 / 100.0).min(e.max(s)))
 }
 
+// ---------- where someone is speaking ----------
+
+/// The voice finder on this computer, fetched the first time it is needed (it is under 1 MB).
+fn finder_ready() -> Result<PathBuf, String> {
+    let dir = own_dir()?;
+    let file = dir.join(FINDER.file);
+    if file.is_file() {
+        return Ok(file);
+    }
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let part = dir.join(format!("{}.part", FINDER.file));
+    let ok = crate::quiet_command(if cfg!(windows) { "curl.exe" } else { "/usr/bin/curl" })
+        .args(["-fsL", "--proto", "=https", "-A", "Duet", "--retry", "3", "-o"])
+        .arg(&part)
+        .arg(finder_url())
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false);
+    if !ok {
+        let _ = std::fs::remove_file(&part);
+        return Err("Duet could not fetch its voice finder. Check the internet connection and try again.".into());
+    }
+    if sha256_file(&part)? != FINDER.sha256 {
+        let _ = std::fs::remove_file(&part);
+        return Err("The voice finder did not match, so it was not used. Try again.".into());
+    }
+    std::fs::rename(&part, &file).map_err(|e| e.to_string())?;
+    Ok(file)
+}
+
+/// Where a recording's speech is kept once found: one file per recording, named after its path, size
+/// and last change, so an edited file is heard again.
+fn speech_cache(path: &str) -> Result<PathBuf, String> {
+    let meta = std::fs::metadata(path).map_err(|_| "This recording is not on this computer.")?;
+    let changed = meta.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_millis()).unwrap_or(0);
+    Ok(own_dir()?.join("speech").join(format!("{}.json", cache_name(path, meta.len(), changed))))
+}
+
+fn cache_name(path: &str, bytes: u64, changed: u128) -> String {
+    let h = Sha256::digest(format!("{path}\n{bytes}\n{changed}").as_bytes());
+    h.iter().take(12).map(|b| format!("{b:02x}")).collect()
+}
+
+/// Where someone is speaking in a recording: a list of [start, end] in seconds, from the voice finder.
+/// Works on any recording, with or without words. Heard once per recording, then read from the keep.
+#[tauri::command(async)]
+pub fn voice_speech(path: String) -> Result<Value, String> {
+    let cache = speech_cache(&path)?;
+    if let Some(v) = std::fs::read_to_string(&cache).ok().and_then(|s| serde_json::from_str::<Value>(&s).ok()) {
+        return Ok(v);
+    }
+    let finder = finder_ready()?;
+    // in a helper of its own, like Voice to text, so a recording it cannot read never takes Duet down
+    let out = crate::quiet_command(std::env::current_exe().map_err(|e| e.to_string())?)
+        .arg("--find-speech")
+        .arg(&finder)
+        .arg(&path)
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .map_err(|e| format!("The voice finder could not start: {e}"))?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    let answer: Value = text
+        .lines()
+        .rev()
+        .find(|l| l.starts_with('{'))
+        .and_then(|l| serde_json::from_str(l).ok())
+        .ok_or("The voice finder stopped before it finished.")?;
+    if let Some(e) = answer.get("error").and_then(|e| e.as_str()) {
+        return Err(e.to_string());
+    }
+    if let Some(dir) = cache.parent() {
+        let _ = std::fs::create_dir_all(dir);
+        let _ = std::fs::write(&cache, answer.to_string());
+    }
+    Ok(answer)
+}
+
+/// The helper process: `duet-app --find-speech <finder> <recording>`. Prints one line of JSON:
+/// `{"speech": [[start, end], ...]}` in seconds, or an error.
+pub fn find_speech_main() {
+    let args: Vec<String> = std::env::args().collect();
+    let at = args.iter().position(|a| a == "--find-speech").unwrap_or(0);
+    let get = |n: usize| args.get(at + n).cloned().unwrap_or_default();
+    let answer = match find_speech(&get(1), &get(2)) {
+        Ok(spans) => json!({ "speech": spans }),
+        Err(e) => json!({ "error": e }),
+    };
+    say(&answer.to_string());
+}
+
+fn find_speech(finder: &str, path: &str) -> Result<Vec<[f64; 2]>, String> {
+    use whisper_rs::{WhisperVadContext, WhisperVadContextParams, WhisperVadParams};
+    let sound = sound_of(path)?;
+    let mut cp = WhisperVadContextParams::new();
+    // tiny: the processor is quick enough on every computer, and never meets a graphics card problem
+    cp.set_use_gpu(false);
+    cp.set_n_threads(std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4).min(4) as i32);
+    let mut ctx = WhisperVadContext::new(finder, cp).map_err(|e| format!("The voice finder could not load: {e}"))?;
+    let mut p = WhisperVadParams::new();
+    // the true edges of speech, no padding: the cut check adds its own room. Short words ("haan") count.
+    p.set_speech_pad(0);
+    p.set_min_speech_duration(100);
+    p.set_min_silence_duration(100);
+    let segs = ctx.segments_from_samples(p, &sound).map_err(|e| format!("The voice finder could not finish: {e}"))?;
+    Ok(seconds(segs.map(|s| (s.start, s.end))))
+}
+
+/// The finder's centiseconds as seconds, two decimals, in order, never ending before they start.
+fn seconds(spans: impl Iterator<Item = (f32, f32)>) -> Vec<[f64; 2]> {
+    let r = |cs: f32| (cs as f64).round() / 100.0;
+    spans.map(|(a, b)| [r(a), r(b.max(a))]).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_voice_finder_is_pinned() {
+        assert_eq!(FINDER.sha256.len(), 64);
+        assert!(finder_url().starts_with("https://huggingface.co/ggml-org/whisper-vad/resolve/"));
+        assert!(finder_url().contains(FINDER_COMMIT) && finder_url().ends_with(FINDER.file));
+    }
+
+    #[test]
+    fn speech_is_kept_per_recording_and_heard_again_when_it_changes() {
+        let a = cache_name("/clips/a.mov", 100, 1);
+        assert_eq!(a, cache_name("/clips/a.mov", 100, 1));
+        assert_ne!(a, cache_name("/clips/a.mov", 100, 2));
+        assert_ne!(a, cache_name("/clips/b.mov", 100, 1));
+        assert_eq!(a.len(), 24);
+    }
+
+    #[test]
+    fn speech_comes_back_in_seconds() {
+        assert_eq!(seconds([(102.0f32, 350.4f32), (500.0, 499.0)].into_iter()), [[1.02, 3.5], [5.0, 5.0]]);
+    }
 
     #[test]
     fn every_stop_downloads_a_pinned_model() {
