@@ -935,6 +935,15 @@ export default function TimeStrip() {
         }
         // none of the clips moving together goes before the start
         start = Math.max(0, start, ...others.map((o) => span.start - o.span.start));
+        // the row under the pointer: over another track, it goes there
+        const over = Array.from(lanes.current?.querySelectorAll<HTMLElement>("[data-row]") ?? []).find((r) => {
+          const b = r.getBoundingClientRect();
+          return ev.clientY >= b.top && ev.clientY < b.bottom;
+        });
+        // with Cmd held it pushes what is after it, and there is nothing to push before it: on its own track it
+        // stops at the clip before it instead of covering it (#452)
+        const push = ev.metaKey || ev.ctrlKey;
+        if (push && look === "cut" && (!over || Number(over.dataset.row) === rowOf(el.id))) start = Math.max(start, floor);
         if (snapTime !== null) {
           const edgeHolding = Math.abs((start - snapTime) * pps) <= 0.5 || Math.abs((start + long - snapTime) * pps) <= 0.5;
           if (!edgeHolding) snapTime = null;
@@ -948,10 +957,6 @@ export default function TimeStrip() {
         if (look === "cut") {
           // over another track, it goes there, and the clips moving with it go up or down as many tracks; all are
           // put on their tracks together before they move, so the rows are kept as they were and none is bumped
-          const over = Array.from(lanes.current?.querySelectorAll<HTMLElement>("[data-row]") ?? []).find((r) => {
-            const b = r.getBoundingClientRect();
-            return ev.clientY >= b.top && ev.clientY < b.bottom;
-          });
           const placed = all.filter((id) => rowOf(id) >= 0);
           const to = shiftedRows(placed.map(rowOf), rowOf(el.id), over ? Number(over.dataset.row) : null, startRows.length);
           next = runCommand(next, "set_track", { ids: placed, track: to.map((row) => startRows[row].track!) });
@@ -959,7 +964,6 @@ export default function TimeStrip() {
         next = runCommand(next, "set_timing", { ids: [el.id], start, end: start + long });
         for (const o of others) next = runCommand(next, "set_timing", { ids: [o.id], start: o.span.start + shift, end: o.span.end + shift });
         // it covers what it lands on; with Cmd held, what is later on the track moves along instead
-        const push = ev.metaKey || ev.ctrlKey;
         const landed = next;
         if (look === "cut") next = runCommand(next, "make_room", { ids: all, push });
         // the hint shows only while it is over another clip, to say what will happen to that one
