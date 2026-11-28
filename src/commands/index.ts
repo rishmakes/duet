@@ -2616,6 +2616,11 @@ export interface MakeRoomArgs {
   ids: string[];
   /** Push what is later on their tracks along, cutting a clip they land inside. Left out, they cover what is under them. */
   push?: boolean;
+  /**
+   * With push, for clips moved along their own track: the second they ended at before the move. What started
+   * after that is pushed along ahead of them, and nothing is cut or passed over (#452).
+   */
+  after?: number;
 }
 
 /** Seconds a thing may touch another by and still count as beside it, not over it. */
@@ -2661,11 +2666,12 @@ const makeRoom: CommandDef<MakeRoomArgs> = {
         return { start: sp.start, end: el.end > el.start ? el.end : sp.end };
       });
       if (a.push) {
-        const from = Math.min(...spans.map((sp) => sp.start));
-        next = splitAt.run(next, { sceneId, t: from, ids: others() });
+        const from = a.after ?? Math.min(...spans.map((sp) => sp.start));
+        // a drop cuts the clip it lands inside; a clip moved along its track pushes what was after it, whole
+        if (a.after === undefined) next = splitAt.run(next, { sceneId, t: from, ids: others() });
         next = clone(next);
         const f = frame();
-        const later = others().filter((id) => spanOf(next.elements[id], f).start >= from - 0.001);
+        const later = others().filter((id) => spanOf(next.elements[id], f).start >= from - (a.after === undefined ? 0.001 : TOUCH));
         if (!later.length) continue;
         // only as far as they now overlap the first one after them (#452): a clip moved a little pushes a little,
         // a drop inside a clip (cut there, so the rest starts where it lands) pushes by its whole length

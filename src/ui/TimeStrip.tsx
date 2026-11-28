@@ -965,7 +965,9 @@ export default function TimeStrip() {
         for (const o of others) next = runCommand(next, "set_timing", { ids: [o.id], start: o.span.start + shift, end: o.span.end + shift });
         // it covers what it lands on; with Cmd held, what is later on the track moves along instead
         const landed = next;
-        if (look === "cut") next = runCommand(next, "make_room", { ids: all, push });
+        // moved along its own track, it pushes what was after it ahead of it, never landing inside one (#452)
+        const ownRow = !over || Number(over.dataset.row) === rowOf(el.id);
+        if (look === "cut") next = runCommand(next, "make_room", { ids: all, push, ...(push && ownRow && !others.length ? { after: span.end } : {}) });
         // the hint shows only while it is over another clip, to say what will happen to that one
         setDragHint(look === "cut" && next !== landed ? (push ? "push" : "cover") : null);
         dragPreviewDoc(next);

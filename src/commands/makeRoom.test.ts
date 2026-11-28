@@ -44,6 +44,13 @@ describe("make_room (#399)", () => {
     expect(runCommand(doc, "make_room", { ids: ["b"], push: true }).elements.c.start).toBe(12);
   });
 
+  it("with push, a clip moved far along its track pushes everything after it ahead, never landing inside or passing one (#452)", () => {
+    // a 0-4 moved to 5-9, past the start of b (4-7): b and c stay whole, right behind it, in order
+    let doc = runCommand(edit(), "set_timing", { ids: ["a"], start: 5, end: 9 });
+    doc = runCommand(doc, "make_room", { ids: ["a"], push: true, after: 4 });
+    expect(rows(doc)[0]).toBe("a 5-9, b 9-12, c 12-14");
+  });
+
   it("leaves sound under clips alone, and is no step at all when nothing is covered", () => {
     const doc = edit();
     expect(runCommand(doc, "make_room", { ids: ["a"] })).toBe(doc);
