@@ -871,13 +871,56 @@ fn find_speech(finder: &str, path: &str) -> Result<Vec<[f64; 2]>, String> {
     p.set_min_speech_duration(100);
     p.set_min_silence_duration(100);
     let segs = ctx.segments_from_samples(p, &sound).map_err(|e| format!("The voice finder could not finish: {e}"))?;
-    Ok(seconds(segs.map(|s| (s.start, s.end))))
+    let spans: Vec<(f32, f32)> = segs.map(|s| (s.start, s.end)).collect();
+    Ok(voiced(&spans, &loudness(&sound)))
 }
 
-/// The finder's centiseconds as seconds, two decimals, in order, never ending before they start.
-fn seconds(spans: impl Iterator<Item = (f32, f32)>) -> Vec<[f64; 2]> {
-    let r = |cs: f32| (cs as f64).round() / 100.0;
-    spans.map(|(a, b)| [r(a), r(b.max(a))]).collect()
+/// Decibels below the recording's speaking level where a word has faded out (Day 51, 28 Nov: words sit
+/// around -33 dB, the breath and room the finder still counts as speech around -55).
+const FADED: f32 = 16.0;
+/// A dip between words shorter than this many 10 ms steps is still the same word.
+const SAME_WORD: usize = 4;
+
+/// The voice finder hears speech in whole stretches, with the breath and room after each word. Inside
+/// each stretch, keep only where the sound is loud enough to be a word, against this recording's own
+/// speaking level, so a cut in the soft tail is not called a chopped word. `spans` are in the finder's
+/// centiseconds, `loud` the loudness of each 10 ms; out come [start, end] in seconds.
+fn voiced(spans: &[(f32, f32)], loud: &[f32]) -> Vec<[f64; 2]> {
+    let frame = |cs: f32| (cs.max(0.0) as usize).min(loud.len());
+    let mut inside: Vec<f32> = spans.iter().flat_map(|&(a, b)| loud[frame(a)..frame(b.max(a))].iter().copied()).collect();
+    if inside.is_empty() {
+        return Vec::new();
+    }
+    inside.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    // the speaking level: most of a stretch of speech is at least this loud
+    let level = inside[inside.len() * 7 / 10];
+    let mut all = loud.to_vec();
+    all.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let floor = all[all.len() / 10];
+    let word = (level - FADED).max(floor + 10.0);
+    let mut out: Vec<[f64; 2]> = Vec::new();
+    for &(a, b) in spans {
+        let mut run: Option<(usize, usize)> = None;
+        let mut flush = |run: &mut Option<(usize, usize)>| {
+            if let Some((s, e)) = run.take() {
+                out.push([s as f64 / 100.0, (e + 1) as f64 / 100.0]);
+            }
+        };
+        for i in frame(a)..frame(b.max(a)) {
+            if loud[i] < word {
+                continue;
+            }
+            run = match run {
+                Some((s, e)) if i - e <= SAME_WORD => Some((s, i)),
+                _ => {
+                    flush(&mut run);
+                    Some((i, i))
+                }
+            };
+        }
+        flush(&mut run);
+    }
+    out
 }
 
 #[cfg(test)]
@@ -901,8 +944,20 @@ mod tests {
     }
 
     #[test]
-    fn speech_comes_back_in_seconds() {
-        assert_eq!(seconds([(102.0f32, 350.4f32), (500.0, 499.0)].into_iter()), [[1.02, 3.5], [5.0, 5.0]]);
+    fn speech_is_where_the_words_are_loud_not_the_breath_after() {
+        // 0-1 s quiet; the finder hears 1-3 s: a word 1.0-1.5, a soft tail to 1.8, a 20 ms dip, a word 1.82-2.5, breath to 3
+        let mut loud = vec![-90.0f32; 100];
+        loud.extend(vec![-33.0f32; 50]);
+        loud.extend(vec![-58.0f32; 30]);
+        loud.extend(vec![-80.0f32; 2]);
+        loud.extend(vec![-30.0f32; 68]);
+        loud.extend(vec![-57.0f32; 50]);
+        loud.extend(vec![-90.0f32; 100]);
+        assert_eq!(voiced(&[(100.0, 300.0)], &loud), [[1.0, 1.5], [1.82, 2.5]]);
+        // a dip shorter than a word's own is the same word
+        loud[120..122].iter_mut().for_each(|v| *v = -80.0);
+        assert_eq!(voiced(&[(100.0, 300.0)], &loud)[0], [1.0, 1.5]);
+        assert!(voiced(&[], &loud).is_empty());
     }
 
     #[test]

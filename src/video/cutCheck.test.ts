@@ -60,9 +60,9 @@ describe("checking cuts (#148)", () => {
     expect(bad[0].word?.w).toBe("aaj");
     expect(bad[0].speech).toEqual([1.0, 3.0]);
     // clean after the speech ends with room, or before it starts
-    expect(bad[0].later).toBeCloseTo(3.03, 2);
+    expect(bad[0].later).toBeCloseTo(3.01, 2);
     expect(bad[0].earlier).toBeUndefined(); // the speech began more than 1.5 s before
-    expect(bad[1].earlier).toBeCloseTo(3.97, 2);
+    expect(bad[1].earlier).toBeCloseTo(3.99, 2);
     expect(badCutLine(bad[0], "clip 0")).toContain("chopped");
   });
 
@@ -79,6 +79,15 @@ describe("checking cuts (#148)", () => {
     expect(checkCuts(doc, "f", new Map([["/talk.mp4", { words, peaks: peaks() }]]))).toHaveLength(1);
     // a word under the cut, but quiet there: the word's time was a guess
     expect(checkCuts(doc, "f", new Map([["/talk.mp4", { words, peaks: new Uint8Array(200) }]]))).toHaveLength(0);
+  });
+
+  it("speech may come close on the side kept, never on the side cut away", () => {
+    // an end 10 ms after speech ends keeps the whole word: clean
+    expect(checkCuts(frame([[0, 3.01, 0]]).doc, "f", all())).toEqual([]);
+    // a start 10 ms after speech ends lets the tail of that word in: clipped
+    expect(checkCuts(frame([[0, 0.9, 3.01]]).doc, "f", all()).map((c) => c.edge)).toEqual(["start"]);
+    // a start just before speech begins is clean
+    expect(checkCuts(frame([[0, 2.2, 3.99]]).doc, "f", all())).toEqual([]);
   });
 
   it("a cut a hair before speech ends still chops it", () => {

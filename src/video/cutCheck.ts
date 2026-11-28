@@ -47,32 +47,40 @@ export const ROOM = 0.03;
 const REACH = 1.5;
 const STEP = 0.01;
 
+type Edge = "start" | "end";
+
 const loudAt = (peaks: Uint8Array | undefined, t: number) => (peaks?.length ? peaks[Math.max(0, Math.min(peaks.length - 1, Math.floor(t / PEAK_SLICE + 1e-6)))] : undefined);
-const speechAt = (speech: [number, number][] | undefined, t: number) => speech?.find(([a, b]) => a < t + ROOM && b > t - ROOM);
+/**
+ * Speech that a cut at `t` harms: speech running across it, or speech within ROOM on the side the cut
+ * throws away (after an end: the rest of the word is lost; before a start: a sliver of the word before
+ * comes in). Speech on the side that is kept may come as close as it likes.
+ */
+const speechAt = (speech: [number, number][] | undefined, t: number, edge: Edge) =>
+  speech?.find(([a, b]) => (edge === "end" ? a < t + ROOM && b > t - 0.005 : a < t + 0.005 && b > t - ROOM));
 const wordAt = (words: Word[] | undefined, t: number) => words?.find((w) => w.s + ROOM < t && w.e - ROOM > t);
 
-/** Someone is speaking at this second of a recording, as far as what is known can tell. */
-function speaking(h: Heard, t: number): boolean {
-  if (h.speech) return !!speechAt(h.speech, t);
+/** Someone is speaking at this cut, as far as what is known can tell. */
+function speaking(h: Heard, t: number, edge: Edge): boolean {
+  if (h.speech) return !!speechAt(h.speech, t, edge);
   const loud = loudAt(h.peaks, t);
   const word = !!wordAt(h.words, t);
   if (h.words && loud != null) return word && loud >= SILENCE_DEFAULT.quiet;
   return h.words ? word : loud != null && loud >= SILENCE_DEFAULT.quiet;
 }
 
-/** A clean place is not speech, not inside a word, and quiet. */
-function clean(h: Heard, t: number): boolean {
-  if (h.speech && speechAt(h.speech, t)) return false;
+/** A clean place for this edge: no speech harmed, not inside a word, and quiet. */
+function clean(h: Heard, t: number, edge: Edge): boolean {
+  if (h.speech && speechAt(h.speech, t, edge)) return false;
   if (wordAt(h.words, t)) return false;
   const loud = loudAt(h.peaks, t);
   return loud == null || loud < SILENCE_DEFAULT.quiet;
 }
 
-function nearestClean(h: Heard, t: number, dir: 1 | -1, length: number): number | undefined {
+function nearestClean(h: Heard, t: number, edge: Edge, dir: 1 | -1, length: number): number | undefined {
   for (let k = 1; k * STEP <= REACH; k++) {
     const u = round(t + dir * k * STEP);
     if (u < 0 || u > length) return undefined;
-    if (clean(h, u)) return u;
+    if (clean(h, u, edge)) return u;
   }
   return undefined;
 }
@@ -94,22 +102,24 @@ export function checkCuts(doc: Doc, sceneId: string, heard: Map<string, Heard>):
     const h = heard.get(el.src);
     if (!h) continue;
     const length = h.peaks?.length ? h.peaks.length * PEAK_SLICE : Infinity;
-    const edges: { edge: "start" | "end"; at: number; file: number }[] = [];
+    // loudness 9 is this recording's loudest
+    const most = h.peaks?.length ? Math.max(1, ...h.peaks) : 255;
+    const edges: { edge: Edge; at: number; file: number }[] = [];
     if (from > 0.02 && !goesOn(el.src, from, span.start, "start")) edges.push({ edge: "start", at: span.start, file: from });
     if (to < length - 0.05 && !goesOn(el.src, to, span.end, "end")) edges.push({ edge: "end", at: span.end, file: to });
     for (const e of edges) {
-      if (!speaking(h, e.file)) continue;
+      if (!speaking(h, e.file, e.edge)) continue;
       const loud = loudAt(h.peaks, e.file);
       out.push({
         clip: el.id,
         ...e,
         at: round(e.at),
         file: round(e.file),
-        speech: speechAt(h.speech, e.file),
+        speech: speechAt(h.speech, e.file, e.edge),
         word: wordAt(h.words, e.file),
-        loud: loud == null ? undefined : Math.min(9, Math.round((loud / 255) * 9)),
-        earlier: nearestClean(h, e.file, -1, length),
-        later: nearestClean(h, e.file, 1, length),
+        loud: loud == null ? undefined : Math.min(9, Math.round((loud / most) * 9)),
+        earlier: nearestClean(h, e.file, e.edge, -1, length),
+        later: nearestClean(h, e.file, e.edge, 1, length),
       });
     }
   }
@@ -118,7 +128,16 @@ export function checkCuts(doc: Doc, sceneId: string, heard: Map<string, Heard>):
 
 /** One line for the AI about a bad cut. */
 export function badCutLine(c: BadCut, name: string): string {
-  const what = c.edge === "end" ? "ends while someone is still speaking: the word is chopped" : "starts while someone is already speaking: the word is clipped";
+  // speech across the cut is a word cut in two; speech only on the side cut away is a word just beside it
+  const across = !c.speech || (c.speech[0] < c.file && c.speech[1] > c.file);
+  const what =
+    c.edge === "end"
+      ? across
+        ? "ends while someone is still speaking: the word is chopped"
+        : "ends right as the next word begins: the start of it may be heard"
+      : across
+        ? "starts while someone is already speaking: the word is clipped"
+        : "starts right as a word ends: the end of it may be heard";
   const heard = [
     c.speech ? `voice ${c.speech[0].toFixed(2)}-${c.speech[1].toFixed(2)}` : "",
     c.word ? `word "${c.word.w}" ${c.word.s.toFixed(2)}-${c.word.e.toFixed(2)}` : "",
