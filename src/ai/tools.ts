@@ -16,7 +16,8 @@ import { outlineFromData } from "../document/path";
 import { ENTRANCES, sceneOf, spanOf } from "../document/time";
 import { dbText, dipKeys, loudnessMap } from "../document/sound";
 import { trackOf } from "../document/tracks";
-import { PEAK_SLICE, peaksOf } from "../video/faces";
+import { PEAK_SLICE, peaksOf, speechOf } from "../video/faces";
+import { badCutLine, checkCuts, type Heard } from "../video/cutCheck";
 import { SILENCE_DEFAULT, findSilences, loudnessAt } from "../video/silence";
 import { hearingNow, languageOf, lastLanguage, transcribe, voiceReady } from "../ui/Transcribe";
 import { BREATH, cutOutOfEdit, cutsForWords, plainWord, wordsOfEdit } from "../document/words";
@@ -679,6 +680,12 @@ export const TOOLS: ToolDef[] = [
     name: "get_transcript",
     description:
       "The words spoken in a frame that plays, as the edit is now, in the order they are heard, so you can cut a talking video by what is said. Each line is a phrase: the seconds of the frame it is heard, then its words, each as number:word. The numbers are what cut_words takes. Also lists the words cut out of the edit, so you know what was said and dropped, and the clips with no words yet (hear them with transcribe). Words belong to the recording, so read this again after any cut, trim, split or speed change: the numbers change.",
+    inputSchema: { type: "object", properties: { id: { ...str, description: "A frame that plays." } }, required: ["id"] },
+  },
+  {
+    name: "check_cuts",
+    description:
+      "Check every cut in a frame that plays for chopped words, since you cannot hear them: each place a clip starts or ends inside its recording is checked against where someone is speaking (a voice finder), the words and the loudness. Lists only the bad cuts, one line each: which clip, start or end, the seconds of the frame and of its recording, what was heard there, and the nearest clean places in seconds of the recording to trim it to. Run it after cutting a talking video, and again after fixing. Changes nothing.",
     inputSchema: { type: "object", properties: { id: { ...str, description: "A frame that plays." } }, required: ["id"] },
   },
   {
@@ -1800,6 +1807,27 @@ function transcriptOf(a: Args): ToolResult {
   return { text: out.join("\n") };
 }
 
+/** The cuts of a frame that chop or clip a word, one line each (#148). */
+async function cutsChecked(a: Args): Promise<ToolResult> {
+  const doc = R.currentDoc();
+  const scene = typeof a.id === "string" ? doc.elements[a.id] : undefined;
+  if (!scene || scene.type !== "frame" || !(scene.duration > 0)) return fail(`${String(a.id)} is not a frame that plays.`);
+  const clips = scene.childIds.map((i) => doc.elements[i]).filter((el) => el && playsFile(el) && !el.hidden);
+  if (!clips.length) return fail(`${scene.name} has no clips or sounds.`);
+  const heard = new Map<string, Heard>();
+  const unheard: string[] = [];
+  for (const src of new Set(clips.map((el) => el.src))) {
+    const [speech, peaks] = await Promise.all([speechOf(src), peaksOf(src).catch(() => null)]);
+    if (!speech) unheard.push(fileName(src));
+    heard.set(src, { speech: speech ?? undefined, words: doc.words?.[src]?.words, peaks: peaks?.length ? peaks : undefined });
+  }
+  const bad = checkCuts(doc, scene.id, heard);
+  const name = (id: string) => doc.elements[id]?.name ?? id;
+  const out = bad.length ? [`${bad.length} cut${bad.length === 1 ? "" : "s"} in ${scene.name} fall while someone speaks:`, ...bad.map((c) => badCutLine(c, name(c.clip)))] : [`Every cut in ${scene.name} falls between words.`];
+  if (unheard.length) out.push("", `The voice finder could not hear ${unheard.join(", ")}, so those were judged by words and loudness only.`);
+  return { text: out.join("\n") };
+}
+
 /** The fixes fix_words makes, by the file each word belongs to, after checking each still names the words the AI read. */
 function wordFixes(a: Args): { fixes: WordFix[] } | { error: string } {
   const doc = R.currentDoc();
@@ -2385,6 +2413,7 @@ async function answerTool(name: string, raw: unknown, by?: string): Promise<Tool
   if (name === "color_readings") return colorReadings(a);
   if (name === "hear_sound") return hearSound(a);
   if (name === "get_transcript") return transcriptOf(a);
+  if (name === "check_cuts") return cutsChecked(a);
   if (name === "transcribe") return transcribeTool(a, by);
   if (name === "list_looks") {
     const list = await invoke<string[]>("looks_list").catch(() => []);

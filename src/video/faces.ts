@@ -40,5 +40,25 @@ export function peaksOf(src: string): Promise<Uint8Array | null> {
   return p;
 }
 
+const speech = new Map<string, Promise<[number, number][] | null>>();
+
+/** Where someone speaks in a file, [start, end] in seconds, from the voice finder (#148). Null when it cannot be found. */
+export function speechOf(src: string): Promise<[number, number][] | null> {
+  if (!src || !inApp()) return Promise.resolve(null);
+  let p = speech.get(src);
+  if (!p) {
+    p = invoke<{ speech: [number, number][] }>("voice_speech", { path: src })
+      .then((a) => a.speech)
+      .catch((e) => {
+        logError("voice finder", e);
+        // asked again next time: the finder may be fetched once the computer is online
+        speech.delete(src);
+        return null;
+      });
+    speech.set(src, p);
+  }
+  return p;
+}
+
 /** Which frame of a strip shows a second of the file. */
 export const frameAt = (s: Strip, fileTime: number) => Math.max(0, Math.min(s.count - 1, Math.floor(fileTime / s.step)));
