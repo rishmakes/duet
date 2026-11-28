@@ -34,6 +34,16 @@ describe("make_room (#399)", () => {
     expect(rows(doc)).toHaveLength(2);
   });
 
+  it("with push, a clip moved a little pushes what is after it only that little, with no gap (#452)", () => {
+    // b 4-7 moved 0.2 s later: c pushed from 7 to 7.2, not by b's whole length
+    let doc = runCommand(edit(), "set_timing", { ids: ["b"], start: 4.2, end: 7.2 });
+    doc = runCommand(doc, "make_room", { ids: ["b"], push: true });
+    expect(rows(doc)[0]).toBe("a 0-4, b 4.2-7.2, c 7.2-9.2");
+    // moved into a gap it fits in: nothing else moves
+    doc = runCommand(runCommand(doc, "set_timing", { ids: ["c"], start: 12, end: 14 }), "set_timing", { ids: ["b"], start: 8, end: 11 });
+    expect(runCommand(doc, "make_room", { ids: ["b"], push: true }).elements.c.start).toBe(12);
+  });
+
   it("leaves sound under clips alone, and is no step at all when nothing is covered", () => {
     const doc = edit();
     expect(runCommand(doc, "make_room", { ids: ["a"] })).toBe(doc);

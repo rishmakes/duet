@@ -2624,8 +2624,8 @@ const TOUCH = 0.03;
 /**
  * Make room on their tracks for things that just landed there, so no two things on one track play at once
  * and nothing is bumped to another track. By default nothing else moves: what they land on is covered, so a
- * clip under them gets shorter, is cut in two, or goes. With push, what starts later on the track moves
- * along by their length and a clip they land inside is cut there. A sound may sit under a clip, so sounds
+ * clip under them gets shorter, is cut in two, or goes. With push, a clip they land inside is cut there, and
+ * what starts later on the track moves along by as much as they now overlap it, with no gap. A sound may sit under a clip, so sounds
  * only make room among sounds. Things with no saved track (Motion) are left as they are.
  */
 const makeRoom: CommandDef<MakeRoomArgs> = {
@@ -2662,14 +2662,19 @@ const makeRoom: CommandDef<MakeRoomArgs> = {
       });
       if (a.push) {
         const from = Math.min(...spans.map((sp) => sp.start));
-        const by = round(Math.max(...spans.map((sp) => sp.end)) - from);
         next = splitAt.run(next, { sceneId, t: from, ids: others() });
         next = clone(next);
         const f = frame();
-        for (const id of others()) {
+        const later = others().filter((id) => spanOf(next.elements[id], f).start >= from - 0.001);
+        if (!later.length) continue;
+        // only as far as they now overlap the first one after them (#452): a clip moved a little pushes a little,
+        // a drop inside a clip (cut there, so the rest starts where it lands) pushes by its whole length
+        const first = Math.min(...later.map((id) => spanOf(next.elements[id], f).start));
+        const by = round(Math.max(...spans.map((sp) => sp.end)) - first);
+        if (by <= 0) continue;
+        for (const id of later) {
           const el = next.elements[id];
           const sp = spanOf(el, f);
-          if (sp.start < from - 0.001) continue;
           // one that ran to the end keeps its length as it moves on
           if (!el.end) el.end = sp.end;
           shiftTime(el, by);
